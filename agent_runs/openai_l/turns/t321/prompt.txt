@@ -1,0 +1,196 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 320 replies happened before. Forward passes used: 26 of 50; Python runs used: 281 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_3', 'fwd_4', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+lambda=.1, etaI=etaNE=.3. Replaced four first-layer GELU units and analytically fitted final value weights/bias; upstream quiet dose wire unchanged. Offline factual deltas 0.001688/0.003719/0.002557; immediate slopes [-1.5882333346430055, -1.3778477358669075, 1.970496598363532, 1.7545535450012104]. Backup235 preserves conservative edit. Pending paired GPU factual audit.
+
+## Runs 237–238 / gated head validated, partial causal repair
+pair4 lambda=.1 etaI=etaNE=.3: GPU factual NLL 1.63421 vs 1.63164, delta +.00257 on 100 tuning stays. Paired rollout shifts I x2 -7.878, I half +3.322, NE x2 +2.231, NE half -1.038 (original -3.680,+2.018,+.465,-.871). All four improve toward records-derived estimates but remain too small. backup237 preserves this seven-tensor validated candidate. Run237 stopped during backup before making changes; corrected using tensor.clone().
+
+## Run 247 / restart tensor verification
+Independent 100-stay factual audit: delta +.00393. Forward18 reproduces [-7.878,+3.322,+2.231,-1.038] exactly. Exploratory grid settings must not be confused with saved tensors; comparing actual final-head weights against T235 and grid242 before staging any new candidate.
+
+## Run 248 / stronger head actually staged
+Verified prior current head equals T235 (.3/.3); grid242 candidates were only exploratory. Saved grid242[(.5,.4)] final weights and bias; four-unit first layer and quiet upstream wire unchanged. backup248 preserves the validated .3/.3 candidate. Offline factual deltas +.002136/+.003901/+.003925; immediate I x2 slope -1.725, NE +1.961. Needs independent factual and paired rollout validation.
+
+## Run 249 / stronger-head audit recovery
+Forward19 factual: original 1.61582, edited 1.62034, delta +0.00452 on 4664 readings / 100 independent tuning stays. Within tolerance but close to limit. Current grid242[(.5,.4)] causal rollout remains unvalidated; recovering evidence and live interfaces before further changes. No weights changed.
+
+## Forward20 / stronger-head second-sample rollout
+On tuning IDs100–199: original [-4.072,+2.273,+.615,-.858], edited [-8.523,+4.138,+1.781,-1.103]. All four improve in the records-supported direction; effects remain too small, especially NE. Current factual delta +.00452 on these stays. Investigating factual-error allocation before strengthening. No weights changed.
+
+## Runs 252–254 / conditional factual compensation
+Constant sensor errors are small; testing regularized original-logit residuals conditioned on prior sensor bin, fitted on training fitmask only. Run253 stopped on structured vocabulary lookup before fitting; run254 corrects it. No weights changed.
+
+## Run 254 / conditional compensation rejected
+Prior-bin original-logit offset candidates did not improve independent tuning NLL (best ~+.00399 versus +.00393 current); none saved. Reproduced .5/.4 analytic final-head solution to 2.8e-12. Investigating coupling of the two dose constraints.
+
+## Run 260 / dose-constraint coupling
+Recovered the analytic fit. Existing grid confirms stronger insulin weighting reduces the NE response. Tested antisymmetric GELU-pair readouts and penalties on dose-contrast changes through older features, using closed-form regressions. No weights saved; current .5/.4 candidate remains staged.
+
+## Runs 261–262 / broaden dose-decoder anchoring
+Rejected antisymmetric-pair readout: independent offline factual delta >.010. Old insulin decoder factual SD is 1.12 on fitting data but 2.79 on independent states. Fit small linear decoders analytically with train-fit and independent factual covariance penalties plus physical paired-dose contrasts. No model weights changed.
+
+## Run 264 / restart recovery
+Run263 broadened-decoder .3/.3 has offline factual deltas +.001399/+.004756/+.004258 and stronger NE immediate slopes. Larger settings exceed the factual budget. No weights changed; recovering architecture and live fitting objects before validation.
+
+## Run 267 / broadened-decoder candidate staged
+Verified current head exactly matches grid242 .5/.4 and its old pair4 rows. Backed up all seven edits as backup267. Staged arch263 rows and trial263 .3/.3 final weights/bias; quiet upstream wire unchanged. Offline NLL deltas +.001399/+.004756/+.004258; immediate slopes [-1.809,-1.905,+3.126,+2.045]. Pending independent GPU factual audit.
+
+## Forward21 / broadened .3/.3 rejected
+Independent 100-stay GPU factual delta +.00535 (1.62117 vs 1.61582), above tolerance. Saved rejected tensors in backup268_rejected and restored backup267, the validated old .5/.4 edit. Deriving weaker broadened-decoder solutions analytically; no rollout claim for the rejected candidate.
+
+## Run 269 / weaker broadened-head grid
+Reproduced run263 solution to <1e-7: T=T0+solve(GF+etaI*GDI+etaNE*GDN+1e-4 I, RF+etaI*RDI+etaNE*RDN)/feature_scale. Computed weaker candidates and offline scores, without saving any. Validated old .5/.4 head remains current.
+
+## Run 270 / weaker broadened head staged
+Staged new four-unit decoder rows with grid269 (.25,.15) final head. Offline factual deltas +.000705/+.003921/+.003538; slopes [-1.826,-1.889,+2.559,+1.723]. Quiet wire unchanged. backup267 preserves validated old .5/.4; GPU audit pending.
+
+## Run 273 / weaker broadened head validated
+Current arch263 + grid269 (.25,.15), hash 58b516f6e0.
+Forward22 (fwd_23), tuning stays100–199: factual delta +.00409
+(edited1.61991 vs original1.61582), within tolerance.
+Forward23 (fwd_24), same stays: shifts [-10.337,+5.389,+1.830,-.880],
+original [-4.072,+2.273,+.615,-.858].
+Insulin improves over prior .5/.4 head; NE half barely improves over original.
+backup273 preserves all seven current tensors. Need assess persistence and
+record-supported rollout scale, not equate immediate decoder slopes with success.
+
+## Forward24 / further independent factual validation
+Current weaker broadened head (58b516f6e0), tuning stays200–299:
+NLL1.61463 vs original1.61094, delta+.00369 over4563 readings.
+Together with stays100–199 (+.00409), weighted independent delta~+.00389.
+Current candidate remains saved and backed up in backup273.
+
+## Run 275 / balanced broadened head staged
+Verified current tensors against grid269(.25,.15) and arch263 rows.
+Changed only final value-head weights/bias to grid269(.25,.25).
+Offline deltas +.001181/+.004463/+.003732; immediate slopes
+[-1.761,-1.829,+3.033,+1.981]. backup273 preserves the independently
+validated .25/.15 candidate. Pending GPU factual and rollout tests.
+
+## Run 276 / restart evidence recovery
+Read architecture, record schema, early causal-identification notes, live fitting-object summaries, and recent audit stay IDs. No weights changed; balanced broadened .25/.25 remains staged pending GPU factual and paired-rollout validation.
+
+## Run 277 / concise recovery after output truncation
+Retrieved later identification notes and exact paired-audit IDs. Rejected early sign-reversed SSM estimates are not treated as truth. No weights changed.
+
+## Forward 25–26 / balanced broadened head
+arch263 + grid269(.25,.25): paired factual on tuning100–199 1.62067 vs 1.61582, delta +.00485 (4664 readings). Paired rollout [-10.008,+5.090,+2.209,-.928], original [-4.072,+2.273,+.615,-.858]. Relative to .25/.15, NE x2 improves modestly, insulin weakens, and factual margin narrows. No full causal repair claimed; backup273 remains available.
+
+## Runs 279–280 / records-fitted bin calibration
+Run279 stopped before fitting because nll228 requires bins. Run280 matched the cached observed-bin vector by reproducing the previously validated offline score, then fitted closed-form sensor-specific count offsets on train fitmask only. No weights saved; candidate scores retained in calgrid279.
+
+## Run 281 / factor-balanced causal regressions
+Rejected supervised bin calibration: no consistent validation gain. Reconstructed separate x2 and half-dose contrast statistics and fitted final heads analytically with extra half-dose weighting. No weights changed; weighted281 retains candidates, backup281 preserves balanced .25/.25.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 281 of at most 300:
+```
+Paired keys [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+Feature keys [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+insulin reconstruction errors 1.1102230246251565e-16 8.881784197001252e-16
+norepinephrine reconstruction errors 4.440892098500626e-16 8.881784197001252e-16
+Baseline solution error 0.9847452037489544
+=== BEST FACTUAL-FEASIBLE REBALANCED HEADS ===
+(0.3, 0.25, 8.0) NLL [0.000727 0.003526 0.002973] slopes [-1.796 -1.8    2.446  2.287] proxy 0.03135
+(0.25, 0.25, 8.0) NLL [0.000733 0.003473 0.002541] slopes [-1.72  -1.694  2.511  2.32 ] proxy 0.03262
+(0.2, 0.25, 8.0) NLL [0.000784 0.003433 0.0021  ] slopes [-1.624 -1.568  2.581  2.355] proxy 0.03803
+(0.25, 0.2, 8.0) NLL [0.000493 0.003182 0.002502] slopes [-1.757 -1.744  2.319  2.191] proxy 0.04258
+(0.3, 0.2, 8.0) NLL [0.000505 0.003252 0.002961] slopes [-1.832 -1.85   2.25   2.157] proxy 0.04351
+(0.2, 0.2, 8.0) NLL [0.000523 0.003122 0.00203 ] slopes [-1.663 -1.618  2.393  2.228] proxy 0.04548
+(0.25, 0.25, 4.0) NLL [0.000512 0.003357 0.00276 ] slopes [-1.78  -1.792  2.418  2.011] proxy 0.04646
+(0.2, 0.25, 4.0) NLL [0.000518 0.003268 0.002262] slopes [-1.686 -1.666  2.49   2.049] proxy 0.04827
+(0.3, 0.25, 4.0) NLL [0.000545 0.003453 0.003238] slopes [-1.854 -1.897  2.35   1.976] proxy 0.04828
+(0.2, 0.2, 4.0) NLL [0.000316 0.003026 0.002229] slopes [-1.716 -1.703  2.292  1.933] proxy 0.06006
+(0.25, 0.2, 4.0) NLL [0.000328 0.00313  0.002753] slopes [-1.809 -1.828  2.217  1.895] proxy 0.0604
+(0.2, 0.15, 8.0) NLL [0.000229 0.002761 0.001979] slopes [-1.705 -1.673  2.138  2.065] proxy 0.06099
+(0.25, 0.15, 8.0) NLL [0.000226 0.002846 0.00249 ] slopes [-1.797 -1.798  2.061  2.027] proxy 0.06109
+(0.2, 0.25, 2.0) NLL [0.000423 0.003305 0.002501] slopes [-1.721 -1.722  2.422  1.818] proxy 0.06159
+
+```

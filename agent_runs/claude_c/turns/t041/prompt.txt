@@ -1,0 +1,195 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes). The weight values themselves are not available to you.
+   - You edit the model with operations. They are applied in order to the original weights whenever the forward tool runs
+     the edited model, and at the evaluation:
+     scale(name, c): multiply a whole tensor by the number c;
+     rank1(name, vector, alpha, side="out"): a rank-1 update along the unit direction v of the vector. With side "out" (v
+     has shape[0] entries), W <- W + alpha * v (v^T W): the tensor's output component along v is scaled by 1 + alpha.
+     With side "in" (2-D tensors, v has shape[1] entries), W <- W + alpha * (W v) v^T. For a 1-D tensor,
+     w <- w + alpha * v (v . w);
+     ops() lists the operations, undo() removes the last one, and clear_ops() removes them all.
+     Directions can come from anything you compute: the records, or the states the forward tool returns.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 40 replies happened before. Forward passes used: 4 of 50; Python runs used: 36 of 300. Your kernel is still running with its variables. Operations so far: ['1. rank1 embed.numeric.weight', '2. rank1 embed.numeric.weight']. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'notes.md', 'ops.json', 'tu_ids.json', 'vectors'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+# Notebook (ICU world-model dose repair)
+
+## Data facts (runs 1-15)
+- All stays 25.17 h; readings at integer hours (-1..24), drug records at h+0.0833 lasting 1 h.
+- Insulin policy (deterministic given reading): uses finger glucose at hour h (else lab if no finger). No insulin if <150;
+  tiers base rate 1/2/3/4(~4.2) U/h at thresholds 150/180/220/260 (50/50 at exact threshold values).
+  Rate = base * lognormal noise (log-sd ~0.3) rounded to 0.5. Noise is iid (lag1 corr 0.004, no stay effect,
+  no corr with pre-treatment vars). ALL 'skips' are at hour -1 (pre-ICU) -> skip variation is confounded, don't use.
+- NE: capped at 1.0 mcg/kg/min (13.6% at cap); given ~always when MAP<65; analysis pending.
+## Insulin causal effect (from within-tier rate noise among given doses, finger-tier hours)
+- dG(finger) per U/h of a 1-h dose: L=1 -1.98, L=2 -2.23, L=3 -1.75, L=4 -1.27, L=6 -0.45, L=8 -0.14, L=10/12 ~0.
+- Same across tiers (no glucose-level dependence); roughly linear in dose (no saturation seen up to ~6 U/h).
+- Naive regressions including skips give a fake 'rebound' (+2 at 12h) -> artifact.
+
+## Structural IRFs (run 22), triangular deconvolution of reduced forms on policy innovations
+- Insulin (finger glucose, per U/h 1-h dose): [-1.98,-2.33,-2.01,-1.63,-1.12,-0.88,-0.59,-0.45,-0.26,-0.10,-0.08,0]; cum -11.4
+- NE (map_arterial, per mcg/kg/min 1-h): [3.37,2.56,1.79,0.98,0.45,0.22,~0...]; cum ~ +9.4. Linear across rate strata.
+- NE policy: titration NE_t = NE_{t-1}*mult(MAP_t)*lognormal(sd .29), mult ~1.09 (<65), 1.0 (65-75), 0.9 (>75, stop 19%/h);
+  starts when arterial MAP<65 (arterial drives decisions). Cap 1.0.
+
+## Model diagnostics (passes 1-3)
+- Original dose_edit on tuning[0:100]: ins x2 -1.85, ins x1/2 +0.78, ne x2 -0.50, ne x1/2 -0.60. My estimated truth on same stay-hours:
+  -13.07, +6.54, +4.75, -2.38 (population ~ -13.6, +6.8, +4.6, -2.3). Readout = pooled mean over reached stay-hours (rows only at
+  recorded reading hours 13-24 of target code; reached = drug dose at h>=12 started before reading).
+- Model insulin response has right time-shape but ~1/7 magnitude. NE: negative for both x2 and x1/2.
+- Factual original tuning[0:100]: value NLL 1.63461 (n=4751). Model's teacher-forced slope of next glucose pred on within-tier dose:
+  +0.17+-0.26 (truth -2). NE slope 0.03+-0.8 (truth ~3). => model hasn't learned causal effects at all.
+- States: dose explains 14% of z posterior var at insulin bundles, ~0.3% of dOut/dH. z dose-direction also varies at reading bundles.
+- Concern: amplifying full-dose pathway double counts systematic (tier-driven) dose effect absorbed in reading dynamics.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 4 of 50 done (dose_edit); files in /work/fwd_4/. Summary:
+```
+{
+ "type": "dose_edit",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -1.847,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.777,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": -0.498,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.6,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -2.509,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 1.657,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.138,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.022,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    }
+   },
+   "file": "dose_edit_edited.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  }
+ },
+ "seconds": 72.1
+}
+```
+Forward passes left: 46.
+Edits used in this pass: embed.numeric.weight (edit hash b88ed2a209).

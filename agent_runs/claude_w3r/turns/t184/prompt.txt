@@ -1,0 +1,80 @@
+OUTPUT of Python run 171 of at most 300:
+```
+11195
+# Notes
+
+## Session 1 (restart 1)
+- Step 1: reading ARCHITECTURE.md and data README.
+- Architecture: dose/rate enter only via insulin/norepi atom embedding (embed.numeric cols z_dose,z_rate; embed.bins.dose/rate),
+  -> encode_action -> u_k -> z_post and prelude tokens. Values predicted via attr_heads.value_bin + embed_transition.value_bin[code*17+lastbin].
+  Dose edit: doses x2 / x0.5 from hour 12, readings from h13 drawn by model; readout = mean pred glucose_finger (or map_arterial) edited-factual over h13-24.
+- DATA: readings hourly (int hours -1..24), infusions start t+5min, 1h long. Weight fixed 80kg -> dose?rate. All stays 25.17h.
+- INSULIN POLICY: banded sliding scale on last glucose_finger: <150 off; 150-180 base1; 180-220 base2; 220-260 base3; 260-300 base4; >=300 ~6.
+  Within-band rate = multiplicative noise (log-sd ~0.35), i.i.d. across hours (lag1 corr 0.008) -> as-if random.
+- RESULT: one-hour effect of +1 u/h insulin deviation on next-hour glucose_finger: -1.98 (se .05) mg/dL; placebo on g_{t-1}: -0.02 (se .05).
+- Reduced-form IRF of insulin deviation x_t on g_{t+s}, s=1..8: -1.97,-2.23,-1.74,-1.19,-0.79,-0.49,-0.24,-0.12.
+  Policy feedback dr(m)=effect of x_t on r_{t+m}: 1.01, -.046,-.061,-.052,-.034,-.018,-.015,-.004.
+  Recursive structural IRF h(k) (fixed doses), per 1 u/h for 1h: -1.95,-2.29,-1.94,-1.51,-1.15,-0.84,-0.55,-0.38 (k=1..8). Peak lag2, decay ~0.75/h.
+  (2SLS distributed-lag gave positive lag7-8 -> likely misspecified; distrust.)
+  Rough expectation: insulin x2 readout ~ -10 to -15 mg/dL (to be computed on actual dose patterns).
+- FWD1 (original, tuning sel1 100 random stays): insulin_x2 -0.53, insulin_half +0.09, ne_x2 -1.33, ne_half -0.48 (n stays 55/21).
+  Readout rows = recorded outcome readings (gf / map_arterial) at hours 13-24; reached = a drug record started in [12,hour). Verified.
+  Records-based linear-IRF estimate on same rows: insulin x2 -12.5, x1/2 +6.25 -> model underestimates ~20x.
+- KEY DESIGN ISSUE: dose ~ band(glucose); model's glucose dynamics absorb band-level insulin effect. Adding effect ? actual r would
+  double count -> factual NLL disaster. Need edit acting on DEVIATION r - E[r|history] (z posterior = 'surprise' may encode it).
+- NOREPI POLICY: titration AR-like: r_t ~ 0.27+0.74 r_{t-1}+0.04 r_{t-2}-0.003 MAP; start if MAP<65; stop sometimes MAP>=75; cap 1.0.
+  Simple cell-mean policy failed placebo (x vs m_{t-1}: -1.73). Cross-fitted HGB policy on (m0,m1,m2,r1,r2,r3,mc0,t): R2 .93, innov sd .092;
+  placebos m3,m4 pass (-0.09?.10, 0.07?.10).
+- NOREPI EFFECT on map_arterial, structural IRF per 1 mcg/kg/min for 1h, lags1..12:
+  3.45,2.79,1.79,1.09,0.50,0.22,0.26,-0.14,0.07,-0.11,0.20,-0.18; cum ~10 mmHg (reached by lag 5-6).
+  Model original: ne_x2 -1.33, ne_half -0.48 -> wrong sign/size.
+- INSULIN refined (clean sample: gf measured at t, g>=155 so always on; band cell-mean deviation; IPW for meas at s>=2 (meas=1 if ins prev hour else 0.30 random)):
+  struct IRF lags1..12: -2.0,-2.45,-2.1,-1.7,-1.3,-1.0,-0.7,-0.5,-0.35,-0.25,-0.25,-0.3 ; cum -12.6..-13.2 by lag12. Robust to controls & HGB-x.
+  (full-sample HGB version gave positive tail -> contaminated by on/off region; distrust.)
+  Lag-
+fwd_1 ['dose_edit_original.csv', 'summary.json']
+fwd_2 ['states_original.npz', 'summary.json']
+fwd_3 ['factual_original.csv', 'summary.json']
+impl.py 4376
+impl2.py 2401
+impl3.py 13218
+impl4.py 1655
+notes.md 11204
+panel.pkl 37680793
+sel1.json 1200
+selS.json 1200
+list 59 B0 BANDS B_ Bs EU0 EU_ EUs Js Jz MBAND NAMES PMm S_list act act_ al at at2 attz bad codes cs eh eo errs ex_ funcs ia idx_ ins_k kinds ks last lines lv_ mcol meta names_ nl ok other others out_src pm_ pre rc recE rel_by res_u ri rn rowsE rows_h sel1 selS src2l tsc vc z9
+dict 35 CEN CODE LASTREG NUM OPTS P PA PREV PREVt S1 SHAPES TOK V VOCAB W Wpre Wt att_tab best bidx fns g gl inv key_k mean_by ns2 ns_impl obj r res_ scs sidx tab user
+function 63 D_ LN_ LNt R_ addlags age_emb atom_vec att_edit brief build_bundles core_step core_step_m core_step_p core_step_v cross_val_predict cvfit cvp cvr2 cvr2_ dnll drop_edit edges_of edit_atoms edited enc_eu eval_stay_rel f_ fbin ffn fit_a fit_at fit_c fit_lin fitd fn head_feats head_inputs lagrate lastval load load_original m_of mha mlp_t pred pred_c pred_mean_gf pred_v prelude_att read_stays run_stay s_of save_edit score score2 stay_data step_at step_parts sv targets u_of val zsc
+str 33 arch cc code code_txt dm ed et ev f fn_ g_ head hk kf kk kw l line n n_ name nm nm_ nmx notes_add p pm pv scn src src2 txt var
+module 22 F Fnn ast contextlib copy dis glob impl2 importlib inspect io itertools json math np os pd re sys time torch types
+type 5 Counter Head LinearSVC M defaultdict
+NpzFile 2 S_ z
+ndarray 193 A A_ A_i A_n Ae Au Bd C DEV DRG EA EALL EM ET FA FH GALL GX Ge Gf Go Goth Gu H H2 H2b IRF_I IRF_N Ins J JE JX Jo JoE KALL L1 L1g Mcell Mq O2s OALL OI Q QW Qs R Rv SHR SST SX Si Sig Sig_r Ti Tn UA UX UXh V2 Vc Ve Vu W2 Wk2 Wv2 X XE XO XU XW X_ Xc Xc_ Xd Xe_all Xe_nd Xf Xg Xo Xoth Xu Y YXi YXn Yi Yn Zall a a2 a_ at_ att_u b1n_ b_ bg cell ctrl cvec d d1 d2 dead1 dead2 dif dts e e_inf e_r e_st early er erh evE ev_ fq fresh g1n gE gain gfm gi glc gls gn gpn gr gr_ins gr_ne grp grp_ grp_g hh hr hrs isact isdrug le m_ mk msk mx mx1 mx2 ok_ on_edge pm_loc pq pr r2 r_ res rho ro rows rows0 rows_ rs ru rw sa se sel si sid snr ss stdv su svl svv te_ tg tg_i tg_n to tr_ tu usage v vb1 w_ xh yc_ yd yr yv yy zerr zh_n zin_n zsd zsd_ins zt
+DataFrame 23 D D1 DH F3 MT M_ TG TM TU dr ev0 ev2 fac fo fsa ins ip ip2 q rc_ rec rec_gf recs
+Head 2 HD hd
+int 23 L Ntot b1_ ci cn code_ f_ins hi i i0 idx k kappa lb nu s0 st_ tr trow ug um w wt
+float 17 age_s b b2_ c1 dt dtk dtn eps f_ne h lam lv mult ph t0 t_ tl
+float64 11 age ages c12 c13 k_ p_ q_ r2_ s2g s2m sl
+tuple 6 PN c r1 r5 rr_ v_
+Tensor 92 A_atoms Bw Cw E E0 E1 E160 EPS E_ Mage Mem O_ S2 Sg T_ Tn_ U Ug V_ W_kv W_m1 W_m2 Wv Xs0 Xs1 ab_ abar att att0 att_ b1n bE b_m1 b_m2 c17 cen ctx ctx_ dE d_ dec decay du e2 fa g1 h0_ h_ hc hid hm hp hpm ht ls m4 mu num o o0 o1 o_ o_ref op out_ pn pre1 pre2 ref s_ sp sp_ sv_ t tau_min top u2 u_r1 u_r2 uu view wc x y y0 y_ y_ref yc ym zk zm zo
+Series 7 RI RN Ser mI mN mapv rr
+Match 1 m
+Generator 1 rng
+int64 2 j s
+builtin_function_or_method 1 p4
+ABCMeta 4 GroupKFold LinearRegression Ridge RidgeCV
+LinearRegression 2 lr lr2
+float32 1 chk
+Module 1 tree
+ClassDef 1 node
+M 1 mm
+bool 7 hasI hasN incl isd mn mo mp
+NoneType 2 chk_ src_cs
+TextIOWrapper 1 fh
+code 2 c_ co
+set 1 test
+LinearSVC 1 svm
+defaultdict 1 gg
+
+```

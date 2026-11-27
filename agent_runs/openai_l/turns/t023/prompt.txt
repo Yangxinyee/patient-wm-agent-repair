@@ -1,0 +1,296 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 22 replies happened before. Forward passes used: 3 of 50; Python runs used: 19 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+00 tuning original shifts: I x2 -3.680, I half +2.018, NE x2 +0.465, NE half -0.871. Rich regression results retained in rich_fits; they are diagnostic, not yet accepted causal estimates.
+
+## Strengthened record evidence (run 4)
+Nonlinear history controls restricted to active infusions give insulin next-hour coefficients around -2.0 (finger and lab agree); NE around +3.1 on arterial and +3.6 on cuff when both current sensors observed. Earlier near-zero estimates were misspecified, not evidence of absent effects. Original factual tuning first100 NLL = 1.63164, n=4751. Run 5 fits a separate two-sensor random-baseline state-space model to estimate persistence; this does not modify world-model weights.
+glucose SSM parameters [144.1680625841136, 0.9263030096279322, 0.3154693959901756, 3.5763416283774636, 3.2934889974132835, 1.678039410652465, 2.1832857530220755, 1.1568945707731426, 0.037711265958233535], success True.
+MAP SSM parameters [75.25256805642357, 0.8879818156248919, -0.3778968848036003, 2.512353157927126, 2.005848208979782, 0.6511878302787533, 1.167060058781382, 1.7996778798728403, 3.091933533327739], success True.
+Provisional linear rollout targets: {"insulin_x2": 2.3193790074377105, "insulin_half": -1.1596895037188553, "ne_x2": -0.9474186067740055, "ne_half": 0.47370930338700273}
+
+## Restart / run 6
+SSM and rich-history coefficients disagree in sign. Treat SSM rollout targets as unvalidated, not causal truth. Recovering architecture, timing, and persistent analyses before choosing an edit.
+
+## Run 7
+Built independently aligned P (readings at integer hour) and A (drug records floored to their start hour). Inspecting treatment support and previous fit implementation; no causal target or edit accepted yet.
+
+## Run 8
+Insulin has sharp recorded-glucose dosing thresholds. Computing local-linear discontinuity ratios at 150.5,179.5,219.5,259.5, two bandwidths, both next-hour sensors, and pre-dose lab/observation-placebo checks. Also testing which MAP sensor drives NE selection. Results remain subject to placebo and precision checks.
+
+## Run 9
+Threshold evidence: insulin at 179.5 gives beta -2.04 (cluster SE .26, width12); at219.5 -2.28 (.48). Pre-dose lab jumps near zero; first150.5 threshold changes monitoring, so do not use that finger estimate alone. Implemented independent SSM with explicit observations -1..24 and action a[h] only in transition h->h+1, to test whether the old opposite-sign estimates arose from time alignment. No edits.
+
+## Run 10
+Explicitly aligned random-baseline SSM still conflicts with threshold evidence (glucose rho at .9999, beta -.033; MAP beta -.377). Therefore timing alone does not explain it. Fitting a separate profiled fixed-effect SSM with unrestricted stay-specific intercept and initial state; random-effect independence from adaptively selected treatments is suspect. This is a small record model, not world-model training.
+
+## Run 11
+Profiled fixed-effect SSM also gives incompatible effects (I -.419,rho .772; NE .435,rho .602), so neither simple SSM is accepted as a causal model. Insulin dose/base SD .343 overall and .330 within stay provides substantial within-stay variation. Built pre-action history features only and ran two-fold stay-separated flexible residualization (small statistical regressions, not world-model training), comparing all/active/both-current subsets and both sensors.
+
+## Run 12 / second restart
+Recovered architecture and persistent-variable inventory after original state export. No edits; insulin threshold evidence remains provisional, and neither conflicting SSM is accepted as causal truth. Next: inspect flexible residualization results and state/head pathways.
+
+## Run 14
+Recomputed cross-fitted two-treatment residual regressions with stay-clustered uncertainty and observation/active-treatment subsets; retained results in effects14. Inspecting NE policy support before accepting its effect.
+
+## Run 15 / alignment audit
+Run 14 subset masks mistakenly used columns 1:25 although P/A hour labels are 0:25. All-row residual coefficients were unaffected. Audited cross-fitted target reconstruction against offsets and recomputed masks with current hours 0:24; results retained in audit15 and effects15. No edits.
+
+## Run 16
+Alignment audit reconstructed dose at h and reading at h+1 exactly. Corrected DML: finger I=-1.936(.045), lab=-1.968(.079), arterial NE=3.049(.088), cuff=2.529(.172); arterial active/both-current=3.150(.158), cuff active/both-current=3.297(.428). Running independent insulin/NE threshold and pre-dose/monitoring-placebo checks. No edits.
+
+## Run 17
+Independent RD confirms finger insulin effect around -2 with pre-dose lab and monitoring placebos near zero. NE has no strong threshold first stage, so its RD ratios are NOT evidence. Estimated persistence using cross-fitted current-dose innovations, future outcomes, and future-dose residuals; models are separate record regressions, not world-model training. Results: {'glucose_finger': {'beta_anchor': -1.95, 'rho_h2': 1.1843901657922165, 'rho_h2_SE': 0.026718364441588156, 'kernel_lag2': -2.005241875550968, 'lag2_over_beta': 1.0283291669492143, 'rho_squared': 1.402780064825314}, 'glucose_lab': {'beta_anchor': -1.95, 'rho_h2': 1.1479572271952263, 'rho_h2_SE': 0.04674336033365004, 'kernel_lag2': -2.0225015960408346, 'lag2_over_beta': 1.0371803056619664, 'rho_squared': 1.3178057954697524}, 'map_arterial': {'beta_anchor': 3.1, 'rho_h2': 0.798530224335335, 'rho_h2_SE': 0.033821931868103325, 'kernel_lag2': 1.6581693284572787, 'lag2_over_beta': 0.5348933317604124, 'rho_squared': 0.6376505191770405}, 'map_cuff': {'beta_anchor': 3.1, 'rho_h2': 0.6343387617013322, 'rho_h2_SE': 0.059850520019256566, 'kernel_lag2': 1.3711487169076348, 'lag2_over_beta': 0.4423060377121403, 'rho_squared': 0.4023856645967795}}
+
+## Run 18
+Innovation-based persistence is not accepted as AR(1): I rho_h2=1.18 finger/1.15 lab but lag2/beta about1.03, inconsistent with rho^2; NE rho_h2=.80 arterial/.63 cuff, lag2/beta .535/.442. Running independent dynamic insulin RD and recovering exact head/vocab details. Dynamic RD kernels: {(179.5, 6, 'glucose_finger'): [-2.0, -2.2825629333444692, -1.6380767005368395, -0.6685756287878758, -0.43570675678634363], (179.5, 6, 'glucose_lab'): [-2.0, -2.6244192897242735, -1.323730803946258, -1.4465038671483337, -2.1328354352011347], (179.5, 12, 'glucose_finger'): [-2.0, -1.9286691838699255, -1.6655095667832636, -0.9973050809961331, -0.6217251413445759], (179.5, 12, 'glucose_lab'): [-2.0, -2.3843194891872472, -1.3381192860764797, -2.1112451007967996, -2.196939803863609], (219.5, 6, 'glucose_finger'): [-2.0, -2.439939771849313, -2.022240566690555, -1.8954732634405942, -1.6554350153186228], (219.5, 6, 'glucose_lab'): [-2.0, -4.207667644651504, -0.3301466973805788, 0.39552693719183585, -0.4555459557852317], (219.5, 12, 'glucose_finger'): [-2.0, -2.541688071630246, -1.9149790440306946, -2.185962256105463, -2.0262692223068313], (219.5, 12, 'glucose_lab'): [-2.0, -2.833701932078345, -2.2939384626089256, -1.5662332544028423, -1.9974355933520223]}
+
+## Run 19
+Independent dynamic RD shows delayed and declining insulin response, suggesting testing AR2 rather than forcing AR1. Higher-horizon innovation kernels and out-of-horizon AR2 predictions retained in kernels19 and ar2_predictions19. Measured kernels: {'glucose_finger': [-1.95, -2.309560823294822, -2.005241875550968, -1.603850386577875, -1.0841092995363333, -0.7821710394651412, -0.5042097400050339, -0.3755434211764299], 'glucose_lab': [-1.95, -2.2385165930306914, -2.0225015960408346, -1.4554437429171376, -1.1695181660533853, -0.8137586123330646, -0.5099624860342239, -0.2911248267002852], 'map_arterial': [3.1, 2.4754436954395387, 1.6581693284572787, 0.9433639872491649, 0.35728376967602093, 0.2745472164579554, 0.01817551193633286, 0.1668406960610107], 'map_cuff': [3.1, 1.9664501612741299, 1.3711487169076348, 0.5140990885791327, 0.6131312288760626, -0.17057540601591642, -0.06638572299454995, 0.07700460977812486]}
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 19 of at most 300:
+```
+Fitted ('insulin', 3) n 690000 seconds 2.3
+Fitted ('insulin', 4) n 660000 seconds 2.0
+Fitted ('insulin', 5) n 630000 seconds 1.9
+Fitted ('insulin', 6) n 600000 seconds 1.8
+Fitted ('insulin', 7) n 570000 seconds 1.7
+Fitted ('norepinephrine', 3) n 690000 seconds 1.9
+Fitted ('norepinephrine', 4) n 660000 seconds 1.7
+Fitted ('norepinephrine', 5) n 630000 seconds 1.7
+Fitted ('norepinephrine', 6) n 600000 seconds 1.6
+Fitted ('norepinephrine', 7) n 570000 seconds 1.6
+Fitted ('glucose_finger', 4) n 353362 seconds 1.3
+Fitted ('glucose_finger', 5) n 337702 seconds 1.2
+Fitted ('glucose_finger', 6) n 321962 seconds 1.2
+Fitted ('glucose_finger', 7) n 306035 seconds 1.1
+Fitted ('glucose_finger', 8) n 290018 seconds 1.1
+Fitted ('glucose_lab', 4) n 125683 seconds 0.7
+Fitted ('glucose_lab', 5) n 119800 seconds 0.6
+Fitted ('glucose_lab', 6) n 113767 seconds 0.6
+Fitted ('glucose_lab', 7) n 107771 seconds 0.6
+Fitted ('glucose_lab', 8) n 101862 seconds 0.6
+Fitted ('map_arterial', 4) n 287837 seconds 1.1
+Fitted ('map_arterial', 5) n 274169 seconds 1.0
+Fitted ('map_arterial', 6) n 260469 seconds 1.0
+Fitted ('map_arterial', 7) n 246785 seconds 0.9
+Fitted ('map_arterial', 8) n 233088 seconds 0.9
+Fitted ('map_cuff', 4) n 384823 seconds 1.3
+Fitted ('map_cuff', 5) n 366587 seconds 1.3
+Fitted ('map_cuff', 6) n 348215 seconds 1.2
+Fitted ('map_cuff', 7) n 329980 seconds 1.2
+Fitted ('map_cuff', 8) n 311610 seconds 1.1
+
+ glucose_finger AR2 coefficients 1.1844 -0.3745
+Measured kernels: [-1.95   -2.3096 -2.0052 -1.6039 -1.0841 -0.7822 -0.5042 -0.3755]
+Conditional SE:   [   nan 0.0521    nan 0.063  0.0696 0.0752 0.0813 0.0882]
+AR2 predictions:  [-1.95   -2.3096 -2.0052 -1.5102 -1.0378 -0.6636 -0.3974 -0.2222]
+
+ glucose_lab AR2 coefficients 1.148 -0.2806
+Measured kernels: [-1.95   -2.2385 -2.0225 -1.4554 -1.1695 -0.8138 -0.51   -0.2911]
+Conditional SE:   [   nan 0.0911    nan 0.1146 0.1343 0.1475 0.158  0.1786]
+AR2 predictions:  [-1.95   -2.2385 -2.0225 -1.6936 -1.3766 -1.105  -0.8822 -0.7026]
+
+ map_arterial AR2 coefficients 0.7985 -0.1028
+Measured kernels: [3.1    2.4754 1.6582 0.9434 0.3573 0.2745 0.0182 0.1668]
+Conditional SE:   [   nan 0.1048    nan 0.1257 0.1376 0.1473 0.159  0.1739]
+AR2 predictions:  [3.1    2.4754 1.6582 1.0697 0.6838 0.4361 0.278  0.1772]
+
+ map_cuff AR2 coefficients 0.6343 0.0399
+Measured kernels: [ 3.1     1.9665  1.3711  0.5141  0.6131 -0.1706 -0.0664  0.077 ]
+Conditional SE:   [   nan 0.1855    nan 0.2109 0.2229 0.2377 0.2516 0.2704]
+AR2 predictions:  [3.1    1.9665 1.3711 0.9483 0.6563 0.4541 0.3143 0.2175]
+
+=== NON-TRANSFORMER TENSOR NAMES ===
+attr_heads.rate_bin.0.bias (192,)
+attr_heads.rate_bin.0.weight (192, 192)
+attr_heads.rate_bin.2.bias (17,)
+attr_heads.rate_bin.2.weight (17, 192)
+attr_heads.status.0.bias (192,)
+attr_heads.status.0.weight (192, 192)
+attr_heads.status.2.bias (2,)
+attr_heads.status.2.weight (2, 192)
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+code_bias (13,)
+cont_head.0.bias (192,)
+cont_head.0.weight (192, 192)
+cont_head.2.bias (3,)
+cont_head.2.weight (3, 192)
+core.a_in (192,)
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.slots (4, 192)
+count_head.bias (15,)
+count_head.weight (15, 192)
+count_head_action.bias (15,)
+count_head_action.weight (15, 192)
+delay_head.0.bias (192,)
+delay_head.0.weight (192, 192)
+delay_head.2.bias (12,)
+delay_head.2.weight (12, 192)
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+embed.code.weight (13, 192)
+embed.ekind.weight (5, 192)
+embed.kind.weight (3, 192)
+embed.kq.weight (4, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+embed.text.weight (2, 192)
+exec_delay_head.0.bias (192,)
+exec_delay_head.0.weight (192, 192)
+exec_delay_head.2.bias (8,)
+exec_delay_head.2.weight (8, 192)
+exec_head.0.bias (192,)
+exec_head.0.weight (192, 192)
+exec_head.2.bias (5,)
+exec_head.2.weight (5, 192)
+filter_gate.bias (192,)
+filter_gate.weight (192, 384)
+filter_norm.bias (192,)
+filter_norm.weight (192,)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+monitor_head.0.bias (192,)
+monitor_head.0.weight (192, 192)
+monitor_head.2.bias (2,)
+monitor_head.2.weight (2, 192)
+pending_mlp.0.bias (192,)
+pending_mlp.0.weight (192, 192)
+pending_mlp.2.bias (192,)
+pending_mlp.2.weight (192, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+time_head.0.bias (192,)
+time_head.0.weight (192, 192)
+time_head.2.bias (12,)
+time_head.2.weight (12, 192)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+Numeric table type: list
+Numeric note: z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+Forward files: {'fwd_1': ['summary.json', 'dose_edit_original.csv'], 'fwd_2': ['summary.json', 'factual_original.csv']}
+
+```

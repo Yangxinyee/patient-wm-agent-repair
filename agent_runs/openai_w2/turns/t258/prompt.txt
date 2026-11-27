@@ -1,0 +1,177 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 257 replies happened before. Forward passes used: 28 of 50; Python runs used: 219 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+n current gains without improving generalization or demonstrating a safer candidate. Weights unchanged during audit.
+
+## Run186: restart recovery
+Current edit preserved. Rechecking architecture and decoder construction before adding independent training-state constraints; do not strengthen gains given the third-cohort factual-budget failure.
+
+## Forward24 / run187: independent states
+Obtained original states for 100 independent training stays (4144 bundles). Current weights unchanged. Reconstruct and validate features before refitting.
+
+## Runs188–189: reconstruction correction
+Initial reconstruction missed the two admission END atoms at each stay's terminal bundle and incorrectly treated a tuple as a tensor. Added all recorded END atoms and checked cached encodings, posterior states, and prelude return layout. No weight changes.
+
+## Run190: END-convention audit
+Counts alone did not validate reconstruction. Testing earlier best END routing/embedding convention against corrected Efull134 and original posterior states. No weight changes.
+
+## Run191: absent-attribute END reconstruction
+Best new-cohort convention empty_all, posterior RMS 0.13043982. Compared corrected old-cohort E against Efull134. No weight changes.
+
+## Run193: reconstruction audit resumed
+Run192 unit sweeps did not validate independent-cohort reconstruction. Current validated_B176 remains unchanged. Recovering architecture and previously validated helper conventions before using new states in a fit.
+
+## Runs193–198: independent-state reconstruction fixed
+Cached weights and time flow were correct. The remaining error was zero action input for bundles without actions: the forward implementation uses the encoded empty action set. Correcting this gives posterior RMS 3.646e-5 across 4044 noninitial bundles, with maximum per-bundle RMS 1.073e-4. Drug bundles also match at ~4e-5. validated_B176 is unchanged. New training-state features can now be used after confirming the prelude return layout.
+
+## Runs200–202: independent decoder design validated
+Current edit still exactly validated_B176. F147/Efull134 reproduce X147 exactly under the saved standardization. The normalized second prelude return supplies independent training features. Comparing pooled zero-factual-target fits at matched current NE doubled-dose probe sensitivity; these residual diagnostics are not factual NLL. No weight changes.
+
+## Run203: stay-held-out decoder comparison
+ probe_weight        ridge  old_CV_RMS  new_CV_RMS  pooled_CV_RMS  NE_double_mean  NE_half_mean
+       0.0003 1.000000e-07    0.031482    0.027508       0.029611        0.074672     -0.039583
+       0.0030 1.000000e-07    0.031513    0.027550       0.029647        0.074731     -0.039742
+       0.0030 1.000000e-06    0.031645    0.027513       0.029702        0.074766     -0.040470
+       0.0100 1.000000e-06    0.031740    0.027641       0.029812        0.074881     -0.040810
+       0.0300 1.000000e-06    0.032059    0.028065       0.030178        0.075083     -0.041547
+Weights remain validated_B176. Decoder residuals are only a proxy for factual disturbance, not a substitute for NLL.
+
+## Run204: provisional independent-state NE refit
+Installed only core.b_in.weight: insulin decoder unchanged; NE decoder from pooled old/new factual covariance, key (0.003,1e-7), matched to validated_B176 doubled-dose probe mean. Validated_B176 is the exact fallback. Must test factual NLL on the previously difficult third tuning cohort before acceptance.
+
+## Forward25 / run205: NE refit helps but is not sufficient
+Difficult-cohort factual delta 0.00557747; still above 0.005 locally. Investigating zero-factual-target insulin fits at matched existing doubled-dose probe sensitivity, without weight changes in this run. Held-out diagnostics:
+    pw        ridge  old_CV_RMS  new_CV_RMS   double      half
+0.0003 1.000000e-07    0.091973    0.086946 0.331540 -0.118723
+0.0030 1.000000e-07    0.091989    0.086980 0.331607 -0.118946
+0.0030 1.000000e-06    0.091747    0.086704 0.331614 -0.119333
+0.0100 1.000000e-06    0.091791    0.086791 0.331764 -0.119845
+0.0300 1.000000e-06    0.091973    0.087102 0.332092 -0.121077
+
+## Run206: insulin sensitivity constraints
+Unconstrained zero-factual fits reduce insulin residuals but weaken half-dose sensitivity and increase cross-drug sensitivity. Comparing small constrained regressions that preserve or proportionally adjust half-dose sensitivity and preserve or remove cross-decoder response. No claim that proxy residual improvements establish causal accuracy; rollouts and record evidence remain required. Weights unchanged.
+
+## Run207: restart recovery
+No weight changes. Recovering architecture, record-effect evidence, and constrained-decoder definitions before a direct factual test. Run206 residual reductions remain proxy evidence only.
+
+## Run208: compact candidate recovery
+Architecture read; no edits. Run207 output was truncated before candidate inventory. Inspecting recent saved objects only.
+
+## Run210–211: failed mapping, no installation
+Run210 stopped before save_edit because assumed X147 standardization of raw Efull134 failed (max error 9.20). Current edit remains candidate_B204. Recovering exact cached feature design/conversion rather than using an unvalidated map.
+
+## Run212: constrained insulin trial installed
+Recovered intercept-FIRST design convention. Verified exact cached standardization, LayerNorm affine folding and rank-two factorization. Installed preserve-half/preserve-cross insulin fit (0.003,1e-6), retaining candidate_W204 NE decoder. Only core.b_in.weight edited. Exact fallback: fallback_B212. Candidate requires paired factual NLL and rollout validation.
+
+
+## Forward26 / runs213–214: constrained trial needs more margin
+Difficult-cohort factual NLL delta +0.0050932033, stay-cluster SE 0.0014217141. By-event deltas: finger +0.004080, lab +0.000902, arterial +0.004678, cuff +0.007451. Improves on candidate_B204 but remains above 0.005 on this cohort. No weight changes; recovering candidates and record-based targets.
+
+## Run215: compact recovery
+Run214 output clipped before kernel inventory. Current weights retained as current_B215; original as original_B215. Compact candidate and target inventory only; no weight changes.
+
+## Run216: effect and validation inventory
+Current candidate remains the rank-two constrained insulin / pooled NE edit. Recovered record-effect and persistence objects and identified untouched tuning stays. No weight changes.
+
+## Forward27 / run217: untouched factual validation and target alignment
+Current candidate factual summaries: {'readings': 9475, 'stays': 200, 'original': np.float64(1.6175059208443274), 'edited': np.float64(1.6201375725593667), 'delta': np.float64(0.0026316517150395775), 'cluster_se': np.float64(0.0010610393749883006)}. Record targets use b_insulin=-1.8, rho=0.9696261, b_NE=3.6, rho_NE=0.8471704; these remain identification/model assumptions, not simulator truth. Audited pooled-hour versus equal-stay weighting and matched prior rollout hours. No weight changes.
+
+## Forward28 / run218: untouched rollout and exact factor recovery
+Current candidate improves all four responses over original on untouched stays. Compared responses to record targets at exactly the reached measurement hours. Recovered gains [0.9999999999691687, 1.000000000073213] and separate delta_ins218/delta_ne218, factor error 9.45e-07. No weight changes. Any strengthening requires direct factual validation.
+
+## Run219: controlled gain trial
+Installed candidate_B219 = original + 1.20*delta_ins218 + 1.35*delta_ne218, only core.b_in.weight. Exact fallback_B219 is candidate_B212 (hash 973acf3505). Motivation: on untouched matched reached hours current shifts are -11.26594/+4.61005 versus record targets -14.87714/+7.43857; NE +5.55432/-2.54535 versus +8.69952/-4.34976. Targets assume the fitted latent persistence and identified drug slopes. This stronger trial is NOT accepted; require paired factual budget and rollout validation.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 219 of at most 300:
+```
+INSTALLED CONTROLLED GAIN TRIAL
+component multipliers 1.2 1.35
+hash 6e3244681fe9
+edit norm 743.6996
+fallback exact True
+NEXT: paired factual tests before accepting or interpreting this trial.
+
+```

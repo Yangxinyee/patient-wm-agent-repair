@@ -1,0 +1,81 @@
+OUTPUT of Python run 104 of at most 300:
+```
+RESTORED [{'op': 'rank1', 'name': 'embed.numeric.weight', 'vector': 'vectors/v001.npy', 'alpha': 3.0, 'side': 'in'}]
+## Python run 53: query-state amplification pilot
+- Recovered existing gain-16 results: factual +0.00246, insulin -2.231/+1.531, NE +0.157/+0.085. No new forward pass spent; restored numeric gain 4.
+- Installed query_norm.weight scale 1.5, leaving its bias and reading registers unchanged.
+- Hypothesis: stronger state contribution at the reading head increases dose sensitivity. Factual safety is untested.
+- Forward passes used: 22.
+
+
+## Forward 23 / Python run 54: uniform query gain rejected
+- Query gamma x1.5 plus numeric gain 4: factual NLL 1.72639 vs 1.63461, +0.09178.
+- Restored numeric gain 4. The paired query-only changes relative to forward 9 can be used as an empirical head-sensitivity probe, not as an accepted repair.
+- Next assess whether a selective head correction can be predicted and made factual-safe.
+- Forward passes used: 23.
+
+
+## Python run 59: controlled head-response estimation
+- Aligned factual readings with preceding original/numeric-gain-4 states.
+- Fitting stay-held-out regressions to paired numeric and query-gain prediction changes.
+- These are empirical perturbation responses, not observational outcome associations.
+- No edits changed; forward passes used: 24.
+
+
+## Python run 71: alignment audit
+- Numeric gain 4 retained. Comparing conditional drug-state directions under original and gain-4 weights.
+- Earlier selective corrections used original-state directions; checking whether this mismatch explains failure.
+- No new forward pass; passes used: 27.
+
+
+## Python run 72: gain-4 direction recalibration
+- Gain 4 changes the NE out direction markedly (old/new cosine -0.070 in run 71).
+- Checking stay-split stability and minimum-factual-variance sensors using gain-4 states.
+- No new edits or forward passes; passes used: 27.
+
+
+## Python run 73: recalibrated head pilot
+- Gain-4 dose directions are stable across stay halves: cosine 0.890 insulin, 0.948 NE.
+- New factual sensor SD: insulin 1.096, NE 0.222 rate units at ridge 1e-4.
+- Installed numeric gain 4 plus 20%-strength input shear on attr_heads.value_bin.0.weight.
+- Surrogate increments: insulin/glucose -0.270, NE/MAP +0.588 per rate unit.
+- Factorization verified; factual and rollout behavior remain untested. Forward passes: 27.
+
+
+## Forward 28 / Python run 75: recalibrated pilot too strong
+- Strength 0.20: factual NLL 1.64358 vs 1.63461, increase +0.00897.
+- Saved its operation vectors and effective head transform in kernel variables.
+- Removed the head correction; numeric gain 4 alone is restored.
+- Inspecting the transform for a weaker, factual-safe pilot. Forwards used: 28.
+
+
+## Python run 76: half-strength recalibrated pilot
+- Installed numeric gain 4 plus the same head shear at strength 0.10.
+- Strength 0.20 failed factual fit by +0.00897; testing a weaker version.
+- Factual and rollout behavior at this strength remain untested. Forwards: 28.
+
+
+## Python run 87: selective prior-head gain
+- Earlier latent-input gain was ineffective; testing a distinct direct reading pathway.
+- Numeric gain 4 plus z_head input gain 10 on a two-dimensional latent dose-sensor subspace.
+- Sensors use gain-4 states, regularized factual second moments, and a zero-mean constraint.
+- Posterior-state geometry may not transfer to prior draws; factual and rollout tests are decisive.
+- Forward passes used: 32; candidate is unvalidated.
+
+
+
+SAVED DATAFRAME SCHEMAS
+reading59 (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+
+HEAD AND REGISTER TENSORS
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+embed_transition.value_bin.weight (221, 17)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+query_norm.bias (192,)
+query_norm.weight (192,)
+
+```

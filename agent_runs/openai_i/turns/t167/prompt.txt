@@ -1,0 +1,152 @@
+OUTPUT of Python run 149 of at most 300:
+```
+=== EARLY SECTION TITLES ===
+Initial inspection ? Python 1; forward 0
+Inspection ? Python 2; forward 0
+Hourly analysis ? Python 3; forward 0
+Nonlinear identification ? Python 4; forward 2
+Identification checks ? Python 5; forward 2
+Resumed investigation ? Python 6; forward 2
+Lagged-effect investigation ? Python 8; forward 2
+Local head reconstruction ? Python 9; forward 4
+Restart ? Python 10; forward 4
+Reconstruction inspection ? Python 12; forward 4
+Helper recovery ? Python 14; forward 4
+Head computation tests ? Python 16; forward 4
+Reconstruction recovery ? Python 17; forward 4
+Exact input investigation ? Python 18; forward 4
+Compact helper inspection ? Python 19; forward 4
+Behavioral reconstruction checks ? Python 20; forward 4
+Register-flag search ? Python 21; forward 4
+Register layout resolved ? Python 22?23; forward 4
+Restart ? Python 24; forward 4
+Python 25; forward 4
+Python 27; forward 4
+Python 28; forward 4
+Python 29; forward 4 ? first reversible edit
+Restart ? Python 30; forward 5
+Python 31; forward 5
+Python 32; forward 5
+Python 33; forward 6 ? scaling rejected
+Python 34; forward 6
+Python 35; forward 6 ? posterior reconstruction
+Python 36; forward 6
+Python 37; forward 6 ? restart recovery
+Python 38; forward 6
+Python 39; forward 6 ? edit design
+Python 40; forward 6
+Python 41; forward 6 ? full action encoding check
+
+=== LAGGED EFFECT AND ROLLOUT EVIDENCE ===
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.090980
+  map_arterial        1 146556            3.288830                0.091241
+  map_arterial        2 140386            2.619413                0.108577
+  map_arterial        3 134227            1.746272                0.119747
+  map_arterial        4 128040            0.978531                0.129902
+  map_arterial        5 121841            0.413443                0.143354
+  map_arterial        6 115642            0.262312                0.152404
+  map_arterial        7 109414            0.015095                0.165928
+  map_arterial        8 103125            0.023246                0.179389
+
+
+## Register-flag search ? Python 21; forward 4
+- Tested 64 binary flag layouts and five age encodings without changing weights.
+- Original rollout responses are weak relative to record-based impulse estimates.
+               age flag_columns      rms     bias      nll  mask_id
+              zero         (4,) 4.246606 1.894217 1.687699        4
+   hours_log_div10         (4,) 4.279984 2.014240 1.689289        4
+hours_linear_div10         (4,) 4.371322 2.171057 1.693805        4
+              zero           () 4.627127 1.905579 1.705522        0
+   hours_log_div10           () 4.673152 2.009212 1.706651        0
+              zero    (0, 3, 4) 4.680979 2.030317 1.754868        7
+   hours_log_div10    (0, 3, 4) 4.753480 2.146869 1.757741        7
+hours_linear_div10           () 4.776523 2.145068 1.711134        0
+
+
+## Restart ? Python 24; forward 4
+- No weights changed. Local head reconstruction is approximate and cannot certify factual loss.
+- Inspecting full architecture and tensor shapes to design a reversible dose-sensitive edit.
+- Record-based impulse estimates remain provisional; factual certification will use the forward tool.
+
+
+## Python 29; forward 4 ? first reversible edit
+- Estimated rollout targets by convolving recorded post-hour-12 rates with controlled impulse estimates; these are not intervention truth.
+        edit  exposed_stays  original_prediction  record_estimate_8_lags  record_estimate_with_tail
+  insulin_x2             52              -1.6118                -10.6853                   -10.9705
+insulin_half             52               0.7488                  5.3426                     5.4852
+       ne_x2             21               0.3234                  3.8352                     3.8352
+     ne_half             21              -0.0292                 -1.9176                    -1.9176
+- Probe only: multiplied encode_action.norm.weight and bias by 2, scaling action bundle vectors while leaving action-free bundles unchanged.
+- Must verify factual value-NLL <= original +0.005 and inspect paired dose responses; revert if unsuitable.
+
+
+## Python 48; forward 6 ? correction proposal
+- Retrieved controlled impulse estimates: insulin initially -1.99 per rate unit, with a multi-hour tail; NE initially +3.29 with a shorter tail.
+- Considering a posterior-mean low-rank edit driven by decoded dose innovations, with synthetic rate changes used only to test representation/extrapolation.
+- Effects are estimated from records, not medical assumptions. No weights changed.
+
+
+## Python 82; forward 6 ? edit plan
+- Recovered original rollout means: insulin x2 -1.864, half +0.975; NE x2 +0.342, half -0.032.
+- Proximal record estimates near insulin -2 and NE +3 require lag propagation to obtain rollout targets.
+- Plan: fit a posterior-hidden dose-innovation feature, constrain it on factual bundles, and validate a reversible low-rank recurrent edit.
+
+
+## Python 83; forward 6 ? reconstruction reset
+- Controlled impulse estimates have a multi-hour tail; matching only next-hour effects is insufficient.
+- Raw measurement rows have absent unit fields. Event metadata units must not be injected into their embeddings.
+- Inspecting exposed-state schema and retained conventions to rebuild posterior features directly.
+
+
+## Python 90; forward 6 ? distinguish proximal and cumulative targets
+- Controlled-lag convolution previously suggested insulin x2 about -11 and NE x2 about +3.8 on a selected subset.
+- These are observationally identified estimates, not supplied intervention truth.
+- Inspecting atom/posterior implementations and earlier exact conventions; no weights changed.
+
+
+## Python 103 ? choose an identifiable editing feature
+- Retained controlled impulse estimates have substantial multi-hour tails.
+- Inspecting actual bundle construction and helpers rather than guessing more END conventions.
+- No weights changed.
+
+
+
+=== FORWARD FILES ===
+fwd_1 ['summary.json', 'factual_original.csv']
+fwd_10 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+fwd_11 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+fwd_2 ['summary.json', 'dose_edit_original.csv']
+fwd_3 ['summary.json', 'states_original.npz']
+fwd_4 ['summary.json', 'factual_original.csv']
+fwd_5 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+fwd_6 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+fwd_7 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+fwd_9 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+
+=== VOCABULARY CONFIG ===
+{'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+numeric example: [(('map_arterial', 'value'), {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 77.0, 81.0, 84.0, 88.0, 92.0, 95.0, 98.0]})]
+state IDs: [1010000000 1010000001 1010000002 1010000003 1010000004 1010000005
+ 1010000006 1010000007] hours: [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833  3.
+  3.0833  4.      4.0833]
+
+=== RECURRENT HELPER CONTRACT ===
+core_step136 args: ('h_before', 'dt_seconds', 'e', 'u', 'z', 'memory', 'ages', 'age_mode', 'mask') names: ('torch', 'exp', 'W', 'cat', 'linear136', 'norm136', 'block136', 'range', 'F', 'softplus', 'mean') constants: ['core.flow.a', 'core.slots', 'z_in', 1, 'core.prelude.0', 4, 'core.prelude_norm', 2, 'core.blocks.0.', 'core.delta_in', 'core.a_in', 'core.b_in', 'core.c_out', 'core.coda.0', 'core.out_norm']
+block136 args: ('x', 'prefix', 'memory', 'ages', 'age_mode', 'mask') names: ('norm136', 'attention136', 'shape', 'mlp136', 'torch', 'log1p', 'unsqueeze', 'linear136', 'F', 'gelu') constants: ['.norm1', '.attn', 1, -1, 'core.age', 'input', 'key', '.norm2', '.cross', '.norm3', '.ffn.0', '.ffn.2']
+attention136 args: ('x', 'memory', 'prefix', 'key_add', 'mask') names: ('shape', 'torch', 'zeros_like', 'linear136', 'reshape', 'transpose', 'split', 'np', 'sqrt', 'masked_fill', 'softmax') constants: [2, 1, 0, '.q', 4, 48, '.kv', 192, -1, -2, 48.0, -1000000000.0, '.out']
+mlp136 args: ('x', 'prefix') names: ('linear136', 'F', 'gelu') constants: ['.0', '.2']
+atom145 args: ('r', 'unit', 'add_absent_bins') names: ('W', 'codes', 'event_kind_ids', 'code_info', 'torch', 'zeros', 'get', 'np', 'nan', 'pd', 'notna', 'numeric', 'clip', 'max', 'searchsorted', 'linear136') constants: ['event', 'embed.code.weight', 'embed.kind.weight', 0, 'embed.ekind.weight', 'event_kind', 6, 'median', 'iqr', 1e-08, -10, 10, 1, 'fine_bin_edges', 'left', 'embed.bins.', '.weight', 'embed.numeric', 'embed.categorical.', 'unit']
+pool137 args: ('atoms', 'prefix', 'zero_empty') names: ('torch', 'zeros', 'mlp136', 'stack', 'sum', 'np', 'sqrt', 'len', 'linear136', 'tensor', 'log1p', 'float32', 'norm136') constants: [192, '.mlp1', 0, '.size', '.mlp2', '
+[output cut at 10,000 characters]
+```

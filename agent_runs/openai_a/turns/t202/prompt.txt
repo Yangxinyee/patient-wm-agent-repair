@@ -1,0 +1,146 @@
+OUTPUT of Python run 181 of at most 300:
+```
+=== EARLY NOTEBOOK SECTION TITLES ===
+Architecture inspected; Python 2, forward 0
+Record transition analysis; Python 3, forward 0
+Original rollout and identification checks; Python 4, forward 1
+Factual baseline and dynamic identification; Python 5, forward 2
+More efficient dynamic checks; Python 6, forward 2
+Restart: Python 7, forward 2
+Sensor-contrast local projections; Python 9, forward 2
+Dynamic identification; Python 10, forward 2
+Representation inspection; Python 12, forward 3
+Kernel recovery; Python 18, forward 4
+Recovery and threshold identification; Python 23, forward 4
+Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+Restart recovery; Python 26, forward 4
+CPU head diagnostics; Python 32, forward 4
+Restart after Python 32
+Head recovery after Python 36
+Register layout test; Python 38, forward 4
+Restart diagnostics; Python 44, forward 4
+=== IDENTIFICATION FOLLOW-UP ===
+## More efficient dynamic checks; Python 6, forward 2
+- Replicate-sensor NE estimates are positive but rely on dose/error independence.
+- Insulin replicate-sensor level estimates are invalid if dosing uses finger noise; the negative sensor-difference IV is more defensible for insulin.
+- Enlarged first-difference samples using own-sensor instruments at lags >=2, which avoid overlapping current measurement errors.
+{
+  "('map_arterial', 'admission')": {
+    "coefficients": [
+      0.9825267853113245,
+      0.5165933079110422,
+      0.029677058825007888
+    ],
+    "se": [
+      0.006061144800747398,
+      0.1349655273885699,
+      0.0069651499853681
+## Restart: Python 7, forward 2
+- No edits yet. Insulin lag-IV is weak and unstable; NE estimates depend strongly on assumptions.
+- Recovering architecture, record timing, and earlier diagnostics before selecting a causal estimator or weight edit.
+
+## Sensor-contrast local projections; Python 9, forward 2
+- Reimplemented IV on future reading levels, controlling only pre-treatment history.
+- Pre-treatment placebo horizons test independence; weak first stages remain disqualifying.
+{
+  "('insulin', -2, False)": {
+    "n": 57248,
+    "beta": -0.038767269782738374,
+    "se": 0.6338392802791879,
+    "first_stage": 0.024831879550323475,
+    "first_stage_t": 46.31225775687944
+  },
+  "('insulin', -1, False)": {
+    "n": 61822,
+    "beta": -0.10167365879195693,
+    "se": 0.6044600978809811,
+    "first_stage": 0.0250430044370933,
+    "first_stage_t": 48.56454221088735
+  },
+  "('insulin', 1, False)": 
+## Dynamic identification; Python 10, forward 2
+- Prior-controlled sensor IV supports a modest negative immediate insulin effect; NE sensor instrument is weak.
+- Prior-controlled placebo lags 1/2 were tautologies; added earlier placebos.
+- Estimated persistence conditional on candidate effects and insulin impulse moments including later doses.
+{
+  "fixed_b_dynamics": {
+    "('insulin', -1.8)": [
+      [
+        -2.693714988473109,
+        0.3743989046404466,
+        224413
+      ],
+      [
+        -7.381247201106025,
+        2.1851839577620606,
+        209202
+      ],
+      [
+        9.064263420439419,
+        3.25877373442609,
+        197161
+  
+## Representation inspection; Python 12, forward 3
+- Python 11 stopped while inspecting list-valued numeric vocabulary; no edits were made.
+- Tested linear dose/reading decoding from post-drug out and mean h with stays held out.
+{
+  "insulin": [
+    0.8307965993881226,
+    1,
+    0.4609822928905487
+  ],
+  "norepinephrine": [
+    0.7113162279129028,
+    100,
+    0.15150652825832367
+  ],
+  "glucose_finger": [
+    0.9796723127365112,
+    0.1,
+    4.064848899841309
+  ],
+  "map_arterial": [
+    0.9844172596931458,
+    0.1,
+    1.7291861772537231
+  ]
+}
+
+=== DYNAMIC IDENTIFICATION RESULTS ===
+rd_dynamic_fit x: [-1.92870928  0.83183952]
+ne_dml_results: {1: {'all': {'beta': 3.3214268014980317, 'se': 0.09576999832526349, 'n': 299517, 'dose_residual_sd': 0.09073010103067478, 'outcome_residual_sd': 4.40471740317129}, 'interior': {'beta': 3.3480345525779405, 'se': 0.10803830467896791, 'n': 116511, 'dose_residual_sd': 0.12413404307882044, 'outcome_residual_sd': 4.590900888397296}}, 4: {'all': {'beta': 3.280136875394464, 'se': 0.09669211095919605, 'n': 260475, 'dose_residual_sd': 0.09223969594935504, 'outcome_residual_sd': 4.268125306872915}, 'interior': {'beta': 3.328771594136043, 'se': 0.10795623473196006, 'n': 99386, 'dose_residual_sd': 0.12647869705939818, 'outcome_residual_sd': 4.443289044173014}}, 8: {'all': {'beta': 3.3242140350967726, 'se': 0.10443699572843235, 'n': 208459, 'dose_residual_sd': 0.09364732007161047, 'outcome_residual_sd': 4.217548630415361}, 'interior': {'beta': 3.3899126865451534, 'se': 0.11784978539028063, 'n': 77672, 'dose_residual_sd': 0.12868938320587522, 'outcome_residual_sd': 4.40078981957742}}}
+=== EDIT CONSTRUCTION ===
+make_contrast_graft args (w, b, scale=1.0)
+varnames: ('w', 'b', 'scale', 'name', 'value', 'out', 'n0', 'n1')
+constants: (None, ('dtype',), 0, 1, 2, 3)
+sc_evaluate args (cache, w, b, scale=1.0)
+varnames: ('cache', 'w', 'b', 'scale', 'score', 'gt', 'a', 'logits', 'probs', 'nll', 'mean')
+constants: (None, 'x', ('dtype',), 'gate', 'logits', (Ellipsis, None), -1, 0, 'bins', 1e-30, 'centres', (0.001, 0.5, 0.999), ('nll', 'mean', 'signal_sd', 'signal_quantiles'))
+matched_causal_targets163 args (cube, beta, rho, drug_col, outcome_col)
+varnames: ('cube', 'beta', 'rho', 'drug_col', 'outcome_col', 'n', 'shift', 'reached', 'sums', 'counts', 'hour', 'dose_h', 'eligible', 'per_stay')
+constants: (None, ('dtype',), 13, 25, 0.0, ('nan',), 0, 1, -0.5, ('mean_x2', 'mean_half', 'eligible_stays', 'eligible_hours', 'stay_sd'))
+r3 candidate descriptor: {'w': array([-0.4837928 ,  0.46075726,  0.964523  , -0.1635398 , -0.23328596,
+       -0.37259677, -0.4000119 ,  0.18980566, -0.12749349, -0.10531396,
+       -0.81382084, -0.4983638 , -0.4872623 ,  0.08997019, -0.39174175,
+        0.4086898 ,  0.0185093 ,  0.13282989,  0.47605947, -0.94820946,
+       -0.34999862, -0.02920895,  0.00581292,  0.64650905,  0.87131184,
+       -0.3325767 , -0.58694875,  0.14958456,  0.41659158, -0.21051438,
+       -0.37499377,  0.30313236, -0.6383069 , -0.62158495, -0.46575388,
+       -0.62155735, -0.29817352, -0.72912323, -0.10058208, -0.74409527,
+        0.82228893,  0.2557307 ,  0.91198885,  0.9079549 ,  1.409485  ,
+        0.02955518, -0.4196968 ,  0.5953696 , 
+trial_r3: {'w': array([-0.4837928 ,  0.46075726,  0.964523  , -0.1635398 , -0.23328596,
+       -0.37259677, -0.4000119 ,  0.18980566, -0.12749349, -0.10531396,
+       -0.81382084, -0.4983638 , -0.4872623 ,  0.08997019, -0.39174175,
+        0.4086898 ,  0.0185093 ,  0.13282989,  0.47605947, -0.94820946,
+       -0.34999862, -0.02920895,  0.00581292,  0.64650905,  0.87131184,
+       -0.3325767 , -0.58694875,  0.14958456,  0.41659158, -0.21051438,
+       -0.37499377,  0.30313236, -0.6383069 , -0.62158495, -0.46575388,
+       -0.62155735, -0.29817352, -0.72912323, -0.10058208, -0.74409527,
+        0.82228893,  0.2557307 ,  0.91198885,  0.9079549 ,  1.409485  ,
+        0.02955518, -0.4196968 ,  0.5953696 , 
+sc_original keys: ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+sc_checkpoint keys: ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+Value-head tensor shapes: {'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.2.weight': (17, 192), 'attr_heads.value_bin.2.bias': (17,)}
+
+```

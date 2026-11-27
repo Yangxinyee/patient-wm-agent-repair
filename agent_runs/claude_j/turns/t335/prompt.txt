@@ -1,0 +1,30 @@
+OUTPUT of Python run 288 of at most 300:
+```
+edited []
+[('embed.bins.dose.weight', (17, 192)), ('embed.bins.rate.weight', (17, 192)), ('embed.bins.value.weight', (17, 192)), ('embed.categorical.action.weight', (2, 192)), ('embed.categorical.discharged_to.weight', (2, 192)), ('embed.categorical.rate_unit.weight', (4, 192)), ('embed.categorical.route.weight', (2, 192)), ('embed.categorical.status.weight', (2, 192)), ('embed.categorical.unit.weight', (6, 192)), ('embed.code.weight', (13, 192)), ('embed.ekind.weight', (5, 192)), ('embed.kind.weight', (3, 192)), ('embed.kq.weight', (4, 192)), ('embed.numeric.bias', (192,)), ('embed.numeric.weight', (192, 6)), ('embed.text.weight', (2, 192)), ('embed_transition.rate_bin.weight', (221, 17)), ('embed_transition.value_bin.weight', (221, 17))]
+arch lines 92 hits 23
+4 Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes 
+9 A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is 
+14 - its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour a
+20 - fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+21 - numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+23 Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `voca
+26 - Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+27 - dA and dB atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+30 ## State and one step per bundle (`core.*`)
+34 - a memory M of the last 128 bundle vectors e;
+37 **One step for bundle k**, arriving dt seconds after the previous one:
+54 ## Heads: predicting bundle k+1 from what is known before it
+58 - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_ml
+61 - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+62 - **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each t
+68                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+69                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+72   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, the
+73     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+74     (`vocab.json["value_bin_centres"]`).
+75   - **rate:** `rate_bin` works the same way for drug rates.
+83 2. From hour 13 on, readings are hidden. The model draws its own G and MAP values bundle by bundle and feeds t
+['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+
+```

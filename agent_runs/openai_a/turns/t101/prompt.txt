@@ -1,0 +1,158 @@
+OUTPUT of Python run 86 of at most 300:
+```
+=== EARLY NOTEBOOK SECTION INDEX ===
+26 ## Initial inspection
+395 ## Architecture inspected; Python 2, forward 0
+786 ## Record transition analysis; Python 3, forward 0
+2511 ## Original rollout and identification checks; Python 4, forward 1
+5366 ## Factual baseline and dynamic identification; Python 5, forward 2
+9123 ## More efficient dynamic checks; Python 6, forward 2
+13074 ## Restart: Python 7, forward 2
+13323 ## Sensor-contrast local projections; Python 9, forward 2
+19899 ## Dynamic identification; Python 10, forward 2
+22522 ## Representation inspection; Python 12, forward 3
+23076 ## Kernel recovery; Python 18, forward 4
+23378 ## Recovery and threshold identification; Python 23, forward 4
+
+=== THRESHOLD / RD EVIDENCE ===
+only for 100 state-sampled stays.
+- Continuing with bounded-memory head reconstruction and validation.
+
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edits.
+- Insulin policy has sharp rate jumps near finger glucose 150, 180, etc.; testing fuzzy RD rather than assuming observed dose associations are causal.
+{
+  "rd_checks": {
+    "(5, 1, False)": {
+      "n": 89398,
+      "beta": -2.11567545402709,
+      "se": 0.33683734799038334,
+      "first_stage_jump": 0.7135711767182463,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 1, True)": {
+      "n": 89398,
+      "beta": -2.0571854815200568,
+      "se": 0.3057137413636479,
+      "first_stage_jump": 0.7135240538160252,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, False)": {
+      "n": 89398,
+      "beta": -2.1113769908453865,
+      "se": 0.7234826044355352,
+      "first_stage_jump": 0.683167099721991,
+olumns; train_ids/tuning_ids retained.
+- Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Insulin RD beta -1.929, rho .83184; sustained training x2 estimate -11.136, first100 tuning -10.708.
+- No edits. Testing CPU head input scale/activation before a targeted edit.
+[{"activation": "gelu", "z_scale": 0.5, "rmse": 4.707948846187934, "nll": 1.7001694440841675, "glucose_rmse": 7.302835696966038, "map_rmse": 1.7710767839057695}, {"activation": "silu", "z_scale": 0.5, "rmse": 4.805556607877223, "nll": 1.7064082622528076, "glucose_rmse": 7.38153075058446, "map_rmse": 1.7654341463845393}, {"activation": "gelu", "z_scale": 0.75, "rmse": 5.053243847749229, "nll": 1.701265573501587, "glucose_rmse": 7.989134680906392, "map_rmse": 1.783603399706322}]
+
+## Register layout test; Python 38, forward 4
+[{"value_col": 6, "flag_col": 3, "status": 0, "rmse": 3.894617733991148, "nll": 1.676815152168274}, {"value_col": 6, "flag_col": 7, "status": 0,
+icies.
+- Residual dose is a candidate edit feature, not itself proof of causal identification.
+- GPU factual acceptance threshold remains original NLL + 0.005.
+
+## Residual-dose decoder; Python 52, forward 4
+- Held-out feature-decoder diagnostics: {'insulin': {'chosen_alpha': 1000.0, 'train_target_sd': 0.03078482858836651, 'tuning_target_sd': 0.024773716926574707, 'tuning_pred_sd': 0.01987367495894432}, 'norepinephrine': {'chosen_alpha': 1000.0, 'train_target_sd': 0.014999236911535263, 'tuning_target_sd': 0.011191831901669502, 'tuning_pred_sd': 0.00281846453435719}}
+- Decoders use final value-head hidden features, with zero targets on other event types.
+- This is an algebraic low-rank edit candidate; no model gradients or optimizer used.
+
+## Restart after Python 52; forward 4/50
+- Residual-dose feature decoders have negative held-out R2; not accepted as a safe repair.
+- Recovering exact architecture and prior identification evidence before editing.
+- Accep
+actual NLL increase <= 0.005.
+
+## Decoder unit check; Python 56, forward 4
+- Insulin is the first repair target because threshold estimates support its negative effect.
+- Testing whether a residual decoder can respond off-policy without damaging factual fit; negative R2 remains a warning.
+- Norepinephrine is unchanged pending stronger identification and separate validation.
+
+## Additional training states; Python 57, forward 5/50
+- Obtained all bundle states for training stays 1010000100..1010000199.
+- Correcting standardized/raw feature conventions before any weight edit.
+
+## First reversible insulin head probe; Python 58, forward 5/50
+- Rank-one final value-head edit; beta=-2.0, ridge alpha=10000.0.
+- Statistical target: factual insulin dose residual divided by local mean/logit-tilt sensitivity; zero on other outcomes.
+- Fitted using 200 training stays, no model gradients or weight optimizer.
+- CPU checks are approximate; GPU factual NLL and intervention 
+
+=== PAIRED ROLLOUT READOUTS (REACHED HOURS, THEN STAYS) ===
+9 original {'insulin_half': 0.5807, 'insulin_x2': -1.5, 'ne_half': -0.5774, 'ne_x2': -0.506}
+9 edited {'insulin_half': 0.8211, 'insulin_x2': -1.9148, 'ne_half': -0.5824, 'ne_x2': -0.5128}
+11 original {'insulin_half': 0.5807, 'insulin_x2': -1.5, 'ne_half': -0.5774, 'ne_x2': -0.506}
+11 edited {'insulin_half': 1.0266, 'insulin_x2': -1.5406, 'ne_half': -0.6159, 'ne_x2': -0.6122}
+
+Insulin x2: reached-hour means
+      (9, 'original')  (9, 'edited')  (11, 'original')  (11, 'edited')
+hour                                                                  
+13             -0.511         -0.659            -0.511          -3.789
+14             -0.937         -1.320            -0.937          -0.054
+15             -1.191         -1.616            -1.191          -3.231
+16             -1.482         -1.949            -1.482          -1.138
+17             -1.627         -2.107            -1.627          -2.263
+18             -1.940         -2.634            -1.940          -0.715
+19             -2.286         -2.993            -2.286          -2.500
+20             -2.049         -2.577            -2.049          -0.915
+21             -2.269         -2.815            -2.269          -2.585
+22             -2.419         -3.014            -2.419          -0.670
+23             -2.346         -2.986            -2.346          -2.630
+24             -2.808         -3.492            -2.808          -1.893
+
+=== LOCAL CPU FUNCTIONS ===
+_f (meta, panel, ids, predicted_policy)
+_fn (par)
+approximate_edit_cost (meta0, feature_tuple)
+as_numpy (x)
+brief_structure (obj)
+causal_shift_table (panel_array, ids, outcome, drug, beta, rho)
+compact_panel (df)
+cpu_head_parts (meta, states)
+cpu_head_probs (parts, n_samples=0, seed=731)
+drop_edit (name)
+edited ()
+fn (meta, states)
+fn0 (panel_array, ids, outcome, drug, beta, rho)
+fn1 (parts, n_samples=0, seed=731)
+func0 (x, trans, tensors)
+graft_probs (x, trans, tensors)
+head_average_probs3 (tensors, hidden=None)
+head_dose_data (meta, panel, ids, predicted_policy)
+head_score (mean, nll)
+head_unit_target (meta0, logits0, dose_data0)
+insulin_rd (horizon=1, bandwidth=10, degree=1, history=False)
+lin (x, prefix, weights={'attr_heads.value_bin.0.bias': tensor([-0.0167, -0.0096, -0.0686, -0.0070,  0.0271,  0.0680, -0.0165,  0.0352,
+        -0.0014,  0.0500, -0
+ln (x, prefix, weights={'attr_heads.value_bin.0.bias': tensor([-0.0167, -0.0096, -0.0686, -0.0070,  0.0271,  0.0680, -0.0165,  0.0352,
+        -0.0014,  0.0500, -0
+load (name)
+load_original (name)
+make_head_features (meta, states, gap_style='seconds_div10', register_style='interleaved', status=0, type_id=1, age_style='seconds', view_style='mean_prior')
+make_insulin_graft (beta)
+make_ne_data (n_lags)
+make_policy_data (panel)
+mlp (x, prefix, weights={'attr_heads.value_bin.0.bias': tensor([-0.0167, -0.0096, -0.0686, -0.0070,  0.0271,  0.0680, -0.0165,  0.0352,
+        -0.0014,  0.0500, -0
+np32 (x)
+rd_dynamic_residual (par)
+reading_metadata (records, states)
+repair_feature_sets (meta, sf)
+repair_head_features (meta, states)
+save_edit (name, tensor)
+shifted_col (col, horizon)
+short_stats (x)
+state_matrix (obj)
+
+=== GRAFT CONSTRUCTION DEPENDENCIES ===
+globals: ('graft_original', 'items', 'copy', 'graft_nodes', 'graft_gate_scale', 'gate_w', 'graft_decoder_w', 'graft_names', 'gate_b', 'graft_decoder_b', 'np', 'asarray', 'rank_template', 'graft_removed_mean', 'astype', 'float32')
+locals: ('beta', 'n', 'a', 'out', 'n0', 'n1')
+Source unavailable; dependencies above are retained.
+
+```

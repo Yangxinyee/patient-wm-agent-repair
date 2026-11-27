@@ -1,0 +1,114 @@
+OUTPUT of Python run 202 of at most 300:
+```
+=== NOTEBOOK CONTINUATION ===
+ide': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}.
+- Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+- Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+- No weight edits.
+
+## Restart after forward 5
+- Independent training states received in /work/fwd_5.
+- Rechecking architecture and reusable analysis objects before selecting an edit.
+- No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+
+## Run 23: head-only correction screening
+- Testing the selected register convention on original GPU predictions.
+- Preparing independent state samples for a no-gradient correction of treatment innovations.
+- Head-only edits would preserve the recurrent state and all other prediction heads directly.
+
+## Run 25: posterior-action ablation candidate
+- Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+- Latent sampling accounts for much of the local-vs-GPU head discrepancy.
+- Exploratory edit: zero z_post.0.weight[:,384:576], retaining direct action input.
+- Hypothesis: action-conditioned latent severity inference masks direct drug responses.
+- Requires paired factual and rollout tests; this is not yet a validated repair.
+- Earlier small-sample error-vs-innovation SE printouts include an intercept SE.
+
+## Forward 6 / run 26: failed posterior-action ablation
+- Removing z_post.0.weight[:,384:576] barely changed any dose-edit response.
+- Reverted the ablation; no tensors currently edited.
+- This does not support posterior action conditioning as the main cause of weak responses.
+- Reinspecting direct dose/state pathways before choosing another intervention.
+
+## Runs 27?33: local encoder reconstruction
+- Confirmed state layout: out = core.out_norm(mean of four h slots).
+- Drug-start latent reconstruction uses GELU, quality embedding row 0, and encoded empty measurement set.
+- Insulin: dose unit 3, rate unit 2; NE: dose unit 4, rate unit 3.
+- Recorded decimal doses resolve NE bin-boundary discrepancies; left-sided binning confirmed.
+- Measurement/empty-action and infusion-END conventions are being checked before any recurrence edit.
+- No tensors edited; 6 forward passes used.
+
+## Restart, runs 42?43
+- Re-read architecture. Doses enter recurrent state; value heads also use sensor-specific last-reading registers.
+- Run 42 inventory failed on a module's callable shape attribute, before any edit.
+- Best local recurrence remains approximate; current edits are empty, 6 forwards used.
+
+## Runs 45?48: dose representation and failed decoder
+- Dose encoder varies sharply and non-monotonically with rate; infusion END has no dose attributes and goes through the measurement encoder.
+- Ridge decoding of treatment innovations from posterior hidden features, including synthetic dose multipliers, failed held-out factual and dose-response tests. Do not use it.
+- Temporary diagnostic: action-encoder norm output fixed to the verified empty-action vector. Test paired factual NLL before deciding whether replacement is feasible.
+
+## Restart / forward 7
+- Empty-action ablation: factual NLL 1.65737 versus original 1.63933, +0.01804; fails the +0.005 constraint. Reverted all edits.
+
+## Restart, runs 55?59
+- Re-read architecture and inspected local recurrence.
+- Run 58 stopped on context tuple/tensor mismatch; no edit.
+- Run 59 tests dose/innovation decoding at drug bundles on stay-held-out splits.
+
+## Restart after run 61
+- Run 61 found two local latent-response correction directions, but no weights were edited.
+- Complete encoder RMSE remained about 0.084; recurrence diagnostics included NaNs and large errors.
+- Local mean response matching is not sufficient evidence of a valid rollout repair.
+- Reinspect architecture and persistent candidate objects before testing any edit.
+
+## Runs 65?66: reconstruction bookkeeping bug
+- Forward states are in interleaved stay order, not sorted by stay ID.
+- np.searchsorted on stay IDs selected incorrect memory boundaries; fixed local diagnostic boundaries.
+- Zeroing empty-action vectors worsened posterior reconstruction and was not retained.
+- Held-out action-u linear rate decoding active R2: insulin .653, NE .519; innovation R2 .281/.180.
+- No weight edits. Revalidate recurrence conventions using saved posterior means.
+
+## Runs 67?68: provisional response reconstruction
+- Global attention packing and current-inclusive memory improved local recurrence substantially.
+- Best local convention remains approximate; it cannot certify factual fit or rollout effects.
+- Recomputed latent response directions across stay-held-out samples and checked finite-sized shifts.
+- No weights edited. Any eventual candidate requires paired GPU factual and rollout validation.
+
+## Restart after run 68
+- No edits retained. Infinitesimal latent-response fits did not yield stable finite-innovation responses.
+- Re-reading architecture and inspecting persistent objects before selecting a finite-dose, GPU-validated candidate.
+- Small-perturbation agreement alone is not evidence of causal rollout accuracy.
+
+## Runs 74?75: response randomness audit
+- Run 74 stopped on time-gap broadcasting; no edits or conclusions.
+- Run 75 corrects the gap shape and repeats the identical-state test.
+
+## Restart after run 75
+- Identical-state test exposed randomness in the old readout; the corrected readout was exactly repeatable.
+- No edits retained. Rechecking architecture and corrected routines before drawing finite-dose conclusions or submitting an edit.
+
+## Run 80: corrected latent-response audit
+- With shared random draws, posterior-latent Jacobian norms were roughly 0.0001?0.0009 reading units per latent unit.
+- Earlier large latent-response directions were sampling artifacts and are rejected. No edits.
+- Next examine the direct action/recurrent pathway.
+
+## Runs 84?88: action-path
+
+=== PRIVATE-CHANNEL NORMALIZATION AND DECAY ===
+core.flow.a changed [15, 21, 61, 66] values [0.0, 0.0, 0.0, 0.0] original [-7.522090911865234, -7.535656929016113, -9.943806648254395, -10.513949394226074]
+core.delta_in changed [15, 21, 61, 66] values [0.5413248538970947, 0.5413248538970947, 0.5413248538970947, 0.5413248538970947] original [0.4392189383506775, 0.3886909782886505, 0.5839543342590332, 0.5611814856529236]
+core.out_norm.weight changed [15, 21, 61, 66] values [0.7337767481803894, 0.6651872992515564, 0.6651872992515564, 0.7337767481803894] original [0.7655336260795593, 0.6866202354431152, 0.6437543630599976, 0.7020198702812195]
+core.out_norm.bias changed [15, 21, 61, 66] values [0.024026401340961456, -0.003536416683346033, -0.003536416683346033, 0.024026401340961456] original [0.03722267597913742, -0.016661332920193672, 0.009588499553501606, 0.010830128565430641]
+query_norm.weight changed [15, 21, 61, 66] values [0.8723554611206055, 0.910669207572937, 0.910669207572937, 0.8723554611206055] original [0.9046004414558411, 0.9212604761123657, 0.9000779986381531, 0.8401104807853699]
+query_norm.bias changed [15, 21, 61, 66] values [-0.05032379552721977, 0.07325469702482224, 0.07325469702482224, -0.05032379552721977] original [-0.08319122344255447, 0.08518674224615097, 0.0613226518034935, -0.01745636574923992]
+core.prelude_norm.weight changed [] values [] original []
+core.prelude_norm.bias changed [15, 21, 61, 66] values [0.0, 0.0, 0.0, 0.0] original [-3.0713399610249326e-05, -0.02125530131161213, -0.033031564205884933, -0.008049788884818554]
+
+=== VALUE-HEAD ROW CHANGES ===
+attr_heads.value_bin.0.weight largest row changes [(74, 2768.09595), (107, 2768.02222), (109, 591.35278), (64, 591.16437), (171, 14.35122), (124, 12.84507), (10, 11.81429), (7, 11.65235), (146, 0.29975), (114, 0.20975), (119, 0.20232), (185, 0.19401), (71, 0.18822), (166, 0.18065), (190, 0.17688), (60, 0.17442)]
+attr_heads.value_bin.0.bias [(7, -0.43579, 0.00221), (10, 0.69999, -0.06028), (64, -6.83229, -0.01907), (74, -10.65944, -0.10586), (107, -0.34594, 0.014), (109, 1.05967, -0.03176), (124, -6.33523, 0.01526), (171, -9.92898, -0.11368)]
+attr_heads.value_bin.2.weight largest row changes [(16, 30.91391), (1, 29.4133), (0, 29.34939), (15, 27.62742), (2, 25.64745), (14, 23.64112), (3, 21.93479), (13, 19.61873), (4, 18.36016), (5, 14.58928), (12, 14.13073), (6, 10.63944), (11, 8.49675), (7, 6.76378), (10, 4.44753), (8, 3.2352)]
+attr_heads.value_bin.2.bias [(0, -0.30484, -0.30546), (1, -0.13168, -0.1269), (2, -0.05139, -0.0235), (3, -0.10906, -0.08068), (4, 0.04934, 0.05955), (5, 0.0555, 0.03049), (6, 0.06406, 0.03887), (7, 0.05193, 0.04921), (8, 0.07004, 0.07858), (9, 0.06075, 0.06139), (10, -0.0408, -0.04378), (11, -0.03003, -0.03152), (12, -0.01344, 0.00822), (13, -0.05825, -0.03348), (14, 0.00998, 0.02504), (15, -0.03238, -0.02412), (16, -0.10543, -0.09723)]
+
+```

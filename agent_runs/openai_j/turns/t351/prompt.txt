@@ -1,0 +1,104 @@
+OUTPUT of Python run 295 of at most 300:
+```
+ROLLOUT GROUP AUDIT:
+fwd_42 type dose_edit split tuning n_stays 100
+  edit_hash e9fb2db92f
+fwd_46 type dose_edit split tuning n_stays 100
+  edit_hash e9fb2db92f
+fwd_47 type dose_edit split tuning n_stays 100
+  edit_hash e9fb2db92f
+fwd_48 type dose_edit split tuning n_stays 100
+  edit_hash e9fb2db92f
+
+POOLED REACHED-HOUR READOUTS:
+        edit  n_stay_hours  n_reached_stays  original     edited  stay_boot_lo  stay_boot_hi
+  insulin_x2          2009              214 -3.803640 -10.004915    -10.725034     -9.279888
+insulin_half          2009              214  2.004526   5.220235      4.709242      5.763377
+       ne_x2          1080               96  0.701240   1.379828      1.095363      1.672216
+     ne_half          1080               96 -0.737917  -1.324589     -1.679990     -0.989942
+
+EDITED READOUT BY GROUP:
+                               mean  size
+forward_dir edit                         
+42          insulin_half   5.254084   554
+            insulin_x2   -10.007782   554
+            ne_half       -1.504567   281
+            ne_x2          0.939964   281
+46          insulin_half   5.435938   487
+            insulin_x2   -10.320851   487
+            ne_half       -1.542521   300
+            ne_x2          1.320168   300
+47          insulin_half   5.342760   432
+            insulin_x2   -10.142129   432
+            ne_half       -1.346223   257
+            ne_x2          1.609594   257
+48          insulin_half   4.890512   536
+            insulin_x2    -9.604310   536
+            ne_half       -0.822469   242
+            ne_x2          1.720531   242
+
+POOLED FACTUAL SAFETY:
+{
+  "n_stays": 400,
+  "n_readings": 18654,
+  "original_nll": 1.6236082824059184,
+  "edited_nll": 1.6269502519566847,
+  "delta_nll": 0.0033419695507665922,
+  "stay_boot_95": [
+    0.0019262055578089716,
+    0.00476360595370604
+  ]
+}
+
+FACTUAL DELTA BY SENSOR:
+                    mean  size
+event                         
+glucose_finger  0.004860  5594
+glucose_lab     0.006237  2003
+map_arterial    0.001457  4665
+map_cuff        0.002482  6392
+
+EARLY RECORD-BASED ESTIMATION NOTES:
+# Weight-repair notebook
+## Initial plan
+- Inspect architecture and data before choosing an edit.
+- Infer drug effects solely from the supplied simulated-ICU records.
+- Distinguish treatment-selection associations from treatment effects.
+- Use statistical fits and algebraic weight edits only; no gradients or optimiser.
+- Validate factual value NLL and rollout effects, including cross-sensor consistency.
+- No findings or edits yet.
+
+## Inspection
+- Architecture: drug action embeddings affect the recurrent state shared by all heads.
+- Value heads also have code-specific last-reading transitions.
+- Broad action edits may affect all-output log loss; prefer selective, evidence-based edits.
+- Python runs: 2. Forward passes: 0. No edits yet.
+
+## Hourly panel and preliminary associations
+- Infusions begin at hour t+0.0833, after hour-t measurements.
+        sensor          controls      n   insulin  insulin_se  norepinephrine  norepinephrine_se  residual_sd
+glucose_finger  current readings 298450 -2.098636    0.042771       -0.243935           0.140247    13.540091
+glucose_finger full past history 298450 -2.169121    0.039892       -0.064443           0.280626    12.713684
+   glucose_lab  current readings  28483 -1.108132    0.095744        0.520534           0.234678     7.135888
+   glucose_lab full past history  28483 -1.475258    0.104063        0.347124           0.488524     7.053169
+  map_arterial  current readings 312563  0.021053    0.016460       -0.616412           0.050659     4.727718
+  map_arterial full past history 312563 -0.001370    0.016657        1.982264           0.085269     4.380650
+      map_cuff  current readings 333382 -0.035490    0.031285       -6.659195           0.153377     7.988392
+      map_cuff full past history 333382 -0.035838    0.027808       -0.664094           0.218828     7.302487
+- These are conditional associations, not established causal effects.
+- Python runs: 3. Forward passes: 0. No edits yet.
+
+## Baseline rollout and flexible residualisation
+- Original tuning first 100: insulin x2 -3.68; half +2.018; NE x2 +0.465; half -0.871.
+- Two-fold cross-fitting by stay; flexible history controls and treatment-presence indicators.
+        sensor                  sample      n   insulin  insulin_se  norepinephrine  norepinephrine_se
+glucose_finger       all next readings 400154 -2.009795    0.045709        0.385314           0.264109
+glucose_finger current sensor observed 298450 -2.018225    0.046122        0.520053           0.302609
+   glucose_lab       all next readings 143791 -2.090995    0.076287       -0.342455           0.364291
+   glucose_lab current sensor observed  28483 -1.846260    0.158770       -0.031431           0.581099
+  map_arterial       all next readings 328940  0.008857    0.021188        3.121313     
+
+CANDIDATE-BUILDER FUNCTIONS:
+['candidate_wt277']
+
+```

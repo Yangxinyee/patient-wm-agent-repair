@@ -1,0 +1,109 @@
+OUTPUT of Python run 288 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RECENT FACTUAL AUDITS ===
+/work/fwd_25/factual_edited.csv rows: 4563 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+stay range: 2020000200 2020000299 unique stays: 100
+/work/fwd_26/factual_edited.csv rows: 4664 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+stay range: 2020000100 2020000199 unique stays: 100
+/work/fwd_28/factual_edited.csv rows: 4664 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+stay range: 2020000100 2020000199 unique stays: 100
+AUDIT_STAYS_JSON: [2020000100, 2020000101, 2020000102, 2020000103, 2020000104, 2020000105, 2020000106, 2020000107, 2020000108, 2020000109, 2020000110, 2020000111, 2020000112, 2020000113, 2020000114, 2020000115, 2020000116, 2020000117, 2020000118, 2020000119, 2020000120, 2020000121, 2020000122, 2020000123, 2020000124, 2020000125, 2020000126, 2020000127, 2020000128, 2020000129, 2020000130, 2020000131, 2020000132, 2020000133, 2020000134, 2020000135, 2020000136, 2020000137, 2020000138, 2020000139, 2020000140, 2020000141, 2020000142, 2020000143, 2020000144, 2020000145, 2020000146, 2020000147, 2020000148, 2020000149, 2020000150, 2020000151, 2020000152, 2020000153, 2020000154, 2020000155, 2020000156, 2020000157, 2020000158, 2020000159, 2020000160, 2020000161, 2020000162, 2020000163, 2020000164, 2020000165, 2020000166, 2020000167, 2020000168, 2020000169, 2020000170, 2020000171, 2020000172, 2020000173, 2020000174, 2020000175, 2020000176, 2020000177, 2020000178, 2020000179, 2020000180, 2020000181, 2020000182, 2020000183, 2020000184, 2020000185, 2020000186, 2020000187, 2020000188, 2020000189, 2020000190, 2020000191, 2020000192, 2020000193, 2020000194, 2020000195, 2020000196, 2020000197, 2020000198, 2020000199]
+
+=== SAVED CANDIDATES ===
+grid286 {'(0.25, 0.3, 4.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0009550175416770185', '0.003912336776083577', '0.0029629472394956014', ['-1.7230163323923364', '-1.7323705602338304', '2.8243927882108917', '2.1935769431426353']], 'proxy': '0.029850949842818122'}, '(0.25, 0.3, 8.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0012169063377366817', '0.004091738740731289', '0.0027931329544375228', ['-1.6580602581784776', '-1.6262032669380853', '2.8880819606166153', '2.4791784775653394']], 'proxy': '0.023691403383587238'}, '(0.25, 0.4, 4.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0012011267599367707', '0.004156732962652915', '0.002978064134416825', ['-1.6748233809792263', '-1.6717934715682026', '2.991806362457714', '2.3360764743253153']], 'proxy': '0.02555321242043412'}, '(0.25, 0.4, 8.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0015392459984398265', '0.0044760074807207425', '0.0028768647162488404', ['-1.5978315301226345', '-1.5458683682462075', '3.0432454059731504', '2.6227428641996697']], 'proxy': '0.02490109500271309'}, '(0.25, 0.5, 4.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0014166819289830959', '0.004376889140985159', '0.0030028083726865292', ['-1.6306406672372225', '-1.6165363156723396', '3.114039920143378', '2.4482325898671338']], 'proxy': '0.025072468381541015'}, '(0.25, 0.5, 8.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0018198560243333829', '0.004839987000742991', '0.0029765687861599654', ['-1.5444423052218303', '-1.4754091913860528', '3.154172886647273', '2.7277522546801456']], 'proxy': '0.029303329659162016'}, '(0.25, 0.6, 4.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0016088115903099627', '0.004582619928413059', '0.0030341930988451245', ['-1.589950651700353', '-1.5659036147564769', '3.2072589571837224', '2.538889603409311']], 'proxy': '0.026712425886510287'}, '(0.25, 0.6, 8.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.002072057875224088', '0.005193424038582415', '0.0030885755347580153', ['-1.4966888275951322', '-1.4130293129597817', '3.237586854416314', '2.8077557478522355']], 'proxy': '0.03518163746167208'}, '(0.35, 0.3, 4.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0010020441386630983', '0.004074154330217181', '0.003831550325070673', ['-1.8636846879242734', '-1.928131616980232', '2.7054799800383433', '2.124691315925892']], 'proxy': '0.029316097861059386'}, '(0.35, 0.3, 8.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.001193238590600712', '0.004172030227852798', '0.0035750382721964945', ['-1.8027382990182115', '-1.824663843209165', '2.774135268205821', '2.4175065736959005']], 'proxy': '0.017338535831192874'}, '(0.35, 0.4, 4.0)': {'T': {'shape': [193, 17], 'dtype': 'float64'}, 'score': ['0.0012151580128767399', '0.004289642941698051', '0.003800905588775352', ['-1.81935844347397', '-
+[output cut at 10,000 characters]
+```

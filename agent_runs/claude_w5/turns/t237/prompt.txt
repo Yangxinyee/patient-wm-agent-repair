@@ -1,0 +1,52 @@
+OUTPUT of Python run 215 of at most 300:
+```
+11252
+# Notebook
+
+## Run 1-2: read ARCHITECTURE.md, README. Doses enter via action atoms -> encode_action -> u_k -> z_post and prelude token.
+
+## Runs 2-13: data structure
+- All stays 25.17h; readings on the hour (-1..24), drug records at h+5min (0..24), each runs 1h.
+- Norepi dose = 4.8*rate (fixed weight), rate capped at 1.0. Insulin dose = rate. Rates in 0.5 steps.
+- INSULIN POLICY (sliding scale on recorded glucose at same hour, finger else lab): g<150 none; 150-180 base 1; 180-220 base 2;
+  220-260 base 3; 260-300 base 4; >300 ~6. rate = round0.5(base*exp(eps)), eps sd~0.31.
+  Thresholds sharp at recorded value (180 exactly = 50/50) -> policy uses measured value, not latent.
+- eps is exogenous: corr with eps_prev, past dg, lab-finger, MAP, norepi, hour all ~0; no stay-level component.
+  => within-band dose variation is randomised; regression of future glucose on rate | g_now identifies causal effect.
+- finger vs lab: no bias, sd diff 9.1. cuff = art + 3 (sd 6.7). hourly finger diff sd 14.3, lag1 autocorr of diffs -0.41.
+
+## Runs 15-17: insulin effect (g-estimation, linear SNMM, instrument = rate residual given integer glucose)
+- per-unit (1 u/h for 1h) effect on finger glucose at lag j (later doses fixed):
+  [-1.96,-2.36,-2.22,-1.69,-1.33,-1.02,-0.63,-0.44,-0.47,-0.29,-0.21,-0.09], cum -12.7 over 12 lags.
+- Same at lags 1-4 across glucose bands (150-180, 180-220, >220) -> additive, ~linear, not prop. to G.
+- Total effect incl. policy feedback (OLS with g fixed effects) peaks lag 2 at -2.25, decays faster.
+
+## Runs 18-23: norepinephrine
+- NE POLICY: rate_t = clip((rate_{t-1} + D(MAP_t)) * exp(eta), 0.01, 1.0); eta sd~0.3 multiplicative.
+  D: MAP<55 +0.08; 55-65 +0.04; 65-75 0; >75 -0.04/-0.05. Arterial used if present, else cuff.
+- residual (rate - cell mean given prev rate x MAP cat) exogenous: all corr ~0.
+- g-estimation NE -> MAP art per 1 mcg/kg/min: [3.18,2.81,1.58,0.80,0.57,0.03,0.14,...~0], cum +8.6 (cuff +8.1).
+
+## Fwd 1 (dose_edit, original, tuning 100 stays in /work/sel_tuning_A.json): rows = recorded glucose_finger / map_arterial hours 13-24;
+  reached = after first edited dose record (>=12). Readout = pooled mean over reached rows.
+  original model: ins_x2 -0.545, ins_half +0.003, ne_x2 +0.193, ne_half -0.173.
+  g-est truth on same rows (linear superposition of recorded doses from 12): ins_x2 -14.3, ins_half +7.15, ne_x2 +4.11, ne_half -2.05.
+  => model nearly ignores doses. Need to inject causal dose effect.
+
+## Runs 38-42: decoding of doses from original states (fwd_2, 100 train stays, ridge CV by stay)
+- g_last R2 0.98; ins lag1-3 R2 0.71/0.63/0.57; ne lag1-3 0.60/0.56/0.54 (mostly via glucose/MAP).
+- RESIDUAL doses (exogenous part): insres1 R2 0.25 (all), 0.03 (out/h only); neres1 0.15 / ~0.
+=> state does not carry dose memory; head-only readout insufficient. Need core-level memory injection.
+- Principle: edited prediction = m0 + sum_j beta_j*(dose - policy_mean(g)) (g-formula; centering keeps factual NLL).
+
+## Runs 43-67 (recalled after restart): building a local torch reimplementation of the forward pass (lin, mlp, lnp, gapf, enc, encA, emb_visit2 ...) checked against fwd_2 states. Best variant so far: gelu_tanh + 'fuse', rel err 0.0865 -> not exact yet.
+## Run 68: re-read ARCHITECTURE.md.
+
+
+['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached'] (3498, 7)
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000016    13  insulin_x2 -0.0229    0.0034  178.7933     True
+1  2020000016    14  insulin_x2  0.0056    0.0051  179.4055     True
+2  2020000016    15  insulin_x2  0.3641    0.0158  179.0109     True
+
+```

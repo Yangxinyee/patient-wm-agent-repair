@@ -1,0 +1,226 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 269 replies happened before. Forward passes used: 26 of 50; Python runs used: 240 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'grid.pkl', 'lib.py', 'notes.md', 'readrows_tr.pkl', 'sel1.json', 'sel10.json', 'sel_cost.json', 'sel_f3.json', 'sel_tr2.json', 'sel_train.json', 'sel_tu0.json', 'sel_tu1.json', 'sel_tu2.json', 'states_stays.json'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+1 slopes: gf -2.17/u/h dev, gl -1.44, ma +3.27 per unit NE-rate dev.
+- Next: fwd dose_edit both on sel1 with gated3(-1.9,3) to calibrate a_ins, a_ne against truth est (ins x2 -13.3..-14.3, half +6.7..7.1; NE x2 +4.53, half -2.27).
+
+
+## Runs 176-188 (after restart 5)
+- BUGFIX: global `lin` had been overwritten by a 1-arg lambda (kept as lin_r); restored lin(x,name)=x@W.T+b. eval_edit/head_run work again.
+- gated3(a_ins,a_ne) returns dict {'W0','b0','W2','TR'} (short keys; KMAP maps to tensor names). Saved edit == gated3(-1.9,3) (hash 262704e88f).
+  It repurposes 4 head units; gated3(0,0) != original (costs ~0.0004-0.0013 by itself).
+- fwd_10: dose_edit both, tuning f3 (2020000000..99), edit gated3(-1.9,3). orig: ins x2 -1.87, half +.76, NE x2 -.51, half -.70.
+  edited: -9.85, +4.13, -0.80, -1.91. MY TRUTH on same rows (truth_ins/truth_ne): -13.38, +6.69, +4.89, -2.45.
+  Profile by k=hours since first reached: truth -3.0,-6.8,-9.6,-11.9,-13.6,-14.9,-16.2,-16.4,-17.3,-17.5,-18.3,-20.3; edited -3.35,-4.6,-5.7,-7.5,-8.1,-9.0,-10.6,-11.2,-13.4,-14.5,-16.7,-18.9.
+  -> edited ramps ~linearly, truth front-loaded. Only the mean is judged. Linear scaling suggests a_ins ~ -2.7 for x2.
+  NE x2 edit fails (rates >1 are OOD bins 13-16; bins tables embed.bins.rate etc are SHARED across codes, insulin uses bins 13-16 -> no free fix).
+- fwd_11: factual both on f3: orig 1.63461 -> edited 1.63798 (+0.0034). per-row: gf +.0062 (n1538), gl +.0013 (488), ma +.0053 (1109), mc 0.
+- RR = 5214 sel1 rows (src '1', states X=fwd_2) + 5139 train-A rows (src 'A', states NOT in X!). Use RR[src=='1'] with X only.
+- Offline head_run on sel1 rows validated vs tool on 38 overlapping stays (corr dpm .975-.986, dn similar).
+- Offline OUT-OF-SAMPLE (sel1) cost of saved edit vs orig: +0.0080/reading (gf +.0056/row, ma +.0216/row, gl -.0008). sel1 is drug-heavy;
+  random f3 gave +.0034 in tool. eval_edit (train datasets, in-sample readouts) is optimistic. Factual cost depends on drug-row share -> risky.
+- NEXT: decompose cost (insulin vs NE part) per row type on sel1; reweight to random-stay composition; pick a_ins/a_ne; check with tool on all 400 tuning stays.
+
+- Run 194: ins_only(a)=gated3(a,0) with NE units 131,159 RESTORED to original. sel1 offline cost: a=-2.2 .0025, -2.4 .0031, -2.6 .0037, -2.8 .0044 (6D rows +.010..+.017). Non-glucose rows ~0.
+- NE part DROPPED (noisy readout R2 .19, gate leaks, cost ~.024 per NE-row, cannot fix x2 OOD). Saved ins_only(-2.6) (TR edit dropped). Next: dose_edit both on f3 to compare with fwd_10 (-1.9/3 -> -9.85).
+
+- fwd_12: dose_edit both on f3 (2020000000..99) with ins_only(-2.6) [hash 924a84db1e]: orig x2 -1.85, half +.78; edited x2 -13.01 (truth -13.18 -> ratio .98), half +5.41 (truth 6.59, ratio .80); NE unchanged (-.51/-.62 vs truth 4.76/-2.38). (fwd_10 was on sel10, a different set!)
+- Run 198: TRUE insulin effect linear: dev1 pos slope -2.08 (.07), neg -1.99 (.10), quad -.055 (.03). Truth x2/half ratio = -2; model asymmetry 2.4 is artifact.
+- Next: factual both at -2.6 on all 400 tuning stays (sel_f3 + /work/sel_tu0..2.json).
+
+- fwd_13: factual both tu0 (2020000100..199) with ins_only(-2.6): +0.00427/reading (gf +.0126/row, gl +.0061, ma/mc ~0). Too close to .005.
+- Runs 200-206: persistence check on random stays: within-tier resid slope on prev gf only +2.2/50mg (se .78) -> dropped. Readout not overfit (in-sample corr .67 vs sel1 .72). Edited one-step slope ~-4 vs truth -2 (model lacks dose memory beyond lag1; lag-1 overshoot needed for sustained effect).
+- Saved ins_only(-2.5). Plan: factual both on all 4 tuning batches at -2.5; dose_edit at -2.5.
+
+## Runs 207-209 (current state, edit = ins_only(-2.5), hash 6ace05eef2)
+- Tool factual at -2.5: f3 (2020000000..99) +0.00284 (gf +.0087/row, gl +.0005); tu1 (2020000200..299) +0.00369 (gf +.0108, gl +.0056).
+  tu0 (2020000100..199) at -2.6 was +0.00427 (est ~.0039 at -2.5). Mean ~.0035, spread +-.0005. Budget .005.
+- Cost decomposition on tool rows: cost from one-step overshoot (gain dpm/dev ~-2.9 vs factual optimum ~-1) + readout noise; no separable failure mode.
+- Remaining plan: dose_edit at -2.5 (expect x2 ~-12.5 vs truth ~-13.2), factual tu0/tu2 at -2.5, then FINAL.
+- FINAL-ANSWER facts: true insulin IRF per 1 u/h lags1-10 [-1.99 -2.37 -2.01 -1.65 -1.12 -0.89 -0.61 -0.47 -0.26 -0.11] (sum -11.5), linear;
+  true NE IRF per 1 mcg/kg/min lags1-6 [3.36 2.55 1.84 0.94 .50 .20] (sum 9.4). Truth on tuning rows: ins x2 ~-13.2..-13.4, half ~+6.6..6.7, NE x2 ~+4.8..4.9, half ~-2.4..-2.45.
+  Original model: ins x2 ~-1.85, half ~+.77, NE x2 ~-.5, half ~-.6..-.7. NE not edited (noisy readout, OOD rates>1, cost).
+
+## Run 211 (after restart 6)
+- fwd_16: dose_edit both on f3 (2020000000..99) with ins_only(-2.5) [hash 6ace05eef2]: edited ins x2 -12.57 (truth est ~-13.2), half +5.21 (truth est ~+6.6);
+  NE unchanged -.52/-.62 (truth est +4.8/-2.4). orig -1.85/+.78/-.50/-.60.
+  Errors now: ins x2 ~.6, ins half ~1.4, NE x2 ~5.3, NE half ~1.8 -> NE is the largest remaining error; factual budget mostly used (~.0035 of .005).
+- Reply after fwd_16 was cut by safety filter; continuing with allowed methods only (record/state regressions, closed-form edits, tool checks).
+
+## Runs 212-227 (restart 6)
+- fwd_10 (gated3 NE a_ne=3) by NE rate: 62% of NE reached rows have rate in (.75,1.0] (train NE rate capped at 1.0, 12% of MA rows at exactly 1.0).
+  NE readout response wrong-signed at low rates (x2 -.92, half +.80), right for half at high rates (-2.28), x2 at high rates ~0 (OOD 2.0).
+- Raw NE-rate readout from head input (MA rows, ridge, CV R2 .51) SATURATES: pred .035 (off), .35 (r~.05), .43, .51, .59, .62, .63 (r=1.0), sd .14.
+  -> head input encodes NE presence, hardly NE level/deviation. Any NE head readout = mostly noise. NE abandoned for good (needs core edits; no budget).
+- Insulin asymmetry (fwd_16, -2.5): by rate (0,1]: x2 -2.1 half -.6; (1,2]: -12.9/+2.8; (2,3]: -24.7/+16.9. Gate (units 26/41 sum) always on for hi rows (121..194), off (-450..-260) else.
+  Readout term vs dev1 slope pos .56, neg .44 (mild). Negative-side boost would trade x2 vs half error at ~same cost -> not done.
+- Plan: compare a_ins -2.6 (x2 -13.01, half 5.41 on f3, fwd_12) vs -2.5. Measure factual at -2.6 on tu2, f3, tu1 (tu0 was +.00427).
+
+- Run 228: saved ins_only(-2.6) [hash 924a84db1e] (W0,b0 same as -2.5; W2 differs). TR original.
+- fwd_17 factual tu2 (2020000300..399) at -2.6: +0.00100 (gf +.0058/row, gl -.0043). Batch spread large: tu0 .00428 (-2.6), f3 .00283, tu1 .00369 (-2.5).
+- Run 230 bootstrap over 400 tuning stays: -2.6 mean .00314, P(>.005) N=100 10%, N=200 4%, N=400 .65%; -2.5 mean .0028 (P 4.7%/1.25%/.08%).
+- Run 231: cost NOT from outliers (51% from |dpm| 2-4 rows); residual slope on dpm .156 (factual optimum gain ~.16x current). No cheap cost cut.
+- Run 232: /work/sel_cost.json = 4 batches x 100 unused train stays. fwd_18 (batch0) at -2.6: +0.00164 (gf +.0052/row).
+- fwd_19/20/21 (train batches 1-3 at -2.6): +.00261, +.00368, +.00104. 8 batches (800 stays) at -2.6: .00428,.00317*,.00413*,.00100,.00164,.00261,.00368,.00104 (*scaled from -2.5 x1.12). Mean ~.0027.
+- dose_edit at -2.6 on all 4 tuning batches (fwd_12 f3, fwd_22 tu1, fwd_23 tu0, fwd_24 tu2). Pooled (edited/orig/truth):
+                 n  edited   orig   truth  ratio
+edit                                            
+insulin_half  2009   5.839  0.815   6.773  0.862
+insulin_x2    2009 -12.356 -1.803 -13.545  0.912
+ne_half       1080  -0.558 -0.557  -2.264  0.247
+ne_x2         1080  -0.230 -0.233   4.528 -0.051
+- Pooled tuning (400 stays) at -2.6: ins x2 -12.36 vs truth -13.55 (ratio .912), half 5.84 vs 6.77 (.862); NE -0.23/-0.56 vs 4.53/-2.26. f3 was a lucky batch.
+- fwd_25: factual tu0 at -2.8 (hash c4297930e4): +0.00492 (vs .00428 at -2.6 -> factor 1.15 per 0.2). Scaled bootstrap: -2.7 mean ~.0029, P(>.005) N=400 ~.5%; -2.8 ~1.3%.
+- Run 240: chose and saved ins_only(-2.7) (W2 only differs; W0,b0 as before; TR original). Expected pooled: x2 ratio ~.95, half ~.90.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 26 of 50 done (factual); files in /work/fwd_26/. Summary:
+```
+{
+ "type": "factual",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.62044,
+   "n_values": 4664,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1364,
+     "nll": 1.446,
+     "mean_abs_error": 10.763
+    },
+    "glucose_lab": {
+     "n": 503,
+     "nll": 1.2871,
+     "mean_abs_error": 8.174
+    },
+    "map_arterial": {
+     "n": 1308,
+     "nll": 1.4935,
+     "mean_abs_error": 3.845
+    },
+    "map_cuff": {
+     "n": 1489,
+     "nll": 2.0043,
+     "mean_abs_error": 6.029
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.62503,
+   "n_values": 4664,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1364,
+     "nll": 1.4596,
+     "mean_abs_error": 10.912
+    },
+    "glucose_lab": {
+     "n": 503,
+     "nll": 1.2936,
+     "mean_abs_error": 8.202
+    },
+    "map_arterial": {
+     "n": 1308,
+     "nll": 1.4927,
+     "mean_abs_error": 3.841
+    },
+    "map_cuff": {
+     "n": 1489,
+     "nll": 2.0047,
+     "mean_abs_error": 6.026
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "seconds": 2.8
+}
+```
+Forward passes left: 24.
+Edits used in this pass: attr_heads.value_bin.0.bias, attr_heads.value_bin.0.weight, attr_heads.value_bin.2.weight (edit hash 2bc751d207).

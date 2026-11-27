@@ -1,0 +1,66 @@
+OUTPUT of Python run 73 of at most 300:
+```
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+tr cols ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+      stay_id  hour               event  value  rate rate_unit  dose dose_unit  end_hour
+0  1010000000  -2.0  hospital_admission    NaN   NaN       NaN   NaN       NaN   25.1667
+1  1010000000  -1.0      glucose_finger  165.0   NaN       NaN   NaN       NaN       NaN
+2  1010000000  -1.0        map_arterial   73.0   NaN       NaN   NaN       NaN       NaN
+tu cols ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour', 'h']
+      stay_id  hour               event  value  rate rate_unit  dose dose_unit  end_hour  h
+0  2020000000  -2.0  hospital_admission    NaN   NaN       NaN   NaN       NaN   25.1667 -2
+1  2020000000  -1.0      glucose_finger  145.0   NaN       NaN   NaN       NaN       NaN -1
+2  2020000000  -1.0         glucose_lab  148.0   NaN       NaN   NaN       NaN       NaN -1
+       stay_id     hour               event  kind  value  rate  minute   row   dose
+0   1010000522  -2.0000  hospital_admission     0    NaN   NaN    -120  3432    NaN
+1   1010000522  25.1667  hospital_admission     2    NaN   NaN    1510  3485    NaN
+2   1010000522  -1.0000      glucose_finger     0  200.0   NaN     -60  3433    NaN
+3   1010000522  -1.0000         glucose_lab     0  184.0   NaN     -60  3433    NaN
+4   1010000522  -1.0000        map_arterial     0   58.0   NaN     -60  3433    NaN
+5   1010000522   0.0000      glucose_finger     0  180.0   NaN       0  3434    NaN
+6   1010000522   0.0000       icu_admission     0    NaN   NaN       0  3434    NaN
+7   1010000522  25.1667       icu_admission     2    NaN   NaN    1510  3485    NaN
+8   1010000522   0.0000        map_arterial     0   48.0   NaN       0  3434    NaN
+9   1010000522   0.0833             insulin     0    NaN  1.00       5  3435  1.000
+10  1010000522   1.0833             insulin     2    NaN  1.00      65  3437  1.000
+11  1010000522   0.0833      norepinephrine     0    NaN  0.17       5  3435  0.816
+12  1010000522   1.0833      norepinephrine     2    NaN  0.17      65  3437  0.816
+13  1010000522   1.0000      glucose_finger     0  193.0   NaN      60  3436    NaN
+14  1010000522   1.0000        map_arterial     0   45.0   NaN      60  3436    NaN
+15  1010000522   1.0833             insulin     0    NaN  2.00      65  3437  2.000
+16  1010000522   2.0833             insulin     2    NaN  2.00     125  3439  2.000
+17  1010000522   1.0833      norepinephrine     0    NaN  0.35      65  3437  1.680
+18  1010000522   2.0833      norepinephrine     2    NaN  0.35     125  3439  1.680
+19  1010000522   2.0000      glucose_finger     0  187.0   NaN     120  3438    NaN
+20  1010000522   2.0000        map_arterial     0   48.0   NaN     120  3438    NaN
+21  1010000522   2.0000            map_cuff     0   64.0   NaN     120  3438    NaN
+22  1010000522   2.0833             insulin     0    NaN  3.50     125  3439  3.500
+23  1010000522   3.0833             insulin     2    NaN  3.50     185  3441  3.500
+24  1010000522   2.0833      norepinephrine     0    NaN  0.30     125  3439  1.440
+R cols ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'h', 'row_self', 'row_prev', 'dt', 'lastv', 'lasth']
+      stay_id  hour           event  observed  predicted_mean     nll  h  row_self  row_prev       dt  lastv  lasth
+0  1010000522  -1.0  glucose_finger     200.0        159.5463  2.2903 -1      3433      3432  3600.00    NaN    NaN
+1  1010000522   0.0  glucose_finger     180.0        191.3146  1.6268  0      3434      3433  3600.00  200.0   -1.0
+2  1010000522   1.0  glucose_finger     193.0        184.5217  1.1422  1      3436      3435  3300.12  180.0    0.0
+
+```

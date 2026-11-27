@@ -1,0 +1,96 @@
+OUTPUT of Python run 26 of at most 300:
+```
+=== REMAINING EARLIER AUDIT NOTES ===
+## Python run 15 / forward passes 7: challenge nominal NE curvature
+- Positive-dose insulin slope -0.02898 (cluster SE 0.08416); quadratic joint p=0.881; no clear response in severity quartiles.
+- Positive-dose NE linear slope 0.11773 (SE 0.18047), but quadratic coefficients [-1.63545, 1.30584], joint p=0.0243. This is counter-evidence to the null and must not be ignored.
+- Refit richer nuisance models on same-sensor adjacent readings, explicit current readings, and both changes and levels; examine independent held-out stay halves and evaluation-relevant hours.
+- NE curvature audit: {"map_change": {"prediction_rmse": 4.376200874572942, "linear": {"n": 29437, "stays": 1617, "coefficients": [0.14036965203915047], "cluster_se": [0.1794924489486811], "joint_null_p": 0.43419310519720455}, "quadratic_by_subset": {"all": {"n": 29437, "stays": 1617, "coefficients": [-1.312480880146358, 1.0883143601251786], "cluster_se": [0.6489501433176154, 0.4531098450770923], "joint_null_p": 0.03241725117698561}, "held_out_half_1": {"n": 14667, "stays": 808, "coefficients": [-1.7176629422480338, 1.2141814736078929], "cluste ... [long result omitted]
+- No weight changes; current dose-invariant edit remains provisional.
+
+## Python run 16 / forward passes 7: all-training-stay NE replication
+- Stronger same-sensor change analysis retained nominal NE curvature: [-1.31248, 1.08831], SE [0.64895, 0.45311], joint p=0.0324. Both original held-out halves agree in sign; this cannot be dismissed merely because each half is individually imprecise.
+- Five-fold, stay-separated predictions now cover all positive NE infusions with adjacent arterial readings. Every nuisance prediction is from a model trained on other stays.
+- Fold results: {"1": {"n": 29429, "stays": 1610, "coefficients": [-0.19215236339845992, 0.209564179549795], "cluster_se": [0.6570309580180964, 0.4764295983694254], "joint_null_p": 0.811728274277138}, "2": {"n": 29943, "stays": 1650, "coefficients": [-0.38000023499607066, 0.14431942169761014], "cluster_se": [0.6201305034921468, 0.4393316353342631], "joint_null_p": 0.5377395025765932}, "3": {"n": 30053, "stays": 1620, "coefficients": [0.006468412610868683, 0.1539865627268163], "cluster_se": [0.6322949585882753, 0.45151589522395086], "joint_null_ ... [long result omitted]
+- Pooled results: {"all_training_stays": {"linear": {"n": 147997, "stays": 8083, "coefficients": [0.07017187031858728], "cluster_se": [0.08032693446492334], "joint_null_p": 0.3823479244796726}, "linear_and_quadratic": {"n": 147997, "stays": 8083, "coefficients": [-0.7025669515616352, 0.5806553785504478], "cluster_se": [0.28581341488559947, 0.20350350547576235], "joint_null_p": 0.010365501292190046}}, "excluding_original_held_out_stays": {"linear": {"n": 118560, "stays": 6466, "coefficients": [0.05294411166299309], "cluster_se": [0.0898141838998 ... [long result omitted]
+- No weight changes; factual validation remains delta NLL +0.000307.
+
+## Python run 17 / forward passes 7: restart audit
+- Recovered architecture, data dictionary, earlier notebook, kernel variables, and current edits.
+- NE pooled curvature is counter-evidence to exact zero, but is small and weak in hours 12?23.
+- No weight changes in this run; inspect earlier rollout and factual validation before deciding whether refinement is justified.
+
+## Python run 18 / forward passes 7: compact recovery
+- Checked the exact dose-invariant weight routes and recovered prior validation and working-object names.
+- No weight changes. Need broader factual validation and a final assessment of the small NE curvature signal.
+
+## Python run 19 / forward passes 7: causal-estimation audit
+- Current edits exactly remove dose magnitude while retaining presence and absent-bin rows.
+- Full 400-stay factual validation is already complete: delta NLL +0.000307, below +0.005.
+- Audited feature definitions, direct dose leakage, and delayed main-sensor estimates before submission.
+- No weight changes.
+
+## Python runs 20?21 / forward passes 7: insulin replication
+- Run 20 failed on an empty subset before producing effect estimates; no weight changes.
+- Run 21 uses raw timestamp-index hours rather than the predictor's hour feature, with nonempty-fold and chronological-order assertions.
+- Five-fold stay-separated estimates on positive insulin infusions, using only pretreatment predictors.
+- Longer-horizon estimates include subsequent recorded treatment-policy responses and are not an oracle for the fixed-dose rollout.
+- Results: {"1": {"all_training_stays": {"linear": {"n": 286993, "stays": 18159, "coefficients": [-0.0001000694199924794], "cluster_se": [0.00051319210320922], "joint_null_p": 0.8453975852497699}, "linear_and_quadratic": {"n": 286993, "stays": 18159, "coefficients": [-0.0010556522963433353, 0.00011984675191371357], "cluster_se": [0.0010635818395645453, 0.00013169133667323304], "joint_null_p": 0.6094234361187034}}, "hours_12_on": {"linear": {"n": 154613, "stays": 16438, "coefficients": [0.00040223920760812084], "cluster_se": [0.00068114373229384 ... [long result omitted]
+- No weight changes; full tuning factual delta remains +0.000307.
+
+
+=== NOREPINEPHRINE REPLICATION SUMMARY ===
+/all_training_stays/linear {"n": 147997, "stays": 8083, "coefficients": [0.07017187031858728], "cluster_se": [0.08032693446492334], "joint_null_p": 0.3823479244796726}
+/all_training_stays/linear_and_quadratic {"n": 147997, "stays": 8083, "coefficients": [-0.7025669515616352, 0.5806553785504478], "cluster_se": [0.28581341488559947, 0.20350350547576235], "joint_null_p": 0.010365501292190046}
+/excluding_original_held_out_stays/linear {"n": 118560, "stays": 6466, "coefficients": [0.05294411166299309], "cluster_se": [0.08981418389983527], "joint_null_p": 0.5555359904625952}
+/excluding_original_held_out_stays/linear_and_quadratic {"n": 118560, "stays": 6466, "coefficients": [-0.5532579772671464, 0.45586270347116853], "cluster_se": [0.3183879653066824, 0.22777793017492245], "joint_null_p": 0.10947998204884456}
+/hours_12_to_23/linear {"n": 73835, "stays": 7368, "coefficients": [0.17099648503283044], "cluster_se": [0.10870799745780338], "joint_null_p": 0.11572136354802724}
+/hours_12_to_23/linear_and_quadratic {"n": 73835, "stays": 7368, "coefficients": [-0.11458900710416751, 0.20376734539543653], "cluster_se": [0.42453590452233947, 0.29125545051343094], "joint_null_p": 0.22208090630625393}
+/new_stays_hours_12_to_23/linear {"n": 59212, "stays": 5898, "coefficients": [0.13283974054995917], "cluster_se": [0.12067917258835532], "joint_null_p": 0.27099775376045393}
+/new_stays_hours_12_to_23/linear_and_quadratic {"n": 59212, "stays": 5898, "coefficients": [0.09530460960825, 0.02678683047854197], "cluster_se": [0.4730610589415939, 0.3248213910489923], "joint_null_p": 0.5427177270499229}
+
+=== SELECTED PERSISTENT OBJECT NAMES ===
+cross_ne_stays shape: (30000,)
+cross_ne_original_held_stays shape: (6000,)
+cross_ne_remaining shape: (24000,)
+cross_ne_fold_lookup dict keys: [1010000000, 1010000005, 1010000010, 1010000015, 1010000020, 1010000025, 1010000030, 1010000035, 1010000040, 1010000045, 1010000050, 1010000055]
+cross_ne_group shape: (6000,)
+cross_ne_fold shape: (780000,)
+cross_ne_valid shape: (780000,)
+cross_ne_residual_dose shape: (780000, 2)
+cross_ne_residual_y shape: (780000,)
+cross_ne_fold_results dict keys: ['1', '2', '3', '4', '0']
+cross_ne_zero shape: (780000,)
+cross_ne_fit shape: (780000,)
+cross_ne_test shape: (780000,)
+cross_ne_xfit shape: (118862, 86)
+cross_ne_xtest shape: (29135, 86)
+cross_ne_predictions dict keys: ['dose', 'dose_squared', 'map_change']
+cross_ne_target shape: (780000,)
+cross_ne_pooled_results dict keys: ['all_training_stays', 'excluding_original_held_out_stays', 'hours_12_to_23', 'new_stays_hours_12_to_23']
+cross_ne_subset shape: (780000,)
+insulin_rep_ids shape: (780000,)
+insulin_rep_hour shape: (780000,)
+insulin_rep_fold shape: (780000,)
+insulin_rep_d shape: (780000,)
+insulin_rep_current shape: (780000,)
+insulin_rep_observed shape: (780000,)
+insulin_rep_panel shape: (780000, 4)
+insulin_rep_base shape: (780000,)
+insulin_rep_targets dict keys: [1, 3, 6]
+insulin_rep_masks dict keys: [1, 3, 6]
+insulin_rep_predictions dict keys: ['dose', 'dose_squared', 1, 3, 6]
+insulin_rep_params dict keys: ['max_iter', 'learning_rate', 'max_leaf_nodes', 'min_samples_leaf', 'l2_regularization', 'early_stopping', 'random_state']
+insulin_rep_results dict keys: ['1', '3', '6']
+insulin_rep_basis shape: (780000, 2)
+insulin_lag_results dict keys: ['all_stays', 'independent_stays']
+
+=== DATA AND HISTORY SCHEMA ===
+train shape: (2056635, 9) columns: ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+tuning shape: (27467, 9) columns: ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+panel shape: (780000, 8) columns: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine', 'glucose', 'map']
+panel_tune shape: (10400, 8) columns: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine', 'glucose', 'map']
+Hrich shape: (780000, 82) columns: ['intercept', 'hour', 'glucose_finger_last', 'glucose_finger_last_sq', 'glucose_finger_age', 'glucose_finger_observed', 'glucose_finger_lag1', 'glucose_finger_lag2', 'glucose_finger_lag3', 'glucose_finger_baseline', 'glucose_lab_last', 'glucose_lab_last_sq', 'glucose_lab_age', 'glucose_lab_observed', 'glucose_lab_lag1', 'glucose_lab_lag2', 'glucose_lab_lag3', 'glucose_lab_baseline', 'map_arterial_last', 'map_arterial_last_sq', 'map_arterial_age', 'map_arterial_observed', 'map_arterial_lag1', 'map_arterial_lag2', 'map_arterial_lag3', 'map_arterial_baseline', 'map_cuff_last', 'map_cuff_last_sq', 'map_cuff_age', 'map_cuff_observed', 'map_cuff_lag1', 'map_cuff_lag2', 'map_cuff_lag3', 'map_cuff_baseline', 'insulin_lag1']
+EVAL_IDS preview: [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007]
+
+```

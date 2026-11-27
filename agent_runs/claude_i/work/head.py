@@ -1,0 +1,22 @@
+
+import numpy as np, json
+CID = {c["name"]: c["id"] for c in VOCAB["codes"]}
+NUM = {(n["code"], n["attribute"]): n for n in VOCAB["numeric"]}
+CEN = {k: np.array(v) for k, v in VOCAB["value_bin_centres"].items()}
+def Tn(name): return load(name).numpy().astype(np.float64)
+def lnorm(x, w, b, eps=1e-5):
+    mu = x.mean(-1, keepdims=True); var = x.var(-1, keepdims=True)
+    return (x - mu) / np.sqrt(var + eps) * w + b
+def actf(x, kind="relu"):
+    if kind == "relu": return np.maximum(x, 0)
+    if kind == "gelu":
+        from scipy.special import erf
+        return 0.5 * x * (1 + erf(x / np.sqrt(2)))
+    return x / (1 + np.exp(-x))
+def zsc(code, attr, x):
+    n = NUM[(code, attr)]; return np.clip((x - n["median"]) / n["iqr"], -10, 10)
+def fbin(code, attr, x):
+    e = np.array(NUM[(code, attr)]["fine_bin_edges"]); x = np.asarray(x, float)
+    return np.where(np.isnan(x), 0, 1 + (e[None, :] < x[:, None]).sum(1))
+def mlp2(x, pre, kind="relu"):
+    return actf(x @ Tn(pre + ".0.weight").T + Tn(pre + ".0.bias"), kind) @ Tn(pre + ".2.weight").T + Tn(pre + ".2.bias")

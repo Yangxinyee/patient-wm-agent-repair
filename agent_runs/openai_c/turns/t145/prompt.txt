@@ -1,0 +1,96 @@
+OUTPUT of Python run 102 of at most 300:
+```
+## Run 4 / forwards 1?2: causal diagnostics and baselines
+- Original probe factual NLL: 1.63461; allowed increase 0.005.
+- Original dose rollouts: {'insulin_x2': -1.847, 'insulin_half': 0.777, 'ne_x2': -0.498, 'ne_half': -0.6}
+- Insulin threshold estimates: {('glucose_finger', 1, 6): {'n': 94569, 'rate_jump': 0.676820167360905, 'outcome_jump': -1.469092110147066, 'effect': -2.1705796916120748, 'se': 0.2823686119400948}, ('glucose_finger', 1, 10): {'n': 158690, 'rate_jump': 0.800859016409116, 'outcome_jump': -1.7400345142239886, 'effect': -2.172710150690366, 'se': 0.18469317346762512}, ('glucose_finger', 1, 14): {'n': 223106, 'rate_jump': 0.8605678363604209, 'outcome_jump': -1.767739842270549, 'effect': -2.0541551375505844, 'se': 0.14557496818862847}, ('glucose_lab', 1, 6): {'n': 22161, 'rate_jump': 0.6106859197361182, 'outcome_jump': -0.9623250088225842, 'effect': -1.575810048540847, 'se': 0.4515120296985709}, ('glucose_lab', 1, 10): {'n': 36635, 'rate_jump': 0.7512887970002406, 'outcome_jump': -1.1779938611589744, 'effect': -1.5679640983101166, 'se': 0.2826879624651828}, ('glucose_l
+## Run 5 / forward 3: persistence and state capture
+- Original states obtained on training IDs 1010000000..1010000099, all bundles (4035 rows; 992-dimensional state).
+- Dynamic moments: {'insulin': [{'h': 1, 'n': 223106, 'effect': -2.054155137550587, 'se': 0.1455749681886286, 'phi': [1.0]}, {'h': 2, 'n': 205065, 'effect': -1.9215505007955112, 'se': 0.15973192071265485, 'phi': [1.0, 0.025215871026567586]}, {'h': 4, 'n': 182164, 'effect': -1.30868113770493, 'se': 0.19061378818234964, 'phi': [1.0, 0.04948621470637709, -0.005534859740399555, -0.01710917618348411]}, {'h': 6, 'n': 163583, 'effect': -0.6953659704972652, 'se': 0.2156277623132073, 'phi': [1.0, 0.05780741421219487, -0.005006001563280803, -0.020813196722217174, -0.03845105671049845, -0.02815311855012386]}], 'norepinephrine': [{'h': 1, 'n': 312563, 'effect': 3.116538954905723, 'se': 0.08932562245910886, 'phi': [1.0]}, {'h': 2, 'n': 299506, 'effect': 4.860383476324453, 'se': 0.1068007636923712, 'phi': [1.0, 0.7508293535077544]}, {'h': 4, 'n': 273503, 'effect': 5.158283324771074, 'se': 0.13259557350076712, 'phi': [1.0, 0.756015133
+## Run 6: corrected targets, state directions, candidate A
+- Earlier rollout targets included unrecorded sensor-hours; superseded by the sensor-observed masks here.
+- Corrected probe targets: {'insulin_x2': {'mean': -12.036254091096144, 'n_stay_hours': 554, 'n_stays': 60}, 'insulin_half': {'mean': 6.018127045548072, 'n_stay_hours': 554, 'n_stays': 60}, 'ne_x2': {'mean': 4.732347324472345, 'n_stay_hours': 281, 'n_stays': 26}, 'ne_half': {'mean': -2.3661736622361724, 'n_stay_hours': 281, 'n_stays': 26}}
+- Corrected training-population targets: {'insulin_x2': {'mean': -12.51486026649639, 'n_stay_hours': 152158, 'n_stays': 16457}, 'insulin_half': {'mean': 6.257430133248195, 'n_stay_hours': 152158, 'n_stays': 16457}, 'ne_x2': {'mean': 4.6728108030283355, 'n_stay_hours': 79814, 'n_stays': 7206}, 'ne_half': {'mean': -2.3364054015141678, 'n_stay_hours': 79814, 'n_stays': 7206}}
+- Estimated conditional dose-innovation directions from action-bundle state changes, controlling pre-action states and record histories. Directions saved in dose_directions; not applied yet.
+- Candidate A: 30 rank-one
+## Run 15: candidate C, action numeric amplification
+- Head surrogates give immediate insulin sensitivity -0.319 per unit and NE sensitivity +0.808 per rate unit, but are approximate.
+- Whitened directions overlap (cosine 0.848); whitening reverses the estimated insulin readout sign. Direct head amplification is not justified yet.
+- Applied one input-side rank-one edit to embed.numeric.weight: multiply the equal z_dose/z_rate signal by 4. Measurement numeric inputs, presence flags, bins, and reading registers are unchanged.
+- Test factual NLL first, then dose rollouts if the fit holds.
+- Python runs: 15; forward passes: 8.
+
+
+## Run 16 / forwards 9?10: candidate C results
+- Numeric dose/rate gain 4: factual NLL 1.63584 versus 1.63461 (+0.00123).
+- Probe rollouts: insulin x2 -2.503, half +1.691; NE x2 +0.127, half -0.003.
+- Modest insulin improvement, no adequate NE response. Retained while investigating targeted directions.
+- Python runs: 16; forward passes: 10.
+
+
+## Python run 21: paired-state geometry
+- Compared gain-4 and original states using generalized delta/factual second moments.
+- Ratios: {'out': 1.1637545257572386, 'h0': 1.2496169933065107, 'h1': 1.2495189336363508, 'h2': 1.1449731622522863, 'h3': 1.2496636229526032, 'z': 0.43184577403443003}
+- Python runs: 21; forward passes: 13.
+
+
+## Python run 22: selective correction design
+- Examined stored dose-state estimators and inferred the slot-to-out normalization from observable states, without accessing weight files.
+- Slot-to-out reconstruction RMSE: 7.449458051528166e-08
+- Python runs: 22; forward passes: 13; edits unchanged.
+
+
+## Python run 23: calibrated slot shear design
+- Designed separate minimum-variance insulin/NE sensors with zero factual mean, and reading-output directions orthogonal to the sensors.
+- Candidate matrices add approximate immediate responses -1.5 insulin/glucose and +2.5 NE/MAP at full strength; approximation must be checked by forward passes.
+- No additional edits applied. Python runs: 23; forward passes: 13.
+
+
+## Python run 24: candidate D, selective slot shear
+- Applied numeric gain 4 plus a 15%-strength, rank-two left transformation of core.c_out.weight, factored exactly into allowed rank-one operations.
+- Based on dose-innovation state coefficients and reading surrogates; the output directions are orthogonal to the dose sensors (nilpotent correction).
+- Full-strength sensor noise was too high; this is a small empirical pilot, not a validated causal repair.
+- Next test factual NLL. Python runs: 24; forward passes: 13.
+
+
+## Python run 90: recurrent-edit design review
+- Numeric gain 4 remains the safe baseline; no operations added.
+- Reviewing earlier gain/query/diagonal experiments and exact direction-helper signatures.
+- Forward passes used: 34; 16 remain.
+
+
+
+RECURRENT TENSOR SHAPES
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+
+SAVED DOSE DIRECTION NORMS
+dose_gain4_72 [ 8.71220859 71.93515422]
+  out: [0.06845194 0.4583033 ] h: [ 8.67269263 71.85619201] z: [0.82601169 3.33826923]
+dose_state_coeff [ 5.03936393 22.000896  ]
+  out: [0.03550642 0.11995086] h: [ 5.02411988 21.88743198] z: [0.39006096 2.22830835]
+D_h [ 2.49691985 10.84298505]
+D_out [0.03550642 0.11995086]
+D72 [0.06845194 0.4583033 ]
+R72 [96.33215627 17.66026776]
+W72 [109.17940386  27.48955367]
+val90 [ 8.93179256 71.42137638]
+  out: [0.07007099 0.45984   ] h: [ 8.8917585 71.3395799] z: [0.84180711 3.38613223]
+
+RECORD-BASED TARGETS {'insulin_x2': {'mean': -12.036254091096144, 'n_stay_hours': 554, 'n_stays': 60}, 'insulin_half': {'mean': 6.018127045548072, 'n_stay_hours': 554, 'n_stays': 60}, 'ne_x2': {'mean': 4.732347324472345, 'n_stay_hours': 281, 'n_stays': 26}, 'ne_half': {'mean': -2.3661736622361724, 'n_stay_hours': 281, 'n_stays': 26}}
+BASELINE NLL 1.63461
+
+```

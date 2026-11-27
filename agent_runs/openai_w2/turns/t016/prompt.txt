@@ -1,0 +1,283 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 15 replies happened before. Forward passes used: 3 of 50; Python runs used: 12 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+
+    "cluster_se": 0.2233,
+    "ci95": [
+      -0.4697,
+      0.4056
+    ]
+  },
+  {
+    "outcome": "past_GLUCOSE_unadjusted_PLACEBO",
+    "bandwidth": 10,
+    "adjusted": false,
+    "n": 167164,
+    "dose_jump": 1.0431,
+    "effect_per_unit": -0.1191,
+    "cluster_se": 0.1328,
+    "ci95": [
+      -0.3793,
+      0.1412
+    ]
+  }
+]
+
+## Run 6: independent effect checks
+Clean threshold RD supports insulin next-hour effect about -1.55/unit on lab readings. Lab availability is smooth at thresholds; unadjusted past-outcome placebos are null. Finger availability jumps, and its effect estimate is more negative. Fitting stay-crossfitted history-adjusted effects and two-sensor transition models.
+{
+  "DML": [
+    {
+      "label": "insulin_next_lab",
+      "drug": "insulin",
+      "n": 80365,
+      "effect_per_rate_unit": -1.9687,
+      "cluster_se": 0.0734,
+      "ci95": [
+        -2.1127,
+        -1.8248
+      ],
+      "dose_residual_sd": 0.4903,
+      "outcome_residual_sd": 8.957,
+      "seconds": 1.0
+    },
+    {
+      "label": "NE_next_cuff_both_current_MAP",
+      "drug": "norepinephrine",
+      "n": 29293,
+      "effect_per_rate_unit": 3.4255,
+      "cluster_se": 0.442,
+      "ci95": [
+        2.5591,
+        4.2918
+      ],
+      "dose_residual_sd": 0.0935,
+      "outcome_residual_sd": 6.7848,
+      "seconds": 0.7
+    },
+    {
+      "label": "NE_next_cuff_any_current_MAP",
+      "drug": "norepinephrine",
+      "n": 240000,
+      "effect_per_rate_unit": 2.7802,
+      "cluster_se": 0.2277,
+      "ci95": [
+        2.334,
+        3.2265
+      ],
+      "dose_residual_sd": 0.0659,
+      "outcome_residual_sd": 7.0783,
+      "seconds": 1.6
+    }
+  ],
+  "transitions": [
+    {
+      "drug": "insulin",
+      "n": 15905,
+      "sensor_coefficients": [
+        0.1525,
+        0.8854
+      ],
+      "sum_sensor_coefficients": 1.0378,
+      "drug_coefficient": -1.9235,
+      "cluster_se": 0.1052,
+      "intercept": -4.6136
+    },
+    {
+      "drug": "norepinephrine",
+      "n": 29293,
+      "sensor_coefficients": [
+        0.7326,
+        0.19
+      ],
+      "sum_sensor_coefficients": 0.9226,
+      "drug_coefficient": -2.0861,
+      "cluster_se": 0.1752,
+      "intercept": 8.5973
+    }
+  ]
+}
+
+## Run 10: NE threshold audit (mask fixed)
+      sensor                outcome  bw  adjusted      n  dose_jump  outcome_jump    effect  cluster_se
+map_arterial          map_cuff_next   4      True  14427    0.03949       0.10173   2.57572     7.34530
+map_arterial      map_arterial_next   4      True  45668    0.04012       0.16659   4.15265     2.69603
+map_arterial          map_cuff_next   8      True  29723    0.03873       0.08150   2.10442     4.77478
+map_arterial      map_arterial_next   8      True  93919    0.03999      -0.02023  -0.50596     1.75248
+map_arterial          map_cuff_next  12      True  45540    0.03507      -0.30378  -8.66193     4.31829
+map_arterial      map_arterial_next  12      True 144456    0.03574      -0.17713  -4.95646     1.66000
+map_arterial     map_cuff_next_seen   8      True  98906    0.04069       0.00072   0.01771     0.16178
+map_arterial map_arterial_next_seen   8      True  98906    0.04069       0.00101   0.02484     0.07760
+map_arterial      map_arterial_lag1   8     False  93961    0.05156      -0.17228  -3.34155     1.44330
+    map_cuff          map_cuff_next   4      True  27302    0.03327      -0.21671  -6.51313     7.29831
+    map_cuff      map_arterial_next   4      True  13039    0.00387      -0.21063 -54.42049   101.39637
+    map_cuff          map_cuff_next   8      True  59367    0.03996      -0.07977  -1.99633     3.87124
+    map_cuff      map_arterial_next   8      True  26457    0.00512      -0.11754 -22.97372    31.59373
+    map_cuff          map_cuff_next  12      True  99803    0.03630      -0.49783 -13.71511     3.50214
+    map_cuff      map_arterial_next  12      True  40266    0.00982      -0.22540 -22.96416    13.02311
+    map_cuff     map_cuff_next_seen   8      True  84545    0.03056       0.00536   0.17539     0.18920
+    map_cuff map_arterial_next_seen   8      True  84545    0.03056       0.00070   0.02297     0.08093
+    map_cuff          map_cuff_lag1   8     False  59229    0.04852      -0.43193  -8.90167     3.23389
+State sample IDs: [1010026818, 1010012893, 1010007807, 1010007891, 1010020515, 1010022688, 1010005770, 1010001192, 1010014800, 1010029265, 1010021227, 1010001869, 1010009418, 1010012484, 1010025432, 1010000431, 1010025790, 1010012667, 1010001013, 1010021897, 1010022639, 1010005551, 1010023750, 1010023586, 1010024158, 1010029313, 1010012776, 1010000682, 1010022805, 1010020817, 1010020491, 1010023984, 1010009687, 1010001133, 1010007386, 1010012456, 1010004932, 1010014466, 1010012099, 1010022844, 1010018371, 1010013764, 1010024238, 1010013214, 1010005806, 1010022808, 1010024920, 1010004574, 1010007269, 1010028979, 1010003888, 1010021234, 1010011733, 1010009334, 1010018070, 1010021339, 1010019214, 1010024615, 1010012666, 1010022540, 1010008744, 1010019327, 1010012582, 1010020287, 1010016071, 1010015462, 1010012535, 1010025327, 1010026671, 1010011223, 1010006811, 1010029094, 1010009439, 1010022564, 1010006079, 1010006618, 1010022570, 1010024912, 1010018574, 1010007662, 1010005808, 1010018322, 1010026881, 1010008553, 1010018559, 1010019209, 1010026994, 1010000842, 1010011240, 1010001344, 1010024931, 1010029456, 1010011674, 1010009179, 1010011705, 1010026618, 1010020196, 1010003937, 1010025179, 1010021143]
+
+## Run 11: rich pre-dose history, stay-crossfitted estimates
+                    label      n   effect  cluster_se  dose_residual_sd  outcome_residual_sd  seconds
+     NE_cuff_both_current  28031  3.51113     0.46432           0.09161              6.82217      1.5
+ NE_arterial_both_current  89388  3.91356     0.16693           0.09039              4.27770      2.1
+    NE_cuff_all_histories 250000  3.61924     0.23487           0.06341              7.05825      3.6
+insulin_lab_all_histories 137825 -1.96674     0.07393           0.37319              9.97434      2.5
+States from 100 randomly sampled training stays loaded as S; history features F.
+
+## Run 12: persistence and rollout target sensitivity
+          drug     n  assumed_effect  persistence  cluster_se  cross_sensor_residual_cov
+       insulin 15266           -1.55      0.99773     0.00781                  108.17329
+       insulin 15266           -1.80      1.00763     0.00782                  108.17329
+       insulin 15266           -2.00      1.01556     0.00784                  108.17329
+norepinephrine 28031            3.00      0.89761     0.02096                   10.64188
+norepinephrine 28031            3.60      0.89803     0.02098                   10.64188
+norepinephrine 28031            4.00      0.89831     0.02099                   10.64188
+          drug     b    a  eligible_stays       x2    half
+       insulin -1.55 0.80             205  -6.8094  3.4047
+       insulin -1.55 0.90             205  -9.0062  4.5031
+       insulin -1.55 0.95             205 -10.5409  5.2705
+       insulin -1.80 0.80             205  -7.9077  3.9539
+       insulin -1.80 0.90             205 -10.4588  5.2294
+       insulin -1.80 0.95             205 -12.2411  6.1205
+       insulin -2.00 0.80             205  -8.7864  4.3932
+       insulin -2.00 0.90             205 -11.6209  5.8105
+       insulin -2.00 0.95             205 -13.6012  6.8006
+norepinephrine  3.00 0.70             155   3.8398 -1.9199
+norepinephrine  3.00 0.80             155   4.9006 -2.4503
+norepinephrine  3.00 0.90             155   6.5400 -3.2700
+norepinephrine  3.60 0.70             155   4.6077 -2.3039
+norepinephrine  3.60 0.80             155   5.8808 -2.9404
+norepinephrine  3.60 0.90             155   7.8479 -3.9240
+norepinephrine  4.00 0.70             155   5.1197 -2.5598
+norepinephrine  4.00 0.80             155   6.5342 -3.2671
+norepinephrine  4.00 0.90             155   8.7199 -4.3600
+Targets assume linear, time-homogeneous drug effects; they are estimates, not tool-provided truth.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 12 of at most 300:
+```
+=== MEASUREMENT-ERROR-ADJUSTED PERSISTENCE ===
+          drug     n  assumed_effect  persistence  cluster_se  cross_sensor_residual_cov
+       insulin 15266           -1.55      0.99773     0.00781                  108.17329
+       insulin 15266           -1.80      1.00763     0.00782                  108.17329
+       insulin 15266           -2.00      1.01556     0.00784                  108.17329
+norepinephrine 28031            3.00      0.89761     0.02096                   10.64188
+norepinephrine 28031            3.60      0.89803     0.02098                   10.64188
+norepinephrine 28031            4.00      0.89831     0.02099                   10.64188
+
+=== CONDITIONAL LINEAR ROLLOUT TARGETS, NOT OBSERVED TRUTH ===
+          drug     b    a  eligible_stays       x2    half
+       insulin -1.55 0.80             205  -6.8094  3.4047
+       insulin -1.55 0.90             205  -9.0062  4.5031
+       insulin -1.55 0.95             205 -10.5409  5.2705
+       insulin -1.80 0.80             205  -7.9077  3.9539
+       insulin -1.80 0.90             205 -10.4588  5.2294
+       insulin -1.80 0.95             205 -12.2411  6.1205
+       insulin -2.00 0.80             205  -8.7864  4.3932
+       insulin -2.00 0.90             205 -11.6209  5.8105
+       insulin -2.00 0.95             205 -13.6012  6.8006
+norepinephrine  3.00 0.70             155   3.8398 -1.9199
+norepinephrine  3.00 0.80             155   4.9006 -2.4503
+norepinephrine  3.00 0.90             155   6.5400 -3.2700
+norepinephrine  3.60 0.70             155   4.6077 -2.3039
+norepinephrine  3.60 0.80             155   5.8808 -2.9404
+norepinephrine  3.60 0.90             155   7.8479 -3.9240
+norepinephrine  4.00 0.70             155   5.1197 -2.5598
+norepinephrine  4.00 0.80             155   6.5342 -3.2671
+norepinephrine  4.00 0.90             155   8.7199 -4.3600
+
+=== NORMALISATION NOTES ===
+z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+event kinds: {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom kinds: {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+flow: [('core.flow.a', (192,))]
+embed other: [('embed.ekind.weight', (5, 192)), ('embed.kind.weight', (3, 192)), ('embed.kq.weight', (4, 192)), ('embed.text.weight', (2, 192))]
+last numeric shape: (192, 8)
+
+```

@@ -1,0 +1,25 @@
+OUTPUT of Python run 200 of at most 300:
+```
+F cols ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'pk', 'dt', 'lasth', 'lastv', 'ok', 'h_', 'D1', 'D2', 'dev1', 'dev2', 'R1']
+      stay_id  hour         event  observed  predicted_mean     nll  pk      dt  lasth  lastv    ok  h_  D1  D2  dev1  dev2  R1
+0  1010000480  -1.0   glucose_lab     160.0        148.5525  2.3752   0  3600.0    NaN    NaN  True  -1 NaN NaN   NaN   NaN NaN
+1  1010000480  -1.0  map_arterial      73.0         74.3559  2.0686   0  3600.0    NaN    NaN  True  -1 NaN NaN   NaN   NaN NaN
+pibar [0.0, 1.015, 1.019, 2.028, 2.01, 3.014, 3.478, 4.995]
+def emb_atoms(atoms):
+    W = {k: T64(k) for k in ['embed.code.weight','embed.kind.weight','embed.ekind.weight','embed.kq.weight','embed.categorical.unit.weight',
+         'embed.categorical.rate_unit.weight','embed.categorical.action.weight','embed.bins.value.weight','embed.bins.rate.weight','embed.bins.dose.weight','embed.numeric.weight','embed.numeric.bias']}
+    V = torch.zeros((len(atoms),192), dtype=torch.float64)
+    for i,a in enumerate(atoms):
+        c = a['code']; kind = a.get('kind',0)
+        v = W['embed.code.weight'][CID[c]] + W['embed.kind.weight'][kind] + W['embed.ekind.weight'][EK2[c]]
+        num = torch.zeros(6, dtype=torch.float64)
+        if c in ('glucose_finger','glucose_lab','map_arterial','map_cuff'):
+            v = v + W['embed.kq.weight'][0] + W['embed.categorical.unit.weight'][UNIT2[c]]
+            num[0] = float(zsc(c,'value',a['value'])); num[1] = 1
+            v = v + W['embed.bins.value.weight'][int(fbin(c,'value',np.array([a['value']]))[0])]
+            v = v + W['embed.numeric.weight'] @ num
+        elif c in ('insulin','norepinephrine') and kind==0:
+            v = v + W['embed.kq.weight'][1] + W['embed.categorical.action.weight'][1] + W['embed.categorical.unit.weight'][UNIT2[c]] + W['embed.categorical.rate_unit.weight'][RUNIT2[c]]
+           
+
+```

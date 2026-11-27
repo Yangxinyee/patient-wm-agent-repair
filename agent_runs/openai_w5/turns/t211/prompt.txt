@@ -1,0 +1,165 @@
+OUTPUT of Python run 185 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+=== DATA COLUMNS ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+=== RELEVANT HELPERS ===
+atom_action_local (event, rate, kind=0, rate_unit=0, unit=0)
+set_encode_single_local (atoms, prefix)
+action_atom_exact (event, rates, doses=None, kind=0, bin_mode='raw64')
+measurement_atom_local (event, values, unit)
+wm_step_saved (j, include_current=False, age_mode='input', age_units='seconds')
+latent_step61 (j, z_batch)
+latent_step66 (j, z_batch)
+local_step67 (j, z_batch, include_current=False, age_mode='input', age_units=3600.0, age_scale=1.0)
+wm_step_boundary176 (j, include_current=False, age_mode='input', age_units='seconds')
+=== RELEVANT OBJECTS ===
+effect_test_ids ndarray (6000,)
+sensor_checks dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+cacheA dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous', 'gpu_mean', 'gpu_nll']
+cacheTrain dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous']
+best_head_spec tuple length 3
+layout_probe ndarray (516,)
+layout_scale Tensor (516,)
+layout_gpu Tensor (516,)
+layouts list length 840
+layout_scores list length 7560
+layout tuple length 3
+best_layout_spec tuple length 3
+head_spec dict ['kind', 'prior_gap', 'view_gap', 'typeidx', 'status']
+cacheA_right dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous', 'gpu_mean', 'gpu_nll']
+layout_grid list length 7392
+layout_refined list length 24
+head_layout_spec dict ['binside', 'layout', 'ageunit']
+cache dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous']
+cacheTrainB dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous']
+headA0 dict ['hidden', 'wc', 'logits', 'probs', 'means', 'nll']
+headTrain0 dict ['hidden', 'wc', 'logits', 'probs', 'means', 'nll']
+headTrainB0 dict ['hidden', 'wc', 'logits', 'probs', 'means', 'nll']
+headA64 dict ['hidden', 'wc', 'logits', 'probs', 'means', 'nll']
+cache_name 'cacheTrainB'
+action_probe_exact_doses dict ['insulin', 'norepinephrine']
+dose_lookup_probe dict [(1010000000, 5, 'insulin'), (1010000000, 125, 'insulin'), (1010000000, 185, 'insulin'), (1010000000, 305, 'insulin'), (1010000000, 365, 'insulin'), (1010000000, 425, 'insulin'), (1010000000, 485, 'insulin'), (1010000000, 545, 'insulin'), (1010000000, 605, 'insulin'), (1010000000, 665, 'insulin'), (1010000000, 725, 'insulin'), (1010000000, 785, 'insulin'), (1010000000, 845, 'insulin'), (1010000000, 905, 'insulin'), (1010000000, 965, 'insulin'), (1010000000, 1025, 'insulin'), (1010000000, 1085, 'insulin'), (1010000000, 1145, 'insulin'), (1010000000, 1205, 'insulin'), (1010000000, 1265, 'insulin'), (1010000000, 1325, 'insulin'), (1010000000, 1385, 'insulin'), (1010000000, 1445, 'insulin'), (1010000001, 5, 'insulin')]
+doses ndarray (30,)
+s4 dict ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+groups4 dict [(1010000000, -120), (1010000000, -60), (1010000000, 0), (1010000000, 5), (1010000000, 60), (1010000000, 120), (1010000000, 125), (1010000000, 180), (1010000000, 185), (1010000000, 240), (1010000000, 300), (1010000000, 305), (1010000000, 360), (1010000000, 365), (1010000000, 420), (1010000000, 425), (1010000000, 480), (1010000000, 485), (1010000000, 540), (1010000000, 545), (1010000000, 600), (1010000000, 605), (1010000000, 660), (1010000000, 665)]
+atoms4 list length 0
+errors4 list length 8
+wm_kv_layout 'global'
+dose_encoder_probe dict ['insulin', 'norepinephrine']
+rows4 ndarray (4214,)
+dose_actual4 ndarray (4
+[output cut at 10,000 characters]
+```

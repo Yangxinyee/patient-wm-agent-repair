@@ -1,0 +1,109 @@
+OUTPUT of Python run 156 of at most 300:
+```
+5234
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+NOTES LEN 8661
+# Notes
+
+## Run 1-2: read ARCHITECTURE.md, README. Dose enters only via encode_action (z_rate,z_dose,bins) -> u_k -> z_post & prelude.
+
+## Runs 2-14: data facts
+- All stays 25.17h; readings at integer hours, drugs at h+0.0833 (1h infusions). 30k stays; ins in 18.4k stays, NE in 13.1k.
+- INSULIN POLICY (sliding scale on latest glucose reading; finger preferred if same hour as lab): rate=0 if G<=150,
+  base 1 (150-180], 2 (180-220], 3 (220-260], 4 (>260), times iid lognormal noise (log-sd ~0.31-0.37) rounded to 0.5, min 0.5.
+  Noise has ~zero autocorrelation (per-record). Finger checks become hourly when G>150.
+- finger vs lab same hour: mean diff 0.03, s
+['A', 'A0', 'A_', 'A_val', 'Aall', 'B', 'BD', 'BR', 'B_', 'B_OFF', 'Bn', 'Bpc', 'Bz', 'C3', 'CAT', 'CTX3', 'C_', 'D4', 'E0', 'E1', 'E1g', 'EI', 'EN', 'EU3', 'E_', 'E_nd', 'E_ref_d', 'E_ref_n', 'En', 'F', 'F2', 'F2k', 'G', 'G3', 'GI', 'GN', 'GU', 'GroupKFold', 'H3', 'H4', 'HistGradientBoostingRegressor', 'K', 'K_', 'L', 'LN_', 'LNf', 'LNt', 'LNw', 'LNx', 'LinearSVC', 'NAMES', 'NB', 'NW', 'OUT3', 'OUT4', 'P', 'P3', 'PN', 'PT', 'PTr', 'P_', 'Pc', 'Pd', 'Pn', 'Q_', 'RI_d', 'RN_d', 'R_', 'Ridge', 'S', 'S3', 'S4', 'SHAPES', 'S_idx', 'T', 'T0', 'TE', 'TEND', 'TG', 'TGN', 'TOK', 'TOKn', 'TS', 'TXT', 'T_', 'Td', 'Tn', 'Tser', 'U', 'UB', 'UC', 'UG', 'UG2', 'UI_all', 'UN_all', 'UR', 'UR_d', 'U_basis', 'U_of', 'Uc', 'Uc_', 'Ucomb', 'Ud', 'Ug', 'Ui_only', 'Uk', 'Un_only', 'Up', 'V', 'VB', 'VOCAB', 'Vt', 'Vt_', 'W', 'W0', 'W0c', 'W0e', 'W0f', 'W0n', 'W0u', 'W2', 'W2f', 'W2m', 'W2n', 'W_ea', 'Wc', 'Wd', 'Wo_', 'Wp', 'Wt', 'X', 'X3', 'X4', 'XIN3', 'XIN3d', 'X_', 'Xall', 'Xd', 'Xf', 'Xg', 'Xs', 'Xs_', 'Y3', 'Yg', 'Z1', 'Z3', 'Z4', 'Z4r', 'ZO3', 'Zall', 'Zm', 'Zr', 'a', 'a2', 'aC', 'aG', 'aG2', 'aR', 'a_', 'a_s', 'ac', 'act', 'act_mean', 'acts', 'add', 'add_g', 'add_last', 'af', 'age_emb', 'agg', 'ai', 'al', 'allA', 'allB', 'allU', 'alpha', 'amin', 'an', 'anyd', 'anyon', 'arch', 'arr', 'art_stay', 'at', 'atom', 'atom_emb', 'atoms', 'atoms_g', 'att0', 'attn_n', 'au', 'b', 'b0', 'b0f', 'b0n', 'b1', 'b2', 'b2f', 'bA', 'bC', 'bF', 'bG', 'bG2', 'bL', 'bR', 'b_', 'band_mean', 'band_np', 'band_of', 'base', 'base_X', 'base_ctx', 'base_r', 'base_rate', 'bcoef', 'bd', 'be', 'best', 'bf', 'bgI', 'bgN', 'bgN2', 'bi', 'bins0', 'binsets', 'binv', 'bl', 'blk', 'bm', 'bm0', 'bnd', 'both', 'bothI', 'both_ids', 'bothm', 'bp', 'bs', 'build_edit', 'build_mem', 'bund', 'bw', 'c', 'c2', 'c_', 'cacheU', 'cand', 'cand_T0', 'cand_idx', 'cand_units', 'capI', 'cats', 'cb', 'cc', 'cell', 'chk', 'chk2', 'cid', 'clf', 'clfN', 'clf_', 'cls', 'cn1', 'cnt', 'cnt_', 'coda_only', 'code', 'code_id', 'codes4', 'coef', 'col', 'collections', 'cols', 'comp', 'core', 'core_parts', 'cov', 'cp', 'cross_val_predict', 'crossfit', 'cs', 'ctrl', 'ctx', 'ctx_c', 'ctx_dims', 'ctx_of', 'ctxc', 'ctxs', 'cu', 'cuff_keys', 'cur', 'd', 'd2', 'dEd', 'dEn', 'dI_', 'dN_', 'd_', 'd_c', 'd_est', 'd_idx', 'd_true', 'dd', 'dd_', 'de', 'de1', 'defaultdict', 'desc', 'df', 'df_s', 'dfs', 'di', 'dis', 'dl', 'dm', 'dmax', 'dn', 'dn_', 'dr', 'dr3', 'dr_ev', 'drec', 'drop_edit', 'drug', 'drug_', 'drug_atom_parts', 'drug_rows4', 'drugs_tu', 'dt', 'dt3', 'dt_h', 'dtk', 'dtu', 'dtv', 'dums', 'dyn', 'e', 'e0', 'e1', 'e2', 'eI', 'eI_', 'eN', 'eN_', 'e_', 'e_all', 'e_c', 'e_dims', 'e_drug_bundle', 'e_empty', 'e_from_atoms_batch', 'ea', 'ebound', 'ec', 'ed', 'ed2', 'ed_', 'edges', 'edh', 'edited', 'ek', 'ek_n', 'embs', 'en', 'enc', 'enc_e', 'enc_e_empty', 'enc_set', 'enc_x', 'enc_y', 'end_atom', 'endg', 'ends', 'eno', 'eo', 'err', 'err_', 'errb', 'errs', 'errs_', 'ev', 'ev_', 'evn', 'evs', 'extra', 'ey', 'f', 'f1', 'fI', 'fI_off', 'fIu', 'fN', 'fN_off', 'fNu', 'f_', 'fa', 'fa_', 'fa_name', 'far', 'fbin', 'fe', 'feat_name', 'featsI', 'featsN', 'ffn', 'fh', 'first', 'first_dose_from12', 'fitgate', 'fitstat', 'fm', 'fn', 'fn_name', 'fo', 'fpart', 'fr', 'fw', 'g', 'g2', 'gT', 'gam', 'gapf', 'gate_fit', 'gates', 'gb', 'ge', 'gel', 'gelu', 'gf', 'gfv', 'gfv2', 'gin', 'gl', 'glob', 'gm', 'gn', 'gq', 'grid', 'grid_pairs', 'groups', 'grp', 'grp_all', 'grpd', 'gs', 'gscale', 'gt', 'gterm', 'gv', 'h', 'h0', 'h0f', 'h1', 'h1max', 'h2', 'h2max', 'hA', 'hF', 'hL12', 'hL12se', 'half', 'hasI', 'hasI_d', 'hasI_g', 'hasIall', 'hasN', 'hasN_d', 'hasN_g', 'hasNall', 'has_other', 'has_self', 'hdec', 'hh', 'hi', 'hi4', 'hinit', 'hist', 'hn', 'hn4', 'hn_', 'hourly_rates', 'hp', 'hprev', 'hr', 'hr3', 'hr4', 'hr_', 'hr_r', 'hrd', 'htf', 'htf_n', 'hv', 'i', 'i0', 'ids100', 'idx', 'idx_b', 'idx_map', 'idx_no', 'idx_read', 'iend', 'ii', 'imp', 'inI', 'inN', 'incl', 'info', 'inp', 'ins', 'ins_atom', 'ins_r', 'inspect', 'irf', 'irf_ne', 'isg', 'items', 'itertools', 'iz', 'j', 'jd', 'json', 'jy', 'k', 'k2', 'k3', 'k_', 'kb', 'kd'
+[output cut at 10,000 characters]
+```

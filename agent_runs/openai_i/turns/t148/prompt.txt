@@ -1,0 +1,374 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 147 replies happened before. Forward passes used: 10 of 50; Python runs used: 132 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ensitivity, and training/tuning provenance before editing; no weights changed.
+
+## Python 96 — dose-specific posterior plan
+- Record-derived lag targets substantially exceed original rollout effects.
+- Head-hidden dose-innovation decoding is near zero; prefer a shared-state posterior correction, centered on factual policy.
+- Recovering action-feature alignment for a low-rank statistical edit; no edits yet.
+
+## Python 98 — corrected isolated-action validation
+- Python 97 stopped on action-case tuple arity, before any validation or edit.
+- Repeated the validation with indexed case fields and aligned active-dose innovations to the training panel.
+
+## Python 99 — drug-bundle reconstruction
+- Isolated starts validate to approximately 3e-4 posterior RMS.
+- Tested END conventions on drug-only bundles, selected by exposed-state agreement, and reconstructed all drug-bundle posterior hidden features.
+- Best END configuration: ('absent', True, True, -1, False); drug RMS 0.0865508. No weights changed.
+
+## Python 100 — rejected END reconstruction
+- Python 99 END-in-action grid failed (mean posterior RMS about 0.097); do not use those features for editing.
+- Testing omission/routing of END atoms and recovering earlier validated encoder helper contracts. No submitted weights changed.
+
+## Python 101 — architecture and evidence recovery
+- Ignoring END did not fix posterior reconstruction; those features are not approved for editing.
+- Recovering architecture and retained record-based estimates before choosing a directly testable correction.
+- No weights changed.
+
+## Python 102 — shared-state correction prerequisites
+- Architecture confirms separate action encoding into a shared recurrent state.
+- Proximal record effects cannot be substituted for accumulated rollout effects.
+- Inspecting bundle schema, retained lag evidence, and state files; no weights changed.
+
+## Python 103 — choose an identifiable editing feature
+- Retained controlled impulse estimates have substantial multi-hour tails.
+- Inspecting actual bundle construction and helpers rather than guessing more END conventions.
+- No weights changed.
+
+## Python 104 — observation-linked latent directions
+- Used exposed original posterior means, recorded current readings, and pre-bundle context.
+- Checked latent-direction stability across disjoint stays.
+- These directions are an editing pathway, not evidence of drug effects. No weights changed.
+
+## Python 106 — retained-feature inventory
+- Separate action and observation pathways permit a recurrent rather than sensor-specific repair.
+- Inspecting retained arrays and helper contracts to select a dose-sensitive, factual-centered feature.
+- No weights changed.
+
+## Python 107 — recover aligned causal and latent regressions
+- Retained causal panels and posterior states are available; no need to repeat identification.
+- Checking helper contracts and innovation decodability before editing posterior weights.
+- No weights changed.
+
+## Python 108 — persistent-effect target and feature audit
+- Controlled record estimates show multi-hour drug-effect tails; proximal slopes alone are insufficient.
+- Recovering dose decoding and posterior helper definitions before constructing the candidate.
+- No weights changed.
+
+## Python 109 — decisive END-routing test
+- Tested END markers through the observation encoder, with starts through the action encoder.
+- Best probe result: (0.0046221595257520676, 0.02281317114830017, ('absent', True, True, 1, False), 'encoded'); separate-bundle validation printed above.
+- No weights changed. Reject this pathway unless exposed-state agreement is close.
+
+## Python 110 — dose-feature construction
+- END-as-observation routing passed separate-bundle validation at RMS about 0.0043.
+- Constructed posterior hidden features for factual doses and factors 0, .5, 1.5, 2, 3.
+- These perturbations calibrate dose encoding, not drug-effect truth.
+- Inspecting retained factual innovation targets. No weights changed.
+
+## Python 113–114 — restart audit
+- Architecture reread; no edits. Shared-state correction remains the preferred pathway.
+- Last alignment assertion failed on 53 drug bundles; must explain these before fitting.
+- Recovering retained features in bounded output after architecture output truncation.
+
+## Python 116–119 — resolved alignment; decoder test
+- All 53 unmatched bundles are terminal END-only bundles at 25.0833, zero start rates.
+- Drug posterior reconstruction RMS 0.00418.
+- Fitting affine posterior-hidden dose-innovation decoders; validation split is by training stay.
+- Perturbation features calibrate rate encoding only; causal targets remain record-derived.
+- No weights changed yet.
+
+## Python 120 — reject weak posterior dose decoders
+- Held-stay innovation R2 was negative; counterfactual dose slopes were far below one.
+- Do not submit an edit based on these decoders. Recovering earlier action features and causal evidence.
+- No weights changed.
+
+## Python 121 — recover cumulative targets and earlier dose pathway
+- Architecture confirms dose information enters a separate action encoder before the shared posterior/state.
+- Testing earlier dose representations rather than trusting failed final-hidden decoders.
+- No weights changed.
+
+## Python 122 — test dose magnitude before posterior mixing
+- Fit ridge action-vector-to-rate decoders; held-out split is by training stay.
+- Need perturbation validation before using any decoder in a weight edit.
+- No weights changed.
+
+## Python 125–126 — calibrated action decoder and factual centering
+- Active action vectors agree exactly; cached empty actions use encoded rather than zero vectors.
+- Augmented held-stay dose-change slopes: insulin 0.9993, NE 0.9908 (ridge .001).
+- Fitting presence gates (including x0) and pre-action-context factual policy predictors.
+- No weights changed.
+
+## Python 127 — first posterior dose-innovation candidate
+- Four low-contribution z_post hidden neurons replaced by two gated GELU differences per drug.
+- Rate decoders calibrated from training-state dose perturbations; policy centering uses pre-action context.
+- Compensated displaced original contributions with a small ridge regression, preserving mean and log-sd outputs.
+- Trial latent-direction gains: insulin -2, NE +1.5; these require GPU calibration, not assumed physical gains.
+- Edited z_post.0/.2 weights and biases only. Factual limit must be checked next.
+
+## Python 128; forwards 7–8 — first candidate ineffective
+- Factual tuning NLL: original 1.63155, edited 1.63156 (100 stays).
+- Matched rollouts (/work/fwd_9): insulin x2 -2.016 -> -1.985; half 1.051 -> 1.015; NE x2 .309 -> .345; half -.070 -> -.032.
+- Factual fit passes locally, but dose correction is essentially ineffective; do not treat this as a successful repair.
+- Recovering exact architecture, feature gates, and latent-direction calibration before further edits.
+
+## Python 129–130 — direct correction audit
+- Recovered candidate objects and inspecting actual posterior corrections under dose perturbations.
+- No new weights installed; first candidate remains active only for diagnosis.
+
+## Python 131 — reversible 100-fold latent gain probe
+- Direct perturbation audit: gated innovation slopes approximately 1 for x0, x.5, x1.5, x2, x3.
+- Small-gain factual latent correction RMS .00354; dose features are active but rollout influence is weak.
+- Saved small candidate in candidate_small131; installed gains insulin -200, NE +150.
+- This is pathway calibration, not an assertion of drug-effect magnitude. Must test rollouts and factual fit.
+
+## Python 132; forwards 9–10 — reject correlation-based latent direction
+- At gains (-200,+150), factual NLL improved .00026 but insulin x2 only -1.884 and NE x2 +.027.
+- Larger gains fail to repair effects; NE moves opposite the record-based target.
+- Reverted all edits; saved probe weights in candidate_large132.
+- Next: calibrate posterior latent directions against actual recurrent/head forward responses, not posterior/reading correlations.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 132 of at most 300:
+```
+current edits after rejecting probe: []
+=== CORE TENSORS ===
+core.a_in (192,)
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.b_in.weight (192, 192)
+core.blocks.0.0.attn.kv.weight (384, 192)
+core.blocks.0.0.attn.out.weight (192, 192)
+core.blocks.0.0.attn.q.weight (192, 192)
+core.blocks.0.0.cross.kv.weight (384, 192)
+core.blocks.0.0.cross.out.weight (192, 192)
+core.blocks.0.0.cross.q.weight (192, 192)
+core.blocks.0.0.ffn.0.bias (768,)
+core.blocks.0.0.ffn.0.weight (768, 192)
+core.blocks.0.0.ffn.2.bias (192,)
+core.blocks.0.0.ffn.2.weight (192, 768)
+core.blocks.0.0.norm1.bias (192,)
+core.blocks.0.0.norm1.weight (192,)
+core.blocks.0.0.norm2.bias (192,)
+core.blocks.0.0.norm2.weight (192,)
+core.blocks.0.0.norm3.bias (192,)
+core.blocks.0.0.norm3.weight (192,)
+core.blocks.0.1.attn.kv.weight (384, 192)
+core.blocks.0.1.attn.out.weight (192, 192)
+core.blocks.0.1.attn.q.weight (192, 192)
+core.blocks.0.1.cross.kv.weight (384, 192)
+core.blocks.0.1.cross.out.weight (192, 192)
+core.blocks.0.1.cross.q.weight (192, 192)
+core.blocks.0.1.ffn.0.bias (768,)
+core.blocks.0.1.ffn.0.weight (768, 192)
+core.blocks.0.1.ffn.2.bias (192,)
+core.blocks.0.1.ffn.2.weight (192, 768)
+core.blocks.0.1.norm1.bias (192,)
+core.blocks.0.1.norm1.weight (192,)
+core.blocks.0.1.norm2.bias (192,)
+core.blocks.0.1.norm2.weight (192,)
+core.blocks.0.1.norm3.bias (192,)
+core.blocks.0.1.norm3.weight (192,)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+core.slots (4, 192)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+=== RECONSTRUCTION HELPERS ===
+head_exact (rows, z_samples=16, seed=917, **kwargs)
+ names: ('linear_named', 'head2')
+ constants: (None, <code object corrected_linear at 0x7e723bcb79f0, file "<run>", line 8>, ('z_samples', 'seed'))
+head2 (rows, prior_gap=0.1, view_gap=0.1, age_unit='hours', latent='prior', z_samples=0, seed=917, bin_side=None)
+ names: ('head_weights', 'previous_state', 'to_numpy', 'int', 'torch', 'from_numpy', 'state_x', 'astype', 'np', 'float32', 'tensor', 'hour', 'state_hours', 'clamp_min', 'reshape', 'exp', 'norm_named', 'mean', 'mlp_named', 'log', 'event', 'code_ids', 'long', 'last_bin', 'copy', 'MEAS', 'flatnonzero', 'last_value', 'notna', 'len', 'numeric_specs', 'searchsorted', 'last_hour', 'fillna', 'zeros', 'log1p', 'maximum', 'last_z', 'linear_named', 'array', 'VOCAB', 'shape', 'cat', 'Generator', 'manual_seed', 'range', 'max', 'zeros_like', 'clamp', 'randn', 'F', 'gelu', 'append', 'softmax', 'stack', 'sum', 'numpy')
+ constants: (None, ('dtype',), 3600, 1, 192, 960, -1, 4, 'core.flow.a', 'core.out_norm', 'gap', 'z_prior', 32, 'value', 'fine_bin_edges', ('side',), 'seconds', 8, 0, 10, 2, 3, 'embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'embed_transition.value_bin.weight', 17, 'value_bin_centres', 16, ('dim',), 'posterior_previous', 'zero', -6, ('generator',), 'z_head', 'type_emb.weight', 'query_norm', 'attr
+reconstruct_head (rows, age_unit='seconds', layout='interleaved', status=0, type_index=1, gap_scale=0.1, z_samples=0, seed=821)
+ names: ('previous_state', 'to_numpy', 'int', 'torch', 'from_numpy', 'state_x', 'astype', 'np', 'float32', 'tensor', 'hour', 'state_hours', 'clamp_min', 'reshape', 'exp', 'head_weights', 'mlp_named', 'log', 'norm_named', 'mean', 'event', 'code_ids', 'long', 'last_bin', 'last_value', 'notna', 'last_hour', 'fillna', 'log1p', 'maximum', 'last_z', 'zeros', 'len', 'linear_named', 'array', 'VOCAB', 'shape', 'cat', 'Generator', 'manual_seed', 'range', 'max', 'randn', 'clamp', 'F', 'gelu', 'append', 'softmax', 'stack', 'sum', 'numpy')
+ constants: (None, ('dtype',), 3600, 1.0, 192, 960, -1, 4, 'core.flow.a', 'gap', 1, 'core.out_norm', 'z_prior', 32, 'seconds', 0, 10, 8, 2, 'interleaved', 3, 5, 'embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'embed_transition.value_bin.weight', 17, 'value_bin_centres', 16, ('dim',), ('generator',), -6, 'z_head', 'type_emb.weight', 'query_norm', 'attr_heads.value_bin.0', 'attr_heads.value_bin.2'
+latent_context (indices)
+ names: ('np', 'asarray', 'int64', 'torch', 'from_numpy', 'latent_state', 'round', 'latent_hour', 'astype', 'float32', 'reshape', 'exp', 'repair_weights', 'repair_norm', 'mean', 'repair_mlp_act', 'log', 'gap_prefix41', 'F', 'gelu')
+ constants: (None, ('dtype',), 1, 960, 3600, 192, -1, 4, 'core.flow.a', 'core.out_norm', 10)
+posterior109 (ctx, e, u)
+ names: ('F', 'gelu', 'repair_linear', 'torch', 'cat')
+ constants: (None, -1, ('dim',), 'z_post.0', 'z_post.2', 32)
+pool109 (atoms, prefix, empty_mode='encoded')
+ names: ('torch', 'zeros', 'float32', 'mlp109', 'stack', 'sum', 'np', 'sqrt', 'len', 'tensor', 'log1p', 'repair_norm', 'repair_linear')
+ constants: (None, 'zero', 192, ('dtype',), '.mlp1', 0, '.size', '.mlp2', '.norm')
+drug_u99 (case, config, drug=None, multiplier=1.0)
+ names: ('dict', 'float', 'append', 'latent_start_atom', 'end_atom99', 'latent_action_encode')
+ constants: (None, 1, 'event', 'rate', 'dose', 2)
+complete_atom57 (row, kind=0, ekind=None, unit=None, rate_unit=None, numbers=True)
+ names: ('ekind_ids57', 'event_info57', 'repair_weights', 'code_ids', 'clone', 'np', 'zeros', 'float32', 'get', 'nan', 'pd', 'notna', 'numeric_specs', 'clip', 'float', 'searchsorted', 'int', 'repair_linear', 'torch', 'from_numpy', 'unit_ids57', 'rate_unit_ids57', 'items')
+ constants: (None, 'event', 'event_kind', 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 6, ('dtype',), (('value', 0), ('dose', 2), ('rate', 4)), 0, 'median', 'iqr', -10, 10, 1, 'fine_bin_edges', 'left', ('side',), 'embed.bins.', '.weight', 'embed.numeric', ('unit', 'rate_unit', 'action', 'status', 'route', 'discharged_to'), 'embed.categorical.')
+=== STATE FILES ===
+/work/fwd_3/states_original.npz {'x': (4035, 992), 'stay_id': (4035,), 'hour': (4035,), 'has_insulin': (4035,), 'has_norepinephrine': (4035,), 'n_atoms': (4035,)}
+=== RETAINED STATE/HEAD OBJECTS ===
+latent_state ndarray (4035, 992)
+latent_sid ndarray (4035,)
+latent_hour ndarray (4035,)
+latent_stays ndarray (100,)
+latent_records DataFrame (6193, 9)
+latent_starts dict [(1010000000, 0.0833), (1010000000, 1.0833), (1010000000, 2.0833), (1010000000, 3.0833), (1010000000, 4.0833), (1010000000, 16.0833), (1010000000, 17.0833), (1010000000, 19.0833), (1010000000, 23.0833), (1010000000, 24.0833), (1010000001, 13.0833), (1010000001, 14.0833)]
+latent_ends dict [(1010000000, 1.0833), (1010000000, 2.0833), (1010000000, 3.0833), (1010000000, 4.0833), (1010000000, 5.0833), (1010000000, 17.0833), (1010000000, 18.0833), (1010000000, 20.0833), (1010000000, 24.0833), (1010000000, 25.0833), (1010000001, 14.0833), (1010000001, 15.0833)]
+latent_bundles list 1312
+latent_empty_e Tensor (192,)
+latent_context function
+latent_categories function
+latent_action_encode function
+latent_hidden function
+latent_encode_batch function
+latent_post_mean function
+latent_start_atom function
+bundle_lookup65 dict [(1010000000, -120), (1010000000, -60), (1010000000, 0), (1010000000, 5), (1010000000, 60), (1010000000, 65), (1010000000, 120), (1010000000, 125), (1010000000, 180), (1010000000, 185), (1010000000, 240), (1010000000, 245)]
+bundle_rows65 list 4035
+S104 ndarray (4035, 992)
+ids104 ndarray (4035,)
+valid104 ndarray (3935,)
+ctx104 ndarray (3935, 192)
+z104 ndarray (3935, 32)
+sensor_codes104 list 4
+readings104 ndarray (4035, 4)
+i104 int
+atoms104 list 0
+kind104 int
+row104 dict ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+r104 ndarray (3935, 4)
+flags104 ndarray (3935, 4)
+hasg104 ndarray (3935,)
+hasm104 ndarray (3935,)
+g104 ndarray (3935,)
+m104 ndarray (3935,)
+gcentre104 float64 ()
+mcentre104 float64 ()
+levels104 ndarray (3935, 6)
+Xdir104 ndarray (3935, 198)
+readmask104 ndarray (3935,)
+trainmask104 ndarray (3935,)
+testmask104 ndarray (3935,)
+direction_fit104 Ridge
+direction_all104 Ridge
+vg104 ndarray (32,)
+vm104 ndarray (32,)
+cosine104 function
+f104 TextIOWrapper
+
+```

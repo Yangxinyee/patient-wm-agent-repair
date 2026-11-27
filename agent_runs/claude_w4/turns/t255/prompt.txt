@@ -1,0 +1,100 @@
+OUTPUT of Python run 226 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+original {'insulin_x2': (-0.348, 919), 'insulin_half': (0.208, 919), 'ne_x2': (0.018, 730), 'ne_half': (-0.245, 730)}
+edited {'insulin_x2': (-0.145, 919), 'insulin_half': (0.066, 919), 'ne_x2': (0.01, 730), 'ne_half': (-0.163, 730)}
+['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight'] 0645a2493b
+ARRS [('A0', (17, 192)), ('A3', (3, 48)), ('A_', (1375, 2)), ('A_d', (2319, 4, 7)), ('A_n', (520, 4, 7)), ('A_val', (17, 192)), ('Aall', (205, 192)), ('Ag', (48, 48)), ('Ap', (2320, 192)), ('Aq', (192, 192)), ('B', (31, 192)), ('BD', (17, 192)), ('BM', (5,)), ('BR', (17, 192)), ('B_', (1305, 33)), ('Bg', (48, 48)), ('Bpc', (25, 192)), ('Bz', (9, 32)), ('C3', (2319, 192)), ('CTX3', (2319, 192)), ('C_', (192, 192)), ('Ce', (5424, 192)), ('Co', (5424, 192)), ('Co2', (5424, 192)), ('Cx', (192, 192)), ('D', (5218, 992)), ('D4', (32, 4)), ('E0', (2319, 4, 192)), ('E0t', (2319, 4, 192)), ('E1', (100, 192)), ('EU3', (2319, 384)), ('E_b', (120, 4, 192)), ('E_ref_d', (2319, 4, 192)), ('E_ref_n', (520, 4, 192)), ('Eb', (200, 4, 192)), ('Ech', (2319, 4, 192)), ('Em', (120, 4, 192)), ('En', (520, 4, 192)), ('Ep', (120, 4, 192)), ('Eref', (200, 4, 192)), ('F2', (5424, 7)), ('F2k', (5424, 8)), ('FF', (76960, 192)), ('F_', (8276, 192)), ('Fd', (9276, 192)), ('Fe', (5424, 194)), ('Fn', (2080, 192)), ('G', (161, 192)), ('G3', (2319, 192)), ('GI', (3206,)), ('GN', (3206,)), ('GU', (3206, 192)), ('G_', (1625,)), ('G_all', (2319,)), ('Glat', (2319,)), ('Gm', (4, 192)), ('GmA', (4, 192)), ('GmW', (4, 48)), ('H', (5218, 4, 192)), ('H3', (5218, 4, 192)), ('H4', (5218, 4, 192)), ('He', (5218, 4, 192)), ('Ho', (5218, 4, 192)), ('J', (300, 768, 192)), ('Jc', (120, 192, 192)), ('Jm', (768, 192)), ('Jm_', (300, 192, 192)), ('Js', (200, 192, 48)), ('Jx', (120, 192, 192)), ('JxE', (120,)), ('JxH', (120,)), ('L1T', (2319, 7, 192)), ('L1Tn', (520, 7, 192)), ('L_O', (17834, 192)), ('L_U', (8461, 192)), ('Lb', (11356, 192)), ('Lb_d', (9276, 192)), ('Lb_n', (2080, 192)), ('Ln', (1, 192)), ('M0', (192, 192)), ('N3n', (2080, 192)), ('NB', (192,)), ('NW', (192, 6)), ('OUT3', (5218, 192)), ('OUT4', (5218, 192)), ('P', (4, 3)), ('P3', (2319, 192)), ('PT', (11200, 6)), ('PTr', (11200, 8)), ('P_', (100, 192)), ('P_W', (192, 192)), ('Q_', (81, 192)), ('RI', (2319,)), ('RI_d', (2319,)), ('RN', (2319,)), ('RN_d', (2319,)), ('R_', (2319,)), ('Sv', (48, 48)), ('T', (2800, 21)), ('T0', (192,)), ('T11', (2319, 7, 192)), ('TE', (120, 6)), ('TEND', (3, 6)), ('TG', (11, 20)), ('TGN', (60, 20)), ('TOK', (2319, 7, 192)), ('TOKn', (520, 7, 192)), ('TOKnt', (520, 7, 192)), ('TOKt', (2319, 7, 192)), ('TS', (17, 6)), ('TXT', (2, 192)), ('T_', (2069, 7, 192)), ('Tb', (120, 7, 192)), ('Td', (2319, 7, 192)), ('Tn', (520, 7, 192)), ('Tser', (2800, 19)), ('U', (5218, 20)), ('UB', (192,)), ('UC', (1128, 192)), ('UG', (2773, 192)), ('UG2', (2773, 192)), ('UI_all', (1175, 192)), ('UN_all', (1729, 192)), ('UR', (3368, 192)), ('UR_d', (2319, 192)), ('U_basis', (5091, 192)), ('Uc_', (2769, 192)), ('Ud', (2769, 192)), ('Ud_', (2319, 192)), ('Ug', (3205, 192)), ('Ui_only', (47, 192)), ('Uk', (2319, 192)), ('Un_', (520, 192)), ('Un_only', (601, 192)), ('Urec', (2319, 192)), ('V1', (48, 192)), ('V1d', (48, 192)), ('V1o', (48, 192)), ('VB', (17, 192)), ('Vc', (192, 4)), ('Vt', (192, 192)), ('Vt_', (192, 192)), ('W0', (192, 576)), ('W0c', (192, 192)), ('W0e', (192, 192)), ('W0f', (192, 576)), ('W0n', (192, 576)), ('W0u', (192, 192)), ('W1n', (192, 48)), ('W1o', (192, 48)), ('W1o_t', (192, 48)), ('W2', (64, 192)), ('W2f', (64, 192)), ('W2m', (32, 192)), ('W2n', (64, 192)), ('W2p', (192, 768)), ('Wo1', (192, 48)), ('WoP', (192, 192)), ('Wst', (4, 192)), ('X', (4, 192)), ('X3', (5218, 992)), ('X4', (5218, 992)), ('XIN3', (2319, 576)), ('XIN3d', (2319, 576)), ('XU', (8461, 192)), ('X_', (1596, 4)), ('X_e', (2839, 192)), ('X_init', (4, 192)), ('X_slot', (11356, 192)), ('X_z', (2839, 192)), ('Xall', (2774, 192)), ('Xd', (2573, 9)), ('Xf', (11356, 192)), ('Xg', (2839, 192)), ('Xp', (6500, 192)), ('Xr', (1931, 193)), ('Xs', (2373, 960)), ('Xs_', (2573, 8)), ('Xu', (2319, 192)), ('Xz', (76960, 5)), ('Y3', (5218, 768)), ('Yg', (3205, 192)), ('Z1', (100, 32)), ('Z3', (5218, 32)), ('Z4', (5218, 32)), ('Z4r', (2319, 32)), ('ZO3', (2319, 64)), ('Z_all', (76960, 4)), ('Zall', (5218, 32)), ('Zm', (2573, 32)), ('Zr', (1305, 32)), ('a', (2319,)), ('a2', ()), ('aC', (1128,)), ('aG', (2773,)), ('aG2', (2773,)), ('aI3', (48,)), ('aI_', (48,)), ('aI_h', (48,)), ('aN3', (48,)), ('aN_', (48,)), ('aN_h', (48,)), ('aP3', (48,)), ('aR', (3368,)), ('a_', (48,)), ('a_d', (2319, 4, 768)), ('a_n', (520, 4, 768)), ('a_s', (2319, 4, 4, 7)), ('a_u', (200, 4)), ('ac', (750000,)), ('act_mean', (192,)), ('add', (192,)), ('add_g', (192,)), ('af', (750000,)), ('ai', (2424,)), ('allA'
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,168 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 32 replies happened before. Forward passes used: 7 of 50; Python runs used: 23 of 300. Your kernel is still running with its variables. Tensors currently edited: ['embed.bins.dose.weight', 'embed.bins.rate.weight', 'embed.numeric.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+": [-0.017566574891412005, 0.018905863029309775], "cluster_se": [0.14857096469191175, 0.017823088224083537], "joint_null_p": 0.10264750145981172}}}, "6": {"all_stays": {"linear": {"n": 206627, "stays": 15924, "coefficients": [-0.002104201086129152], "cluster_se": [0.058570814483298504], "joint_null_p": 0.9713415547685117}, "quadratic": {"n": 206627, "stays": 15924, "coefficients": [-0.15664370628655536, 0.01992970893155994], "cluster_se": [0.12273772881650279, 0.015139841567180387], "joint_null_p": 0.40807462912296255}}, "hours_12_on": {"linear": {"n": 83360, "stays": 14175, "coefficients": [0.14974774889355733], "cluster_se": [0.0876976534109557], "joint_null_p": 0.08772067560916803}, "quadratic": {"n": 83360, "stays": 14175, "coefficients": [0.07415856159335447, 0.009240252422599545], "cluster_se": [0.18264584281817875, 0.02160343663929036], "joint_null_p": 0.23082115434673103}}, "hours_12_on_independent_stays": {"linear": {"n": 66662, "stays": 11326, "coefficients": [0.07194893145265288], "cluster_se": [0.09796294898022183], "joint_null_p": 0.4626742519213126}, "quadratic": {"n": 66662, "stays": 11326, "coefficients": [0.06320639581137272, 0.0010713083953154492], "cluster_se": [0.20270862964768657, 0.023696888611076133], "joint_null_p": 0.7617305574799349}}}}
+- Prepared a joint current/past-dose next-hour diagnostic to distinguish delayed-dose effects from local-projection policy associations.
+- No weight changes.
+
+## Python run 23 / forward passes 7: joint insulin lag-dose diagnostic
+- Post-hour-12 three-hour association replicated on independent stays (+0.1408, SE 0.0687 mg/dL per rate unit); this is counter-evidence to exact zero.
+- Cross-fitted next-hour glucose-change nuisance models jointly residualize current and six past dose magnitudes, including quadratic terms.
+- Dose-presence history is retained; own lagged dose magnitudes are removed from nuisance inputs.
+- Compared additional smooth measured-history controls to reduce residual tree-binning bias.
+- Conditional-shift contrasts hold readings fixed and are NOT rollout estimates.
+- Results: {"all_stays": {"linear": {"n": 293743, "stays": 18222, "joint_dose_p": 0.11070833676839935, "current_linear_coefficient": -0.013222152929677022, "current_linear_se": 0.036289877369573745, "lag_linear_coefficients": [-0.013222152929677022, -0.03027513160546456, 0.08195473852563878, 0.051211446815834644, 0.06423826863564382, -0.029100212251460703, 0.055898809804251236], "lag_linear_se": [0.036289877369573745, 0.03754581027649262, 0.03889681940720603, 0.04053616871576404, 0.04211173120987736, 0.04318842484221385, 0.04526931261631961], "x2_conditional_shift": {"estimate_mg_dL": 0.20293726270660825, "cluster_se": 0.1395799352634037}, "half_conditional_shift": {"estimate_mg_dL": -0.10146863135330413, "cluster_se": 0.06978996763170185}}, "quadratic": {"n": 293743, "stays": 18222, "joint_dose_p": 0.04161276768281977, "current_linear_coefficient": -0.07669975626589841, "current_linear_se": 0.07591127938415934, "lag_linear_coefficients": [-0.07669975626589841, -0.09505108762615275, -0.09382878649830333, -0.12608581749461836, 0.03251810562801062, -0.011374773701099761, 0.2309994151411418], "lag_linear_se": [0.07591127938415934, 0.07846962718136224, 0.08360899366938528, 0.08782170292350998, 0.08831981514073989, 0.09137853155575137, 0.09758206268109569], "x2_conditional_shift": {"estimate_mg_dL": 0.31741219015086575, "cluster_se": 0.16067109095366447}, "half_conditional_shift": {"estimate_mg_dL": 0.021646736471021277, "cluster_se": 0.08073696595877322}, "lag_quadratic_coefficients": [0.008035794213011645, 0.008167847892537695, 0.022259192325238184, 0.022583129042116692, 0.004038561841777067, -0.00221776268619663, -0.022756943180806267], "lag_quadratic_se": [0.009448914349671532, 0.009893623126741663, 0.01054704399577924, 0.01124381349366529, 0.011263764111497656, 0.011681040208575294, 0.012644007236494592]}, "quadratic_with_smooth_history_controls": {"n": 293743, "stays": 18222, "joint_dose_p": 0.04319566350443128, "current_linear_coefficient": -0.07760308719672389, "current_linear_se": 0.07589914316177127, "lag_linear_coefficients": [-0.07760308719672389, -0.09637413644485426, -0.09468660597289315, -0.12603038915387416, 0.03191104341019733, -0.009663734881014865, 0.23188391205987785], "lag_linear_se": [0.07589914316177127, 0.07846712790123422, 0.08356606169053368, 0.08777511475895779, 0.08825256824129833, 0.09130675289649771, 0.09756149718493151], "x2_conditional_shift": {"estimate_mg_dL": 0.3174422231699269, "cluster_se": 0.1619236072354594}, "half_conditional_shift": {"estimate_mg_dL": 0.02252910982253542, "cluster_se": 0.08141911681982776}, "lag_quadratic_coefficients": [0.008196805036080848, 0.008304295004866588, 0.02229481855003636, 0.02259646593240537, 0.0040721172052915625, -0.002412712242581483, -0.022853523383483357], "lag_quadratic_se": [0.00944565501978663, 0.009892770637581353, 0.010539914180287916, 0.011234600131692822, 0.011250614099027122, 0.011667785016477583, 0.012635564587178679]}}, "independent_stays": {"linear": {"n": 234817, "stays": 14550, "joint_dose_p": 0.15981133712711879, "current_linear_coefficient": -0.005256443452031859, "current_linear_se": 0.0402511102782139, "lag_linear_coefficients": [-0.005256443452031859, -0.015261538130612304, 0.07077794065503441, 0.027104838659895315, 0.08036140270292777, -0.06944981889925547, 0.07992661362802711], "lag_linear_se": [0.0402511102782139, 0.04167510929575114, 0.04339460467068139, 0.04545043629200776, 0.04735576510871532, 0.04836996055765626, 0.049858667546029356], "x2_conditional_shift": {"estimate_mg_dL": 0.19523707996400072, "cluster_se": 0.15695218788083323}, "half_conditional_shift": {"estimate_mg_dL": -0.09761853998200036, "cluster_se": 0.07847609394041662}}, "quadratic": {"n": 234817, "stays": 14550, "joint_dose_p": 0.17471389434696113, "current_linear_coefficient": -0.11213372174581657, "current_linear_se": 0.08444294151569146, "lag_linear_coefficients": [-0.11213372174581657, -0.11144104157675161, 0.013145465312025128, -0.0867455204880215, 0.017584579655877973, 0.03748120836823315, 0.22802486532237431], "lag_linear_se": [0.08444294151569146, 0.0879698116733368, 0.09346452591015615, 0.09796748621885713, 0.09926606190444628, 0.10023097509188368, 0.10743544801184206], "x2_conditional_shift": {"estimate_mg_dL": 0.2695927744354327, "cluster_se": 0.18055580545297015}, "half_conditional_shift": {"estimate_mg_dL": -0.0016637858902815044, "cluster_se": 0.09077260339729108}, "lag_quadratic_coefficients": [0.013361405909627016, 0.012108463836612009, 0.007309257829902436, 0.014527575800233214, 0.007991298384395594, -0.013857073966109764, -0.019294268940780367], "lag_quadratic_se": [0.010368014653454771, 0.011002976390922074, 0.011722658136963647, 0.01263902933943777, 0.012684844183967519, 0.012606506552196561, 0.01364308847892137]}, "quadratic_with_smooth_history_controls": {"n": 234817, "stays": 14550, "joint_dose_p": 0.17687149316431353, "current_linear_coefficient": -0.11364861561501426, "current_linear_se": 0.08442470923050789, "lag_linear_coefficients": [-0.11364861561501426, -0.11367011485087188, 0.012404202132411852, -0.08441934114138482, 0.017233562504374182, 0.03735483770161755, 0.23023432770711946], "lag_linear_se": [0.08442470923050789, 0.08797238908815191, 0.09341103212340279, 0.09785541877573972, 0.09915553947239217, 0.10016999511142703, 0.1074218932700814], "x2_conditional_shift": {"estimate_mg_dL": 0.2688804832251461, "cluster_se": 0.18213707125839032}, "half_conditional_shift": {"estimate_mg_dL": -0.0005833182487348237, "cluster_se": 0.09167754627583678}, "lag_quadratic_coefficients": [0.013646762665608493, 0.012354504069676968, 0.007342565791438584, 0.014226599538435527, 0.007896368924468171, -0.01373342411978511, -0.019691796689546445], "lag_quadratic_se": [0.010360502699393887, 0.011003133004640099, 0.011712089233523912, 0.01261720248354314, 0.012663061587405997, 0.012595917603921699, 0.013636490951866437]}}}
+- No weight changes.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 23 of at most 300:
+```
+Completed fold 0 elapsed_seconds 48.2
+Completed fold 1 elapsed_seconds 85.6
+Completed fold 2 elapsed_seconds 118.0
+Completed fold 3 elapsed_seconds 149.7
+Completed fold 4 elapsed_seconds 181.4
+all_stays linear {"n": 293743, "stays": 18222, "joint_dose_p": 0.11070833676839935, "current_linear_coefficient": -0.013222152929677022, "current_linear_se": 0.036289877369573745, "x2_conditional_shift": {"estimate_mg_dL": 0.20293726270660825, "cluster_se": 0.1395799352634037}, "half_conditional_shift": {"estimate_mg_dL": -0.10146863135330413, "cluster_se": 0.06978996763170185}}
+all_stays quadratic {"n": 293743, "stays": 18222, "joint_dose_p": 0.04161276768281977, "current_linear_coefficient": -0.07669975626589841, "current_linear_se": 0.07591127938415934, "x2_conditional_shift": {"estimate_mg_dL": 0.31741219015086575, "cluster_se": 0.16067109095366447}, "half_conditional_shift": {"estimate_mg_dL": 0.021646736471021277, "cluster_se": 0.08073696595877322}}
+all_stays quadratic_with_smooth_history_controls {"n": 293743, "stays": 18222, "joint_dose_p": 0.04319566350443128, "current_linear_coefficient": -0.07760308719672389, "current_linear_se": 0.07589914316177127, "x2_conditional_shift": {"estimate_mg_dL": 0.3174422231699269, "cluster_se": 0.1619236072354594}, "half_conditional_shift": {"estimate_mg_dL": 0.02252910982253542, "cluster_se": 0.08141911681982776}}
+independent_stays linear {"n": 234817, "stays": 14550, "joint_dose_p": 0.15981133712711879, "current_linear_coefficient": -0.005256443452031859, "current_linear_se": 0.0402511102782139, "x2_conditional_shift": {"estimate_mg_dL": 0.19523707996400072, "cluster_se": 0.15695218788083323}, "half_conditional_shift": {"estimate_mg_dL": -0.09761853998200036, "cluster_se": 0.07847609394041662}}
+independent_stays quadratic {"n": 234817, "stays": 14550, "joint_dose_p": 0.17471389434696113, "current_linear_coefficient": -0.11213372174581657, "current_linear_se": 0.08444294151569146, "x2_conditional_shift": {"estimate_mg_dL": 0.2695927744354327, "cluster_se": 0.18055580545297015}, "half_conditional_shift": {"estimate_mg_dL": -0.0016637858902815044, "cluster_se": 0.09077260339729108}}
+independent_stays quadratic_with_smooth_history_controls {"n": 234817, "stays": 14550, "joint_dose_p": 0.17687149316431353, "current_linear_coefficient": -0.11364861561501426, "current_linear_se": 0.08442470923050789, "x2_conditional_shift": {"estimate_mg_dL": 0.2688804832251461, "cluster_se": 0.18213707125839032}, "half_conditional_shift": {"estimate_mg_dL": -0.0005833182487348237, "cluster_se": 0.09167754627583678}}
+
+=== FULL ADJUSTED LAG PROFILE ===
+{
+  "n": 293743,
+  "stays": 18222,
+  "joint_dose_p": 0.04319566350443128,
+  "current_linear_coefficient": -0.07760308719672389,
+  "current_linear_se": 0.07589914316177127,
+  "lag_linear_coefficients": [
+    -0.07760308719672389,
+    -0.09637413644485426,
+    -0.09468660597289315,
+    -0.12603038915387416,
+    0.03191104341019733,
+    -0.009663734881014865,
+    0.23188391205987785
+  ],
+  "lag_linear_se": [
+    0.07589914316177127,
+    0.07846712790123422,
+    0.08356606169053368,
+    0.08777511475895779,
+    0.08825256824129833,
+    0.09130675289649771,
+    0.09756149718493151
+  ],
+  "x2_conditional_shift": {
+    "estimate_mg_dL": 0.3174422231699269,
+    "cluster_se": 0.1619236072354594
+  },
+  "half_conditional_shift": {
+    "estimate_mg_dL": 0.02252910982253542,
+    "cluster_se": 0.08141911681982776
+  },
+  "lag_quadratic_coefficients": [
+    0.008196805036080848,
+    0.008304295004866588,
+    0.02229481855003636,
+    0.02259646593240537,
+    0.0040721172052915625,
+    -0.002412712242581483,
+    -0.022853523383483357
+  ],
+  "lag_quadratic_se": [
+    0.00944565501978663,
+    0.009892770637581353,
+    0.010539914180287916,
+    0.011234600131692822,
+    0.011250614099027122,
+    0.011667785016477583,
+    0.012635564587178679
+  ]
+}
+Elapsed seconds: 182.1
+
+```

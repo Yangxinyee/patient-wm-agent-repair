@@ -1,0 +1,73 @@
+OUTPUT of Python run 98 of at most 300:
+```
+RECURRENT INPUT GAIN CANDIDATE [{'op': 'rank1', 'name': 'embed.numeric.weight', 'vector': 'vectors/v001.npy', 'alpha': 3.0, 'side': 'in'}, {'op': 'scale', 'name': 'core.b_in.weight', 'c': 2.0}]
+
+REMAINING EARLIER PATHWAY RESULTS
+## Python run 34: numeric-value mixing pilot
+- Head NE pilot factual NLL 1.636318 vs original 1.634615 (+0.001703), but rollout benefit negligible; removed.
+- Retained numeric gain 4 and added a drug-dose/rate-to-numeric-value input shear with coefficient -2.
+- Measurement numeric inputs are unchanged; signs and factual safety require forward validation.
+- Candidate saved as numeric_value_mix_m2. Python runs: 34; forward passes: 17.
+
+
+## Python run 35 / forwards 18?19
+- Numeric-value mix -2 factual +0.00117, rollouts insulin -2.462/+1.646, NE +0.129/-0.072: rejected for no useful gain.
+- Restored numeric gain 4. Inspecting saved centered out_norm designs as an alternative to head-input shears.
+- Python runs: 35; forward passes: 19.
+
+
+## Python run 38: causal and pathway audit
+- Separating posterior z_in state updates from prior z_head readouts.
+- Recovering identification estimates and prior ablations; no edits changed. Forward passes: 19.
+
+
+## Python run 40: latent-input gain pilot
+- Installed numeric gain 4 plus gain 21 on the low-factual-variance latent dose-sensor subspace of z_in.weight.
+- Direct z_head and observation inputs unchanged. This tests posterior-latent participation in recurrent dose effects.
+- Factual safety and rollout direction remain untested. Forward passes: 19.
+
+
+## Python run 41 / forwards 20-21: latent candidate rejected
+- z_in latent gain 21: factual increase +0.00122, rollouts insulin -2.494/+1.741 and NE +0.123/+0.017.
+- No material gain over numeric gain 4. Saved candidate and restored numeric gain 4 alone.
+- Inspecting direct out_norm diagonal designs. Forward passes used: 21.
+
+
+## Python run 53: query-state amplification pilot
+- Recovered existing gain-16 results: factual +0.00246, insulin -2.231/+1.531, NE +0.157/+0.085. No new forward pass spent; restored numeric gain 4.
+- Installed query_norm.weight scale 1.5, leaving its bias and reading registers unchanged.
+- Hypothesis: stronger state contribution at the reading head increases dose sensitivity. Factual safety is untested.
+- Forward passes used: 22.
+
+
+## Forward 23 / Python run 54: uniform query gain rejected
+- Query gamma x1.5 plus numeric gain 4: factual NLL 1.72639 vs 1.63461, +0.09178.
+- Restored numeric gain 4. The paired query-only changes relative to forward 9 can be used as an empirical head-sensitivity probe, not as an accepted repair.
+- Next assess whether a selective head correction can be predicted and made factual-safe.
+- Forward passes used: 23.
+
+
+## Python run 59: controlled head-response estimation
+- Aligned factual readings with preceding original/numeric-gain-4 states.
+- Fitting stay-held-out regressions to paired numeric and query-gain prediction changes.
+- These are empirical perturbation responses, not observational outcome associations.
+- No edits changed; forward passes used: 24.
+
+
+## Python runs 60-61: time-flow pilot installed
+- Run 60 applied numeric gain 4 plus core.flow.a x1.15, then failed only during candidate saving.
+- Run 61 saved the existing candidate without repeating the edits.
+- Controlled head regressions fit their own perturbations but fail cross-perturbation transfer.
+- Testing whether between-bundle decay suppresses drug information; factual NLL is untested.
+- Forward passes used: 24.
+
+
+## Forward 25 / Python run 63: flow edit rejected
+- core.flow.a x1.15 factual NLL 1.73963 vs 1.63461, increase +0.10502.
+- Removed flow scaling; restored numeric gain 4 alone.
+- Recovering early causal evidence and selective action/readout designs.
+- Forward passes used: 25.
+
+
+
+```

@@ -1,0 +1,214 @@
+OUTPUT of Python run 130 of at most 300:
+```
+ARCHITECTURE headings:
+0 # The world model
+7 ## Input
+30 ## State and one step per bundle (`core.*`)
+54 ## Heads: predicting bundle k+1 from what is known before it
+79 ## How a dose edit is read
+
+Relevant attention/recurrent architecture:
+41:    - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+42:    - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+43:    - The state update uses the posterior mean.
+44: 3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+45:    - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+46:    - The 4 slot outputs, through `core.prelude_norm`, give E.
+47: 4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+48:    slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+49:    - `u = blocks(h + E)`.
+50:    - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+51:      `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+52: 5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+53: 
+54: ## Heads: predicting bundle k+1 from what is known before it
+55: 
+56: **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+57: - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+58: - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+59: 
+
+Current helper definitions:
+attn129 args ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode') defaults (4, None, None, None, 'projected_key')
+locals ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode', 'q', 'k', 'v', 'ka', 'va', 'b', 'nq', 'width', 'nk', 'mask', 'ans') names ('core_lin', 'chunk', 'shape', 'reshape', 'transpose', 'F', 'scaled_dot_product_attention') constants ('.q', '.kv', 2, -1, 'direct_key', 'direct_both', ('projected_key', 'projected_both'), 'projected_both', 1, ('attn_mask',), '.out')
+ 22           0 RESUME                   0
+
+ 24           2 LOAD_GLOBAL              1 (NULL + core_lin)
+             12 LOAD_FAST                0 (x)
+             14 LOAD_FAST                1 (p)
+             16 LOAD_CONST               1 ('.q')
+             18 BINARY_OP                0 (+)
+             22 CALL                     2
+             30 STORE_FAST               7 (q)
+
+ 25          32 LOAD_GLOBAL              1 (NULL + core_lin)
+             42 LOAD_FAST                3 (memory)
+             44 POP_JUMP_IF_NOT_NONE     2 (to 50)
+             46 LOAD_FAST                0 (x)
+             48 JUMP_FORWARD             1 (to 52)
+        >>   50 LOAD_FAST                3 (memory)
+        >>   52 LOAD_FAST                1 (p)
+             54 LOAD_CONST               2 ('.kv')
+             56 BINARY_OP                0 (+)
+             60 CALL                     2
+             68 LOAD_ATTR                3 (NULL|self + chunk)
+             88 LOAD_CONST               3 (2)
+             90 LOAD_CONST               4 (-1)
+             92 CALL                     2
+            100 UNPACK_SEQUENCE          2
+            104 STORE_FAST               8 (k)
+            106 STORE_FAST               9 (v)
+
+ 26         108 LOAD_FAST                3 (memory)
+            110 POP_JUMP_IF_NONE        80 (to 272)
+
+ 27         112 LOAD_FAST                6 (age_mode)
+            114 LOAD_CONST               5 ('direct_key')
+            116 COMPARE_OP              40 (==)
+            120 POP_JUMP_IF_FALSE        6 (to 134)
+
+ 28         122 LOAD_FAST                8 (k)
+            124 LOAD_FAST                4 (ages)
+            126 BINARY_OP                0 (+)
+            130 STORE_FAST               8 (k)
+            132 JUMP_FORWARD            69 (to 272)
+
+ 29     >>  134 LOAD_FAST                6 (age_mode)
+            136 LOAD_CONST               6 ('direct_both')
+            138 COMPARE_OP              40 (==)
+            142 POP_JUMP_IF_FALSE       11 (to 166)
+
+ 30         144 LOAD_FAST                8 (k)
+            146 LOAD_FAST                4 (ages)
+            148 BINARY_OP                0 (+)
+            152 LOAD_FAST                9 (v)
+            154 LOAD_FAST                4 (ages)
+            156 BINARY_OP                0 (+)
+            160 STORE_FAST               9 (v)
+            162 STORE_FAST               8 (k)
+            164 JUMP_FORWARD            53 (to 272)
+
+ 31     >>  166 LOAD_FAST                6 (age_mode)
+            168 LOAD_CONST               7 (('projected_key', 'projected_both'))
+            170 CONTAINS_OP              0
+            172 POP_JUMP_IF_FALSE       49 (to 272)
+
+ 32         174 LOAD_GLOBAL              1 (NULL + core_lin)
+            184 LOAD_FAST                4 (ages)
+            186 LOAD_FAST                1 (p)
+            188 LOAD_CONST               2 ('.kv')
+            190 BINARY_OP                0 (+)
+            194 CALL                     2
+            202 LOAD_ATTR                3 (NULL|self + chunk)
+            222 LOAD_CONST               3 (2)
+            224 LOAD_CONST               4 (-1)
+            226 CALL                     2
+            234 UNPACK_SEQUENCE          2
+            238 STORE_FAST              10 (ka)
+            240 STORE_FAST              11 (va)
+
+ 33         242 LOAD_FAST                8 (k)
+            244 LOAD_FAST               10 (ka)
+            246 BINARY_OP                0 (+)
+            250 STORE_FAST               8 (k)
+
+ 34         252 LOAD_FAST                6 (age_mode)
+            254 LOAD_CONST               8 ('projected_both')
+            256 COMPARE_OP              40 (==)
+            260 POP_JUMP_IF_FALSE        5 (to 272)
+
+ 35         262 LOAD_FAST                9 (v)
+            264 LOAD_FAST               11 (va)
+            266 BINARY_OP                0 (+)
+            270 STORE_FAST               9 (v)
+
+ 36     >>  272 LOAD_FAST                7 (q)
+            274 LOAD_ATTR                4 (shape)
+            294 UNPACK_SEQUENCE          3
+            298 STORE_FAST              12 (b)
+            300 STORE_FAST              13 (nq)
+            302 STORE_FAST              14 (width)
+
+ 37         304 LOAD_FAST                8 (k)
+            306 LOAD_ATTR                4 (shape)
+            326 LOAD_CONST               9 (1)
+            328 BINARY_SUBSCR
+            332 STORE_FAST              15 (nk)
+
+ 38         334 LOAD_FAST                7 (q)
+            336 LOAD_ATTR                7 (NULL|self + reshape)
+            356 LOAD_FAST               12 (b)
+            358 LOAD_FAST               13 (nq)
+            360 LOAD_FAST                2 (nheads)
+            362 LOAD_FAST               14 (width)
+            364 LOAD_FAST                2 (nheads)
+            366 BINARY_OP                2 (//)
+            370 CALL                     4
+            378 LOAD_ATTR                9 (NULL|self + transpose)
+            398 LOAD_CONST               9 (1)
+            400 LOAD_CONST               3 (2)
+            402 CALL                     2
+            410 STORE_FAST               7 (q)
+
+ 39         412 LOAD_FAST                8 (k)
+            414 LOAD_ATTR                7 (NULL|self + reshape)
+            434 LOAD_FAST               12 (b)
+            436 LOAD_FAST               15 (nk)
+            438 LOAD_FAST                2 (nheads)
+            440 LOAD_FAST               14 (width)
+            442 LOAD_FAST                2 (nheads)
+            444 BINARY_OP                2 (//)
+            448 CALL                     4
+            456 LOAD_ATTR                9 (NULL|self + transpose)
+            476 LOAD_CONST               9 (1)
+            478 LOAD_CONST               3 (2)
+            480 CALL                     2
+            488 STORE_FAST               8 (k)
+
+ 40         490 LOAD_FAST                9 (v)
+            492 LOAD_ATTR                7 (NULL|self + reshape)
+            512 LOAD_FAST               12 (b)
+            514 LOAD_FAST               15 (nk)
+            516 LOAD_FAST                2 (nheads)
+            518 LOAD_FAST               14 (width)
+            520 LOAD_FAST                2 (nheads)
+            522 BINARY_OP                2 (//)
+            526 CALL                     4
+            534 LOAD_ATTR                9 (NULL|self + transpose)
+            554 LOAD_CONST               9 (1)
+            556 LOAD_CONST               3 (2)
+            558 CALL                     2
+            566 STORE_FAST               9 (v)
+
+ 41         568 LOAD_FAST                5 (valid)
+            570 POP_JUMP_IF_NOT_NONE     2 (to 576)
+            572 LOAD_CONST               0 (None)
+            574 JUMP_FORWARD            12 (to 600)
+        >>  576 LOAD_FAST                5 (valid)
+            578 LOAD_CONST               0 (None)
+            580 LOAD_CONST               0 (None)
+            582 BUILD_SLICE              2
+            584 LOAD_CONST               0 (None)
+            586 LOAD_CONST               0 (None)
+            588 LOAD_CONST               0 (None)
+            590 LOAD_CONST               0 (None)
+            592 BUILD_SLICE              2
+            594 BUILD_TUPLE              4
+            596 BINARY_SUBSCR
+        >>  600 STORE_FAST              16 (mask)
+
+ 42         602 LOAD_GLOBAL             11 (NULL + F)
+            612 LOAD_ATTR               12 (scaled_dot_product_attention)
+            632 LOAD_FAST                7 (q)
+            634 LOAD_FAST                8 (k)
+            636 LOAD_FAST                9 (v)
+            638 LOAD_FAST               16 (mask)
+            640 KW_NAMES                10 (('attn_mask',))
+            642 CALL                     4
+            650 STORE_FAST              17 (ans)
+
+ 43         652 LOAD_GLOBAL              1 (NULL + core_lin)
+            662 LOAD_FAST               17 (ans)
+            664 
+[output cut at 10,000 characters]
+```

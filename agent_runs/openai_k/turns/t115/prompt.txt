@@ -1,0 +1,115 @@
+OUTPUT of Python run 107 of at most 300:
+```
+=== CONFIG AND HEAD TENSORS ===
+{'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+
+=== LOCAL FUNCTION NAMES ===
+load (name) uses: _check,os,path,exists,_file,load_file,float,load_original
+load_original (name) uses: _check,_ORIG,get_tensor,float
+save_edit (name, tensor) uses: _check,torch,as_tensor,detach,to,float32,contiguous,load_original,tuple,shape,ValueError,isfinite,all,os,makedirs,EDITED,_file,save_file,replace,float,norm,clamp_min
+drop_edit (name) uses: _check,os,path,exists,_file,remove
+edited () uses: os,path,isdir,EDITED,sorted,listdir
+summarize_vocab (x, depth=0) uses: isinstance,dict,items,summarize_vocab,list,len
+fwl_fit (X, T, y, groups) uses: np,eye,shape,T,linalg,solve,unique,zeros,max,add,at,inv,sqrt,diag,mean
+residual_cluster_fit (rt, ry, groups) uses: np,column_stack,ones,len,T,linalg,solve,unique,zeros,max,shape,add,at,inv,sqrt,diag
+cluster_ols_diagnostic (x, y, groups) uses: np,column_stack,ones,len,asarray,float,isfinite,all,linalg,pinv,T,unique,zeros,max,shape,add,at,sqrt,diag
+lin0 (x, prefix) uses: F,linear,W0,get
+act0 (x, kind='gelu') uses: F,gelu,silu,relu
+mlp0 (x, prefix, kind='gelu') uses: lin0,act0
+norm0 (x, prefix) uses: F,layer_norm,W0
+fn (indices, drug, factor) uses: np,asarray,int,bundle_records_audit,state_keys_audit,event,drug_codes,df,columns,getattr,nan,float,rate,dose,SimpleNamespace,append,embed_consistent_audit,encode_sets_audit
+encode_single_audit (atom, prefix, activation) uses: mlp0,lin0,torch,full,shape,np,log,float32,norm0
+embed_record_audit (row, kind, end_numeric='absent', end_categories='absent') uses: event,np,zeros,float32,getattr,nan,pd,notna,drug_codes,num_spec0,clip,searchsorted,W0,code_id0,event_kind_ids_audit,lin0,torch,tensor,unit_ids_audit,get,rate_unit_ids_audit
+encode_sets_audit (atom_sets, prefix, zero_empty=False) uses: np,array,len,int64,torch,zeros,sum,stack,tensor,repeat,arange,index_add_,mlp0,sqrt,maximum,float32,lin0,log1p,norm0
+embed_consistent_audit (row, kind, end_numeric='absent', end_categories='absent', end_kq=0) uses: embed_record_audit,event,measure_codes,W0,world_kq_audit,world_bin_side_audit,num_spec0,np,searchsorted,value
+bundle_encodings_audit (indices, end_route, end_numeric, end_categories, end_kq=0) uses: bundle_records_audit,state_keys_audit,embed_consistent_audit,event,drug_codes,append,encode_sets_audit,action_empty_mode_audit
+r23_base_embed (row, kind, end_numeric='absent', end_categories='absent', end_kq=0) uses: embed_record_audit,event,measure_codes,W0,world_kq_audit,world_bin_side_audit,num_spec0,np,searchsorted,value
+audit_attention (x, memory, prefix, mask=None, key_memory=None) uses: shape,lin0,chunk,reshape,transpose,np,sqrt,masked_fill,torch,softmax
+audit_block (x, prefix, memory=None, mask=None, key_memory=None) uses: norm0,audit_attention,mlp0
+audit_core_update (z, age_scale=1.0, keys_only=False) uses: core_probe_h,torch,cat,W0,core_probe_e,core_probe_u,lin0,audit_block,norm0,mlp0,log1p,core_probe_ages,core_probe_memory,core_probe_mask,F,softplus,exp,mean
+rr30_fn (z, age_scale=1.0, keys_only=False) uses: core_probe_h,torch,cat,W0,core_probe_e,core_probe_u,lin0,audit_block,norm0,mlp0,log1p,core_probe_ages,core_probe_memory,core_probe_mask,F,softplus,exp,mean
+rr30_obj (z, age_scale=1.0, keys_only=False) uses: core_probe_h,torch,cat,W0,core_probe_e,core_probe_u,lin0,audit_block,norm0,mlp0,log1p,core_probe_ages,core_probe_memory,core_probe_mask,F,softplus,exp,mean
+rr31_old_attention (x, memory, prefix, mask=None, key_memory=None) uses: shape,lin0,chunk,reshape,transpose,np,sqrt,masked_fill,torch,softmax
+rr31_attention (x, memory, prefix, mask=None, key_memory=None) uses: shape,lin0,rr31_heads,reshape,transpose,np,sqrt,float,rr31_mask_valid,bool,masked_fill,torch,softmax
+rr33_old_mlp (x, prefix, kind='gelu') uses: lin0,act0
+rr33_mlp (x, prefix, kind='gelu') uses: rr33_old_mlp,endswith,rr33_ff_kind
+repaired_core_local (h, e, u, z, memory, mask, ages, include_current=True) uses: torch,cat,ones,len,bool,zeros,W0,lin0,audit_block,norm0,mlp0,log1p,F,softplus,exp,mean
+rr35_scaled_action_encoding (indices, drug, factor) uses: np,asarray,int,bundle_records_audit,state_keys_audit,event,drug_codes,df,columns,getattr,nan,float,rate,dose,SimpleNamespace,append,embed_consistent_audit,encode_sets_audit
+r49_readouts (out, h, indices) uses: np,asarray,int,r49_hours,maximum,ceil,torch,tensor,float32,exp,W0,norm0,mean,mlp0,log,chunk,r49_noise,lin0,enumerate,r49_sensors,num_spec0,r49_register,T,isfinite,where,searchsorted,zeros,len,log1p,clip,code_id0,append,softmax,r49_centres,sum,stack
+r51_core (z) uses: repaired_core_local,core_probe_h,core_probe_e,core_probe_u,core_probe_memory,core_probe_mask,core_probe_ages,ndim,shape
+r57_features (out, h, indices) uses: globals,r49_readouts,F,linear,W0,gelu,silu,relu,items,float,abs,max,append,min,get,mean,torch,stack
+r59_core (indices, u=None) uses: np,asarray,int,all,rr33_stays,torch,tensor,rr33_hours,float32,sx,reshape,exp,W0,groups59,max,position59,map,len,zeros,bool,enumerate,zip,rr33_e_all,rr33_u_all,contexts_audit,mlp0,cat,repaired_core_local,ndim
+r59_features (out, h, indices) uses: globals,torch,softmax,r49_readouts,stack,r49_centres,sum,beta59,mean,numpy
+fun (z) uses: repaired_core_local,core_probe_h,core_probe_e,core_probe_u,core_probe_memory,core_probe_mask,core_probe_ages,ndim,shape
+moments63 (P) uses: B63,sum,square,C63
+tilt63 (H, P, coefficient) uses: torch,as_tensor,float32,softmax,clamp_min,log,B63
+arr71 (x) uses: torch,is_tensor,detach,cpu,numpy,np,asarray
+set_post71 (D=None, strength=0.0) uses: post66_base_weights,items,torch,as_tensor,float32,clone,W0,np,asarray,tensor,C71,T
+factual_local71 () uses: r59_core,fi71,r59_features,arr71,mean,np,arange,len,bins71,log,maximum,mask71
+local_outputs72 (out, h, indices) uses: r59_features,arr71,next,mean
+factual_local72 () uses: r59_core,fi71,local_outputs72,np,arange,len,bins71,float,log,maximum,mask72,mean
+old_mlp74 (x, prefix, kind='gelu') uses: lin0,act0
+traced_mlp74 (x, prefix, kind='gelu') uses: capture74,append,detach,clone,old_mlp74
+prior_features74 (indices, u=None) uses: capture74,clear,r59_core,r59_features,RuntimeError,F,gelu,linear,W0,arr71,np,c_,ones,len
+saved_mlp78 (x, prefix, kind='gelu') uses: lin0,act0
+dataset80 (indices, u=None, batch_size=96) uses: range,len,np,asarray,r59_core,capture74,clear,r59_features,RuntimeError,F,gelu,linear,W0,append,c_,arr71,ones,mean,concatenate
+saved_mlp80 (x, prefix, kind='gelu') uses: lin0,act0
+saved_mlp81 (x, prefix, kind='gelu') uses: lin0,act0
+saved_mlp82 (x, prefix, kind='gelu') uses: lin0,act0
+bridge_frontier82 (pf, cfparts) uses: np,concatenate,lookup80,train81,mean,maximum,std,c_,ones,len,zeros,T,sum,cftrain81,Y81,linalg,solve,reg81,empty_like,drug81,append,float,dict,sqrt,round,tolist
+fn85 (h, e, u, z, memory, mask, ages, include_current=True) uses: torch,cat,ones,len,bool,zeros,W0,lin0,audit_block,norm0,mlp0,log1p,F,softplus,exp,mean
+summary87 (v) uses: hasattr,type,__name__,tuple,shape,isinstance,list,summary87,dict,items
+base_mlp87 (x, prefix, kind='gelu') uses: lin0,act0
+base_lin87 (x, prefix) uses: F,linear,W0,get
+capture_mlp87 (x, prefix, kind='gelu') uses: capture74,append,detach,clone,base_mlp87
+capture_lin87 (x, prefix) uses: base_lin87,detach,clone,captured87
+base_mlp88 (x, prefix, kind='gelu') uses: lin0,act0
+base_lin88 (x, prefix) uses: F,linear,W0,get
+hook_mlp88 (x, prefix, kind='gelu') uses: capture74,append,detach,clone,base_mlp88
+hook_lin88 (x, prefix) uses: base_lin88,shift88
+base_mlp89 (x, prefix, kind='gelu') uses: lin0,act0
+hook_mlp89 (x, prefix, kind='gelu') uses: capture74,append,detach,clone,base_mlp89
+build_candidate89 (scale) uses: post66_base_weights,items,detach,clone,torch,tensor,Bcomp89,T,float32,Binnov89,np,zeros,V88,D89,token_mu88
+base_mlp90 (x, prefix, kind='gelu') uses: lin0,act0
+hook_mlp90 (x, prefix, kind='gelu') uses: capture74,append,detach,clone,base_mlp90
+describe91 (x, depth=0) uses: isinstance,np,ndarray,torch,Tensor,type,__name__,tuple,shape,dict,len,list,items,str,describe91,callable,inspect,signature,Exception,repr
+brief92 (x) uses: isinstance,np,ndarray,torch,Tensor,type,__name__,tuple,shape,dict,len,list,append,str,repr,callable,inspect,signature,Exception
+fn93 (scale) uses: post66_base_weights,items,detach,clone,torch,tensor,Bcomp89,T,float32,Binnov89,np,zeros,V88,D89,token_mu88
+fn94 (indices, u=None, batch_size=96) uses: range,len,np,asarray,r59_core,capture74,clear,r59_features,RuntimeError,F,gelu,linear,W0,append,c_,arr71,ones,mean,concatenate
+compact_code95 (fn, limit=3600) uses: dis,get_instructions,starts_line,append,join,opname,replace,argrepr,print,len
+
+=== FEATURE RECONSTRUCTION ===
+              0 MAKE_CELL               11 (captures)
+              2 MAKE_CELL               12 (previous_mlp)
+              4 MAKE_CELL               13 (previous_softmax)
+              6 MAKE_CELL               14 (probabilities)
+
+ 45           8 RESUME                   0
+
+ 46          10 BUILD_LIST               0
+             12 BUILD_LIST               0
+             14 SWAP                     2
+             16 STORE_DEREF             11 (captures)
+             18 STORE_DEREF             14 (probabilities)
+
+ 47          20 LOAD_GLOBAL              1 (NULL + globals)
+             30 CALL                     0
+             38 LOAD_CONST               1 ('mlp0')
+             40 BINARY_SUBSCR
+             44 LOAD_GLOBAL              2 (torch)
+             54 LOAD_ATTR                4 (softmax)
+        
+[output cut at 10,000 characters]
+```

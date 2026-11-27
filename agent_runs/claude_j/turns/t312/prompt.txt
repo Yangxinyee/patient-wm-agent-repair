@@ -1,0 +1,31 @@
+OUTPUT of Python run 273 of at most 300:
+```
+
+import numpy as np, torch
+def amp_stats(lam, stays):
+    res=amp_eval(lam, stays); out=[]
+    for (s,k0,k1,lgf,lgc) in res:
+        rt=RTs[s]; ev=rt['event'].values
+        pf=torch.softmax(lgf,-1).mean(1).numpy(); pc=torch.softmax(lgc,-1).mean(1).numpy()
+        for i in range(len(rt)):
+            c=CEN[ev[i]]; b=int(rt['bfine'].values[i]) if 'bfine' in rt else None
+            out.append((s,ev[i],rt['minute'].values[i],float(pf[i][1:]@c),float(pc[i][1:]@c),pf[i],rt['observed'].values[i],rt['nll'].values[i]))
+    return out
+
+----
+
+import numpy as np, torch, time
+def gen2(s, conds, start_min=720):
+    rt=RTs[s]; k_m=first_drug_min(s); k_m=1000000 if k_m is None else k_m
+    eps=torch.randn(len(rt),4,32,generator=torch.Generator().manual_seed(int(s)%100000),dtype=torch.float64)
+    Of,Hf,k0=run_cf(s,{},k_m); out={'f':heads_full(Of,Hf,rt,eps)}
+    for (dr,m) in conds:
+        Oc,Hc,k1=run_cf(s,{dr:m},start_min); out[(dr,m)]=heads_full(Oc,Hc,rt,eps)
+    return out
+def mean_of(lg,ev):
+    p=torch.softmax(torch.as_tensor(lg),-1).mean(1).numpy()
+    return np.array([p[i,1:]@CEN[ev[i]] for i in range(len(ev))])
+
+['RTs', 'eps']
+
+```

@@ -1,0 +1,199 @@
+OUTPUT of Python run 114 of at most 300:
+```
+=== HELPER SIGNATURES ===
+action_atom_exact (event, rates, doses=None, kind=0, bin_mode='raw64')
+action_hidden105 (rates, presence)
+channel_targets105 (rates, raw)
+action_vectors4 (drug=None, multiplier=1.0)
+prelude_all83 (action_u, rows=array([   1,    2,    3, ..., 4311, 4312, 4313], shape=(4214,)))
+local_step67 (j, z_batch, include_current=False, age_mode='input', age_units=3600.0, age_scale=1.0)
+wm_step_saved (j, include_current=False, age_mode='input', age_units='seconds')
+wm_layer (x, prefix, memory=None, agevec=None, age_mode='input', weights=None)
+wm_attention (x, prefix, memory=None, agevec=None, age_mode='input', weights=None)
+wm_lin (x, prefix, weights=None)
+next_means_crn74 (j, h_branches, nsamples=16, seed=913)
+compact_function109 (f)
+
+=== ACTION HELPER IMPLEMENTATIONS ===
+
+ action_hidden105
+ 29           0 RESUME                   0
+
+ 30           2 LOAD_GLOBAL              1 (NULL + np)
+             12 LOAD_ATTR                2 (asarray)
+             32 LOAD_FAST                0 (rates)
+             34 LOAD_GLOBAL              0 (np)
+             44 LOAD_ATTR                4 (float64)
+             64 KW_NAMES                 1 (('dtype',))
+             66 CALL                     2
+             74 STORE_FAST               0 (rates)
+
+ 31          76 LOAD_GLOBAL              1 (NULL + np)
+             86 LOAD_ATTR                2 (asarray)
+            106 LOAD_FAST                1 (presence)
+            108 LOAD_GLOBAL              6 (bool)
+            118 KW_NAMES                 1 (('dtype',))
+            120 CALL                     2
+            128 STORE_FAST               1 (presence)
+
+ 32         130 LOAD_GLOBAL              9 (NULL + torch)
+            140 LOAD_ATTR               10 (zeros)
+            160 LOAD_GLOBAL             13 (NULL + len)
+            170 LOAD_FAST                0 (rates)
+            172 CALL                     1
+            180 LOAD_CONST               2 (192)
+            182 BUILD_TUPLE              2
+            184 LOAD_GLOBAL              8 (torch)
+            194 LOAD_ATTR               14 (float32)
+            214 KW_NAMES                 1 (('dtype',))
+            216 CALL                     2
+            224 STORE_FAST               2 (aggregate)
+
+ 33         226 LOAD_GLOBAL             17 (NULL + enumerate)
+            236 LOAD_CONST               3 ('insulin')
+            238 LOAD_CONST               4 ('norepinephrine')
+            240 BUILD_LIST               2
+            242 CALL                     1
+            250 GET_ITER
+        >>  252 FOR_ITER                99 (to 454)
+            256 UNPACK_SEQUENCE          2
+            260 STORE_FAST               3 (d)
+            262 STORE_FAST               4 (drug)
+
+ 34         264 LOAD_GLOBAL              1 (NULL + np)
+            274 LOAD_ATTR               18 (flatnonzero)
+            294 LOAD_FAST                1 (presence)
+            296 LOAD_CONST               0 (None)
+            298 LOAD_CONST               0 (None)
+            300 BUILD_SLICE              2
+            302 LOAD_FAST                3 (d)
+            304 BUILD_TUPLE              2
+            306 BINARY_SUBSCR
+            310 CALL                     1
+            318 STORE_FAST               5 (use)
+
+ 35         320 LOAD_GLOBAL             13 (NULL + len)
+            330 LOAD_FAST                5 (use)
+            332 CALL                     1
+            340 POP_JUMP_IF_TRUE         1 (to 344)
+            342 JUMP_BACKWARD           46 (to 252)
+
+ 36     >>  344 LOAD_GLOBAL             21 (NULL + action_atom_exact)
+            354 LOAD_FAST                4 (drug)
+            356 LOAD_FAST                0 (rates)
+            358 LOAD_FAST                5 (use)
+            360 LOAD_FAST                3 (d)
+            362 BUILD_TUPLE              2
+            364 BINARY_SUBSCR
+            368 CALL                     2
+            376 STORE_FAST  
+
+ channel_targets105
+ 71           0 RESUME                   0
+
+ 72           2 LOAD_FAST                1 (raw)
+              4 LOAD_ATTR                1 (NULL|self + astype)
+             24 LOAD_GLOBAL              2 (np)
+             34 LOAD_ATTR                4 (float64)
+             54 CALL                     1
+             62 LOAD_ATTR                7 (NULL|self + copy)
+             82 CALL                     0
+             90 STORE_FAST               2 (base)
+
+ 73          92 LOAD_CONST               1 (0)
+             94 LOAD_FAST                2 (base)
+             96 LOAD_CONST               0 (None)
+             98 LOAD_CONST               0 (None)
+            100 BUILD_SLICE              2
+            102 LOAD_GLOBAL              8 (temporary105)
+            112 BUILD_TUPLE              2
+            114 STORE_SUBSCR
+
+ 74         118 LOAD_GLOBAL              3 (NULL + np)
+            128 LOAD_ATTR               10 (var)
+            148 LOAD_FAST                2 (base)
+            150 LOAD_CONST               2 (1)
+            152 KW_NAMES                 3 (('axis',))
+            154 CALL                     2
+            162 LOAD_CONST               4 (1e-05)
+            164 BINARY_OP                0 (+)
+            168 STORE_FAST               3 (variance)
+
+ 75         170 LOAD_GLOBAL              3 (NULL + np)
+            180 LOAD_ATTR               12 (minimum)
+            200 LOAD_FAST                0 (rates)
+            202 LOAD_GLOBAL             14 (caps105)
+            212 CALL                     2
+            220 LOAD_GLOBAL             16 (rate_scale105)
+            230 BINARY_OP               11 (/)
+            234 STORE_FAST               4 (capped)
+
+ 76         236 LOAD_CONST               2 (1)
+            238 LOAD_CONST               5 (2)
+            240 LOAD_GLOBAL             18 (delta105)
+            250 LOAD_CONST               5 (2)
+            252 BINARY_OP                8 (**)
+            256 BINARY_OP                5 (*)
+            260 LOAD_GLOBAL              3 (NULL + np)
+            270 LOAD_ATTR               20 (sum)
+            290 LOAD_FAST                4 (capped)
+            292 LOAD_CONST               5 (2)
+            294 BINARY_OP                8 (**)
+            298 LOAD_CONST               2 (1)
+            300 KW_NAMES                 3 (('axis',))
+            302 CALL                     2
+            310 BINARY_OP                5 (*)
+            314 LOAD_CONST               6 (192)
+            316 BINARY_OP               11 (/)
+            320 BINARY_OP               10 (-)
+            324 STORE_FAST               5 (denom)
+
+ 77         326 LOAD_GLOBAL              3 (NULL + np)
+            336 LOAD_ATTR               22 (sqrt)
+            356 LOAD_FAST                3 (variance)
+            358 LOAD_FAST                5 (denom)
+            360 BINARY_OP               11 (/)
+            364 CALL                     1
+            372 STORE_FAST               6 (sigma)
+
+ 78         374 LOAD_GLOBAL             18 (delta105)
+            384 LOAD_FAST                4 (capped)
+            386 BINA
+
+=== WEIGHT / STATE CONTAINERS ===
+SHAPES dict keys ['code_bias', 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.kq.weight', 'embed.text.weight', 'embed.categorical.status.weight', 'embed.categorical.unit.weight']
+sA npz keys ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+W0 dict keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight']
+sTrain npz keys ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+data_probe npz keys ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+globals66 dict keys ['__name__', 'NAMES', 'SHAPES', 'VOCAB', 'load', 'load_original', 'save_edit', 'drop_edit']
+trial67 dict keys ['memory', 'include_current', 'age_mode', 'age_units', 'age_scale', 'h', 'out']
+best67 dict keys ['memory', 'include_current', 'age_mode', 'age_units', 'age_scale', 'h', 'out']
+
+=== RESERVED COORDINATES AND DECODER ===
+reserved103 [61 21 15 66]
+rate_scale105 [1.  0.1] caps105 [11.52  3.  ]
+best105 report {'alpha': 1e-05, 'rmse_I_NE': [0.40887, 0.13455], 'absent_rmse_I_NE': [0.043429, 0.024621], 'max_abs_I_NE': [10.9567, 2.4564]}
+channel_coef105 shape (2, 768)
+channel_intercept105 [-20.83053773  58.18381521]
+
+=== ACTION ENCODER / PRELUDE SHAPES ===
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+
+```

@@ -1,0 +1,159 @@
+OUTPUT of Python run 131 of at most 300:
+```
+=== EARLIER CAUSAL AND VALIDATION NOTES ===
+5590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+- No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+
+## Register search / run 19
+- Selected reconstruction convention: {'binside': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}.
+- Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+- Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+- No weight edits.
+
+## Restart after forward 5
+- Independent training states received in /work/fwd_5.
+- Rechecking architecture and reusable analysis objects before selecting an edit.
+- No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+
+## Run 23: head-only correction screening
+- Testing the selected register convention on original GPU predictions.
+- Preparing independent state samples for a no-gradient correction of treatment innovations.
+- Head-only edits would preserve the recurrent state and all other prediction heads directly.
+
+## Run 25: posterior-action ablation candidate
+- Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+- Latent sampling accounts for much of the local-vs-GPU head discrepancy.
+- Exploratory edit: zero z_post.0.weight[:,384:576], retaining direct action input.
+- Hypothesis: action-conditioned latent severity inference masks direct drug responses.
+- Requires paired factual and rollout tests; this is not yet a validated repair.
+- Earlier small-sample error-vs-innovation SE printouts include an intercept SE.
+
+## Forward 6 / run 26: failed posterior-action ablation
+- Removing z_post.0.weight[:,384:576] barely changed any dose-edit response.
+- Reverted the ablation; no tensors currently edited.
+- This does not support posterior action conditioning as the main cause of weak responses.
+- Reinspecting direct dose/state pathways before choosing another intervention.
+
+## Runs 27?33: local encoder reconstruction
+- Confirmed state layout: out = core.out_norm(mean of four h slots).
+- Drug-start latent reconstruction uses GELU, quality embedding row 0, and encoded empty measurement set.
+- Insulin: dose unit 3, rate unit 2; NE: dose unit 4, rate unit 3.
+- Recorded decimal doses resolve NE bin-boundary discrepancies; left-sided binning confirmed.
+- Measurement/empty-action and infusion-END conventions are being checked before any recurrence edit.
+- No tensors edited; 6 forward passes used.
+
+## Restart, runs 42?43
+- Re-read architecture. Doses enter recurrent state; value heads also use sensor-specific last-reading registers.
+- Run 42 inventory failed on a module's callable shape attribute, before any edit.
+- Best local recurrence remains approximate; current edits are empty, 6 forwards used.
+
+## Runs 45?48: dose representation and failed decoder
+- Dose encoder varies sharply and non-monotonically with rate; infusion END has no dose attributes and goes through the measurement encoder.
+- Ridge decoding of treatment innovations from posterior hidden features, including synthetic dose multipliers, failed held-out factual and dose-response tests. Do not use it.
+- Temporary diagnostic: action-encoder norm output fixed to the verified empty-action vector. Test paired factual NLL before deciding whether replacement is feasible.
+
+## Restart / forward 7
+- Empty-action ablation: factual NLL 1.65737 versus original 1.63933, +0.01804; fails the +0.005 constraint. Reverted all edits.
+
+## Restart, runs 55?59
+- Re-read architecture and inspected local recurrence.
+- Run 58 stopped on context tuple/tensor mismatch; no edit.
+- Run 59 tests dose/innovation decoding at drug bundles on stay-held-out splits.
+
+## Restart after run 61
+- Run 61 found two local latent-response correction directions, but no weights were edited.
+- Complete encoder RMSE remained about 0.084; recurrence diagnostics included NaNs and large errors.
+- Local mean response matching is not sufficient evidence of a valid rollout repair.
+- Reinspect architecture and persistent candidate objects before testing any edit.
+
+## Runs 65?66: reconstruction bookkeeping bug
+- Forward states are in interleaved stay order, not sorted by stay ID.
+- np.searchsorted on stay IDs selected incorrect memory boundaries; fixed local diagnostic boundaries.
+- Zeroing empty-action vectors worsened posterior reconstruction and was not retained.
+- Held-out action-u linear rate decoding active R2: insulin .653, NE .519; innovation R2 .281/.180.
+- No weight edits. Revalidate recurrence conventions using saved posterior means.
+
+## Runs 67?68: provisional response reconstruction
+- Global attention packing and current-inclusive memory improved local recurrence substantially.
+- Best local convention remains approximate; it cannot certify factual fit or rollout effects.
+- Recomputed latent response directions across stay-held-out samples and checked finite-sized shifts.
+- No weights edited. Any eventual candidate requires paired GPU factual and rollout validation.
+
+## Restart after run 68
+- No edits retained. Infinitesimal latent-response fits did not yield stable finite-innovation responses.
+- Re-reading architecture and inspecting persistent objects before selecting a finite-dose, GPU-validated candidate.
+- Small-perturbation agreement alone is not evidence of causal rollout accuracy.
+
+## Runs 74?75: response randomness audit
+- Run 74 stopped on time-gap broadcasting; no edits or conclusions.
+- Run 75 corrects the gap shape and repeats the identical-state test.
+
+## Restart after run 75
+- Identical-state test exposed randomness in the old readout; the corrected readout was exactly repeatable.
+- No edits retained. Rechecking architecture and corrected routines before drawing finite-dose conclusions or submitting an edit.
+
+## Run 80: corrected latent-response audit
+- With shared random draws, posterior-latent Jacobian norms were roughly 0.0001?0.0009 reading units per latent unit.
+- Earlier large latent-response directions were sampling artifacts and are rejected. No edits.
+- Next examine the direct action/recurrent pathway.
+
+## Runs 84?88: action-path
+=== HELPER NAMES ===
+act0, action_atom_exact, action_hidden105, action_vectors4, array103, array129, as_np, atom_action_local, brief_impl64, causal_features, centered_difference125, channel_dataset117, channel_raw_target117, channel_targets105, clustered_ols, compact115, compact_code73, compact_dis_repair, compact_function109, compact_impl79, context_from_saved, correction_data, drop_edit, edited, enc_set117, f64, f94, f_repair, fn, fn104, fn67, fn81, fun, func, function_repair, head0, head_features_layout, head_mc, head_mc_layout, head_parts, helper_probe, latent_step61, latent_step66, lin0, load, load_original, local_step67, make_panel, measurement_atom_local, mechanistic_shifts, mlp0, next_means61, next_means_crn74, norm0, obj64, outline122, posterior_features4, prelude_all83, r2_score, reading_cache, reconstruct_head, response_pair68, rw125, save_edit, set_encode_single_local, short_impl60, show_impl85, v94, wm_attention, wm_layer, wm_lin, wm_mlp, wm_norm, wm_set, wm_step_saved
+=== RECENT OBJECT INVENTORY ===
+A129 (1287, 3)
+K117 (188,)
+R117 (4,)
+R125 (4,)
+R129 (4,)
+S125 0.01
+a129 (192, 192)
+action129 (4141,)
+active123 (3500,)
+ao125 (192, 192)
+att125 (600, 4, 7)
+b125 (192,)
+best_encoder117 (np.float64(0.16991041846881036), Ridge(alpha=0.001), {'alpha': 0.001, 'rate_rmse_I_NE': [0.136104, 0.056676],
+best_norm118 (np.float64(0.002282751240292279), array([[-2.88824310e-01,  3.82709856e+00,  3.77047405e-01, ...,
+        -2.
+bi125 (192, 192)
+bias118 (192,)
+cacheE129 dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous', 'gpu_mean', 'gpu_nll']
+carrier125 (192,)
+co125 (192, 192)
+coef117 (192, 768)
+coef129 (3, 2)
+const125 -0.06449159234762192
+constant_row125 (192,)
+decoded123 (3500, 2)
+drugrows129 (6685, 10)
+enc_candidate117 dict ['encode_action.mlp1.0.bias', 'encode_action.mlp1.0.weight', 'encode_action.mlp1.2.bias', 'encode_action.mlp1.2.weight', 'encode_action.mlp2.0.bias', 'encode_action.mlp2.0.weight', 'encode_action.mlp2.2.bias', 'encode_action.mlp2.2.weight', 'encode_action.norm.bias', 'encode_action.norm.weight', 'encode_action.size.bias', 'encode_action.size.weight']
+enc_candidate118 dict ['encode_action.mlp1.0.bias', 'encode_action.mlp1.0.weight', 'encode_action.mlp1.2.bias', 'encode_action.mlp1.2.weight', 'encode_action.mlp2.0.bias', 'encode_action.mlp2.0.weight', 'encode_action.mlp2.2.bias', 'encode_action.mlp2.2.weight', 'encode_action.norm.bias', 'encode_action.norm.weight', 'encode_action.size.bias', 'encode_action.size.weight']
+enc_carrier117 0.01
+enc_delta117 0.003
+enc_orig117 dict ['encode_action.mlp1.0.bias', 'encode_action.mlp1.0.weight', 'encode_action.mlp1.2.bias', 'encode_action.mlp1.2.weight', 'encode_action.mlp2.0.bias', 'encode_action.mlp2.0.weight', 'encode_action.mlp2.2.bias', 'encode_action.mlp2.2.weight', 'encode_action.norm.bias', 'encode_action.norm.weight', 'encode_action.size.bias', 'encode_action.size.weight']
+encoder_trials117 [(np.float64(0.16991041846881036), Ridge(alpha=0.001), {'alpha': 0.001, 'rate_rmse_I_NE': [0.136104, 0.056676]
+eps125 0.1
+err123 (3500, 2)
+error129 (1287, 2)
+fE129 (4585, 6)
+g125 (192,)
+gamma118 (192,)
+gate117 200.0
+hE129 (4141, 192)
+hid117 (8200, 768)
+hidden_new117 (8200, 768)
+hidden_newv117 (3200, 768)
+hidv117 (3200, 768)
+importance117 (768,)
+intercept117 (192,)
+inv125 (192,)
+ix129 (12,)
+kk125 (600, 7)
+kv125 (384, 192)
+label129 'out pairs'
+lookup129 dict [(2020000001, 5), (20200
+[output cut at 10,000 characters]
+```

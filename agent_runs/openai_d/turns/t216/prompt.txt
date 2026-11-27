@@ -1,0 +1,272 @@
+OUTPUT of Python run 185 of at most 300:
+```
+RECORD-DERIVED EVIDENCE
+ ## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+## Forward requests 1 and 2
+Original factual NLL (tuning IDs 2020000000..99): 1.63461; provisional maximum 1.63961.
+Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours >=12": [
+      -2.04868,
+      0.05966,
+      0.61587,
+      142454
+    ],
+    "lower half of doses": [
+      -1.94372,
+      0.07221,
+      0.40383,
+      158100
+    ],
+    "upper half of doses": [
+      -2.01779,
+      0.05771,
+      0.73907,
+      95763
+    ],
+    "away from maximum": [
+      -1.99092,
+      0.04556,
+      0.59868,
+      253862
+    ],
+    "current primary observed": [
+      -1.99783,
+      0.0459,
+      0.60385,
+      246971
+    ]
+  },
+  "norepinephrine": {
+    "all active": [
+      3.29011,
+      0.09111,
+      0.13328,
+      146556
+    ],
+    "hours >=12": [
+      3.38311,
+      0.11624,
+      0.13967,
+      75241
+    ],
+    "lower half of doses": [
+      3.50921,
+      0.15079,
+      0.10196,
+      74248
+    ],
+    "upper half of doses": [
+      3.17119,
+      0.11255,
+      0.14585,
+      72308
+    ],
+    "away from maximum": [
+      3.29965,
+      0.10114,
+      0.1253,
+      124482
+    ],
+    "current primary observed": [
+      3.29235,
+      0.09268,
+      0.13325,
+      139375
+    ]
+  }
+}
+
+## Run 5
+Estimated 1..12 hour local projections using held-out history models. Subtracted subsequent-treatment feedback using future-dose residual covariances to estimate controlled impulse responses. Geometric summaries are tentative; long-lag selection and recursive estimation can amplify error. No weight edits yet.
+{
+  "insulin": {
+    "rows": [
+      {
+        "lag": 1,
+        "total_LP": -1.9915,
+        "controlled_impulse": -1.9915,
+        "total_LP_SE": 0.04557,
+        "next_dose_feedback": 0,
+        "n": 253863
+      },
+      {
+        "lag": 2,
+        "total_LP": -2.2912,
+        "controlled_impulse": -2.3867,
+        "total_LP_SE": 0.05054,
+        "next_dose_feedback": -0.0479,
+        "n": 227223
+      },
+      {
+        "lag": 3,
+        "total_LP": -1.8451,
+        "controlled_impulse": -2.0916,
+        "total_LP_SE": 0.05563,
+        "next_dose_feedback": -0.0497,
+        "n": 210298
+      },
+      {
+        "lag": 4,
+        "total_LP": -1.3483,
+        "controlled_impulse": -1.7057,
+        "total_LP_SE": 0.05969,
+        "next_dose_feedback": -0.0503,
+        "n": 196607
+      },
+      {
+        "lag": 5,
+        "total_LP": -0.772,
+        "controlled_impulse": -1.1955,
+        "total_LP_SE": 0.06484,
+        "next_dose_feedback": -0.0503,
+        "n": 184608
+      },
+      {
+        "lag": 6,
+        "total_LP": -0.4743,
+        "controlled_impulse": -0.9007,
+        "total_LP_SE": 0.069,
+        "next_dose_feedback": -0.0493,
+        "n": 173365
+      },
+      {
+        "lag": 7,
+        "total_LP": -0.2797,
+        "controlled_impulse": -0.6669,
+        "total_LP_SE": 0.07385,
+        "next_dose_feedback": -0.0497,
+        "n": 162488
+      },
+      {
+        "lag": 8,
+        "total_LP": -0.1758,
+        "controlled_impulse": -0.5084,
+        "total_LP_SE": 0.07888,
+        "next_dose_feedback": -0.0488,
+        "n": 151796
+      },
+      {
+        "lag": 9,
+        "total_LP": -0.0703,
+        "controlled_impulse": -0.3329,
+        "total_LP_SE": 0.08706,
+        "next_dose_feedback": -0.0504,
+        "n": 141116
+      },
+      {
+        "lag": 10,
+        "total_LP": 0.064,
+        "controlled_impulse": -0.1455,
+        "total_LP_SE": 0.09255,
+        "next_dose_feedback": -0.0499,
+        "n": 130635
+      },
+      {
+        "lag": 11,
+        "total_LP": -0.011,
+        "controlled_impulse": -0.1475,
+        "total_LP_SE": 0.10163,
+        "next_dose_feedback": -0.0489,
+        "n": 120066
+      },
+      {
+        "lag": 12,
+        "total_LP": 0.0378,
+        "controlled_impulse": -0.0541,
+ 
+
+RECENT VARIABLE NAMES
+ ['r170_names', 'r170_insulin_backup', 'r170_ne_patch', 'r170_rows', 'r170_candidate', 'r170_local_logits', 'r170_local_loss', 'r170_orig_loss', 'r170_delta', 'r170_event', 'r170_mask', 'r170_hash', 'r171_combined_backup', 'r171_notes', 'r174_w1', 'r174_b1', 'r174_logits', 'r175_logits', 'r175_g', 'r175_d', 'r175_pair', 'r175_out', 'r175_base_loss', 'r175_screen', 'r176_o', 'r176_c', 'r176_keys', 'r176_join', 'r176_i', 'r176_ne', 'r176_events', 'r177_X', 'r177_fit', 'r177_val', 'r177_cuff', 'r177_art', 'r177_active_art', 'r177_probe_direction', 'r177_projection', 'r177_draws', 'r177_train_raw', 'r177_train_proj', 'r177_mean', 'r177_sd', 'r177_train_z', 'r177_y', 'r177_ymean', 'r177_ridge', 'r177_beta', 'r177_v', 'r177_b', 'r177_score', 'r177_offset', 'r177_gate_strength', 'r177_new_G', 'r177_new_pair', 'r177_target_multiplier', 'r177_results', 'r178_fallback', 'r178_candidate', 'r178_strength', 'r178_rows', 'r178_logits', 'r178_expected', 'r178_loss', 'r178_delta', 'c179_names', 'c180_np', 'c180_brief', 'c180_functions', 'c180_notes', 'c181_fn', 'c181_error', 'c181_sections', 'c181_selected', 'c182_transition', 'c182_checked_logits', 'c182_candidate_logits', 'c182_error', 'c182_candidate_loss', 'c182_checked_loss', 'c182_original_loss', 'c182_rows', 'c183_fallback', 'c183_candidate', 'c183_hash', 'c185_current']
+
+OTHER VARIABLE NAMES
+ ['f116_b', 'n116', 't116', 'k116', 'f116_n', 'n117', 'a117', 'k117', 'f117', 'f117_n', 'num118', 'ne118', 'k118', 'v118', 'terms', 'func', 'prefix', 'suffixes', 'token', 'sla', 'truth', 'snapshot133', 'snapshot134', 'notes134', 'start134', 'snapshot135', 'prefix135', 'key135', 'obj135', 'sub135', 'val135', 'notes135', 'a135', 'b135', 'name135', 'key136', 'obj136', 'name136', 'activation136', 'hidden136', 'logits136', 'err136', 'note136', 'label137', 'mask137', 'v137', 'b137', 'feature137', 'active137', 'ndtr', 'v138', 'b138', 'f138', 'df138', 'pair138', 'pairprobe138', 'derivative138', 'delta138', 'scale138', 'loss138', 'note138', 'hashlib', 'n139', 't139', 'note139', 'sections', 'wanted', 'matches', 'p17', 'f16o', 'f16e', 'po', 'pe', 'nll_cols', 'stay_cols', 'fn_here', 'selected_names', 'loss', 'delta', 'logsumexp', 'inventory', 'selected', 'types', 'description', 'describe_small', 'filename', 'heading', 'i', 'tensor', 'array', 'original', 'backup', 'W1', 'b1', 'W2', 'trial_logits', 'notes184', 'head185', 'text185', 'start185']
+
+ c183_fallback : ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+
+ r171_combined_backup : ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+
+```

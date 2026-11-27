@@ -1,0 +1,21 @@
+OUTPUT of Python run 221 of at most 300:
+```
+<class 'dict'> {'sid': 1010000617, 'hour': -1, 'k': 1, 'v0': torch.Size([192]), 'cid': 6, 'code': 'glucose_finger', 'has': False, 'lvb': 0, 'age': 0.0, 'zv': 0.0, 'target': 161.2551, 'obs': 162.0}
+<class 'torch.Tensor'> torch.Size([5673, 192]) <class 'torch.Tensor'> torch.Size([5673, 17]) <class 'torch.Tensor'> torch.Size([5673, 192])
+['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom_kinds {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+numeric [{'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 66.0, 70.0, 74.0, 78.0, 81.0, 84.0, 89.0, 92.0, 95.0, 98.0]}, {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [39.0, 46.0, 52.0, 60.
+numeric_note z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+value_bin_centres {'map_arterial': [32.0, 38.0, 43.0, 49.0, 56.0, 63.0, 69.0, 73.0, 77.0, 80.0, 83.0, 87.0, 91.0, 94.0, 97.0, 100.0], 'map_cuff': [36.0, 44.0, 50.0, 57.0, 66.0, 72.0, 77.0, 80.0, 83.0, 86.0, 89.0, 93.0, 97.0, 101.0, 104.0, 109.0], 'glucose_lab': [69.0, 78.0, 86.0, 94.0, 105.0, 117.0, 127.0, 137.0, 146
+value_bin_note The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1].
+[draw] (y))`.  ## Heads: predicting bundle k+1 from what is known before it  **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`. - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged. - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.  **Heads:** - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals). - **Counts:** `cou
+
+[path] their z-scores and bins in the    embedding. All other events are as recorded. 4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20    paths with common random numbers, at hours that come after the drug was running, then averaged over stays.  Norepinephrine edits are read on map_arterial in the same way. 
+
+[hidden]  `delay_head` and `cont_head` (does the stay     continue).  ## How a dose edit is read  "Insulin x2 from hour 12": 1. The record up to ICU hour 12 is shown as it is. 2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them    back in. 3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the    embedding. All other events are as recorded. 4. The readout is the predicted mean gl
+
+
+```

@@ -1,0 +1,120 @@
+OUTPUT of Python run 162 of at most 300:
+```
+=== AVAILABLE ANALYSIS FUNCTIONS ===
+approximate_edit_cost('meta0', 'feature_tuple')
+as_numpy('x',)
+brief_structure('obj',)
+causal_shift_table('panel_array', 'ids', 'outcome', 'drug', 'beta', 'rho')
+compact_dis('fn', 'max_chars', 'min_line')
+compact_dis160('fn',)
+compact_panel('df',)
+cpu_head_parts('meta', 'states')
+cpu_head_probs('parts', 'n_samples', 'seed')
+drop_edit('name',)
+edited()
+eigh()
+empty_set_vector('prefix', 'batch')
+fn('beta',)
+fn0('panel_array', 'ids', 'outcome', 'drug', 'beta', 'rho')
+fn1('parts', 'n_samples', 'seed')
+fnx('beta',)
+func('indices', 'embeddings')
+func0('x', 'trans', 'tensors')
+graft_probs('x', 'trans', 'tensors')
+head_average_probs3('tensors', 'hidden')
+head_dose_data('meta', 'panel', 'ids', 'predicted_policy')
+head_score('mean', 'nll')
+head_unit_target('meta0', 'logits0', 'dose_data0')
+insulin_rd('horizon', 'bandwidth', 'degree', 'history')
+least_squares()
+lin('x', 'prefix', 'weights')
+ln('x', 'prefix', 'weights')
+load('name',)
+load_original('name',)
+logsumexp('a', 'axis', 'b', 'keepdims', 'return_sign')
+make_head_features('meta', 'states', 'gap_style', 'register_style', 'status', 'type_id', 'age_style', 'view_style')
+make_insulin_graft('beta',)
+make_ne_data('n_lags',)
+make_policy_data('panel',)
+mlp('x', 'prefix', 'weights')
+np32('x',)
+probe_head_eval('meta0', 'states0', 'head_weights', 'n_samples', 'seed')
+probe_rms('a',)
+r101_fn('size_n', 'atom')
+r131_step('prev', 'dt', 'e_world', 'u_action', 'z', 'memory', 'age_embedding', 'mask', 'age_mode')
+r2_score()
+r96_empty_world('size_n', 'atom')
+rd_dynamic_residual('par',)
+reading_metadata('records', 'states')
+rec_attention('query', 'key', 'value', 'prefix')
+rec_attn_apply('x', 'prefix', 'memory', 'ages', 'mask', 'age_mode')
+rec_context('prev', 'dt_seconds')
+rec_layer('x', 'prefix', 'memory', 'ages', 'mask', 'age_mode')
+rec_memory('indices', 'embeddings')
+rec_step_with_z('prev', 'dt', 'e_world', 'u_action', 'z', 'memory', 'ages', 'mask')
+reconstruction_mlp('x', 'prefix', 'activation')
+repair_feature_sets('meta', 'sf')
+repair_head_features('meta', 'states')
+rm_insulin_atoms('unit_id', 'rate_unit_id', 'side', 'use_kq', 'activation')
+rm_lin('x', 'prefix')
+rm_ln('x', 'prefix')
+rm_mlp('x', 'prefix', 'activation')
+rm_set('atom_vectors', 'prefix', 'activation')
+rr_f('records', 'states')
+save_edit('name', 'tensor')
+sc_cache_input
+=== UNIT-TARGET CONSTRUCTION ===
+29: LOAD_GLOBAL NULL + softmax ; LOAD_FAST logits0 ; LOAD_CONST 1 ; KW_NAMES ('axis',) ; CALL ; STORE_FAST probabilities
+30: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + stack ; LOAD_FAST meta0 ; LOAD_ATTR event ; GET_ITER ; LOAD_FAST_AND_CLEAR event ; SWAP ; BUILD_LIST ; SWAP ; FOR_ITER to 116 ; STORE_FAST event ; LOAD_GLOBAL centres_by_event ; LOAD_FAST event ; BINARY_SUBSCR ; LIST_APPEND ; JUMP_BACKWARD to 90 ; END_FOR ; SWAP ; STORE_FAST event ; CALL ; STORE_FAST centres0
+31: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + sum ; LOAD_FAST probabilities ; LOAD_FAST centres0 ; BINARY_OP * ; LOAD_CONST 1 ; KW_NAMES ('axis',) ; CALL ; STORE_FAST m0
+32: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + sum ; LOAD_FAST probabilities ; LOAD_FAST centres0 ; BINARY_OP * ; LOAD_GLOBAL rank_template ; LOAD_CONST None ; LOAD_CONST None ; LOAD_CONST None ; BUILD_SLICE ; BUILD_TUPLE ; BINARY_SUBSCR ; BINARY_OP * ; LOAD_CONST 1 ; KW_NAMES ('axis',) ; CALL
+33: LOAD_FAST m0 ; LOAD_FAST probabilities ; LOAD_GLOBAL rank_template ; BINARY_OP @ ; BINARY_OP *
+32: BINARY_OP - ; STORE_FAST covariance
+34: LOAD_FAST meta0 ; LOAD_ATTR event ; LOAD_ATTR NULL|self + isin ; LOAD_CONST 'glucose_finger' ; LOAD_CONST 'glucose_lab' ; BUILD_LIST ; CALL ; LOAD_ATTR NULL|self + to_numpy ; CALL ; STORE_FAST is_glucose
+35: LOAD_FAST is_glucose ; LOAD_GLOBAL np ; LOAD_ATTR NULL|self + asarray ; LOAD_FAST dose_data0 ; LOAD_CONST 'valid' ; BINARY_SUBSCR ; CALL ; BINARY_OP & ; STORE_FAST eligible
+36: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + zeros ; LOAD_GLOBAL NULL + len ; LOAD_FAST meta0 ; CALL ; LOAD_GLOBAL np ; LOAD_ATTR float32 ; KW_NAMES ('dtype',) ; CALL ; STORE_FAST target0
+37: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + asarray ; LOAD_FAST dose_data0 ; LOAD_CONST 'residual' ; BINARY_SUBSCR ; CALL ; LOAD_FAST eligible ; LOAD_CONST 0 ; BUILD_TUPLE ; BINARY_SUBSCR
+38: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + maximum ; LOAD_FAST covariance ; LOAD_FAST eligible ; BINARY_SUBSCR ; LOAD_CONST 5.0 ; CALL
+37: BINARY_OP / ; LOAD_FAST target0 ; LOAD_FAST eligible ; STORE_SUBSCR
+39: LOAD_FAST target0 ; LOAD_FAST covariance ; LOAD_FAST eligible ; BUILD_TUPLE ; RETURN_VALUE ; SWAP ; POP_TOP
+30: SWAP ; STORE_FAST event ; RERAISE
+RANK TEMPLATE [ 0.  -7.5 -6.5 -5.5 -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5
+  5.5  6.5  7.5]
+GRAFT WEIGHT SHAPES {'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.2.weight': (17, 192), 'attr_heads.value_bin.2.bias': (17,)}
+=== TRANSITION SAMPLE ARRAYS ===
+rm_atoms (48, 1, 192)
+rm_b 48
+rm_best_enc (0.16595159471035004, 4, 2, 'left', True, 'gelu')
+rm_candidate_cache [(4, 2, 'left', True, 'gelu', 0.0, 'seconds_div10', 'encoded', 'linear'), (4, 2, 'left', True, 'gelu', 1.0, 'seconds_div10', 'encoded', 'linear'), (4, 2, 'left', True, 'gelu', 2.0, 'seconds_div10', 'encoded', 'linear'), (4, 2, 'left', False, 'gelu', 0.0, 'seconds_div10', 'encoded', 'linear'), (4, 2, 'left', False, 'gelu', 1.0, 'seconds_div10', 'encoded', 'linear'), (4, 2, 'left', False, 'gelu', 2.0, 'seconds_div10', 'encoded', 'linear')]
+rm_context_scores [(0.0015883015003055334, (5, 2, 'left', True, 'gelu', 1.0, 'seconds_div10', 'encoded', 'linear')), (
+rm_ctx (48, 192)
+rm_doses (48,)
+rm_dt (48, 1)
+rm_empty_e (48, 192)
+rm_encoding_scores [(0.16595159471035004, 4, 2, 'left', True, 'gelu'), (0.16605700552463531, 4, 2, 'left', False, 'gelu
+rm_hflow (48, 4, 192)
+rm_insulin_atoms ('unit_id', 'rate_unit_id', 'side', 'use_kq', 'activation')
+rm_lin ('x', 'prefix')
+rm_ln ('x', 'prefix')
+rm_lookup [(1010000000, -2.0, 'hospital_admission'), (1010000000, -1.0, 'glucose_finger'), (1010000000, -1.0, 'map_arterial'), (1010000000, 0.0, 'glucose_finger'), (1010000000, 0.0, 'icu_admission'), (1010000000, 0.0, 'map_arterial')]
+rm_mlp ('x', 'prefix', 'activation')
+rm_normspec [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_lab', 'value'), ('glucose_finger', 'value'), ('insulin', 'dose'), ('norepinephrine', 'dose')]
+rm_prev (48, 992)
+rm_pure_idx (48,)
+rm_rates (48,)
+rm_raw0 (48, 32)
+rm_records DataFrame
+rm_rows [Pandas(stay_id=1010000000, hour=0.0833, event='insulin', value=nan, rate=1.0, rate_unit='units/hour
+rm_set ('atom_vectors', 'prefix', 'activation')
+rm_states ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+rm_target_z (48, 32)
+rm_u (48, 192)
+rm_u0 (48, 192)
+rm_zero_e (48, 192)
+MATCHED COLUMNS ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row', 'dt_seconds', 'code', 'has_last', 'last_age_seconds', 'last_z', 'last_bin', 'observed_bin']
+   stay_id  hour        event  state_row  dt_seconds
+1010000112   2.0     map_cuff          3      3600.0
+1010000113  -1.0 map_arterial        271      3600.0
+1010000115   0.0     map_cuff        790      3600.0
+
+```

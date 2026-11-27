@@ -1,0 +1,48 @@
+OUTPUT of Python run 269 of at most 300:
+```
+/work/fwd_1 ['dose_edit_original.csv', 'summary.json']
+    dose_edit_original.csv (2956, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      means: {'stay_id': 2020000206.164, 'hour': 18.572, 'shift': -0.207, 'shift_se': 0.296, 'factual': 126.598}
+    summary.json {  "ok": true,  "type": "dose_edit",  "split": "tuning",  "n_stays": 100,  "results": {   "original": {    "edits": {     "insulin_x2": {      "what": "insulin x2 -> glucose_finger",      "mean_shift": -1.448,      "n_stay_hours": 763,      "n_stays": 89     },     "insulin_half": {      "what": "insulin x1/2 -> glucose_finger",      "mean_shift": 0.824,      "n_stay_hours": 763,      "n_stays": 8
+/work/fwd_2 ['factual_original.csv', 'summary.json']
+    factual_original.csv (5177, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      nll means: {'nll': 1.519}
+    summary.json {  "ok": true,  "type": "factual",  "split": "tuning",  "n_stays": 100,  "results": {   "original": {    "value_nll_per_value": 1.51903,    "n_values": 5177,    "by_event": {     "glucose_finger": {      "n": 1776,      "nll": 1.5308,      "mean_abs_error": 10.828     },     "glucose_lab": {      "n": 529,      "nll": 1.2605,      "mean_abs_error": 8.616     },     "map_arterial": {      "n": 1352
+/work/fwd_3 ['states_original.npz', 'summary.json']
+    summary.json {  "ok": true,  "type": "states",  "split": "tuning",  "n_stays": 100,  "results": {   "original": {    "file": "states_original.npz",    "rows": 5075,    "layout": "x[:, 0:192] = out, x[:, 192 + 192*s : 384 + 192*s] = slot s of h (s = 0..3), x[:, 960:992] = z posterior mean; one row per bundle, after the bundle",    "other_arrays": [     "stay_id",     "hour",     "has_insulin",     "has_norepine
+/work/fwd_4 ['factual_original.csv', 'summary.json']
+    factual_original.csv (4819, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      nll means: {'nll': 1.5985}
+    summary.json {  "ok": true,  "type": "factual",  "split": "train",  "n_stays": 100,  "results": {   "original": {    "value_nll_per_value": 1.59847,    "n_values": 4819,    "by_event": {     "glucose_finger": {      "n": 1554,      "nll": 1.4368,      "mean_abs_error": 10.846     },     "glucose_lab": {      "n": 522,      "nll": 1.2183,      "mean_abs_error": 9.035     },     "map_arterial": {      "n": 1105,
+/work/fwd_5 ['factual_edited.csv', 'factual_original.csv', 'summary.json']
+    factual_edited.csv (5177, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      nll means: {'nll': 18.308}
+    factual_original.csv (5177, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      nll means: {'nll': 1.519}
+    summary.json {  "ok": true,  "type": "factual",  "split": "tuning",  "n_stays": 100,  "results": {   "original": {    "value_nll_per_value": 1.51903,    "n_values": 5177,    "by_event": {     "glucose_finger": {      "n": 1776,      "nll": 1.5308,      "mean_abs_error": 10.828     },     "glucose_lab": {      "n": 529,      "nll": 1.2605,      "mean_abs_error": 8.616     },     "map_arterial": {      "n": 1352
+/work/fwd_6 ['factual_edited.csv', 'factual_original.csv', 'summary.json']
+    factual_edited.csv (5177, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      nll means: {'nll': 16.3355}
+    factual_original.csv (5177, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      nll means: {'nll': 1.519}
+    summary.json {  "ok": true,  "type": "factual",  "split": "tuning",  "n_stays": 100,  "results": {   "original": {    "value_nll_per_value": 1.51903,    "n_values": 5177,    "by_event": {     "glucose_finger": {      "n": 1776,      "nll": 1.5308,      "mean_abs_error": 10.828     },     "glucose_lab": {      "n": 529,      "nll": 1.2605,      "mean_abs_error": 8.616     },     "map_arterial": {      "n": 1352
+notes chars 13883
+27 ## Run 24-29 + fwd 1 (dose_edit original, tuning setA = /work/setA.json, 100 stays)
+29 - dose_edit rows = stay-hours 13-24 where the record HAS the outcome reading (finger glucose / map_arterial); reached = hour > first dose hour>=12.
+36 - fwd_2 = factual ORIGINAL on tuning setA: value NLL/reading 1.51903 (finger 1.531, lab 1.261, art 1.349, cuff 1.746). Baseline for +0.005 limit.
+37 - fwd_3 = states ORIGINAL on tuning setA (5075 bundle rows; layout out|h0..h3|zpost).
+40 - PLAN: readout edit. Decode a dose-innovation feature (dose minus policy-expected dose given reading, lagged) from head input
+42   calibrate gain with dose_edit on setA vs my truth (-14.17/+7.09/+4.82/-2.41). Check factual with 'both'.
+46   => pure readout edit too noisy (esp. NE). Need upstream signal.
+47 - Original model rollout insulin x2 per hour: -0.53 (h13) .. -2.28 (h24); truth -3.2 .. -18.8. Model persistence ~0.78/h.
+84 - ARCH: z drawn from prior 4x, probabilities averaged (tool factual means are noisy); readout = predicted MEAN per hour, edited-minus-factual,
+96   calibrate gain with dose_edit on setA vs truth (-14.17/+7.09/+4.82/-2.41); check factual with 'both'.
+112   calibrate gains with dose_edit on setA vs truth (-14.17/+7.09/+4.82/-2.41); check factual with 'both'.
+124 - Next: tool factual both + dose_edit both on setA.
+edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.weight', 'embed_transition.value_bin.weight']
+attr_heads.value_bin.0.bias (192,) max|diff| 199.2
+attr_heads.value_bin.0.weight (192, 192) max|diff| 47.72
+attr_heads.value_bin.2.weight (17, 192) max|diff| 1.477
+embed_transition.value_bin.weight (221, 17) max|diff| 118.9
+
+```

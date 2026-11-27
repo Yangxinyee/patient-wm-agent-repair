@@ -1,0 +1,276 @@
+OUTPUT of Python run 191 of at most 300:
+```
+CAUSAL EVIDENCE FROM NOTEBOOK
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.0240984116
+## Factual baseline and dynamic identification; Python 5, forward 2
+- Original factual value NLL = 1.63461 on first 100 tuning stays, 4751 readings.
+- NE sensor-difference first stage is weak; do not use its point estimates.
+- Tested replicate-sensor corrections and lag-instrumented first differences; each relies on explicit measurement-noise/innovation assumptions.
+{
+  "('map_arterial', 'norepinephrine', 'basic')": {
+    "persistence": 0.9982457546092935,
+    "effect": 0.25976722831925286,
+    "se_persistence": 0.0018481345452363164,
+    "se_effect": 0.07259737043369274,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "persistence": 0.9158430901733471,
+    "effect": 3.2667303775592043,
+    "se_persistence": 0.009083782933650895,
+    "se_effect": 0.1636034525210515,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'stayFE')": {
+    "persistence": 0.7479846009200942,
+    "effect": 3.610685143623699,
+    "se_persistence": 0.012280238981277945,
+    "se_effect": 0.17246200287179653,
+    "n": 93413
+  }
+## Sensor-contrast local projections; Python 9, forward 2
+- Reimplemented IV on future reading levels, controlling only pre-treatment history.
+- Pre-treatment placebo horizons test independence; weak first stages remain disqualifying.
+{
+  "('insulin', -2, False)": {
+    "n": 57248,
+    "beta": -0.038767269782738374,
+    "se": 0.6338392802791879,
+    "first_stage": 0.024831879550323475,
+    "first_stage_t": 46.31225775687944
+  },
+  "('insulin', -1, False)": {
+    "n": 61822,
+    "beta": -0.10167365879195693,
+    "se": 0.6044600978809811,
+    "first_stage": 0.0250430044370933,
+    "first_stage_t": 48.56454221088735
+  },
+  "('insulin', 1, False)": {
+    "n": 61734,
+    "beta": -9.265448953253808,
+    "se": 1.0477733869485997,
+    "first_stage": 0.01858921651030461,
+    "first_stage_t": 35.99484856927351
+  },
+  "('insulin', 2, False)": {
+    "n": 57208,
+    "beta": -3.307161009758553,
+    "se": 0.792613602550214,
+    "first_stage": 0.021875956858715104,
+    "first_stage_t": 41.148887829833676
+  },
+  "('insulin', 3, False)": {
+    "n": 539
+## Dynamic identification; Python 10, forward 2
+- Prior-controlled sensor IV supports a modest negative immediate insulin effect; NE sensor instrument is weak.
+- Prior-controlled placebo lags 1/2 were tautologies; added earlier placebos.
+- Estimated persistence conditional on candidate effects and insulin impulse moments including later doses.
+{
+  "fixed_b_dynamics": {
+    "('insulin', -1.8)": [
+      [
+        -2.693714988473109,
+        0.3743989046404466,
+        224413
+      ],
+      [
+        -7.381247201106025,
+        2.1851839577620606,
+        209202
+      ],
+      [
+        9.064263420439419,
+        3.25877373442609,
+        197161
+      ],
+      [
+        6.7982618442898,
+        1.8482641674381641,
+        186615
+      ]
+    ],
+    "('insulin', -2.4)": [
+      [
+        -2.6737204639738095,
+        0.3740867179013077,
+        224413
+      ],
+      [
+        -7.344412554660796,
+        2.1796511727981933,
+        209202
+      ],
+      [
+        9.064688743009736,
+        3.25287866500073,
+        197161
+      ],
+      [
+  
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edits.
+- Insulin policy has sharp rate jumps near finger glucose 150, 180, etc.; testing fuzzy RD rather than assuming observed dose associations are causal.
+{
+  "rd_checks": {
+    "(5, 1, False)": {
+      "n": 89398,
+      "beta": -2.11567545402709,
+      "se": 0.33683734799038334,
+      "first_stage_jump": 0.7135711767182463,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 1, True)": {
+      "n": 89398,
+      "beta": -2.0571854815200568,
+      "se": 0.3057137413636479,
+      "first_stage_jump": 0.7135240538160252,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, False)": {
+      "n": 89398,
+      "beta": -2.1113769908453865,
+      "se": 0.7234826044355352,
+      "first_stage_jump": 0.683167099721991,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, True)": {
+      "n": 89398,
+      "beta": -2.179170250120743,
+      "se": 0.6564570134763864,
+      "first_stage_jump": 
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+- RD beta/persistence: [-1.9287092802694472, 0.8318395202800747].
+- Fixed-record insulin x2 target, train / first 100 tuning: ((-11.136162060797929, 152158), (-10.707835822880574, 554)); half is -0.5 times x2.
+- Flexible, stay-held-out NE estimates remain observational, not automatically causal.
+{
+  "1": {
+    "all": {
+      "beta": 3.3214268014980317,
+      "se": 0.09576999832526349,
+      "n": 299517,
+      "dose_residual_sd": 0.09073010103067478,
+      "outcome_residual_sd": 4.40471740317129
+    },
+    "interior": {
+      "beta": 3.3480345525779405,
+      "se": 0.10803830467896791,
+      "n": 116511,
+      "dose_residual_sd": 0.12413404307882044,
+      "outcome_residual_sd": 4.590900888397296
+    }
+  },
+  "4": {
+    "all": {
+      "beta": 3.280136875394464,
+      "se": 0.09669211095919605,
+      "n": 260475,
+      "dose_residual_sd": 0.09223969594935504,
+      "outcome_residual_sd": 4.268125306872915
+    },
+    "interior": {
+      "beta": 3.328771594136043
+
+EDIT-MACHINERY OBJECTS
+gpu13_checkpoint keys=['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+graft_alpha 0.01
+graft_applied True
+graft_beta -2.0
+graft_candidate keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_checkpoint_beta2 keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_checkpoint_beta24 keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_cpu_penalty 0.27281832695007324
+graft_decoder_b 0.9173281569044254
+graft_decoder_w ndarray (192,)
+graft_gate_scale 20.0
+graft_names ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.w
+graft_nodes ndarray (2,)
+graft_original keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_probs (x, trans, tensors)
+graft_removed_mean ndarray (2,)
+graft_unit keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_zero keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+make_contrast_graft (w, b, scale=1.0)
+make_insulin_graft (beta)
+projector3 ndarray (192, 192)
+r3_C ndarray (150, 150)
+r3_Fq ndarray (20064, 150)
+r3_Q ndarray (192, 150)
+r3_applied False
+r3_before keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+r3_candidates keys=[(0.01, 1.0), (0.01, 2.0), (0.01, 4.0), (0.03, 1.0), (0.03, 2.0), (0.03, 4.0), (0.1, 1.0), (0.1, 2.0), (0.1, 4.0), (0.3, 1.0), (0.3, 2.0), (0.3, 4.0), (1.0, 1.0), (1.0, 2.0)]
+r3_choice None
+r3_eligible []
+restart_checkpoint keys=['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+rng_graft <torch._C.Generator object at 0x7802ee617250>
+sc_D ndarray (156, 151)
+sc_F ndarray (20064, 192)
+sc_Fq ndarray (20064, 151)
+sc_Q ndarray (192, 151)
+sc_active keys=['first', 'extra']
+sc_bias_comp ndarray (17,)
+sc_cache_inputs (x, trans, meta)
+sc_checkpoint keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+sc_cov ndarray (151, 151)
+sc_dx [array([[-3.95629174e-03,  8.34331667e-03, -2.67105215e-04, ...,
+        -8.72392225e-04, 
+sc_eigenvalues ndarray (192,)
+sc_eigenvectors ndarray (192, 192)
+sc_evaluate (cache, w, b, scale=1.0)
+sc_fact keys=['first', 'extra', 'tuning']
+sc_gate_b -18.832592010498047
+sc_gate_w ndarray (192,)
+sc_mean ndarray (192,)
+sc_meta keys=['first', 'extra', 'tuning']
+sc_mult ndarray (156,)
+sc_names ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.w
+sc_new_candidates keys=[1e-05, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+sc_new_choice None
+sc_nodes ndarray (2,)
+sc_old_b 0.917327880859375
+sc_old_scale -2.0
+sc_old_w ndarray (192,)
+sc_original keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+sc_rank ndarray (17,)
+sc_reg_offset ndarray (78, 192)
+sc_sf keys=['first', 'extra', 'tuning']
+sc_stay ndarray (156,)
+sc_syn keys=[1.0, 0.5, 2.0]
+sc_y ndarray (156,)
+scale2_checkpoint keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.val
+[output cut at 10,000 characters]
+```

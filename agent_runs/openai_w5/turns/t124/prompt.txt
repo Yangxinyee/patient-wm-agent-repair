@@ -1,0 +1,97 @@
+OUTPUT of Python run 109 of at most 300:
+```
+
+===  action_hidden105  ===
+action_hidden105 (rates, presence)
+30 LOAD_GLOBAL NULL + np | LOAD_ATTR asarray | LOAD_FAST rates | LOAD_GLOBAL np | LOAD_ATTR float64 | KW_NAMES ('dtype',) | CALL | STORE_FAST rates
+31 LOAD_GLOBAL NULL + np | LOAD_ATTR asarray | LOAD_FAST presence | LOAD_GLOBAL bool | KW_NAMES ('dtype',) | CALL | STORE_FAST presence
+32 LOAD_GLOBAL NULL + torch | LOAD_ATTR zeros | LOAD_GLOBAL NULL + len | LOAD_FAST rates | CALL | LOAD_CONST 192 | BUILD_TUPLE | LOAD_GLOBAL torch | LOAD_ATTR float32 | KW_NAMES ('dtype',) | CALL | STORE_FAST aggregate
+33 LOAD_GLOBAL NULL + enumerate | LOAD_CONST 'insulin' | LOAD_CONST 'norepinephrine' | BUILD_LIST | CALL | GET_ITER | FOR_ITER to 454 | UNPACK_SEQUENCE | STORE_FAST d | STORE_FAST drug
+34 LOAD_GLOBAL NULL + np | LOAD_ATTR flatnonzero | LOAD_FAST presence | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_FAST d | BUILD_TUPLE | BINARY_SUBSCR | CALL | STORE_FAST use
+35 LOAD_GLOBAL NULL + len | LOAD_FAST use | CALL | POP_JUMP_IF_TRUE to 344 | JUMP_BACKWARD to 252
+36 LOAD_GLOBAL NULL + action_atom_exact | LOAD_FAST drug | LOAD_FAST rates | LOAD_FAST use | LOAD_FAST d | BUILD_TUPLE | BINARY_SUBSCR | CALL | STORE_FAST atoms
+37 LOAD_CONST 0 | LOAD_FAST atoms | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_GLOBAL tracked105 | BUILD_TUPLE | STORE_SUBSCR
+38 LOAD_FAST aggregate | LOAD_FAST use | COPY | COPY | BINARY_SUBSCR | LOAD_GLOBAL NULL + mlp0 | LOAD_FAST atoms | LOAD_CONST 'encode_action.mlp1' | LOAD_CONST 'gelu' | CALL | BINARY_OP += | SWAP | SWAP | STORE_SUBSCR | JUMP_BACKWARD to 252
+39 LOAD_FAST presence | LOAD_ATTR NULL|self + sum | LOAD_CONST 1 | KW_NAMES ('axis',) | CALL | STORE_FAST counts
+40 LOAD_FAST aggregate | LOAD_GLOBAL NULL + torch | LOAD_ATTR tensor | LOAD_GLOBAL NULL + np | LOAD_ATTR sqrt | LOAD_GLOBAL NULL + np | LOAD_ATTR maximum | LOAD_FAST counts | LOAD_CONST 1 | CALL | CALL | KW_NAMES ('dtype',) | CALL | BINARY_SUBSCR | BINARY_OP /= | STORE_FAST aggregate
+41 LOAD_GLOBAL torch | LOAD_ATTR float32 | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | BUILD_TUPLE
+42 LOAD_GLOBAL NULL + torch | LOAD_ATTR tensor | LOAD_GLOBAL NULL + np | LOAD_ATTR log1p | LOAD_FAST counts | CALL | LOAD_GLOBAL torch | LOAD_ATTR float32 | KW_NAMES ('dtype',) | CALL | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | BUILD_TUPLE | BINARY_SUBSCR | STORE_FAST size
+43 LOAD_FAST aggregate | LOAD_GLOBAL NULL + lin0 | LOAD_FAST size | LOAD_CONST 'encode_action.size' | CALL | BINARY_OP + | STORE_FAST mixed
+44 LOAD_GLOBAL NULL + F | LOAD_ATTR gelu | LOAD_GLOBAL NULL + lin0 | LOAD_FAST mixed | LOAD_CONST 'encode_action.mlp2.0' | CALL | CALL | STORE_FAST hidden
+45 LOAD_GLOBAL NULL + lin0 | LOAD_FAST hidden | LOAD_CONST 'encode_action.mlp2.2' | CALL | STORE_FAST raw
+46 LOAD_GLOBAL NULL + array103 | LOAD_FAST hidden | CALL | LOAD_GLOBAL NULL + array103 | LOAD_FAST raw | CALL | BUILD_TUPLE | RETURN_VALUE
+
+===  channel_targets105  ===
+channel_targets105 (rates, raw)
+72 LOAD_FAST raw | LOAD_ATTR NULL|self + astype | LOAD_GLOBAL np | LOAD_ATTR float64 | CALL | LOAD_ATTR NULL|self + copy | CALL | STORE_FAST base
+73 LOAD_CONST 0 | LOAD_FAST base | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_GLOBAL temporary105 | BUILD_TUPLE | STORE_SUBSCR
+74 LOAD_GLOBAL NULL + np | LOAD_ATTR var | LOAD_FAST base | LOAD_CONST 1 | KW_NAMES ('axis',) | CALL | LOAD_CONST 1e-05 | BINARY_OP + | STORE_FAST variance
+75 LOAD_GLOBAL NULL + np | LOAD_ATTR minimum | LOAD_FAST rates | LOAD_GLOBAL caps105 | CALL | LOAD_GLOBAL rate_scale105 | BINARY_OP / | STORE_FAST capped
+76 LOAD_CONST 1 | LOAD_CONST 2 | LOAD_GLOBAL delta105 | LOAD_CONST 2 | BINARY_OP ** | BINARY_OP * | LOAD_GLOBAL NULL + np | LOAD_ATTR sum | LOAD_FAST capped | LOAD_CONST 2 | BINARY_OP ** | LOAD_CONST 1 | KW_NAMES ('axis',) | CALL | BINARY_OP * | LOAD_CONST 192 | BINARY_OP / | BINARY_OP - | STORE_FAST denom
+77 LOAD_GLOBAL NULL + np | LOAD_ATTR sqrt | LOAD_FAST variance | LOAD_FAST denom | BINARY_OP / | CALL | STORE_FAST sigma
+78 LOAD_GLOBAL delta105 | LOAD_FAST capped | BINARY_OP * | LOAD_FAST sigma | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | BUILD_TUPLE | BINARY_SUBSCR | BINARY_OP * | LOAD_FAST variance | BUILD_TUPLE | RETURN_VALUE
+
+===  wm_lin  ===
+wm_lin (x, prefix, weights=None)
+5 LOAD_FAST weights | POP_JUMP_IF_NOT_NONE to 18 | LOAD_GLOBAL W0 | JUMP_FORWARD to 20 | LOAD_FAST weights | STORE_FAST ww
+6 LOAD_GLOBAL NULL + F | LOAD_ATTR linear | LOAD_FAST x | LOAD_FAST ww | LOAD_FAST prefix | LOAD_CONST '.weight' | BINARY_OP + | BINARY_SUBSCR | LOAD_FAST ww | LOAD_ATTR NULL|self + get | LOAD_FAST prefix | LOAD_CONST '.bias' | BINARY_OP + | CALL | CALL | RETURN_VALUE
+
+===  wm_norm  ===
+wm_norm (x, prefix, weights=None)
+9 LOAD_FAST weights | POP_JUMP_IF_NOT_NONE to 18 | LOAD_GLOBAL W0 | JUMP_FORWARD to 20 | LOAD_FAST weights | STORE_FAST ww
+10 LOAD_GLOBAL NULL + F | LOAD_ATTR layer_norm | LOAD_FAST x | LOAD_CONST (192,) | LOAD_FAST ww | LOAD_FAST prefix | LOAD_CONST '.weight' | BINARY_OP + | BINARY_SUBSCR | CALL | RETURN_VALUE
+11 LOAD_FAST ww | LOAD_FAST prefix | LOAD_CONST '.bias' | BINARY_OP + | BINARY_SUBSCR | LOAD_CONST 1e-05
+
+===  wm_set  ===
+wm_set (atoms, prefix)
+13 LOAD_GLOBAL NULL + len | LOAD_FAST atoms | CALL | STORE_FAST n
+14 LOAD_GLOBAL NULL + wm_mlp | LOAD_FAST atoms | LOAD_FAST prefix | LOAD_CONST '.mlp1' | BINARY_OP + | CALL | LOAD_ATTR NULL|self + sum | LOAD_CONST 0 | LOAD_CONST True | KW_NAMES ('keepdim',) | CALL | LOAD_GLOBAL np | LOAD_ATTR NULL|self + sqrt | LOAD_GLOBAL NULL + max | LOAD_FAST n | LOAD_CONST 1 | CALL | CALL | BINARY_OP / | STORE_FAST agg
+15 LOAD_GLOBAL torch | LOAD_ATTR NULL|self + tensor | LOAD_GLOBAL np | LOAD_ATTR NULL|self + log1p | LOAD_FAST n | CALL | BUILD_LIST | BUILD_LIST | LOAD_GLOBAL torch | LOAD_ATTR float32 | KW_NAMES ('dtype',) | CALL | STORE_FAST size
+16 LOAD_GLOBAL NULL + wm_norm | LOAD_GLOBAL NULL + wm_mlp | LOAD_FAST agg | LOAD_GLOBAL NULL + wm_lin | LOAD_FAST size | LOAD_FAST prefix | LOAD_CONST '.size' | BINARY_OP + | CALL | BINARY_OP + | CALL | CALL | BINARY_SUBSCR | RETURN_VALUE
+17 LOAD_FAST prefix | LOAD_CONST '.mlp2' | BINARY_OP + | LOAD_FAST prefix | LOAD_CONST '.norm' | BINARY_OP + | LOAD_CONST 0
+
+===  wm_layer  ===
+wm_layer (x, prefix, memory=None, agevec=None, age_mode='input', weights=None)
+35 LOAD_FAST x | LOAD_GLOBAL NULL + wm_attention | LOAD_GLOBAL NULL + wm_norm | LOAD_FAST x | LOAD_FAST prefix | LOAD_CONST '.norm1' | BINARY_OP + | LOAD_FAST weights | CALL | KW_NAMES ('weights',) | CALL | BINARY_OP + | STORE_FAST x
+36 LOAD_FAST prefix | LOAD_CONST '.attn' | BINARY_OP + | LOAD_FAST weights
+37 LOAD_FAST memory | POP_JUMP_IF_NONE to 176 | LOAD_FAST memory | LOAD_ATTR shape | LOAD_CONST 1 | BINARY_SUBSCR | POP_JUMP_IF_FALSE to 176
+38 LOAD_FAST x | LOAD_GLOBAL NULL + wm_attention | LOAD_GLOBAL NULL + wm_norm | LOAD_FAST x | LOAD_FAST prefix | LOAD_CONST '.norm2' | BINARY_OP + | LOAD_FAST weights | CALL | CALL | BINARY_OP + | STORE_FAST x
+39 LOAD_FAST prefix | LOAD_CONST '.cross' | BINARY_OP + | LOAD_FAST memory | LOAD_FAST agevec | LOAD_FAST age_mode | LOAD_FAST weights
+40 LOAD_FAST x | LOAD_GLOBAL NULL + wm_mlp | LOAD_GLOBAL NULL + wm_norm | LOAD_FAST x | LOAD_FAST prefix | LOAD_CONST '.norm3' | BINARY_OP + | LOAD_FAST weights | CALL | CALL | BINARY_OP + | RETURN_VALUE
+41 LOAD_FAST prefix | LOAD_CONST '.ffn' | BINARY_OP + | LOAD_FAST weights
+
+=== SELECTED DECODER ERRORS BY CONFIGURATION ===
+rate scales [1.  0.1] caps [11.52  3.  ] delta 0.01
+normalization metadata {('map_arterial', 'value'): {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 66.0, 70.0, 74.0, 78.0, 81.0, 84.0, 89.0, 92.0, 95.0, 98.0]}, ('map_cuff', 'value'): {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [39.0, 46.0, 52.0, 60.0, 69.0, 74.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}, ('glucose_finger', 'value'): {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [78.0, 87.0, 96.0, 109.0, 128.0, 144.0, 155.0, 164.0, 173.0, 183.0, 196.0, 215.0, 231.0, 244.0, 261.0]}, ('glucose_lab', 'value'): {'code': 'glucose_lab', 'attribute': 'value', 'median': 141.0, 'iqr': 53.0, 'fine_bin_edges': [73.0, 81.0, 89.0, 98.0, 111.0, 121.0, 131.0, 141.0, 151.0, 163.0, 177.0, 199.0, 216.0, 231.0, 248.0]}, ('norepinephrine', 'dose'): {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.256, 'iqr': 2.832, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.384, 0.768, 1.2, 1.6800000000000002, 2.256, 2.832, 3.456, 4.224, 4.8, 4.8, 4.8, 4.8]}, ('insulin', 'dose'): {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, ('
+test rate ranges [0. 0.] [11.51858084  2.99807023]
+test presence counts (array([[False, False],
+       [False,  True],
+       [ True, False],
+       [ True,  True]]), array([335, 385, 571, 709]))
+Ridge feature/target scaling objects:
+xmean105 range -0.163467139005661 16.901561737060547
+xsd105 range 0.019999999552965164 37.992454528808594
+base_var_test105 range 8.372202387521426 16959.851472610524
+yt105 range 0.0 39.648548074556786
+
+=== ATTENTION CONFIGURATION ===
+{'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+
+=== CORE AND EMBEDDING TENSORS ===
+core.a_in (192,)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+core.slots (4, 192)
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to
+[output cut at 10,000 characters]
+```

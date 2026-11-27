@@ -1,0 +1,277 @@
+OUTPUT of Python run 83 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+RETAINED HELPERS AND ARRAYS
+D ndarray (400, 25)
+E81 Tensor (4213, 4, 192)
+E81_reference Tensor (4213, 4, 192)
+F81 Tensor (4213, 7, 192)
+H81 Tensor (4213, 7, 768)
+Xhist ndarray (720000, 51)
+a ndarray (4313, 192)
+a74 ndarray (2729, 8)
+aa Tensor (12, 192)
+aa0 Tensor (14, 192)
+ab Tensor (1, 192)
+act0 Tensor (32, 192)
+action_discrepancy61 ndarray (4313, 192)
+action_input61 ndarray (4313, 192)
+active ndarray (4313,)
+active40 ndarray (4313,)
+active81 ndarray (4213,)
+actn72 ndarray (4313,)
+actual72 ndarray (16,)
+add_feature function
+adjusted ndarray (390000,)
+affine_check73 function
+age ndarray (30000,)
+age_emb82 Tensor (32, 51, 192)
+age_hours82 Tensor (32, 51, 1)
+am Tensor (1, 192)
+arr ndarray (30000, 26)
+array ndarray (64,)
+arrw ndarray (192,)
+as_numpy function
+atom0 Tensor (14, 192)
+atom80 function
+atom_base function
+atom_flat Tensor (17280, 192)
+atoms0 Tensor (32, 192)
+atoms1 Tensor (90, 32, 192)
+atoms80 Tensor (461, 192)
+atoms_base Tensor (8, 192)
+atoms_v Tensor (10, 192)
+attention81 Tensor (4213, 4, 7, 7)
+attention82 function
+augmented_gate ndarray (52272,)
+augmented_on ndarray (52272,)
+av Tensor (512, 192)
+bas1 Tensor (12, 192)
+base0 Tensor (4213, 192)
+base_ctx Tensor (1453, 192)
+base_rows ndarray (390000,)
+bb Tensor (12, 192)
+bins ndarray (10,)
+bins_left ndarray (8,)
+bins_right ndarray (8,)
+both_now ndarray (441401,)
+bread ndarray (2, 2)
+brief_tree function
+c71 ndarray (8,)
+cc ndarray (1697, 192)
+centres ndarray (16,)
+clean_empty_obs Tensor (1, 192)
+clean_single_encode function
+clear_atoms Tensor (8, 192)
+cluster_estimate function
+coef ndarray (192,)
+coef_raw ndarray (192, 4)
+coef_s ndarray (192, 4)
+col78 ndarray (8,)
+cols ndarray (8,)
+column_norms ndarray (192,)
+compact_array function
+compact_bytecode function
+const Tensor (32, 192)
+context Tensor (8, 192)
+context_with_flow function
+contexts0 Tensor (2880, 192)
+correction ndarray (4313,)
+count ndarray (30000,)
+cp ndarray (10791,)
+ctx Tensor (24, 192)
+ctx0 Tensor (24, 192)
+ctx81 Tensor (4213, 192)
+ctx_all Tensor (4213, 192)
+ctxs Tensor (768, 192)
+current ndarray (64, 192)
+cx0 Tensor (4213, 192)
+cx1 Tensor (12, 192)
+cx71 Tensor (4213, 192)
+d ndarray (30000, 24)
+dd ndarray (177683,)
+defaults Tensor (192,)
+delta ndarray (2873, 32)
+delta_norm6 ndarray (4028,)
+deltas1 Tensor (360, 192)
+dh ndarray (192,)
+dh_same Tensor (5,)
+diagnostic_array function
+diff ndarray (106987,)
+difference ndarray (64, 192)
+direct_posterior_diagnostic function
+direction ndarray (32,)
+disk_weights dict keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'code_bias', 'cont_head.0.bias', 'cont_head.0.weight', 'cont_head.2.bias', 'cont_head.2.weight', 'core.a_in']
+dist ndarray (47, 1)
+dose ndarray (720000,)
+dose_labels ndarray (4313, 2)
+dout ndarray (192,)
+drop_edit function
+drug39 ndarray (4213,)
+drug_idx ndarray (1453,)
+drug_mask6 ndarray (4028,)
+drugs_mask ndarray (4313,)
+dt Tensor (24,)
+dt71 Tensor (4213,)
+dt_all Tensor (4213,)
+dt_drug Tensor (1453,)
+dz ndarray (32,)
+dz_same Tensor (5,)
+e Tensor (10, 192)
+e38 Tensor (4313, 192)
+e39 Tensor (4313, 192)
+e71 ndarray (16,)
+e80 ndarray (4313, 192)
+e81 Tensor (4213, 192)
+e_all Tensor (4313, 192)
+e_cols79 ndarray (16,)
+e_empty Tensor (1, 192)
+e_true79 ndarray (4313, 16)
+ec Tensor (40, 192)
+edges ndarray (15,)
+edited function
+edited_quantiles ndarray (5,)
+ee Tensor (12, 192)
+ee0 Tensor (14, 192)
+empty_e79 ndarray (192,)
+empty_obs Tensor (1, 192)
+empty_u79 ndarray (192,)
+enc0 Tensor (1, 192)
+enc1 Tensor (4320, 192)
+enc_act Tensor (720, 24, 192)
+enc_obs Tensor (720, 24, 192)
+encode_bundles function
+encode_groups80 function
+encode_one_set function
+encode_single_atom function
+end72 ndarray (4313,)
+ep Tensor (768, 192)
+ep80 ndarray (4313, 192)
+er ndarray (4313,)
+er0 ndarray (4213,)
+err ndarray (4,)
+err0 Tensor (720,)
+err38 ndarray (4213,)
+err39 ndarray (4213,)
+err39_old ndarray (4213,)
+error ndarray (1395, 32)
+errors ndarray (441401,)
+errs1 Tensor (360,)
+evec Tensor (1, 192)
+exact_start_mask ndarray (4213,)
+expected ndarray (4313,)
+exposed ndarray (400, 12)
+extra_vectors Tensor (5, 192)
+fit ndarray (52272,)
+flat Tensor (512, 192)
+fn function
+fn76 function
+fn77 function
+fold_by_stay ndarray (30000,)
+fold_rows ndarray (720000,)
+fractional79 ndarray (1632,)
+full_atoms Tensor (8, 192)
+func function
+function function
+gap_input Tensor (4213, 1)
+gate ndarray (4313,)
+gate_row ndarray (576,)
+good ndarray (390000,)
+h81 Tensor (4213, 4, 192)
+h_flow Tensor (1453, 4, 192)
+h_prev Tensor (1453, 4, 192)
+hf Tensor (24, 
+[output cut at 10,000 characters]
+```

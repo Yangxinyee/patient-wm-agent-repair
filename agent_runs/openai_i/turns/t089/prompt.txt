@@ -1,0 +1,255 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 88 replies happened before. Forward passes used: 6 of 50; Python runs used: 80 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ical mappings and gap conventions on single-start bundles, matching original exposed posterior means, without editing weights.
+- Best encoding checks: {'insulin': (0.1312907487154007, (4, 3, 0, 1, 1, 0), 'log_seconds_div10', 'prior_plus'), 'norepinephrine': (0.13130687177181244, (2, 2, 0, 0, 0, 2), 'log_seconds_div10', 'prior_plus')}
+
+## Python 36; forward 6
+- First posterior reconstruction RMS ~0.13, not exact; no edit made.
+- Tested GELU/SiLU, empty-observation encoding, latent layouts, and prior addition.
+- Best reconstruction conventions: {'insulin': (2.8125054996053223e-06, ('gelu', 'gelu', 'empty_gelu', 'gelu', 'chunk', 'none'), (3, 2, 0, 0, 0, 0)), 'norepinephrine': (4.487959358812077e-06, ('gelu', 'gelu', 'empty_gelu', 'gelu', 'chunk', 'none'), (4, 3, 0, 0, 0, 0))}
+
+## Python 37; forward 6 — restart recovery
+- No weights changed. Posterior reconstruction matches exposed means to about 4e-6 RMS.
+- Recovering architecture and record-based identification before designing a posterior edit.
+
+## Python 38; forward 6
+- Architecture recovered. Shared recurrent updates permit dose corrections, but all-head loss must also be checked.
+- Recovering lag evidence and exact posterior helpers; no weights changed.
+
+## Python 39; forward 6 — edit design
+- Lag estimates favor a recurrent correction rather than a sensor-only shortcut.
+- Inspecting exact posterior features and transition weights for a reversible low-rank innovation edit.
+- No weights changed.
+
+## Python 40; forward 6
+- Accounting for infusion END atoms is necessary before fitting posterior dose innovations.
+- Inspecting state schema and action metadata; no weights changed.
+
+## Python 41; forward 6 — full action encoding check
+- Action bundles: 1312; single-END examples: 64.
+- Best END conventions: [(0.23946700990200043, 'absent', 5, 0), (0.23950313031673431, 'absent', 5, 1), (0.25532791018486023, 'absent', 1, 0)].
+- No weights changed.
+
+## Python 42; forward 6 — ending-path correction
+- Initial END-as-action reconstruction failed; no weights changed.
+- Expanded END search: [(0.07159414887428284, 'observation', 'absent', 'absent', 'absent', 1, 1, 2), (0.07164975255727768, 'observation', 'absent', 'absent', 'absent', 1, 0, 2), (0.07251051813364029, 'observation', 'absent', 'absent', 'absent', 0, 0, 2)].
+
+## Python 43; forward 6 — reconstruction diagnostics
+- END flags are false for both drugs, supporting a non-action pathway.
+- Start context checks: [(0.0003667452547233552, False, True, False), (0.00036694578011520207, True, True, False), (0.0003715317288879305, False, True, True)].
+- No weights changed.
+
+## Python 44; forward 6 — absent-field test
+- END omitted-field tests: [(0.07251055538654327, False, 'default', 2, 2), (0.07251055538654327, False, 'none', 2, 2), (0.07626894861459732, False, 'default', 2, 0)].
+- Comparing new start reconstruction with retained exact inputs; no weights changed.
+
+## Python 48; forward 6 — correction proposal
+- Retrieved controlled impulse estimates: insulin initially -1.99 per rate unit, with a multi-hour tail; NE initially +3.29 with a shorter tail.
+- Considering a posterior-mean low-rank edit driven by decoded dose innovations, with synthetic rate changes used only to test representation/extrapolation.
+- Effects are estimated from records, not medical assumptions. No weights changed.
+
+## Python 51; forward 6 — dose representation checks
+- Corrected action encoder helper input (list of tensors).
+- Testing action/context rate decoding and original posterior dose derivatives. No edits.
+
+## Python 52; forward 6 — posterior diagnosis
+- Clean-start posterior reconstruction RMS 0.000364; accurate enough for local probes, not bit-exact.
+- Insulin doubling strongly moves posterior (dose-direction norm 1.10); NE movement is tiny (0.030).
+- Existing action-vector rate decoding held-out R2 ~0.75 insulin, ~0.68 NE; empty-END hypothesis fails (RMS 0.132).
+- Simple amplification is not yet justified. Inspecting physical output directions via recurrent computations. No edits.
+
+## Python 53 — restart recovery
+- No edits. Recovering architecture, early identification evidence, and retained objects before computing a dose-specific recurrent correction.
+
+## Python 60; forward 6 — exact bundle encoding recovered
+- Observation and infusion-END posterior reconstructions match exposed means to about 2e-7 RMS; no weights edited.
+- Recovering transition helpers and original causal evidence before constructing a dose-specific, reversible correction.
+
+## Python 61; forward 6 — compact recovery
+- Architecture confirms posterior edits feed shared recurrent dynamics, not only a sensor head. Early crossfit evidence supports insulin near -2 and NE near +3 per rate unit for the next-hour reading, unlike naive associations.
+- Previous output hit the display limit; retrieving compact helper/state inventory.
+
+## Python 62; forward 6 — targeted posterior recovery
+- Exact encoder helpers and original states remain available. Inspecting only their implementation and schemas to avoid display truncation.
+- Candidate correction must be dose-specific, small on unchanged bundles, and validated on held-out factual predictions and paired rollouts.
+
+## Python 63; forward 6 — posterior-feature assembly
+- Checking drug-start and simultaneous-END metadata and a clean action's posterior reconstruction before fitting a hidden-feature correction.
+- No weights changed. Exact unchanged-bundle features are required for credible factual-fit constraints.
+
+## Python 64; forward 6 — clean-start precision check
+- Old action-helper reconstruction has RMS 3.79e-4 despite exact reading/END matches. Comparing explicit categorical encoding and gap rounding before edits.
+- No weights changed.
+
+## Full-bundle posterior reconstruction
+- Atom-count mismatches: 100.
+empty_e empty_u  mean_RMS  median_RMS  p95_RMS
+encoded encoded  0.013298    0.009985 0.037899
+   zero encoded  0.020480    0.010943 0.095643
+encoded    zero  0.057784    0.059960 0.132889
+   zero    zero  0.062592    0.061878 0.149490
+- No weights changed; checking full-bundle features before a low-rank edit.
+
+## Python 68; forward 6 — recovered identification
+- No weights edited. Record-based crossfit estimates support insulin about -2 and NE about +3 per rate unit at the next reading.
+- Insulin RD and pre-dose placebo provide complementary evidence; hour-0 NE estimates are less reliable.
+- Recovering impulse persistence and exact recurrent computations to choose a shared-state correction, not a sensor-only adjustment.
+
+## Python 76; forward 6 — guarded helper recovery
+- Prior inspection encountered a closed NPZ handle; no model operation failed.
+- Training panels and statistical helpers remain in memory. Inspecting posterior arrays and exact helper implementations to test absent-action u=0.
+- No weights changed.
+
+## Python 77; forward 6 — zero-action posterior test
+- Tested u=0 on absent-action bundles, comparing encoded and zero empty observation vectors against exposed original posterior means.
+- Reconstruction mean RMS by empty-observation convention: [('encoded', 0.05778399854898453), ('zero', 0.06259237974882126)].
+- No weights changed.
+
+## Python 78; forward 6 — empirical categorical validation
+- Setting absent actions to zero worsened posterior agreement; hypothesis rejected.
+- Retained unit mappings disagree. Tested unit IDs and absent-action conventions on isolated readings against exposed states, without medical assumptions.
+- No weights changed.
+
+## Python 79; forward 6 — original-cache audit
+- Non-original cached tensors found: [].
+- Reloaded original weights into the local reconstruction cache and repeated isolated-reading convention tests. No submitted weights changed.
+
+## Python 80; forward 6 — atom-construction audit
+- Cached weights exactly matched originals, ruling out stale weight edits.
+- Inspecting inserted categorical/numeric fields and retained earlier exact reconstruction cases before using posterior features for editing.
+- No weights changed.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 80 of at most 300:
+```
+=== ATOM HELPER: COMPACT BYTECODE ===
+0:RESUME  | 2:LOAD_FAST row | 4:LOAD_CONST 'event' | 6:BINARY_SUBSCR  | 10:STORE_FAST event | 12:LOAD_FAST ekind | 14:POP_JUMP_IF_NOT_NONE to 54 | 16:LOAD_GLOBAL ekind_ids57 | 26:LOAD_GLOBAL event_info57 | 36:LOAD_FAST event | 38:BINARY_SUBSCR  | 42:LOAD_CONST 'event_kind' | 44:BINARY_SUBSCR  | 48:BINARY_SUBSCR  | 52:STORE_FAST ekind | 54:LOAD_GLOBAL repair_weights | 64:LOAD_CONST 'embed.code.weight' | 66:BINARY_SUBSCR  | 70:LOAD_GLOBAL code_ids | 80:LOAD_FAST event | 82:BINARY_SUBSCR  | 86:BINARY_SUBSCR  | 90:LOAD_GLOBAL repair_weights | 100:LOAD_CONST 'embed.kind.weight' | 102:BINARY_SUBSCR  | 106:LOAD_FAST kind | 108:BINARY_SUBSCR  | 112:BINARY_OP + | 116:LOAD_GLOBAL repair_weights | 126:LOAD_CONST 'embed.ekind.weight' | 128:BINARY_SUBSCR  | 132:LOAD_FAST ekind | 134:BINARY_SUBSCR  | 138:BINARY_OP + | 142:LOAD_ATTR NULL|self + clone | 162:CALL  | 170:STORE_FAST v | 172:LOAD_GLOBAL np | 182:LOAD_ATTR NULL|self + zeros | 202:LOAD_CONST 6 | 204:LOAD_GLOBAL np | 214:LOAD_ATTR float32 | 234:KW_NAMES ('dtype',) | 236:CALL  | 244:STORE_FAST nums | 246:LOAD_CONST (('value', 0), ('dose', 2), ('rate', 4)) | 248:GET_ITER  | 250:FOR_ITER to 700 | 254:UNPACK_SEQUENCE  | 258:STORE_FAST attr | 260:STORE_FAST offset | 262:LOAD_FAST numbers | 264:POP_JUMP_IF_FALSE to 330 | 266:LOAD_FAST row | 268:LOAD_ATTR NULL|self + get | 288:LOAD_FAST attr | 290:LOAD_GLOBAL np | 300:LOAD_ATTR nan | 320:CALL  | 328:JUMP_FORWARD to 360 | 330:LOAD_GLOBAL np | 340:LOAD_ATTR nan | 360:STORE_FAST value | 362:LOAD_CONST 0 | 364:STORE_FAST b | 366:LOAD_FAST value | 368:POP_JUMP_IF_NONE to 642 | 370:LOAD_GLOBAL pd | 380:LOAD_ATTR NULL|self + notna | 400:LOAD_FAST value | 402:CALL  | 410:POP_JUMP_IF_FALSE to 642 | 412:LOAD_FAST event | 414:LOAD_FAST attr | 416:BUILD_TUPLE  | 418:LOAD_GLOBAL numeric_specs | 428:CONTAINS_OP  | 430:POP_JUMP_IF_FALSE to 642 | 432:LOAD_GLOBAL numeric_specs | 442:LOAD_FAST event | 444:LOAD_FAST attr | 446:BUILD_TUPLE  | 448:BINARY_SUBSCR  | 452:STORE_FAST spec | 454:LOAD_GLOBAL np | 464:LOAD_ATTR NULL|self + clip | 484:LOAD_GLOBAL NULL + float | 494:LOAD_FAST value | 496:CALL  | 504:LOAD_FAST spec | 506:LOAD_CONST 'median' | 508:BINARY_SUBSCR  | 512:BINARY_OP - | 516:LOAD_FAST spec | 518:LOAD_CONST 'iqr' | 520:BINARY_SUBSCR  | 524:BINARY_OP / | 528:LOAD_CONST -10 | 530:LOAD_CONST 10 | 532:CALL  | 540:LOAD_FAST nums | 542:LOAD_FAST offset | 544:STORE_SUBSCR  | 548:LOAD_CONST 1 | 550:LOAD_FAST nums | 552:LOAD_FAST offset | 554:LOAD_CONST 1 | 556:BINARY_OP + | 560:STORE_SUBSCR  | 564:LOAD_CONST 1 | 566:LOAD_GLOBAL np | 576:LOAD_ATTR NULL|self + searchsorted | 596:LOAD_FAST spec | 598:LOAD_CONST 'fine_bin_edges' | 600:BINARY_SUBSCR  | 604:LOAD_GLOBAL NULL + float | 614:LOAD_FAST value | 616:CALL  | 624:LOAD_CONST 'left' | 626:KW_NAMES ('side',) | 628:CALL  | 636:BINARY_OP + | 640:STORE_FAST b | 642:LOAD_FAST v | 644:LOAD_GLOBAL repair_weights | 654:LOAD_CONST 'embed.bins.' | 656:LOAD_FAST attr | 658:FORMAT_VALUE  | 660:LOAD_CONST '.weight' | 662:BUILD_STRING  | 664:BINARY_SUBSCR  | 668:LOAD_GLOBAL NULL + int | 678:LOAD_FAST b | 680:CALL  | 688:BINARY_SUBSCR  | 692:BINARY_OP += | 696:STORE_FAST v | 698:JUMP_BACKWARD to 250 | 700:END_FOR  | 702:LOAD_FAST v | 704:LOAD_GLOBAL NULL + repair_linear | 714:LOAD_GLOBAL torch | 724:LOAD_ATTR NULL|self + from_numpy | 744:LOAD_FAST nums | 746:CALL  | 754:LOAD_CONST 'embed.numeric' | 756:CALL  | 764:BINARY_OP += | 768:STORE_FAST v | 770:LOAD_FAST unit | 772:POP_JUMP_IF_NOT_NONE to 818 | 774:LOAD_GLOBAL unit_ids57 | 784:LOAD_ATTR NULL|self + get | 804:LOAD_FAST event | 806:LOAD_CONST 0 | 808:CALL  | 816:JUMP_FORWARD to 820 | 818:LOAD_FAST unit | 820:LOAD_FAST rate_unit | 822:POP_JUMP_IF_NOT_NONE to 868 | 824:LOAD_GLOBAL rate_unit_ids57 | 834:LOAD_ATTR NULL|self + get | 854:LOAD_FAST event | 856:LOAD_CONST 0 | 858:CALL  | 866:JUMP_FORWARD to 870 | 868:LOAD_FAST rate_unit | 870:LOAD_CONST 0 | 872:LOAD_CONST 0 | 874:LOAD_CONST 0 | 876:LOAD_CONST 0 | 878:LOAD_CONST ('unit', 'rate_unit', 'action', 'status', 'route', 'discharged_to') | 880:BUILD_CONST_KEY_MAP  | 882:STORE_FAST choices | 884:LOAD_FAST choices | 886:LOAD_ATTR NULL|self + items | 906:CALL  | 914:GET_ITER  | 916:FOR_ITER to 968 | 920:UNPACK_SEQUENCE  | 924:STORE_FAST attr | 926:STORE_FAST index | 928:LOAD_FAST v | 930:LOAD_GLOBAL repair_weights | 940:LOAD_CONST 'embed.categorical.' | 942:LOAD_FAST attr | 944:FORMAT_VALUE  | 946:LOAD_CONST '.weight' | 948:BUILD_STRING  | 950:BINARY_SUBSCR  | 954:LOAD_FAST index | 956:BINARY_SUBSCR  | 960:BINARY_OP += | 964:STORE_FAST v | 966:JUMP_BACKWARD to 916 | 968:END_FOR  | 970:LOAD_FAST v | 972:RETURN_VALUE 
+
+=== CATEGORICAL TENSOR SHAPES ===
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+
+=== ATOM METADATA ===
+event_info57 {'map_cuff': {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, 'glucose_finger': {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, 'map_arterial': {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, 'insulin': {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, 'norepinephrine': {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, 'glucose_lab': {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, 'hospital_admission': {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, 'icu_admission': {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}}
+numeric_specs {('map_arterial', 'value'): {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 77.0, 81.0, 84.0, 88.0, 92.0, 95.0, 98.0]}, ('map_cuff', 'value'): {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [40.0, 46.0, 52.0, 60.0, 69.0, 74.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}, ('glucose_lab', 'value'): {'code': 'glucose_lab', 'attribute': 'value', 'median': 142.0, 'iqr': 53.0, 'fine_bin_edges': [74.0, 81.0, 89.0, 98.0, 111.0, 122.0, 132.0, 142.0, 151.0, 163.0, 176.0, 198.0, 215.0, 230.0, 247.0]}, ('glucose_finger', 'value'): {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [78.0, 87.0, 96.0, 109.0, 128.0, 143.0, 154.0, 164.0, 173.0, 183.0, 195.0, 214.0, 230.0, 243.0, 260.0]}, ('insulin', 'dose'): {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, ('norepinephrine', 'dose'): {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.208, 'iqr': 2.832, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.384, 0.72, 1.2, 1.6799999999999997, 2.208, 2.832, 3.456, 4.176, 4.8, 4.8, 4.8, 4.8]}, ('insulin', 'rate'): {'code': 'insulin', 'attribute': 'rate', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, ('norepinephrine', 'rate'): {'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.46, 'iqr': 0.5900000000000001, 'fine_bin_edges': [0.03, 0.04, 0.05, 0.08, 0.15, 0.25, 0.35, 0.46, 0.59, 0.72, 0.87, 1.0, 1.0, 1.0,
+code_ids {'(padding)': 0, '(unknown measurement)': 1, '(unknown drug_admin)': 2, '(unknown visit)': 3, '(unknown visit_detail)': 4, 'map_cuff': 5, 'glucose_finger': 6, 'map_arterial': 7, 'insulin': 8, 'norepinephrine': 9, 'glucose_lab': 10, 'hospital_admission': 11, 'icu_admission': 12}
+gap_prefix41 'gap'
+latent_empty_e (192,)
+
+=== RETAINED EARLIER RECONSTRUCTION OBJECTS ===
+action_rows63 length 1 first [{'stay_id': 1010000000, 'hour': 0.0833, 'event': 'insulin', 'value': nan, 'rate': 1.0, 'rate_unit': 'units/hour', 'dose': 1.0, 'dose_unit': 'units', 'end_hour': 1.0833}]
+atom64 (192,)
+checks64 length 6 first [(0.00037752126809209585, 'raw_seconds', 'log_dt_div10')]
+context64 (1, 192)
+ctx63 (1, 192)
+e63 (1, 192)
+e64 (1, 192)
+ekind_ids57 dict [('measurement', 1), ('drug_admin', 2)]
+empty_action58 (192,)
+end_cases57 length 40 first [(13, {'stay_id': 1010000000, 'hour': 4.0833, 'event': 'insulin', 'value': nan, 'rate': 1.0, 'rate_unit': 'units/hour', 'dose': 1.0, 'dose_unit': 'units', 'end_hour': 5.0833})]
+end_cases59 length 12 first [(13, {'stay_id': 1010000000, 'hour': 4.0833, 'event': 'insulin', 'value': nan, 'rate': 1.0, 'rate_unit': 'units/hour', 'dose': 1.0, 'dose_unit': 'units', 'end_hour': 5.0833})]
+end_configs59 length 480 first [(0, False, 0, 0, None)]
+end_results59 length 10 first [(0.05522087961435318, (1, False, 2, 1, None), 'zero')]
+end_search57 length 90 first [(0.07626895606517792, 0, False, 0, 0)]
+ends64 length 0 first []
+event_info57 dict [('map_cuff', {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}), ('glucose_finger', {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False})]
+flowed64 (1, 4, 192)
+gap_vec64 (1, 192)
+h64 (1, 4, 192)
+measurement_checks57 length 4 first [('glucose_finger', 24, [(0.0741017684340477, 4), (0.07876992225646973, 1)])]
+measurement_search58 dict []
+measurement_search59 dict [('glucose_finger', [(1.8968081860748498e-07, (0, 1, 0, 0), 'gelu', 'gelu', 'empty_encoder'), (0.005535452160984278, (0, 1, 0, 0), 'gelu', 'silu', 'empty_encoder'), (0.006779415532946587, (0, 1, 1, 0), 'gelu', 'gelu', 'empty_encoder'), (0.00861408282071352, (0, 1, 1, 0), 'gelu', 'silu', 'empty_encoder'), (0.01198280416
+other_cases63 length 1070 first [(5, [{'stay_id': 1010000000, 'hour': 1.0833, 'event': 'insulin', 'value': nan, 'rate':
+[output cut at 10,000 characters]
+```

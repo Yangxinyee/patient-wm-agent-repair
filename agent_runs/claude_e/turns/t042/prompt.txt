@@ -1,0 +1,257 @@
+OUTPUT of Python run 39 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+=====GLOBALS=====
+NAMES list len=181
+SHAPES dict len=181
+VOCAB dict len=8
+load function 
+load_original function 
+save_edit function 
+drop_edit function 
+edited function 
+V dict len=8
+k int 
+s DataFrame (720000, 26)
+e list len=4
+tr DataFrame (1997441, 10)
+tu DataFrame (26251, 9)
+adm DataFrame (30000, 10)
+d DataFrame (32695, 18)
+grid function 
+stays_tr list len=30000
+Gtr dict len=6
+stays_tu list len=400
+Gtu dict len=6
+v DataFrame (30000, 27)
+last_obs function 
+H list len=25
+rows list len=17
+gf_ff DataFrame (30000, 27)
+gl_ff DataFrame (30000, 27)
+ma_ff DataFrame (30000, 27)
+mc_ff DataFrame (30000, 27)
+ins_prev DataFrame (30000, 27)
+ne_prev DataFrame (30000, 27)
+h int 
+P DataFrame (750000, 15)
+b int64 ()
+Pn DataFrame (415625, 18)
+t ndarray (2, 192)
+Po DataFrame (302581, 15)
+th ndarray (54,)
+base_map dict len=3
+Q DataFrame (241177, 21)
+q DataFrame (191131, 20)
+lm Series (241177,)
+smn Series (241177,)
+cnt Series (241177,)
+c str 
+lstsq _ArrayFunctionDispatcher 
+fe_reg function 
+tier str 
+se ndarray (1,)
+n str 
+GF DataFrame (30000, 27)
+res list len=80
+D DataFrame (155789, 8)
+avail float64 ()
+ba ndarray (1,)
+PN DataFrame (750000, 16)
+Pm DataFrame (342696, 16)
+C DataFrame (191875, 29)
+hours ndarray (27,)
+long_table function 
+Ltr DataFrame (810000, 26)
+Ltu DataFrame (10800, 26)
+L_ DataFrame (10800, 26)
+lo ndarray (2,)
+hi ndarray (2,)
+drug_after12 function 
+i_tu Series (400,)
+n_tu Series (400,)
+both DataFrame (37526, 29)
+rest_i list len=130
+rest_n list len=66
+sel1 list len=100
+f TextIOWrapper 
+DE1 DataFrame (3278, 7)
+D1 DataFrame (3278, 7)
+check_defs function 
+L DataFrame (810000, 26)
+lab_h DataFrame (30000, 27)
+gaps list len=47432
+sid int 
+hh ndarray (23,)
+both_fl DataFrame (86052, 26)
+fing list len=67290
+A dict len=7
+I ndarray (30000, 27)
+i int 
+a int64 ()
+F DataFrame (67290, 3)
+nS int 
+lp function 
+out list len=10
+TGf ndarray (10,)
+TGl ndarray (10,)
+TI ndarray (10,)
+deconv function 
+d_f ndarray (10,)
+d_l ndarray (10,)
+d_avg ndarray (10,)
+true_shift function 
+edit str 
+TJ dict len=181
+others list len=0
+S2 NpzFile 
+sid0 int 
+m ndarray (5116,)
+t2 DataFrame (818, 10)
+first dict len=93
+only_c DataFrame (54392, 29)
+none DataFrame (10788, 29)
+ma_pres DataFrame (30000, 26)
+per_stay Series (30000,)
+mc_pres DataFrame (30000, 26)
+lp_ne function 
+outN list len=10
+TN DataFrame (10, 7)
+dN ndarray (10,)
+lp_ne2 function 
+TG2 ndarray (10,)
+TI2 ndarray (10,)
+dN2 ndarray (10,)
+dN_use ndarray (10,)
+tN DataFrame (693, 9)
+firstN dict len=62
+show function 
+fa ndarray (192,)
+tau ndarray (192,)
+W dict len=181
+code_id dict len=13
+num dict len=8
+fine_bin function 
+zsc function 
+EK dict len=8
+stay_bundles function 
+tu_g dict len=400
+B0 list len=54
+bad int 
+tot int 
+Bs dict len=100
+Bk list len=54
+na ndarray (54,)
+mine_t ndarray (54,)
+mine_n ndarray (54,)
+ok bool ()
+act_fn function 
+CFG dict len=6
+code_unit dict len=8
+atom_vec function 
+mlp function 
+ln function 
+set_encode function 
+split_atoms function 
+zpost_check function 
+actn str 
+cfg dict len=6
+zpost_check2 function 
+ui int 
+kq bool 
+gm str 
+zs str 
+R DataFrame (80, 5)
+
+```

@@ -1,0 +1,226 @@
+OUTPUT of Python run 137 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+RECENT VARIABLES
+B136 ndarray (768, 2)
+Bdelta88 ndarray (768, 2)
+CD134 ndarray (768, 768)
+CF134 ndarray (768, 768)
+D133 ndarray (34760, 4, 192)
+E136 Tensor (256, 4, 192)
+F133 ndarray (16852, 4, 192)
+FC134 ndarray (16852, 768)
+G135 list 0 []
+G136 ndarray (4, 192)
+J136 ndarray (192, 192)
+K136 ndarray (4, 192)
+R134 ndarray (768, 2)
+T136 ndarray (4, 2)
+XD134 ndarray (34760, 768)
+XF134 ndarray (16852, 768)
+Y133 ndarray (34760, 2)
+_notes106 str # World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights without gradients while preserving factual value NLL within +0.005 nats.
+No medical-effect assumptions. No edits made yet.
+First step: read architecture, data schema, vocabulary, and tensor shapes.
+
+Python ru
+b133 ndarray (192, 2)
+b134 ndarray (768, 2)
+b135 ndarray (768, 2)
+beta133 ndarray (192,)
+c136 int64 191
+cache136 tuple 3 (tensor([[[-1.9658,  0.0709,  0.0734,  ..., -1.8594,  0.6439, -0.3197],
+         [-1.9638,  0.0703,  0.0717,  ..., -1.8570,  0.6457, -0.3201],
+         [-1.9660,  0.0696,  0.0728,  ..., -1.8574,  0.6432, -0.3202],
+         [-1.9644,  0.0696,  0.0709,  ..., -1.8595,  0.6462, -0.3204]],
+
+        [[-1.8399,  0.0527,  0.1018,  ..., -1.6222,  0.8142, -0
+cases136 int 16
+cc133 ndarray (192, 192)
+cd133 ndarray (192, 192)
+cen135 ndarray (16,)
+cen136 ndarray (16,)
+cols134 ndarray (16,)
+cols136 ndarray (8,)
+d133 ndarray (34760, 192)
+dd136 Tensor (8, 192)
+den135 float64 999.8528091707949
+directions136 ndarray (192, 2)
+drug135 str norepinephrine
+drug136 str norepinephrine
+dt_keep136 Tensor (16,)
+eps134 float 0.01
+eps136 float 0.01
+er134 ndarray (2,)
+err133 ndarray (2,)
+f133 TextIOWrapper <_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+f136 TextIOWrapper <_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+factor135 float 3.0
+factor136 float 3.0
+fc133 ndarray (16852, 192)
+fits133 dict 20 {(0, 0.0): (array([[ 4.06683765e-08, -3.13586346e-01],
+       [ 2.44382798e-06,  4.45580740e-01],
+       [-2.39204152e-08, -4.29337778e-01],
+       [ 2.22505755e-07,  5.26767507e-01],
+       [-1.49625648e-08,  1.65229951e+00],
+       [-7.00476212e-09, -2.83729333e-01],
+       [ 1.38941927e-08, -1.94259121e+00],
+       [ 4.22148854e-09,  1.15831858e
+fits134 dict 5 {0.001: (array([[ 0.90474912,  0.32298037],
+       [-0.03115303,  0.03764399],
+       [ 0.53078309,  0.06398869],
+       ...,
+       [-0.10367285, -0.08052842],
+       [ 0.01693302, -0.17126254],
+       [-1.38294746, -0.85560401]], shape=(768, 2)), array([ 1.49641874e+00, -1.39742685e-02, -8.99683267e-02,  2.24437015e-01,
+       -3.04136577e-02,  5
+fs133 ndarray (16852, 2)
+gamma133 ndarray (192,)
+grad134 ndarray (200, 192)
+hbase136 Tensor (16, 4, 192)
+head133 int 3
+hh136 Tensor (256, 4, 192)
+inds135 ndarray (754,)
+item135 tuple 3 ('norepinephrine', 3.0, array([ 122,  124,  126,  128,  130,  132,  134,  136,  138,  140,  142,
+        144,  146,  148,  150,  152,  154,  156,  158,  160,  161,  163,
+        165,  166,  168,  173,  175,  177,  179,  181,  183,  185,  187,
+        189,  191,  193,  195,  197,  199,  201,  203,  205,  207,  208,
+        210,  212,  214,  216,  21
+j133 int 1
+j134 int 1
+j135 int 1
+j136 int 1
+k136 int 7
+keep135 ndarray (3016,)
+keep136 ndarray (3016,)
+lam133 float 1.0
+lam134 float 10.0
+lam135 float 10.0
+minus134 Tensor (16, 200)
+mu133 ndarray (192,)
+mu136 ndarray (768,)
+muF134 ndarray (768,)
+n135 int 3016
+nm135 str map_cuff
+nm136 str glucose_lab
+noise133 ndarray (2,)
+notes str # World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights without gradients while preserving factual value NLL within +0.005 nats.
+No medical-effect assumptions. No edits made yet.
+First step: read architecture, data schema, vocabulary, and tensor shapes.
+
+Python ru
+notes129 str # World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights without gradients while preserving factual value NLL within +0.005 nats.
+No medical-effect assumptions. No edits made yet.
+First step: read architecture, data schema, vocabulary, and tensor shapes.
+
+Python ru
+notes99 str # World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights without gradients while preserving factual value NLL within +0.005 nats.
+No medical-effect assumptions. No edits made yet.
+First step: read architecture, data schema, vocabulary, and tensor shapes.
+
+Python ru
+notes_text str # World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights with
+[output cut at 10,000 characters]
+```

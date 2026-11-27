@@ -1,0 +1,153 @@
+OUTPUT of Python run 98 of at most 300:
+```
+EARLY IDENTIFICATION NOTES
+## Initial plan
+- Read architecture and record definitions before choosing an identification strategy.
+- Infer drug effects only from the simulated ICU records; impose no medical assumptions.
+- Use no gradients or weight optimiser.
+- Validate weight edits against original factual NLL and paired dose rollouts.
+- Required factual NLL degradation: at most 0.005 nats per reading.
+- Python runs: 1. Forward requests: 0.
+
+
+## Run 2: architecture
+Drug atoms have their own action encoder, but enter posterior and recurrent updates. Value heads also use last-reading registers and code-specific bin transitions. No causal conclusion yet. Full records loaded for timing and identification analysis.
+Python runs: 2. Forward requests: 0.
+
+
+## Run 3: hourly panel
+Readings occur on integer hours; infusions start at hour + 0.0833 and last one hour. Built full panels with absent infusion=0, prior reading registers, ages, and next-hour outcomes. Initial regressions are diagnostics, not yet accepted causal estimates.
+Validation IDs chosen randomly once (seed 731), 100 tuning stays.
+Python runs: 3. Forward requests: 0.
+
+
+## Run 4: selection and threshold identification
+Unadjusted insulin/glucose slope +23.36, adjusted about -1.92 per unit/hour. NE/MAP slope changes from -30.02 raw to -1.90 with current reading and +2.25 with history. These are not accepted as causal. Insulin dose thresholds near 150/180/220 motivate fuzzy RD. Test independent lab outcomes and observation availability to diagnose selection artifacts.
+Python runs: 4. Forward requests: 0.
+
+
+## Forward 1: original rollout, first 100 tuning stays
+Insulin x2 -1.847; insulin half +0.777; NE x2 -0.498; NE half -0.600. Insulin reaches 554 stay-hours/60 stays; NE 281/26. These are predictions, not truth.
+RD roughly -2 per additional insulin unit/hour, with serious observation jump at 150; prefer thresholds 180/220 and check temporal persistence. Boundary observations are mixtures because measurements are rounded.
+Python runs: 5. Forward requests: 1.
+
+
+## Run 5?6: dynamic identification
+Pooled insulin RD excludes rounded cutoff values at 180/220. Immediate glucose jump -2.2131 (SE .1583), dose jump 1.0361. Reduced-form outcome discontinuity fades over six hours; downstream dosing also changes. Joint impulse fit beta=-2.2778, persistence=.85743; provisional, not exact truth. NE polynomial-history coefficients remain about +3.09, but dose-policy nonlinearity may bias them. Cross-fitted flexible nuisance models now test residual-dose effects.
+NE DML beta=3.248868, cluster SE=0.096302.
+Python runs: 6. Forward requests: 1.
+
+
+
+INSULIN FINDINGS
+## Run 47: first reversible insulin trial
+All-slot factual-zero / synthetic-dose-contrast linear regression fitted to prelude states. Selected anchor=10.0, insulin x2 slope=0.169392. Added rank-one core.b_in.weight correction, strength=0.75, Frobenius norm=297.520844. Direction lowers next glucose with approximately zero MAP response locally. Not accepted until GPU factual and rollout validation. Python runs: 47; forward passes: 3.
+
+
+## Run 58: installed admission-null insulin candidate
+Projection alone failed the unit-correct factual audit. Selected constrained factual-zero fit anchor=10, with exact initial-prelude null constraints. Normalized its insulin-x2 contrast to the old trial (factor 3.6511856), then doubled trial strength. Edit formula: original b_in + .75*2*outer(trial_direction47, normalization58*constrained_fits57[('zero',10)][:,0]). Delta norm=312.882. Saved /work/insulin_candidate58.npz. Candidate is NOT accepted until GPU factual and paired rollout validation. Provisional training-record insulin targets: x2 about -13.6, half about +6.8. NE identification/persistence remains to audit. Python runs: 58; forwards: 5.
+
+
+## Runs 62?63: balanced insulin candidate
+Run 62 verified raw-rate contrast units; old feature_metrics helper failed, so diagnostics were recomputed explicitly. Closed-form precision-weighted correction enforces equal mean insulin x2/half sensitivity, zero mean NE cross-response, and exact admission nullspace. Base slopes=[1.0997098912801242, 0.3794443556031091, 1.7219279116606785, -0.7281142378782448], balanced=[1.0997098912801242, 1.0997098912800993, -1.4210854715202004e-14, -9.947598300641403e-14]; heldout factual RMS 0.369017/0.711591; initial RMS 4.71e-13. Strength relative to candidate58=1.9; installed=True. Not accepted before GPU validation. Python runs: 63; forwards: 7.
+
+
+## Forward 8 and Run 64: reject stronger balanced edit
+Candidate63 factual NLL=1.64769 versus original=1.63461 (+0.01308), failing the 0.005 ceiling. Restored candidate58. Refitted admission-null balanced insulin features with increasing factual penalties using closed-form constrained regressions; metrics={10.0: {'heldout_slot_rms': 0.7115907649546053, 'heldout_mean_rms': 0.7054814849400769, 'contrast_rmse': 1.349986335718104, 'insulin_wrong_sign_fraction': 0.14320388349514562, 'norm': 245.00693258833718, 'admission_rms': 4.19159994287174e-13}, 50.0: {'heldout_slot_rms': 0.6749155594453787, 'heldout_mean_rms': 0.6679650372957756, 'contrast_rmse': 1.5151482877697735, 'insulin_wrong_sign_fraction': 0.14320388349514562, 'norm': 262.8558390688549, 'admission_rms': 4.81965909162671e-13}, 200.0: {'heldout_slot_rms': 0.6711737699454079, 'heldout_mean_rms': 0.6638420644110243, 'contrast_rmse': 1.571476639773249, 'insulin_wrong_sign_fraction': 0.14805825242718446, 'norm': 308.73414450392295, 'a
+## Run 65: second restart recovery
+Candidate63 was rejected for factual degradation; candidate58 remains restored. The NE dose/MAP table is observational policy evidence, not a causal estimate. Reading architecture, early identification notes, and retained objects before further edits. No weights changed. Python runs: 65; forwards: 8.
+
+
+## Forwards 9?10 and Run 68: stronger insulin baseline
+Candidate58 at strength 1.6 has paired factual NLL increase 0.00278 on 100 random tuning stays. Rollouts: insulin x2=-12.708, half=+4.335; NE x2=+0.099, half=-1.004. Retain as working baseline, not final acceptance. Recovering NE identification and recurrent-edit helpers. No weights changed. Python runs: 68; forwards: 10.
+
+
+## Run 69: independent NE identification audit
+
+DEFINED MODEL HELPERS
+load (name)
+load_original (name)
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+make_panel (data)
+ols_cluster (X, y, ids)
+rd_estimate (running, outcome, drug, cutoff, window, adjust=False, order=1)
+pooled_rd (horizon, window=12, order=1)
+least_squares (fun, x0, jac='2-point', bounds=(-inf, inf), method='trf', ftol=1e-08, xtol=1e-08, gtol=1e-08, x_scale=None, loss='linear', f_scale=1.0, diff_step=None, tr_solver=None, tr_options=
+rd_dynamic_residual (par)
+nuisance_features (s, nlags=4)
+schedule_readout (beta, phi, drug, outcome, source_panel=event     stay_id   t  ...  glucose_any_f8  insulin_f8
+0      2020000000  -1  ...           173.0         1.5
+1      2020000000   0  ...    
+linear0 (x, prefix)
+norm0 (x, prefix)
+activation0 (x, kind='gelu')
+mlp0 (x, prefix, kind='gelu')
+decoder_query (kind='gelu', gap_style='log1p', type_id=1)
+head_calc (input0, idx=None, kind='gelu')
+r2_score (y_true, y_pred, *, sample_weight=None, multioutput='uniform_average', force_finite=True)
+dose_covariates (frame)
+fn (hnew)
+recon_lin (x, p)
+recon_mlp (x, p, act='gelu')
+recon_norm (x, p)
+recon_ctx (indices, act='gelu', gap_style='log1p')
+recon_single_set (atoms, prefix='encode_action')
+recon_atom (drug, records, unit_id=0, rate_unit_id=0, kq_id=None)
+recon_record_atom (row, kind=0, end_numeric='absent', end_units='none')
+recon_sets (atom_lists, prefix='encode', empty_zero=False)
+single_encode_batch (atoms, prefix='encode')
+fun (indices, e, u)
+core_lin (x, p)
+core_norm (x, p)
+core_ffn (x, p)
+core_attn (x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+core_layer (x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+make_core_memory (include_current=False)
+core_update_local (z, config, h_flow=None, e=None, u=None, memory_data=None)
+fn44 (indices, e, u)
+np45 (x)
+tt45 (x)
+next_means45 (h45, out45)
+prelude46 (h, e, u, z, batch=256)
+edited_action46 (drug, factor)
+old_core_lin46 (x, p)
+capturing_core_lin46 (x, prefix)
+coda46 (hnew)
+recovery_function (beta, phi, drug, outcome, source_panel=event     stay_id   t  ...  glucose_any_f8  insulin_f8
+0      2020000000  -1  ...           173.0         1.5
+1      2020000000   0  ...    
+contrast_metrics52 (coeff)
+helper55 (frame)
+feature_metrics57 (raw_coefficient)
+full_insulin_slope58 (coefficient)
+function62 (s, nlags=4)
+as_numpy67 (x)
+fn67 (raw_coefficient)
+fun68 (raw_coefficient)
+innovation_estimate69 (outcome, prediction, mask=None)
+record_schedule_target69 (beta, phi, drug, edit_name)
+crossfit_ne73 (y)
+moment_ne73 (y, prediction, mask)
+aligned_future74 (column, horizon)
+moment_ne75 (y, prediction, mask)
+fit_impulse76 (horizons, estimates, dose_moments, grid=array([-0.5  , -0.499, -0.498, ...,  1.048,  1.049,  1.05 ], shape=(1551,)))
+fun77 (raw_coefficient)
+array80 (x)
+solve (a, b, lower=False, overwrite_a=False, overwrite_b=False, check_finite=True, assume_a=None, transposed=False)
+add86 (title, value, limit=1600)
+f86 (x)
+f87 (x)
+f89 (x, prefix, kind='gelu')
+null_space (A, rcond=None, *, overwrite_a=False, check_finite=True, lapack_driver='gesdd')
+prelude_hidden93 (h, e, u, z, batch=192)
+posterior94 (c, e, u)
+
+RETAINED DATA AND RECENT FEATURES
+df (1997441, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+tune (26251, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+panel (780000, 76) ['stay_id', 't', 'glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine', 'glucose_finger_last', 'glucose_finger_age', 'glucose_finger_prev', 'glucose_finger_next']
+tpanel (10400, 76) ['stay_id', 't', 'glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine', 'glucose_finger
+[output cut at 10,000 characters]
+```

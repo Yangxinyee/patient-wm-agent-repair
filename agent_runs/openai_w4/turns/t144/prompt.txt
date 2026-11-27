@@ -1,0 +1,88 @@
+OUTPUT of Python run 128 of at most 300:
+```
+scale 0.001 out_RMSE 0.00032 h_RMSE 0.025466 q_1_50_99 [-0.8459 -0.0042  1.0463]
+scale 0.003 out_RMSE 0.000321 h_RMSE 0.025522 q_1_50_99 [-0.8456 -0.004   1.0463]
+scale 0.01 out_RMSE 0.000335 h_RMSE 0.026254 q_1_50_99 [-0.8444 -0.0039  1.0467]
+scale 0.03 out_RMSE 0.000425 h_RMSE 0.03226 q_1_50_99 [-0.8529 -0.0034  1.0488]
+scale 0.1 out_RMSE 0.000985 h_RMSE 0.073372 q_1_50_99 [-0.8509 -0.0036  1.068 ]
+scale 0.3 out_RMSE 0.003399 h_RMSE 0.253122 q_1_50_99 [-0.9008 -0.0033  1.126 ]
+Elapsed: 2.58
+
+--- Record evidence continued ---
+ns:
+          drug         target      n     beta  cluster_se  dose_R2  dose_residual_SD  outcome_residual_SD
+       insulin glucose_finger 391466 -2.04924     0.04571  0.80748           0.48910             12.20504
+norepinephrine   map_arterial 330203  3.17146     0.08848  0.92657           0.09261              4.31153
+These estimates require dose innovations to be unconfounded conditional on
+recorded history; threshold agreement and placebo tests are used as checks.
+No weights edited.
+
+## Run 6
+Previous forward request failed because of duplicate stay IDs; it was not counted.
+Re-read architecture/schema and inspected retained kernel objects and tensor shapes.
+Constructed a verified list of 100 unique tuning stay IDs.
+Drug-effect estimates remain provisional; no weights edited.
+
+## Run 7
+Architecture inspection: drugs enter posterior and recurrent prelude; value heads also have a same-code last-reading register.
+Considering targeted readout repair, conditional on states retaining dose information.
+Run 6 output was truncated; obtained compact remaining tensor/vocab/object summaries.
+No weights edited.
+
+## Run 8; forward passes used: 3
+Original states obtained on first 100 tuning stays, all bundles, 4531 rows in /work/fwd_4/states_original.npz.
+Aligned states to hourly records; tested held-out-stay ridge rate decoding from out, out+h, and out+h+z.
+Inspected normalisation, last-numeric dimensions and retained DML objects.
+No weights edited.
+
+## Run 9
+Run 8 rate decoding with ridge alpha=10: insulin R2 0.513 (out), 0.657 (full); norepinephrine R2 0.273 (out), 0.485 (full).
+Tested weaker ridge penalties and conditional dose-innovation decoding with stay-separated validation. This distinguishes policy information from usable administered-dose information.
+          drug features    alpha  rate_R2  innovation_R2  innovation_RMSE  innovation_SD
+       insulin      out  0.00001  0.58005       -0.02652          0.62983        0.62164
+       insulin      out  0.00100  0.64883        0.14715          0.57408        0.62164
+       insulin      out  0.10000  0.57190       -0.00724          0.62389        0.62164
+       insulin      out 10.00000  0.51261       -0.01938          0.62763        0.62164
+       insulin        z  0.00001  0.49403        0.09081          0.59274        0.62164
+       insulin        z  0.00100  0.52381        0.06004          0.60269        0.62164
+       insulin        z  0.10000  0.39526        0.04280          0.60819        0.62164
+       insulin        z 10.00000  0.36742        0.04004          0.60907        0.62164
+       insulin     full  0.00001 -0.61610       -3.95211          1.38336        0.62164
+       insulin     full  0.00100  0.41363       -0.64819          0.79807        0.62164
+       insulin     full  0.10000  0.59641       -0.00751          0.62397        0.62164
+       insulin     full 10.00000  0.65694        0.16565          0.56782        0.62164
+norepinephrine      out  0.00001  0.01072       -0.67818          0.17887        0.13808
+norepinephrine      out  0.00100  0.46945        0.02358          0.13644        0.13808
+norepinephrine      out  0.10000  0.47133        0.11145          0.13016        0.13808
+norepinephrine      out 10.00000  0.27287        0.00654          0.13763        0.13808
+norepinephrine        z  0.00001  0.38022       -0.29751          0.15728        0.13808
+norepinephrine        z  0.00100  0.37142        0.06193          0.13373        0.13808
+norepinephrine        z  0.10000  0.17373        0.03007          0.13599        0.13808
+norepinephrine        z 10.00000  0.09161        0.02544          0.13631        0.13808
+norepinephrine     full  0.00001 -2.24835       -9.78801          0.45352        0.13808
+norepinephrine     full  0.00100 -0.59974       -3.23869          0.28428        0.13808
+norepinephrine     full  0.10000 -0.05638       -0.73221          0.18173        0.13808
+norepinephrine     full 10.00000  0.48529        0.00615          0.13765        0.13808
+Inspected norepinephrine assignment versus latest recorded MAP and confirmed DML outcome alignment. No edits.
+
+## Run 10
+Dose innovations decode weakly from original states (best approximately 0.17 insulin R2 and 0.11 norepinephrine R2). Readout-only repair is not yet justified; investigating action-pathway repair.
+Implemented candidate CPU head reconstructions using exported states; tested activation, measurement type index and last-numeric ordering against original forward predictions.
+activation  type              last_pattern  mean_RMSE  nll_RMSE  mean_nll
+      silu     1           has_age_numeric    7.97621   0.57902   1.74300
+      gelu     1           has_age_numeric    8.56412   0.63368   1.75722
+      relu     1           has_age_numeric   10.64200   0.77992   1.83793
+      relu     1           numeric_has_age   10.01018   1.13823   2.03353
+      gelu     1           numeric_has_age   10.66927   1.18053   2.10923
+      silu     1            four_then_zero    9.01266   1.21512   1.97964
+      silu     1           numeric_has_age   11.37136   1.34605   2.25092
+      sil
+
+--- Reading interfaces ---
+head_features_fixed (states, dataset, draws=16, seed=2501) locals ('states', 'dataset', 'draws', 'seed', 'sx', 'dt', 'hf', 'ctx', 'prior', 'lf', 'col', 'field', 'codes', 'bins', 'reg', 'trans', 'gen', 'phis', 'probs', 'j', 'zp', 'q', 'phi')
+pre_context_repair (bank, indices) locals ('bank', 'indices', 'previous', 'minute', 'dt', 'h', 'context')
+memory67 (indices, mode) locals ('indices', 'mode', 'all_lists', 'j', 'same', 'maxn', 'mem', 'ages', 'mask', 'b', 'ids')
+bank stay IDs [1010000000 1010000001 1010000002 1010000003 1010000004 1010000005] number of stays 100
+probe columns ['stay_id', 'hour', 'event', 'observed', 'prev', 'dt', 'last_z', 'age', 'has', 'last_bin', 'code', 'observed_bin']
+
+```

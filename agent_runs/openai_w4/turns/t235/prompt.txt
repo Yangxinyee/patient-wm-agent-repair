@@ -1,0 +1,71 @@
+OUTPUT of Python run 204 of at most 300:
+```
+DATA README
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+ROLLOUT BASELINES AND SHIFTS original
+insulin_half {'shift': 0.0962816568047337, 'equal_stay_shift': 0.06717752327193502, 'baseline_mean': 177.16578619329388, 'baseline_quantiles': [148.499, 172.778, 218.482], 'baseline_by_hour': {13: 180.21, 14: 178.94, 15: 175.92, 16: 177.51, 17: 175.21, 18: 178.69, 19: 176.74, 20: 177.42, 21: 177.92, 22: 176.01, 23: 176.47, 24: 175.62}}
+insulin_x2 {'shift': -0.42808698224852065, 'equal_stay_shift': -0.38006573430382246, 'baseline_mean': 177.16578619329388, 'baseline_quantiles': [148.499, 172.778, 218.482], 'baseline_by_hour': {13: 180.21, 14: 178.94, 15: 175.92, 16: 177.51, 17: 175.21, 18: 178.69, 19: 176.74, 20: 177.42, 21: 177.92, 22: 176.01, 23: 176.47, 24: 175.62}}
+ne_half {'shift': -0.4880326086956522, 'equal_stay_shift': -0.45558725444096143, 'baseline_mean': 58.91905714285714, 'baseline_quantiles': [41.19, 57.903, 76.229], 'baseline_by_hour': {13: 57.96, 14: 57.69, 15: 57.88, 16: 58.87, 17: 59.0, 18: 59.88, 19: 57.68, 20: 59.7, 21: 59.57, 22: 59.68, 23: 59.14, 24: 59.45}}
+ne_x2 {'shift': -0.09563944099378882, 'equal_stay_shift': -0.08671574190177639, 'baseline_mean': 58.91905714285714, 'baseline_quantiles': [41.19, 57.903, 76.229], 'baseline_by_hour': {13: 57.96, 14: 57.69, 15: 57.88, 16: 58.87, 17: 59.0, 18: 59.88, 19: 57.68, 20: 59.7, 21: 59.57, 22: 59.68, 23: 59.14, 24: 59.45}}
+
+ROLLOUT BASELINES AND SHIFTS ne_plus_half
+insulin_half {'shift': 12.31656153846154, 'equal_stay_shift': 11.47405002242311, 'baseline_mean': 165.9939163708087, 'baseline_quantiles': [137.91, 158.831, 214.125], 'baseline_by_hour': {13: 176.09, 14: 173.94, 15: 170.02, 16: 169.05, 17: 165.46, 18: 166.92, 19: 163.69, 20: 164.01, 21: 163.3, 22: 161.13, 23: 160.33, 24: 159.13}}
+insulin_x2 {'shift': -10.462529388560158, 'equal_stay_shift': -8.752590990648784, 'baseline_mean': 165.9939163708087, 'baseline_quantiles': [137.91, 158.831, 214.125], 'baseline_by_hour': {13: 176.09, 14: 173.94, 15: 170.02, 16: 169.05, 17: 165.46, 18: 166.92, 19: 163.69, 20: 164.01, 21: 163.3, 22: 161.13, 23: 160.33, 24: 159.13}}
+ne_half {'shift': 0.7972273291925465, 'equal_stay_shift': 0.5770309587251827, 'baseline_mean': 54.489525155279495, 'baseline_quantiles': [37.987, 53.804, 72.516], 'baseline_by_hour': {13: 56.21, 14: 54.83, 15: 55.49, 16: 55.15, 17: 55.62, 18: 55.73, 19: 52.43, 20: 54.53, 21: 54.98, 22: 53.57, 23: 52.93, 24: 52.71}}
+ne_x2 {'shift': -1.1314844720496893, 'equal_stay_shift': -1.062112998955068, 'baseline_mean': 54.489525155279495, 'baseline_quantiles': [37.987, 53.804, 72.516], 'baseline_by_hour': {13: 56.21, 14: 54.83, 15: 55.49, 16: 55.15, 17: 55.62, 18: 55.73, 19: 52.43, 20: 54.53, 21: 54.98, 22: 53.57, 23: 52.93, 24: 52.71}}
+
+ROLLOUT BASELINES AND SHIFTS ne_minus_half
+insulin_half {'shift': 12.367185601577908, 'equal_stay_shift': 11.52962200704524, 'baseline_mean': 168.1087522682446, 'baseline_quantiles': [141.92, 160.439, 214.387], 'baseline_by_hour': {13: 176.45, 14: 175.14, 15: 170.96, 16: 170.59, 17: 166.99, 18: 169.29, 19: 165.79, 20: 166.67, 21: 165.42, 22: 164.52, 23: 163.82, 24: 162.71}}
+insulin_x2 {'shift': -8.493176725838264, 'equal_stay_shift': -7.145692286732875, 'baseline_mean': 168.1087522682446, 'baseline_quantiles': [141.92, 160.439, 214.387], 'baseline_by_hour': {13: 176.45, 14: 175.14, 15: 170.96, 16: 170.59, 17: 166.99, 18: 169.29, 19: 165.79, 20: 166.67, 21: 165.42, 22: 164.52, 23: 163.82, 24: 162.71}}
+ne_half {'shift': -4.699490062111801, 'equal_stay_shift': -4.327262904911181, 'baseline_mean': 69.25821273291926, 'baseline_quantiles': [49.231, 71.448, 83.439], 'baseline_by_hour': {13: 62.16, 14: 64.33, 15: 64.88, 16: 67.85, 17: 68.06, 18: 69.07, 19: 69.56, 20: 71.8, 21: 71.02, 22: 73.12, 23: 73.47, 24: 73.54}}
+ne_x2 {'shift': 1.3447599378881987, 'equal_stay_shift': 1.2055330172413794, 'baseline_mean': 69.25821273291926, 'baseline_quantiles': [49.231, 71.448, 83.439], 'baseline_by_hour': {13: 62.16, 14: 64.33, 15: 64.88, 16: 67.85, 17: 68.06, 18: 69.07, 19: 69.56, 20: 71.8, 21: 71.02, 22: 73.12, 23: 73.47, 24: 73.54}}
+
+VOCAB CODES [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+value_bin_centres {'map_arterial': [33.0, 38.0, 43.0, 49.0, 56.0, 63.0, 68.0, 73.0, 77.0, 80.0, 83.0, 87.0, 91.0, 94.0, 97.0, 101.0], 'glucose_finger': [73.0, 84.0, 92.0, 104.0, 119.0, 137.0, 149.0, 159.0, 168.0, 178.0, 189.0, 204.0, 221.0, 235.0, 249.0, 269.0]}
+
+TUNING COLUMNS ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+   stay_id  hour              event  value  rate rate_unit  dose dose_unit  end_hour
+2020000000  -2.0 hospital_admission    NaN   NaN       NaN   NaN       NaN   25.1667
+2020000000  -1.0           map_cuff   95.0   NaN       NaN   NaN       NaN       NaN
+2020000000   0.0     glucose_finger  113.0   NaN       NaN   NaN       NaN       NaN
+
+NONLINEAR RECORD ESTIMATES
+quadratic137 {'insulin': {'beta': [-1.65889374137113, -0.0740165369955243], 'se': [0.11162073619178399, 0.0211651134163644]}, 'norepinephrine': {'beta': [2.3983334510239676, 0.5929918959700299], 'se': [0.30868623380222104, 0.2273657947094367]}}
+readout_estimates137 {'insulin': {'row_mean': (-15.958712677073809, [-17.798044003658234, -14.257319361351916]), 'equal_stay_mean': (-13.200754314749359, [-14.677846064178203, -11.826421444516233])}, 'norepinephrine': {'row_mean': (3.850968842405168, [3.5961542600098695, 4.214982341858143]), 'equal_stay_mean': (3.6087357747707864, [3.3703109243664775, 3.949114886711307])}}
+
+RECORD EVIDENCE RUN 136 ## Run 136
+Independently re-estimated six longitudinal dose-innovation moments with new stay-separated outcome nuisance regressions. Retained cluster moment arrays and direct deconvolution in lp_new136. This checks nuisance sensitivity; linear, time-invariant direct effects and innovation exogeneity remain identifying assumptions. No weights changed.
+
+
+
+RECORD EVIDENCE RUN 137 ## Run 137
+Extended independently fitted innovation local projections through 12 lags; computed 300 stay-cluster multiplier-bootstrap direct-kernel and matched-readout intervals. Tested a quadratic immediate dose term with cross-fitted dose-squared nuisance estimates. These estimates still depend on sequential exogeneity, sufficient history and an additive transferable impulse response. No weights changed.
+
+
+RECORD EVIDENCE RUN 170 ## Run 170
+Recovered immediate record estimates from independent run-136 nuisance fits: insulin -2.0468 (SE .0483), NE +3.1429 (SE .0960), with close fold agreement. These require innovation exogeneity, not medical assumptions. Inspecting nonlinear identification and separate channel construction before a targeted NE/asymmetry repair. No weights changed.
+
+
+
+```

@@ -1,0 +1,76 @@
+OUTPUT of Python run 85 of at most 300:
+```
+VOCAB KEYS: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+CONFIG: {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+CODES: [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+
+RELEVANT TENSORS
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+FUNCTION CONVENTIONS
+reconstruct_reading_head [('meta', 'required'), ('state_array', 'ndarray(4035, 992)'), ('flow_factor', '1.0'), ('age_before_bundle', 'False'), ('norm_mode', "'query'"), ('head_activation', "'gelu'")]
+constants: [('dtype',), 192, 960, -1, 4, 'core.flow.a', 10, 'gap', 'gelu', 1, 'core.out_norm', 'z_prior', 32, 'z_head.weight', 'z_head.bias', 8, 0, -10, 2, 3, 'embed.code.weight', 'last_numeric.weight', 'last_numeric.bias', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'type_emb.weight', 'query', 'query_norm', 'combined', 'none', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias', 'embed_transition.value_bin.weight', 17, ('state', 'dt', 'context', 'view', 'register', 'numbers', 'inputs', 'hidden', 'probs', 'logits', 'code', 'last_bin')]
+score_view_local [('view', 'required'), ('register', 'Tensortorch.Size([320, 192])')]
+constants: ['type_emb.weight', 1, 'query_norm', 'attr_heads.value_bin', 'gelu', -1, 2, ('scaled_mean_rmse', 'scaled_bias', 'nll_rmse')]
+activation [('x', 'required'), ('kind', 'required')]
+constants: [('gelu', 'silu', 'relu')]
+ln [('x', 'required'), ('prefix', 'required')]
+constants: [(192,), '.weight', '.bias', 1e-05]
+mlp [('x', 'required'), ('prefix', 'required'), ('kind', 'required')]
+constants: ['.0.weight', '.0.bias', '.2.weight', '.2.bias']
+
+CORE RECONSTRUCTION CHECKS
+ observation_only  include_current  age_scale  age_mode  out_rmse    h_rmse
+            False             True        1.0 inputboth  0.005552  0.542589
+             True             True        1.0 inputboth  0.014160  1.296287
+            False            False        1.0 inputboth  0.044444  4.062119
+             True            False        1.0 inputboth  0.045472  4.137890
+             True             True       10.0 inputboth  0.109815 10.135990
+             True             True       10.0 inputkeys  0.110961 10.157469
+            False             True       10.0 inputkeys  0.111159 10.217534
+            False             True       10.0 inputboth  0.110404 10.237002
+
+REJECTED DECODER MAGNITUDE
+coef (192,) RMS 0.011774712493055527 maxabs 0.08502567317198986
+coef_d (192,) RMS 0.46787904877358083 maxabs 2.300345827907485
+b0 () RMS 20.38020511735972 maxabs 20.38020511735972
+head_hidden (4510, 192) RMS 0.8542946443801012 maxabs 8.020208358764648
+baseline_probs_mc (64, 320, 17) RMS 0.11845813 maxabs 0.8095807
+fresh_eps (128, 320, 32) RMS 0.9989474 maxabs 4.9532595
+head_probs (4510, 17) RMS 0.11660497 maxabs 0.7918927
+
+POSTERIOR CONTRAST CV
+   drug       mode  factual_weight  alpha  factual_rms  active_rms  off_action_rms  r2_zero  gain_zero   r2_half  gain_half  r2_double  gain_double  r2_triple  gain_triple
+insulin       zero             2.0    0.1     0.436859    0.748839        0.325613 0.440829   0.956809 -1.128564   0.810894  -0.299196     0.732350  -0.591724     0.493116
+insulin       zero             2.0   10.0     0.422142    0.744891        0.303043 0.469715   0.938549 -1.149989   0.805780  -0.298513     0.725518  -0.610573     0.488641
+insulin       zero             2.0  100.0     0.389498    0.732322        0.252035 0.457716   0.883537 -0.948364   0.771212  -0.328733     0.694617  -0.690721     0.468278
+insulin       zero            10.0    0.1     0.298630    0.550938        0.200070 0.199788   0.725164 -1.431293   0.523632  -0.477562     0.591878  -0.883442     0.402511
+insulin       zero            10.0   10.0     0.293833    0.546933        0.193760 0.196943   0.714620 -1.433839   0.521821  -0.484551     0.585925  -0.901706     0.397875
+insulin       zero            10.0  100.0     0.275969    0.527971        0.172346 0.142749   0.684270 -1.328792   0.506033  -0.512498     0.558946  -0.976368     0.378772
+insulin innovation             2.0    0.1     0.480059    0.806605        0.366215 0.324136   0.994418 -1.551212   0.910165  -0.370157     0.825778  -0.444068     0.560791
+insulin innovation             2.0   10.0     0.464767    0.802060        0.343554 0.363947   0.979817 -1.525583   0.904993  -0.365217     0.817077  -0.465117     0.554361
+insulin innovation             2.0  100.0     0.428085    0.789604        0.286904 0.403939   0.924656 -1.213269   0.863768  -0.372102     0.780696  -0.547763     0.528958
+insulin innovation            10.0    0.1     0.368652    0.672328        0.251827 0.339406   0.827117 -1.323833   0.717628  -0.408640     0.692711  -0.664026     0.474893
+
+```

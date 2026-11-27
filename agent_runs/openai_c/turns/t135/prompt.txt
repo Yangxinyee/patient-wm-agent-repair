@@ -1,0 +1,134 @@
+OUTPUT of Python run 96 of at most 300:
+```
+NOTEBOOK LENGTH 36457
+
+EARLY EVIDENCE, CONTINUED
+idual_sd': 0.09352020066962713, 'outcome_residual_sd': 4.325493241423042}, ('map_arterial', 'fresh'): {'n': 312563, 'effect': 3.1166978915729437, 'se': 0.0891845742058681, 'dose_residual_sd': 0.09349417174331442, 'outcome_residual_sd': 4.295459295140099}}
+- These analyses use only records and pre-infusion controls; cross-fitting separates stays. Assess identification assumptions and agreement before choosing target effects.
+- Python runs: 4; forward passes: 2; no edits.
+
+## Run 5 / forward 3: persistence and state capture
+- Original states obtained on training IDs 1010000000..1010000099, all bundles (4035 rows; 992-dimensional state).
+- Dynamic moments: {'insulin': [{'h': 1, 'n': 223106, 'effect': -2.054155137550587, 'se': 0.1455749681886286, 'phi': [1.0]}, {'h': 2, 'n': 205065, 'effect': -1.9215505007955112, 'se': 0.15973192071265485, 'phi': [1.0, 0.025215871026567586]}, {'h': 4, 'n': 182164, 'effect': -1.30868113770493, 'se': 0.19061378818234964, 'phi': [1.0, 0.04948621470637709, -0.005534859740399555, -0.01710917618348411]}, {'h': 6, 'n': 163583, 'effect': -0.6953659704972652, 'se': 0.2156277623132073, 'phi': [1.0, 0.05780741421219487, -0.005006001563280803, -0.020813196722217174, -0.03845105671049845, -0.02815311855012386]}], 'norepinephrine': [{'h': 1, 'n': 312563, 'effect': 3.116538954905723, 'se': 0.08932562245910886, 'phi': [1.0]}, {'h': 2, 'n': 299506, 'effect': 4.860383476324453, 'se': 0.1068007636923712, 'phi': [1.0, 0.7508293535077544]}, {'h': 4, 'n': 273503, 'effect': 5.158283324771074, 'se': 0.13259557350076712, 'phi': [1.0, 0.7560151330798912, 0.5911606243095916, 0.4716599701183076]}, {'h': 6, 'n': 247499, 'effect': 3.9048242277985303, 'se': 0.15550859589971106, 'phi': [1.0, 0.7613918338652426, 0.5983575838047945, 0.4797127918586145, 0.3880467773670123, 0.3179327899297267]}]}
+- Persistence fit accounting for later treatment responses: {'insulin': {'beta': -2.1126230003348483, 'rho': 0.8412020161353004, 'observed': [-2.054155137550587, -1.9215505007955112, -1.30868113770493, -0.6953659704972652], 'fitted': [-2.1126230003348483, -1.8304143563196857, -1.2855404663702767, -0.7857956242711385], 'standardized_residuals': [-0.40163404128999375, 0.5705568684657099, 0.12140082601220833, -0.419378529015762]}, 'norepinephrine': {'beta': 3.2907376107066626, 'rho': 0.672711214384998, 'observed': [3.116538954905723, 4.860383476324453, 5.158283324771074, 3.9048242277985303], 'fitted': [3.2907376107066626, 4.6844984871314015, 4.988418327009077, 4.185545043195627], 'standardized_residuals': [1.950153281950914, -1.646851418587893, -1.2810759309473805, 1.8051787669546966]}}
+- Approximate fixed-dose-edit targets, probe: {'insulin_x2': {'mean': -10.760784323326371, 'n_stay_hours': 643, 'n_stays': 60}, 'insulin_half': {'mean': 5.380392161663186, 'n_stay_hours': 643, 'n_stays': 60}, 'ne_x2': {'mean': 4.01609433089793, 'n_stay_hours': 474, 'n_stays': 42}, 'ne_half': {'mean': -2.008047165448965, 'n_stay_hours': 474, 'n_stays': 42}}
+- Approximate targets, training population: {'insulin_x2': {'mean': -11.283462940451336, 'n_stay_hours': 175008, 'n_stays': 16457}, 'insulin_half': {'mean': 5.641731470225668, 'n_stay_hours': 175008, 'n_stays': 16457}, 'ne_x2': {'mean': 4.228313852084173, 'n_stay_hours': 127404, 'n_stays': 11318}, 'ne_half': {'mean': -2.1141569260420865, 'n_stay_hours': 127404, 'n_stays': 11318}}
+- Targets remain model-based estimates from records, not observed counterfactual truth. Check horizon-fit residuals and method agreement.
+- Python runs: 5; forward passes: 3; no edits.
+
+## Run 6: corrected targets, state directions, candidate A
+- Earlier rollout targets included unrecorded sensor-hours; superseded by the sensor-observed masks here.
+- Corrected probe targets: {'insulin_x2': {'mean': -12.036254091096144, 'n_stay_hours': 554, 'n_stays': 60}, 'insulin_half': {'mean': 6.018127045548072, 'n_stay_hours': 554, 'n_stays': 60}, 'ne_x2': {'mean': 4.732347324472345, 'n_stay_hours': 281, 'n_stays': 26}, 'ne_half': {'mean': -2.3661736622361724, 'n_stay_hours': 281, 'n_stays': 26}}
+- Corrected training-population targets: {'insulin_x2': {'mean': -12.51486026649639, 'n_stay_hours': 152158, 'n_stays': 16457}, 'insulin_half': {'mean': 6.257430133248195, 'n_stay_hours': 152158, 'n_stays': 16457}, 'ne_x2': {'mean': 4.6728108030283355, 'n_stay_hours': 79814, 'n_stays': 7206}, 'ne_half': {'mean': -2.3364054015141678, 'n_stay_hours': 79814, 'n_stays': 7206}}
+- Estimated conditional dose-innovation directions from action-bundle state changes, controlling pre-action states and record histories. Directions saved in dose_directions; not applied yet.
+- Candidate A: 30 rank-one output projections erase contrasts between nonzero dose/rate bin rows while preserving bin 0 and the common nonzero-bin component. Numeric inputs unchanged.
+- Hypothesis: bin lookup artifacts cause irregular dose response. Require factual NLL increase <=0.005, then inspect dose rollouts.
+- Python runs: 6; forward passes: 3.
+
+## Run 7 / forwards 4?5: candidate A rejected
+- Re-read architecture after restart.
+- Candidate A factual NLL 1.63557 versus original 1.63461: +0.00096.
+- Candidate A rollouts: insulin x2 -1.745, half +0.388; NE x2 -0.492, half +0.127.
+- Bin-contrast erasure does not explain the causal failure; saved operations and cleared them.
+- Next: inspect latent/action pathways and recovered state directions before constructing a targeted edit.
+- Python runs: 8; forward passes: 5.
+
+## Runs 9?10: candidate B
+- Run 9 inspection confirmed z_post.0.weight is (192,576), then failed during an optional vocabulary print before any edit.
+- Run 10 erased its action-input block: last 192 columns of [context, observation, action].
+- Context/observation inputs, direct prelude action token, measurement heads and numeric embeddings unchanged.
+- Hypothesis: action-dependent latent inference counteracts direct treatment dynamics. This requires experimental validation.
+- Python runs: 10; forward passes: 5.
+
+## Runs 13?14 / forward 8: state-to-reading surrogates
+- Run 13 stopped on CSV column mismatch (observed versus value); run 14 corrected it. No weight edits.
+- Original training factual NLL: 1.63841 on the 100 captured stays.
+- Stay-held-out RMSE: {'glucose_finger': {0.1: 3.4756783472201076, 1.0: 4.0981795062462485, 10.0: 5.103901005035651, 100.0: 8.159300872225991}, 'map_arterial': {0.1: 1.3264895951311222, 1.0: 1.4700455248823527, 10.0: 1.7328266377334218, 100.0: 2.939310343816757}}
+- Dose/readout diagnostics: {'glucose_finge
+
+EXPERIMENT HEADINGS
+## Initial inspection
+## Inspection, run 2
+## Run 3: hourly panels and preliminary regressions
+## Run 4 / forwards 1?2: causal diagnostics and baselines
+## Run 5 / forward 3: persistence and state capture
+## Run 6: corrected targets, state directions, candidate A
+## Run 7 / forwards 4?5: candidate A rejected
+## Runs 9?10: candidate B
+## Runs 13?14 / forward 8: state-to-reading surrogates
+## Run 15: candidate C, action numeric amplification
+## Run 16 / forwards 9?10: candidate C results
+## Run 18: numeric gain 16
+## Forwards 11?12 / run 19: numeric saturation
+## Restart / Python run 20
+## Python run 21: paired-state geometry
+## Python run 22: selective correction design
+## Python run 23: calibrated slot shear design
+## Python run 24: candidate D, selective slot shear
+## Forward 14 / Python run 25: reduce candidate D
+## Forward 15 / restart
+## Python run 27
+## Python run 28
+## Python run 29
+## Python run 30: direct NE reading-head pilot
+## Restart / Python run 31
+## Python run 32
+## Python run 33
+## Python run 34: numeric-value mixing pilot
+## Python run 35 / forwards 18?19
+## Python run 36
+## Python run 37: restart inspection
+## Python run 38: causal and pathway audit
+## Python run 39: latent candidate preparation
+## Python run 40: latent-input gain pilot
+## Python run 41 / forwards 20-21: latent candidate rejected
+## Python runs 42-47: architecture recovery and centered diagonal pilot
+## Forward 22 / Python run 48: diagonal pilot rejected
+## Restart / Python runs 49?50
+## Python run 52: stronger drug-numeric gain
+## Python run 53: query-state amplification pilot
+## Forward 23 / Python run 54: uniform query gain rejected
+## Restart / Python run 55
+## Python run 56
+## Python run 57
+## Python run 58
+## Python run 59: controlled head-response estimation
+## Python runs 60-61: time-flow pilot installed
+## Restart / Python run 62
+## Forward 25 / Python run 63: flow edit rejected
+## Python run 64
+## Python run 65
+## Python run 66: prior-head ablation
+## Restart / Python run 67
+## Python run 68: prior-head ablation rejected
+## Python run 71: alignment audit
+## Python run 72: gain-4 direction recalibration
+## Python run 73: recalibrated head pilot
+## Python run 74: restart recovery
+## Forward 28 / Python run 75: recalibrated pilot too strong
+## Python run 76: half-strength recalibrated pilot
+## Forwards 29?30 / Python run 77: head pilot rejected; identity pilot
+## Restart / Python run 78
+## Python run 81: identity-path diagnostic
+## Forward 32 / Python run 82
+## Restart / Python run 83
+## Python run 87: selective prior-head gain
+## Python run 88: restart recovery
+## Python run 89: latent-head edit rejected
+## Python run 90: recurrent-edit design review
+## Python run 91: response-versus-persistence audit
+## Python run 92: effective rollout dynamics
+## Python run 93: uniform-prelude attention diagnostic
+## Python run 94 / forward 35: attention diagnostic
+
+CURRENT OPERATIONS [{'op': 'rank1', 'name': 'embed.numeric.weight', 'vector': 'vectors/v001.npy', 'alpha': 3.0, 'side': 'in'}, {'op': 'scale', 'name': 'core.prelude.0.attn.q.weight', 'c': 2.0}]
+
+RELEVANT SAVED VARIABLES
+make_panel (df)
+panel DataFrame (780000, 6)
+panel_tuning DataFrame (10400, 6)
+probe_ids [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007, 2020000008, 2020000009, 2020000010, 2020000011, 2020000012, 2020000013, 2020000014,
+target 'map_arterial'
+crossfit_residual_matr
+[output cut at 10,000 characters]
+```

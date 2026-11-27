@@ -1,0 +1,111 @@
+OUTPUT of Python run 206 of at most 300:
+```
+=== TARGET SUMMARY ===
+drug,factor,first100,all400
+insulin,0.0,10.528801692608644,11.082850006439969
+insulin,0.5,5.264400846304322,5.5414250032199845
+insulin,1.5,-5.264400846304322,-5.5414250032199845
+insulin,2.0,-10.528801692608644,-11.082850006439969
+insulin,3.0,-21.057603385217288,-22.165700012879938
+norepinephrine,0.0,-3.8084291596692013,-3.9693274278860025
+norepinephrine,0.5,-1.9042145798346006,-1.9846637139430012
+norepinephrine,1.5,1.9042145798346006,1.9846637139430012
+norepinephrine,2.0,3.8084291596692013,3.9693274278860025
+norepinephrine,3.0,7.6168583193384025,7.938654855772005
+
+
+=== CAUSAL ESTIMATION NOTES ===
+## Factual baseline and latent dynamics
+- Original factual first 100 tuning: value NLL 1.63164, 4,751 readings.
+          drug      rho      beta  process_sd  baseline_walk_sd  sensor1_sd  sensor2_sd  sensor2_offset      nll  success   seconds
+       insulin 0.967881 -1.272755    4.758194          0.205145    8.921139    3.537458       -0.042686 3.852165    False 10.802939
+norepinephrine 0.900838  0.295787    1.766206          0.241436    3.263101    6.086621        3.147190 3.188606     True  4.784169
+          drug  factor  mean_shift_all400  mean_shift_first100
+       insulin     0.0          10.068514             9.670204
+       insulin     0.5           5.034257             4.835102
+       insulin     1.5          -5.034257            -4.835102
+       insulin     2.0         -10.068514            -9.670204
+       insulin     3.0         -20.137027           -19.340408
+norepinephrine     0.0          -0.692790            -0.655035
+norepinephrine     0.5          -0.346395            -0.327518
+norepinephrine     1.5           0.346395             0.327518
+norepinephrine     2.0           0.692790             0.655035
+norepinephrine     3.0           1.385581             1.310070
+- Targets above are provisional statistical estimates, not simulator ground truth.
+- Python runs: 5. Forward passes: 2. No edits yet.
+
+## Causal identification checks
+- Paired-sensor IV suggests insulin lowers next glucose, approximately 2 per rate unit.
+- Norepinephrine sensor-difference instrument is weak; do not use its IV ratios.
+- Earlier zero placebos were mechanical because controls contained the placebo outcome; corrected here.
+          drug     n       beta        se  dose_slope  past_outcome_slope
+       insulin 59658  -0.104668  0.609526    0.025015           -0.002618
+norepinephrine 93508 -20.380205 14.355973   -0.000347            0.007077
+          drug  maxlag      n       rho   rho_se      beta  beta_se
+       insulin       2 224413 -2.849041 0.509204 18.162388 3.203651
+       insulin       3 202551  0.397434 0.149430 -2.194095 0.960694
+       insulin       4 184978  0.918568 0.109879 -5.462461 0.726760
+norepinephrine       2 270360  0.529543 0.037465  2.555445 0.294576
+norepinephrine       3 245698  0.539414 0.026764  2.774850 0.272898
+norepinephrine       4 222850  0.513011 0.025379  2.627387 0.291069
+- Python runs: 9. Forward passes: 3. No edits yet.
+
+## Dose-innovation local projections
+- Cross-fitted policy uses current/past sensor information and past doses; no future features.
+- These responses include subsequent clinician-policy feedback, unlike fixed-dose evaluation.
+          drug  horizon      n  response       se
+       insulin        1 400154 -1.917161 0.045098
+       insulin        2 384677 -2.199973 0.051051
+       insulin        4 353362 -1.274455 0.059664
+       insulin        8 290018 -0.117182 0.078432
+norepinephrine        1 328940  3.038176 0.089059
+norepinephrine        2 315253  4.739887 0.106138
+norepinephrine        4 287837  5.065232 0.130097
+norepinephrine        8 233088  2.784013 0.173857
+- Dynamic-panel insulin estimates unstable; not suitable as repair targets.
+- Python runs: 10. Forward passes: 3. No edits yet.
+
+## Sensor-proxy dynamic check
+- Instrument current sensor with its paired sensor, controlling only earlier history.
+- Additional assumption: dose is independent of regressor sensor measurement noise; test
+
+=== CONTRAST AND CALIBRATION VARIABLE MAP ===
+map172_glucose_train ndarray (4510,) 
+map172_glucose_tune ndarray (4751,) 
+map172_MAP_train ndarray (4510,) 
+map172_MAP_tune ndarray (4751,) 
+map172_rows list  [{'fw': 0.3, 'gain': 0.0, 'heldout_dNLL': np.float32(0.002890866), 'tuning_dNLL': np.float
+map172_candidates keys [(0.3, 0.0), (0.3, 1.0), (0.3, 2.0), (0.3, 3.0), (0.3, 4.0), (0.3, 6.0), (0.3, 8.0), (1.0, 0.0), (1.0, 1.0), (1.0, 2.0), (1.0, 3.0), (1.0, 4.0), (1.0, 6.0), (1.0, 8.0), (3.0, 0.0), (3.0, 1.0), (3.0, 2.0), (3.0, 3.0)]
+map172_frontier DataFrame (21, 8) 
+map192_cal ndarray (193,) 
+map192_centres Tensor torch.Size([4510, 17]) 
+map192_nebase keys [0.5, 2.0]
+map192_candidates keys [(1.0, 1.5), (0.3, 1.0), (0.3, 2.0), (0.3, 3.0), (0.3, 4.0), (0.3, 6.0), (0.3, 8.0), (1.0, 1.0), (1.0, 2.0), (1.0, 3.0), (1.0, 4.0), (1.0, 6.0), (1.0, 8.0), (3.0, 1.0), (3.0, 2.0), (3.0, 3.0), (3.0, 4.0), (3.0, 6.0)]
+map192_rows list  [{'fw': 1.0, 'gain': 1.5, 'cv_total_dNLL': np.float32(0.0017388685), 'tune_total_dNLL': np
+map192_table DataFrame (25, 9) 
+cal190_base_train keys ['logits', 'probs', 'nll', 'mean']
+cal190_base_tune keys ['logits', 'probs', 'nll', 'mean']
+cal190_fitmask ndarray (4510,) 
+cal190_cvmask ndarray (4510,) 
+cal190_K ndarray (193, 193) 
+cal190_b ndarray (193,) 
+cal190_R ndarray (193, 193) 
+cal190_candidates keys [(0.001, 0.0), (0.001, 10.0), (0.003, 0.0), (0.003, 10.0), (0.01, 0.0), (0.01, 10.0), (0.03, 0.0), (0.03, 10.0), (0.1, 0.0), (0.1, 10.0), (0.3, 0.0), (0.3, 10.0), (1.0, 0.0), (1.0, 10.0)]
+cal190_rows list  [{'ridge': 0.001, 'protect': 0.0, 'fit_MAP_gain': np.float32(-0.02597175), 'cv_MAP_gain': 
+cal190_table DataFrame (14, 9) 
+
+Current versus saved candidate: {'attr_heads.value_bin.0.weight': 0.0, 'attr_heads.value_bin.0.bias': 0.0, 'attr_heads.value_bin.2.weight': 0.0, 'attr_heads.value_bin.2.bias': 0.0}
+
+=== LOCAL CONTRASTS, NO NEW EDIT ===
+cf146 delta_rate shape (4510,) active count 1381 delta-rate quantiles [0.02       0.08       0.36000001 1.         1.        ]
+cf146 original glucose n 556 mean shift -0.25721 dose slope -0.61903
+cf146 original map n 825 mean shift 0.2183 dose slope 0.40637
+cf146 edited glucose n 556 mean shift -1.20487 dose slope -2.77482
+cf146 edited map n 825 mean shift 0.41676 dose slope 0.77979
+cf172 delta_rate shape (4510,) active count 1381 delta-rate quantiles [0.02       0.08       0.36000001 1.         1.        ]
+cf172 original glucose n 556 mean shift -0.25721 dose slope -0.61903
+cf172 original map n 825 mean shift 0.2183 dose slope 0.40637
+cf172 edited glucose n 556 mean shift -1.20487 dose slope -2.77482
+cf172 edited map n 825 mean shift 0.41676 dose slope 0.77979
+
+```

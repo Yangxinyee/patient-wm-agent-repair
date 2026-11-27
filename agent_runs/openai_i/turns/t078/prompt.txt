@@ -1,0 +1,211 @@
+OUTPUT of Python run 69 of at most 300:
+```
+=== CONFIGURATION ===
+{'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+
+=== STATE FILE SCHEMA ===
+[('x', (4035, 992), 'float32'), ('stay_id', (4035,), 'int64'), ('hour', (4035,), 'float64'), ('has_insulin', (4035,), 'bool'), ('has_norepinephrine', (4035,), 'bool'), ('n_atoms', (4035,), 'int64')]
+
+=== ENCODER IMPLEMENTATIONS ===
+
+ mlp65 (x, prefix)
+  4           0 RESUME                   0
+
+  5           2 LOAD_GLOBAL              1 (NULL + repair_linear)
+             12 LOAD_GLOBAL              2 (F)
+             22 LOAD_ATTR                5 (NULL|self + gelu)
+             42 LOAD_GLOBAL              1 (NULL + repair_linear)
+             52 LOAD_FAST                0 (x)
+             54 LOAD_FAST                1 (prefix)
+             56 LOAD_CONST               1 ('.0')
+             58 BINARY_OP                0 (+)
+             62 CALL                     2
+             70 CALL                     1
+             78 LOAD_FAST                1 (prefix)
+             80 LOAD_CONST               2 ('.2')
+             82 BINARY_OP                0 (+)
+             86 CALL                     2
+             94 RETURN_VALUE
+
+
+ encode_grouped65 (atoms, indices, n, prefix)
+  7           0 RESUME                   0
+
+  8           2 LOAD_GLOBAL              0 (torch)
+             12 LOAD_ATTR                3 (NULL|self + zeros)
+             32 LOAD_FAST                2 (n)
+             34 CALL                     1
+             42 STORE_FAST               4 (counts)
+
+  9          44 LOAD_GLOBAL              0 (torch)
+             54 LOAD_ATTR                3 (NULL|self + zeros)
+             74 LOAD_FAST                2 (n)
+             76 LOAD_CONST               1 (192)
+             78 CALL                     2
+             86 STORE_FAST               5 (sums)
+
+ 10          88 LOAD_FAST                0 (atoms)
+             90 POP_JUMP_IF_FALSE      175 (to 442)
+
+ 11          92 LOAD_GLOBAL              0 (torch)
+            102 LOAD_ATTR                5 (NULL|self + stack)
+            122 LOAD_FAST                0 (atoms)
+            124 CALL                     1
+            132 STORE_FAST               0 (atoms)
+
+ 12         134 LOAD_GLOBAL              0 (torch)
+            144 LOAD_ATTR                7 (NULL|self + as_tensor)
+            164 LOAD_FAST                1 (indices)
+            166 LOAD_GLOBAL              0 (torch)
+            176 LOAD_ATTR                8 (long)
+            196 KW_NAMES                 2 (('dtype',))
+            198 CALL                     2
+            206 STORE_FAST               1 (indices)
+
+ 13         208 LOAD_FAST                4 (counts)
+            210 LOAD_ATTR               11 (NULL|self + index_add_)
+            230 LOAD_CONST               3 (0)
+            232 LOAD_FAST                1 (indices)
+            234 LOAD_GLOBAL              0 (torch)
+            244 LOAD_ATTR               13 (NULL|self + ones)
+            264 LOAD_GLOBAL             15 (NULL + len)
+            274 LOAD_FAST                1 (indices)
+            276 CALL                     1
+            284 CALL                     1
+            292 CALL                     3
+            300 POP_TOP
+
+ 14         302 LOAD_GLOBAL             17 (NULL + range)
+            312 LOAD_CONST               3 (0)
+            314 LOAD_GLOBAL             15 (NULL + len)
+            324 LOAD_FAST                1 (indices)
+            326 CALL                     1
+            334 LOAD_CONST               4 (1024)
+            336 CALL                     3
+            344 GET_ITER
+        >>  346 FOR_ITER                45 (to 440)
+            350 STORE_FAST               6 (start)
+
+ 15         352 LOAD_FAST                6 (start)
+            354 LOAD_CONST               4 (1024)
+            356 BINARY_OP                0 (+)
+            360 STORE_FAST               7 (stop)
+
+ 16         362 LOAD_FAST                5 (sums)
+            364 LOAD_ATTR               11 (NULL|self + index_add_)
+            384 LOAD_CONST               3 (0)
+            386 LOAD_FAST                1 (indices)
+            388 LOAD_FAST                6 (start)
+            390 LOAD_FAST                7 (stop)
+            392 BINARY_SLICE
+
+ 17         394 LOAD_GLOBAL             19 (NULL + mlp65)
+            404 LOAD_FAST                0 (atoms)
+            406 LOAD_FAST                6 (start)
+            408 LOAD_FAST                7 (stop)
+            410 BINARY_SLICE
+            412 LOAD_FAST                3 (
+
+ single_set57 (atom_batch, prefix='encode')
+ 39           0 RESUME                   0
+
+ 40           2 LOAD_GLOBAL              1 (NULL + repair_mlp_act)
+             12 LOAD_FAST                0 (atom_batch)
+             14 LOAD_FAST                1 (prefix)
+             16 LOAD_CONST               1 ('.mlp1')
+             18 BINARY_OP                0 (+)
+             22 LOAD_GLOBAL              2 (F)
+             32 LOAD_ATTR                4 (gelu)
+             52 CALL                     3
+             60 STORE_FAST               2 (pooled)
+
+ 41          62 LOAD_GLOBAL              7 (NULL + repair_linear)
+             72 LOAD_GLOBAL              8 (torch)
+             82 LOAD_ATTR               11 (NULL|self + full)
+            102 LOAD_FAST                0 (atom_batch)
+            104 LOAD_ATTR               12 (shape)
+            124 LOAD_CONST               2 (0)
+            126 BINARY_SUBSCR
+            130 LOAD_CONST               3 (1)
+            132 BUILD_TUPLE              2
+            134 LOAD_GLOBAL             14 (np)
+            144 LOAD_ATTR               17 (NULL|self + log)
+            164 LOAD_CONST               4 (2)
+            166 CALL                     1
+
+ 42         174 LOAD_GLOBAL              8 (torch)
+            184 LOAD_ATTR               18 (float32)
+
+ 41         204 KW_NAMES                 5 (('dtype',))
+            206 CALL                     3
+
+ 42         214 LOAD_FAST                1 (prefix)
+            216 LOAD_CONST               6 ('.size')
+            218 BINARY_OP                0 (+)
+
+ 41         222 CALL                     2
+            230 STORE_FAST               3 (size)
+
+ 43         232 LOAD_GLOBAL             21 (NULL + repair_norm)
+            242 LOAD_GLOBAL              1 (NULL + repair_mlp_act)
+            252 LOAD_FAST                2 (pooled)
+            254 LOAD_FAST                3 (size)
+            256 BINARY_OP                0 (+)
+            260 LOAD_FAST                1 (prefix)
+            262 LOAD_CONST               7 ('.mlp2')
+            264 BINARY_OP                0 (+)
+            268 LOAD_GLOBAL              2 (F)
+            278 LOAD_ATTR                4 (gelu)
+            298 CALL                     3
+
+ 44         306 LOAD_FAST                1 (prefix)
+            308 LOAD_CONST               8 ('.norm')
+            310 BINARY_OP                0 (+)
+
+ 43         314 CALL                     2
+            322 RETURN_VALUE
+
+
+ empty_set58 (prefix)
+  1           0 RESUME                   0
+
+  2           2 LOAD_GLOBAL              1 (NULL + repair_linear)
+             12 LOAD_GLOBAL              2 (torch)
+             22 LOAD_ATTR                5 (NULL|self + zeros)
+             42 LOAD_CONST               1 (1)
+             44 LOAD_CONST               1 (1)
+             46 CALL                     2
+             54 LOAD_FAST                0 (prefix)
+             56 LOAD_CONST               2 ('.size')
+             58 BINARY_OP                0 (+)
+             62 CALL                     2
+             70 STORE_FAST               1 (x)
+
+  3          72 LOAD_GLOBAL              7 (NULL + repair_norm)
+             82 LOAD_GLOBAL              9 (NULL + repair_mlp_act)
+             92 LOAD_FAST                1 (x)
+             94 LOAD_FAST                0 (prefix)
+             96 LOAD_CONST               3 ('.mlp2')
+             98 BINARY_OP                0 (+)
+            102 LOAD_GLOBAL             10 (F)
+            112 LOAD_ATTR               12 (gelu)
+            132 CALL                     3
+
+  4         140 LOAD_FAST                0 (prefix)
+            142 LOAD_CONST               4 ('.norm')
+            144 BINARY_OP                0 (+)
+
+  3         148 CALL                     2
+
+  4         156 LOAD_CONST               5 (0)
+
+  3         158 BINARY_SUBSCR
+            162 RETURN_VALUE
+
+
+=== BUNDLE ASSEMBLY SAMPLES ===
+bundle row element: [(0, {'stay_id': 1010000000, 'hour': 2.0, 'event': 'glucose_finger', 'value': 169.0, 'rate': nan, 'rate_unit': nan, 'dose': nan, 'dose_unit': nan, 'end_hour': nan}), (0, {'stay_id': 1010000000, 'hour': 2.0, 'event': 'glucose_lab', 'value': 158.0, 'rate': nan, 'rate_unit': nan, 'dose': nan, 'dose_unit': nan, 'end_hour': nan}), (0, {'stay_id': 1010000000, 'hour': 2.0, 'event': 'map_arterial', 'value': 68.0, 'rate': nan, 'rate_unit': nan, 'dose': nan, 'dose_unit': nan, 'end_hour': nan})]
+latent bundle element: (24, [{'stay_id': 1010000000, 'hour': 16.0833, 'event': 'insulin', 'value': nan, 'rate': 1.0, 'rate_unit': 'units/hour', 'dose': 1.0, 'dose_unit': 'units', 'end_hour': 17.0833}], [])
+metadata mappings: {'map_cuff': {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, 'glucose_finger': {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, 'map_arterial': {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, 'insulin': {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, 'norepinephrine': {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, 'glucose_lab': {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'i
+[output cut at 10,000 characters]
+```

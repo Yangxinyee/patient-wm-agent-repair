@@ -1,0 +1,111 @@
+OUTPUT of Python run 68 of at most 300:
+```
+=== RECORD FORMAT ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== LATER EFFECT ESTIMATES ===
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab                 1..2   6440 -1.674272 0.221519
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab prior_change_placebo   5781  0.010951      NaN
+  map_arterial           0.01..0.31  46952  2.808803 0.267351
+  map_arterial            0.31..0.7  48870  3.186511 0.130080
+  map_arterial               0.7..1  48494  3.503649 0.137606
+  map_arterial               0.7..1  48494  3.503649 0.137606
+  map_arterial prior_change_placebo 298800  0.134794      NaN
+      map_cuff           0.01..0.21  24183  1.573456 0.905161
+      map_cuff           0.21..0.62  25354  2.622023 0.337926
+      map_cuff              0.62..1  24436  2.837563 0.321496
+      map_cuff              0.62..1  24436  2.837563 0.321496
+      map_cuff prior_change_placebo 279926  0.482887      NaN
+ features  alpha           drug  test_r2  test_rmse
+      out    1.0        insulin 0.739124   0.663240
+      out    1.0 norepinephrine 0.790876   0.158897
+## Run 15
+Inspected panel indexing, examples, and saved dose-innovation residuals. Next priority is causal dynamics and properly residualized pre-dose placebos, not more uncontrolled head-reconstruction grids.
+Counts: 15 Python runs, 3 forward passes.
+
+## Runs 16?17: six-hour local projections
+Run 16 failed because exposure indices extended one hour too far; corrected in run 17. No edits.
+Two-fold stay-separated HGB adjustment using pre-dose history, current main reading observed. Deconvolution separates later policy-dose changes from an estimated fixed-dose response. Requires conditional exogeneity; not established merely by this regression.
+('glucose_finger', 'insulin') y_response=[(-1.850340141162819, 0.05921533919140744), (-2.1762604567431203, 0.06489918613459421), (-1.7410683131830231, 0.06761284716241134), (-1.2531025010849781, 0.06920144163811291), (-0.6551003687865006, 0.07183981699949399), (-0.3467783443919157, 0.07189773446145925)] dose_response=[(1.0, 0.0), (-0.043158439043129916, 0.00367638110517134), (-0.05631395190790126, 0.0038729998584322244), (-0.05248995784797088, 0.0038764553121176304), (-0.03888142649128522, 0.004054276323950561), (-0.011719974297229152, 0.004260511826010613)] kernel=[-1.85034014 -2.25611825 -1.94263882 -1.56111897 -1.02224091 -0.69018551]
+('map_arterial', 'norepinephrine') y_response=[(3.3505774844819856, 0.11296414420802602), (5.0683432874472025, 0.1299952890881905), (5.506229788027758, 0.1425291933163007), (5.131865472690208, 0.1518675987200649), (4.4902343523316315, 0.15979000044670347), (3.944962670038462, 0.16692614695654193)] dose_response=[(1.0, 0.0), (0.7304205725783163, 0.004233601628482961), (0.5594909967595264, 0.0052650548567893035), (0.43833097967373025, 0.005683985328155739), (0.3576708447723065, 0.005847420576034897), (0.2858912553960495, 0.006022535310425034)] kernel=[3.35057748 2.62101256 1.71717035 0.94251408 0.49378644 0.40891321]
+Counts: 17 Python runs, 3 forward passes.
+Two-fold stay-separated HGB adjustment using pre-dose history, current main reading observed. Deconvolution separates later policy-dose changes from an estimated fixed-dose response. Requires conditional exogeneity; not established merely by this regression.
+('glucose_finger', 'insulin') y_response=[(-1.850340141162819, 0.05921533919140744), (-2.1762604567431203, 0.06489918613459421), (-1.7410683131830231, 0.06761284716241134), (-1.2531025010849781, 0.06920144163811291), (-0.6551003687865006, 0.07183981699949399), (-0.3467783443919157, 0.07189773446145925)] dose_response=[(1.0, 0.0), (-0.043158439043129916, 0.00367638110517134), (-0.05631395190790126, 0.0038729998584322244), (-0.05248995784797088, 0.0038764553121176304), (-0.03888142649128522, 0.004054276323950561), (-0.011719974297229152, 0.004260511826010613)] kernel=[-1.85034014 -2.25611825 -1.94263882 -1.56111897 -1.02224091 -0.69018551]
+('map_arterial', 'norepinephrine') y_response=[(3.3505774844819856, 0.11296414420802602), (5.0683432874472025, 0.1299952890881905), (5.506229788027758, 0.1425291933163007), (5.131865472690208, 0.1518675987200649), (4.4902343523316315, 0.15979000044670347), (3.944962670038462, 0.16692614695654193)] dose_response=[(1.0, 0.0), (0.7304205725783163, 0.004233601628482961), (0.5594909967595264, 0.0052650548567893035), (0.43833097967373025, 0.005683985328155739), (0.3576708447723065, 0.005847420576034897), (0.2858912553960495, 0.006022535310425034)] kernel=[3.35057748 2.62101256 1.71717035 0.94251408 0.49378644 0.40891321]
+Counts: 17 Python runs, 3 forward passes.
+
+('glucose_finger', 'insulin') y_response=[(-1.850340141162819, 0.05921533919140744), (-2.1762604567431203, 0.06489918613459421), (-1.7410683131830231, 0.06761284716241134), (-1.2531025010849781, 0.06920144163811291), (-0.6551003687865006, 0.07183981699949399), (-0.3467783443919157, 0.07189773446145925)] dose_response=[(1.0, 0.0), (-0.043158439043129916, 0.00367638110517134), (-0.05631395190790126, 0.0038729998584322244), (-0.05248995784797088, 0.0038764553121176304), (-0.03888142649128522, 0.004054276323950561), (-0.011719974297229152, 0.004260511826010613)] kernel=[-1.85034014 -2.25611825 -1.94263882 -1.56111897 -1.02224091 -0.69018551]
+('map_arterial', 'norepinephrine') y_response=[(3.3505774844819856, 0.11296414420802602), (5.0683432874472025, 0.1299952890881905), (5.506229788027758, 0.1425291933163007), (5.131865472690208, 0.1518675987200649), (4.4902343523316315, 0.15979000044670347), (3.944962670038462, 0.16692614695654193)] dose_response=[(1.0, 0.0), (0.7304205725783163, 0.004233601628482961), (0.5594909967595264, 0.0052650548567893035), (0.43833097967373025, 0.005683985328155739), (0.3576708447723065, 0.005847420576034897), (0.2858912553960495, 0.006022535310425034)] kernel=[3.35057748 2.62101256 1.71717035 0.94251408 0.49378644 0.40891321]
+Counts: 17 Python runs, 3 forward passes.
+
+## Run 18: causal robustness
+Removed early-mean current-dose leakage at exposure hour 3; richer HGB adjustment and held-out simultaneous pre-dose assay diagnostics. A held-out assay association is a confounding diagnostic, not definitive proof, since clinicians may also use that assay.
+('glucose_finger', 'insulin') beta=-1.920236160942765 se=0.057549713623945384 withheld-assay=(0.12194404441190956, 0.07962629954886274)
+('map_arterial', 'norepinephrine') beta=3.3338848273633017 se=0.11219104588336076 withheld-assay=(-0.09941991398673201, 0.28240422270011895)
+Selected 100 representative training stays enriched for both measured drug pathways. No edits.
+Counts: 18 Python runs, 3 forward passes.
+('glucose_finger', 'insulin') beta=-1.920236160942765 se=0.057549713623945384 withheld-assay=(0.12194404441190956, 0.07962629954886274)
+('map_arterial', 'norepinephrine') beta=3.3338848273633017 se=0.11219104588336076 withheld-assay=(-0.09941991398673201, 0.28240422270011895)
+Selected 100 representative training stays enriched for both measured drug pathways. No edits.
+Counts: 18 Python runs, 3 forward passes.
+
+## Run 55
+Later robustness estimates: insulin one-hour beta -1.9202, NE +3.3339; withheld-assay diagnostics were compatible with zero. Recent objects did not use guessed r48_...r51_ prefixes; locating via saved inventory.
+Counts: 55 Python runs, 6 forward passes. No edits.
+
+## Run 56
+## Run 61
+Recovered conditional one-hour effects (-1.9202 insulin, +3.3339 NE) and six-hour deconvolved kernels. Inspecting expected-dose fits and observation helper before a residual-based posterior edit. No edits. Counts: 61 Python runs, 6 forward passes.
+
+## Runs 63-64
+Run 63 stopped on NumPy/Torch type mismatch. Run 64 converts cached arrays before checking alignment and fit layout. No weights changed. Counts: 64 Python runs, 6 forward passes.
+
+=== CANDIDATE INVENTORY ===
+r33_act function (x, kind)
+r33_action_embedding function (end_mode, flags, use_unit, side)
+r33_atom_hidden (385, 192)
+r33_c_term (160, 192)
+r33_codes dict ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff']
+r33_contexts dict [('silu', 0.1, 'out_plus_flow'), ('silu', 0.1, 'flow_only'), ('silu', 0.1, 'out_only'), ('silu', 1.0, 'out_plus_flow'), ('silu', 1.0, 'flow_only'), ('silu', 1.0, 'out_only')]
+r33_counts (160,)
+r33_ctx (160, 192)
+r33_dt (160,)
+r33_emb (385, 192)
+r33_ends dict [(1010000000, 1.0833), (1010000000, 2.0833), (1010000000, 3.0833), (1010000000, 4.0833), (1010000000, 5.0833), (1010000000, 6.0833)]
+r33_flow (160, 4, 192)
+r33_flow_out (160, 192)
+r33_gap (160, 192)
+r33_hidden (160, 192)
+r33_hours (9331,)
+r33_ids (9331,)
+r33_linear function (x, prefix)
+r33_ln function (x, prefix)
+r33_meta (9331, 3)
+r33
+[output cut at 10,000 characters]
+```

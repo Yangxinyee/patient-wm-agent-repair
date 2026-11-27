@@ -1,0 +1,220 @@
+OUTPUT of Python run 38 of at most 300:
+```
+# Notebook
+
+## Run 1
+- Read ARCHITECTURE.md and data README.
+
+## Findings so far (runs 1-11, fwd 1)
+- All stays 25.17h; readings at integer hours (-1..24), drugs at h+5min (0..24), each 1h.
+- Insulin 
+== /work/fwd_1 ['summary.json', 'dose_edit_original.csv']
+dose_edit_original.csv (3420, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000000    13  insulin_x2 -0.0397    0.0064  159.5560     True
+1  2020000000    14  insulin_x2 -0.0421    0.0121  160.8074     True
+2  2020000000    15  insulin_x2  0.7756    0.7406  163.2532     True
+summary.json {
+ "ok": true,
+ "type": "dose_edit",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": 0.141,
+     "n_stay_hours": 917,
+     "n_stays": 99
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": -0.084,
+     "n_stay_hours": 917,
+     "n_stays": 99
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.006,
+     "n_stay_hours": 672,
+     "n_stays": 60
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": 0.015,
+     "n_stay_hours": 672,
+     "n_stays": 60
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  }
+ },
+ "edited_tensors": null,
+ "edit_hash": "none",
+ "seconds": 34.8,
+ "gpu_peak_mib": 2058
+}
+
+== /work/fwd_2 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+factual_edited.csv (5388, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      stay_id  hour           event  observed  predicted_mean     nll
+0  2020000000  -1.0     glucose_lab     153.0        154.4109  2.0446
+1  2020000000  -1.0        map_cuff      55.0         82.2345  3.7147
+2  2020000000  -1.0  glucose_finger     150.0        174.2085  2.1310
+factual_original.csv (5388, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+      stay_id  hour           event  observed  predicted_mean     nll
+0  2020000000  -1.0     glucose_lab     153.0        154.4109  2.0446
+1  2020000000  -1.0        map_cuff      55.0         82.2345  3.7147
+2  2020000000  -1.0  glucose_finger     150.0        174.2085  2.1310
+summary.json {
+ "ok": true,
+ "type": "factual",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.33354,
+   "n_values": 5388,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1954,
+     "nll": 1.2814,
+     "mean_abs_error": 11.679
+    },
+    "glucose_lab": {
+     "n": 518,
+     "nll": 1.0565,
+     "mean_abs_error": 9.328
+    },
+    "map_arterial": {
+     "n": 1587,
+     "nll": 1.2093,
+     "mean_abs_error": 3.916
+    },
+    "map_cuff": {
+     "n": 1329,
+     "nll": 1.6665,
+     "mean_abs_error": 6.655
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.33348,
+   "n_values": 5388,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1954,
+     "nll": 1.2812,
+     "mean_abs_error": 11.676
+    },
+    "glucose_lab": {
+     "n": 518,
+     "nll": 1.0564,
+     "mean_abs_error": 9.331
+    },
+    "map_arterial": {
+     "n": 1587,
+     "nll": 1.2094,
+     "mean_abs_error": 3.917
+    },
+    "map_cuff": {
+     "n": 1329,
+     "nll": 1.6665,
+     "mean_abs_error": 6.656
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "edited_tensors": [
+  "embed.bins.dose.weight",
+  "embed.bins.rate.weight",
+  "embed.numeric.weight"
+ ],
+ "edit_hash": "9c41c93b52",
+ "seconds": 2.8,
+ "gpu_peak_mib": 232
+}
+
+== /work/fwd_3 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+dose_edit_edited.csv (3420, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      stay_id  hour        edit  shift  shift_se   factual  reached
+0  2020000000    13  insulin_x2    0.0       0.0  159.4642     True
+1  2020000000    14  insulin_x2    0.0       0.0  160.7907     True
+2  2020000000    15  insulin_x2    0.0       0.0  163.9815     True
+dose_edit_original.csv (3420, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000000    13  insulin_x2 -0.0397    0.0064  159.5560     True
+1  2020000000    14  insulin_x2 -0.0421    0.0121  160.8074     True
+2  2020000000    15  insulin_x2  0.7756    0.7406  163.2532     True
+summary.json {
+ "ok": true,
+ "type": "dose_edit",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": 0.141,
+     "n_stay_hours": 917,
+     "n_stays": 99
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": -0.084,
+     "n_stay_hours": 917,
+     "n_stays": 99
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.006,
+     "n_stay_hours": 672,
+     "n_stays": 60
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": 0.015,
+     "n_stay_hours": 672,
+     "n_stays": 60
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": 0.0,
+     "n_stay_hours": 917,
+     "n_stays": 99
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.0,
+     "n_stay_hours": 917,
+     "n_stays": 99
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.0,
+     "n_stay_hours": 672,
+     "n_stays": 60
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": 0.0,
+     "n_stay_hours": 6
+[2020000000, 2020000008, 2020000013, 2020000018, 2020000019, 2020000023, 2020000032, 2020000038, 2020000039, 2020000040, 2020000041, 2020000048, 2020000052, 2020000060, 2020000063, 2020000067, 2020000069, 2020000071, 2020000074, 2020000076, 2020000081, 2020000084, 2020000086, 2020000089, 2020000091, 2020000094, 2020000102, 2020000111, 2020000112, 2020000117, 2020000120, 2020000124, 2020000125, 2020000126, 2020000130, 2020000132, 2020000154, 2020000156, 2020000158, 2020000165, 2020000171, 2020000
+['embed.bins.rate.weight.safetensors', 'embed.numeric.weight.safetensors', 'embed.bins.dose.weight.safetensors']
+<run>:19: DeprecationWarning: __array_wrap__ must accept context and return_scalar arguments (positionally) in the future. (Deprecated NumPy 2.0)
+embed.bins.dose.weight torch.Size([17, 192]) max abs diff 0.31719523668289185
+embed.bins.rate.weight torch.Size([17, 192]) max abs diff 0.653984546661377
+embed.numeric.weight torch.Size([192, 6]) max abs diff 0.4520200192928314
+
+```

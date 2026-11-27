@@ -1,0 +1,133 @@
+OUTPUT of Python run 127 of at most 300:
+```
+--- Probe/cache alignment ---
+Same bundles as cached reconstruction: True
+Original-state max difference: 0.0001220703125
+Context reconstruction max error: 1.9073486328125e-06
+glucose_finger n 1295 context delta norm mean/max 0.011740054003894329 0.21118295192718506
+glucose_lab n 529 context delta norm mean/max 0.012762333266437054 0.1722782701253891
+map_arterial n 989 context delta norm mean/max 0.019530819728970528 0.21118295192718506
+map_cuff n 1697 context delta norm mean/max 0.010404550470411777 0.21118295192718506
+
+--- Critical helper definitions ---
+r124_context referenced names: ('state_idx', 'to_numpy', 'np', 'int64', 'torch', 'as_tensor', 'float32', 'dt', 'reshape', 'exp', 'r124_W', 'r124_norm', 'mean', 'r124_mlp', 'log') constants: ['x', -1, 1, 192, 960, 4, 'core.flow.a', 'core.out_norm', 10, 'gap']
+r124_lin referenced names: ('F', 'linear', 'r124_W', 'get') constants: ['.weight', '.bias']
+r124_mlp referenced names: ('r124_lin', 'F', 'gelu') constants: ['.0', '.2']
+r124_norm referenced names: ('F', 'layer_norm', 'r124_W') constants: ['.weight', '.bias']
+local104 referenced names: ('removed104', 'theta104', 'R104', 'tilt104', 'baseL104', 'max', 'np', 'exp', 'sum', 'mean', 'log', 'maximum', 'arange', 'len', 'bin104', 'C104') constants: [-1, True, 0, 1e-35, 1]
+
+--- Candidate/reconstruction variable names ---
+r98 []
+r99 []
+r103 []
+r104 []
+r105 []
+r106 []
+Other reconstruction arrays: [('zdraw', (48, 1000, 32)), ('rec_gate_y', (4510,)), ('rec_gate_pred', (4510,)), ('rec_gate_v', (192,)), ('gate', (440,)), ('trial_gated_va', (440,)), ('trial_gate_margins', (4510,)), ('q_draws', (32, 4510, 192)), ('q_alt_draws', (32, 4510, 192)), ('wc_draws', (32, 4510, 192)), ('wc_alt_draws', (32, 4510, 192)), ('mc_code_gate', (32, 4510)), ('draws68', (32, 4510, 192)), ('draw68', (4510, 192)), ('xgate', (4510, 192)), ('latent98', (32, 4510, 192)), ('drawmean98', (32, 4510)), ('fitdraws99', (8,)), ('gate_target99', (4510,)), ('gate_scores99', (36000,)), ('gate_truth99', (36000,)), ('oldraw105', (32, 4510, 17)), ('oldraw106', (32, 4510, 17))]
+
+--- Initial record-derived evidence ---
+# Weight-repair notebook
+
+## Objective and constraints
+- Infer this simulated ICU's drug effects from the provided records only.
+- Repair the four dose-rollout readouts while increasing factual value NLL by no more than 0.005 nats per reading.
+- No model gradients or weight optimiser; statistical fits and computed weight edits only.
+- Limits: 300 Python runs and 50 forward requests.
+
+## Run 1
+Requested architecture, data schema, vocabulary, and tensor shapes. No causal conclusions or weight edits yet.
+
+## Run 2
+Architecture: actions have a separate DeepSets encoder, then enter the posterior and recurrent prelude. Reading heads also have same-code last-reading registers and transition logits. No drug effects inferred yet. Loaded train/tuning records and inspected schedule and drug encodings.
+
+## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+## Forward requests 1 and 2
+Original factual NLL (tuning IDs 2020000000..99): 1.63461; provisional maximum 1.63961.
+Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours 
+
+```

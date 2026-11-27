@@ -1,0 +1,267 @@
+OUTPUT of Python run 187 of at most 300:
+```
+IDENTIFICATION DETAILS
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edits.
+- Insulin policy has sharp rate jumps near finger glucose 150, 180, etc.; testing fuzzy RD rather than assuming observed dose associations are causal.
+{
+  "rd_checks": {
+    "(5, 1, False)": {
+      "n": 89398,
+      "beta": -2.11567545402709,
+      "se": 0.33683734799038334,
+      "first_stage_jump": 0.7135711767182463,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 1, True)": {
+      "n": 89398,
+      "beta": -2.0571854815200568,
+      "se": 0.3057137413636479,
+      "first_stage_jump": 0.7135240538160252,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, False)": {
+      "n": 89398,
+      "beta": -2.1113769908453865,
+      "se": 0.7234826044355352,
+      "first_stage_jump": 0.683167099721991,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, True)": {
+      "n": 89398,
+      "beta": -2.179170250120743,
+      "se": 0.6564570134763864,
+      "first_stage_jump": 0.6832177747842112,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 1, False)": {
+      "n": 179126,
+      "beta": -1.919425767186608,
+      "se": 0.22837478130371563,
+      "first_stage_jump": 0.6926458851218907,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 1, True)": {
+      "n": 179126,
+      "beta": -1.9151498499552946,
+      "se": 0.20658614946993908,
+      "first_stage_jump": 0.6925843696745465,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 2, False)": {
+      "n": 179126,
+      "beta": -2.156108590545677,
+      "se": 0.365258324667667,
+      "first_stage_jump": 0.7396721616358036,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 2, True)": {
+      "n": 179126,
+      "beta": -2.1745694951076504,
+      "se": 0.3321482939180942,
+      "first_stage_jump": 0.7396569700924231,
+     
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+- RD beta/persistence: [-1.9287092802694472, 0.8318395202800747].
+- Fixed-record insulin x2 target, train / first 100 tuning: ((-11.136162060797929, 152158), (-10.707835822880574, 554)); half is -0.5 times x2.
+- Flexible, stay-held-out NE estimates remain observational, not automatically causal.
+{
+  "1": {
+    "all": {
+      "beta": 3.3214268014980317,
+      "se": 0.09576999832526349,
+      "n": 299517,
+      "dose_residual_sd": 0.09073010103067478,
+      "outcome_residual_sd": 4.40471740317129
+    },
+    "interior": {
+      "beta": 3.3480345525779405,
+      "se": 0.10803830467896791,
+      "n": 116511,
+      "dose_residual_sd": 0.12413404307882044,
+      "outcome_residual_sd": 4.590900888397296
+    }
+  },
+  "4": {
+    "all": {
+      "beta": 3.280136875394464,
+      "se": 0.09669211095919605,
+      "n": 260475,
+      "dose_residual_sd": 0.09223969594935504,
+      "outcome_residual_sd": 4.268125306872915
+    },
+    "interior": {
+      "beta": 3.328771594136043,
+      "se": 0.10795623473196006,
+      "n": 99386,
+      "dose_residual_sd": 0.12647869705939818,
+      "outcome_residual_sd": 4.443289044173014
+    }
+  },
+  "8": {
+    "all": {
+      "beta": 3.3242140350967726,
+      "se": 0.10443699572843235,
+      "n": 208459,
+      "dose_residual_sd": 0.09364732007161047,
+      "outcome_residual_sd": 4.217548630415361
+    },
+    "interior": {
+      "beta": 3.3899126865451534,
+      "se": 0.11784978539028063,
+      "n": 77672,
+      "dose_residual_sd": 0.12868938320587522,
+      "outcome_residual_sd": 4.40078981957742
+    }
+  }
+}
+
+## Latent-robust gated graft; Python 72, forward 7/50
+- Refit a register/latent-protected innovation decoder on sampled inputs from 200 training stays.
+- Valid-history gate suppresses initial readings and non-glucose outcomes.
+- CPU paired costs: {0.0: -2.8449054298107512e-05, -2.0: -0.00044632816570810974, -4.0: -0.000687271764036268, -8.0: -0.0006421973230317235}; beta=-2.0; applied=True.
+- GPU factual acceptance and intervention leverage remain untested.
+
+## GPU validation of latent-robust graft; Python 73, forwards 8?9
+- beta=-2 graft passed paired factual check on first 100 tuning stays:
+  original NLL 1.63461, edited 1.63453 (delta -0.00008).
+- Paired rollouts: insulin x2 -1.847 -> -2.375; half .777 -> 1.062.
+  NE x2 -.498 -> -.505; half -.600 -> -.605.
+- Insulin leverage is real but too weak relative to the earlier RD-derived target.
+- Inspecting the retained graft construction before increasing its strength.
+
+
+CONTRAST CANDIDATE
+w (192,)
+b -3.1543821965006478
+scale 2.0
+factual {'first': 0.017010092735290527, 'extra': 0.007724761962890625, 'tuning': 0.015634536743164062}
+shifts {0.5: 0.36483293771743774, 2.0: -2.1243650913238525}
+rmse 0.06296516542870327
+
+FUNCTION CONSTRUCTION
+make_contrast_graft arguments: (w, b, scale=1.0) names: ('sc_original', 'items', 'np', 'asarray', 'float32', 'copy', 'map', 'int', 'sc_nodes', 'sc_gate_w', 'sc_names', 'float', 'sc_gate_b', 'sc_rank', 'sc_bias_comp') constants: (None, ('dtype',), 0, 1, 2, 3)
+  6           0 RESUME                   0
+
+  8           2 LOAD_GLOBAL              0 (sc_original)
+             12 LOAD_ATTR                3 (NULL|self + items)
+             32 CALL                     0
+
+  7          40 GET_ITER
+             42 LOAD_FAST_AND_CLEAR      3 (name)
+             44 LOAD_FAST_AND_CLEAR      4 (value)
+             46 SWAP                     3
+             48 BUILD_MAP                0
+             50 SWAP                     2
+        >>   52 FOR_ITER                57 (to 170)
+
+  8          56 UNPACK_SEQUENCE          2
+             60 STORE_FAST               3 (name)
+             62 STORE_FAST               4 (value)
+
+  7          64 LOAD_FAST                3 (name)
+             66 LOAD_GLOBAL              5 (NULL + np)
+             76 LOAD_ATTR                6 (asarray)
+             96 LOAD_FAST                4 (value)
+             98 LOAD_GLOBAL              4 (np)
+            108 LOAD_ATTR                8 (float32)
+            128 KW_NAMES                 1 (('dtype',))
+            130 CALL                     2
+            138 LOAD_ATTR               11 (NULL|self + copy)
+            158 CALL                     0
+            166 MAP_ADD                  2
+            168 JUMP_BACKWARD           59 (to 52)
+        >>  170 END_FOR
+            172 STORE_FAST               5 (out)
+            174 STORE_FAST               3 (name)
+            176 STORE_FAST               4 (value)
+
+  9         178 LOAD_GLOBAL             13 (NULL + map)
+            188 LOAD_GLOBAL             14 (int)
+            198 LOAD_GLOBAL             16 (sc_nodes)
+            208 CALL                     2
+            216 UNPACK_SEQUENCE          2
+            220 STORE_FAST               6 (n0)
+            222 STORE_FAST               7 (n1)
+
+ 10         224 LOAD_GLOBAL              5 (NULL + np)
+            234 LOAD_ATTR                6 (asarray)
+            254 LOAD_GLOBAL             18 (sc_gate_w)
+            264 LOAD_GLOBAL              4 (np)
+            274 LOAD_ATTR                8 (float32)
+            294 CALL                     2
+            302 LOAD_GLOBAL              5 (NULL + np)
+            312 LOAD_ATTR                6 (asarray)
+            332 LOAD_FAST                0 (w)
+            334 LOAD_GLOBAL              4 (np)
+            344 LOAD_ATTR                8 (float32)
+            364 CALL                     2
+            372 BINARY_OP                0 (+)
+            376 LOAD_FAST                5 (out)
+            378 LOAD_GLOBAL             20 (sc_names)
+            388 LOAD_CONST               2 (0)
+            390 BINARY_SUBSCR
+            394 BINARY_SUBSCR
+            398 LOAD_FAST                6 (n0)
+            400 STORE_SUBSCR
+
+ 11         404 LOAD_GLOBAL              5 (NULL + np)
+            414 LOAD_ATTR                6 (asarray)
+            434 LOAD_GLOBAL             18 (sc_gate_w)
+            444 LOAD_GLOBAL              4 (np)
+            454 LOAD_ATTR                8 (float32)
+            474 CALL                     2
+            482 LOAD_FAST                5 (out)
+            484 LOAD_GLOBAL             20 (sc_names)
+            494 LOAD_CONST               2 (0)
+            496 BINARY_SUBSCR
+            500 BINARY_SUBSCR
+            504 LOAD_FAST                7 (n1)
+            506 STORE_SUBSCR
+
+ 12         510 LOAD_GLOBAL             23 (NULL + float)
+            520 LOAD_GLOBAL             24 (sc_gate_b)
+            530 CALL                     1
+            538 LOAD_GLOBAL             23 (NULL + float)
+            548 LOAD_FAST                1 (b)
+            550 CALL                     1
+            558 BINARY_OP                0 (+)
+            562 LOAD_FAST                5 (out)
+            564 LOAD_GLOBAL             20 (sc_names)
+            574 LOAD_CONST               3 (1)
+            576 BINARY_SUBSCR
+            580 BINARY_SUBSCR
+            584 LOAD_FAST                6 (n0)
+            586 STORE_SUBSCR
+
+ 13         590 LOAD_GLOBAL             23 (NULL + float)
+            600 LOAD_GLOBAL             24 (sc_gate_b)
+            610 CALL                     1
+            618 LOAD_FAST                5 (out)
+            620 LOAD_GLOBAL       
+sc_evaluate arguments: (cache, w, b, scale=1.0) names: ('np', 'asarray', 'float32', 'torch', 'from_numpy', 'nn', 'functional', 'gelu', 'numpy', 'sc_rank', 'softmax', 'mean', 'log', 'maximum', 'arange', 'len', 'sum', 'float', 'std', 'quantile') constants: (None, 'x', ('dtype',), 'gate', 'logits', (Ellipsis, None), -1, 0, 'bins', 1e-30, 'centres', (0.001, 0.5, 0.999), ('nll', 'mean', 'signal_sd', 'signal_quantiles'))
+  9           0 RESUME                   0
+
+ 10           2 LOAD_FAST                0 (cache)
+              4 LOAD_CONST               1 ('x')
+              6 BINARY_SUBSCR
+             10 LOAD_GLOBAL              1 (NULL + np)
+             20 LOAD_ATTR                2 (asarray)
+             40 LOAD_FAST                1 (w)
+             42 LOAD_GLOBAL            
+[output cut at 10,000 characters]
+```

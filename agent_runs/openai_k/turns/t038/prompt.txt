@@ -1,0 +1,69 @@
+OUTPUT of Python run 32 of at most 300:
+```
+=== EXACT HELPER OPERATIONS ===
+
+audit_block
+LOAD_GLOBAL:NULL + norm0 | LOAD_FAST:x | LOAD_FAST:prefix | LOAD_CONST:'.norm1' | BINARY_OP:+ | CALL | STORE_FAST:normalized | LOAD_FAST:x | LOAD_GLOBAL:NULL + audit_attention
+LOAD_FAST:normalized | LOAD_FAST:normalized | LOAD_FAST:prefix | LOAD_CONST:'.attn' | BINARY_OP:+ | CALL | BINARY_OP:+ | STORE_FAST:x | LOAD_FAST:memory
+POP_JUMP_IF_NONE:to 142 | LOAD_FAST:x | LOAD_GLOBAL:NULL + audit_attention | LOAD_GLOBAL:NULL + norm0 | LOAD_FAST:x | LOAD_FAST:prefix | LOAD_CONST:'.norm2' | BINARY_OP:+ | CALL
+LOAD_FAST:memory | LOAD_FAST:prefix | LOAD_CONST:'.cross' | BINARY_OP:+ | LOAD_FAST:mask | LOAD_FAST:key_memory | CALL | BINARY_OP:+ | STORE_FAST:x
+LOAD_FAST:x | LOAD_GLOBAL:NULL + mlp0 | LOAD_GLOBAL:NULL + norm0 | LOAD_FAST:x | LOAD_FAST:prefix | LOAD_CONST:'.norm3' | BINARY_OP:+ | CALL | LOAD_FAST:prefix
+LOAD_CONST:'.ffn' | BINARY_OP:+ | LOAD_CONST:'gelu' | CALL | BINARY_OP:+ | RETURN_VALUE
+
+audit_core_update
+LOAD_GLOBAL:core_probe_h | STORE_FAST:h | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:cat | LOAD_FAST:h | LOAD_GLOBAL:W0 | LOAD_CONST:'core.slots' | BINARY_SUBSCR | LOAD_CONST:None
+LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | BINARY_OP:+
+LOAD_GLOBAL:core_probe_e | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | LOAD_CONST:None | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | BUILD_TUPLE
+BINARY_SUBSCR | LOAD_GLOBAL:core_probe_u | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | LOAD_CONST:None | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE
+BUILD_TUPLE | BINARY_SUBSCR | LOAD_GLOBAL:NULL + lin0 | LOAD_FAST:z | LOAD_CONST:'z_in' | CALL | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE
+LOAD_CONST:None | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | BUILD_LIST | LOAD_CONST:1 | KW_NAMES:('dim',)
+CALL | STORE_FAST:tokens | LOAD_GLOBAL:NULL + audit_block | LOAD_FAST:tokens | LOAD_CONST:'core.prelude.0' | CALL | STORE_FAST:tokens | LOAD_GLOBAL:NULL + norm0 | LOAD_FAST:tokens
+LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | LOAD_CONST:None | LOAD_CONST:4 | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | LOAD_CONST:'core.prelude_norm'
+CALL | STORE_FAST:E | LOAD_GLOBAL:NULL + mlp0 | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:log1p | LOAD_GLOBAL:core_probe_ages | CALL | LOAD_FAST:age_scale | BINARY_OP:*
+LOAD_CONST:'core.age' | LOAD_CONST:'gelu' | CALL | STORE_FAST:age | LOAD_GLOBAL:core_probe_memory | LOAD_FAST:age | BINARY_OP:+ | STORE_FAST:key_memory | LOAD_FAST:keys_only
+POP_JUMP_IF_FALSE:to 382 | LOAD_GLOBAL:core_probe_memory | JUMP_FORWARD:to 384 | LOAD_FAST:key_memory | STORE_FAST:value_memory | LOAD_FAST:h | LOAD_FAST:E | BINARY_OP:+ | STORE_FAST:state
+LOAD_GLOBAL:NULL + audit_block | LOAD_FAST:state | LOAD_CONST:'core.blocks.0.0' | LOAD_FAST:value_memory | LOAD_GLOBAL:core_probe_mask | LOAD_FAST:keys_only | POP_JUMP_IF_FALSE:to 430 | LOAD_FAST:key_memory | JUMP_FORWARD:to 432
+LOAD_CONST:None | CALL | STORE_FAST:state | LOAD_GLOBAL:NULL + audit_block | LOAD_FAST:state | LOAD_CONST:'core.blocks.0.1' | LOAD_FAST:value_memory | LOAD_GLOBAL:core_probe_mask | LOAD_FAST:keys_only
+POP_JUMP_IF_FALSE:to 476 | LOAD_FAST:key_memory | JUMP_FORWARD:to 478 | LOAD_CONST:None | CALL | STORE_FAST:state | LOAD_GLOBAL:NULL + F | LOAD_ATTR:softplus | LOAD_GLOBAL:W0
+LOAD_CONST:'core.delta_in' | BINARY_SUBSCR | CALL | STORE_FAST:delta | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:exp | LOAD_FAST:delta | UNARY_NEGATIVE | LOAD_GLOBAL:NULL + torch
+LOAD_ATTR:exp | LOAD_GLOBAL:W0 | LOAD_CONST:'core.a_in' | BINARY_SUBSCR | CALL | BINARY_OP:* | CALL | STORE_FAST:retention | LOAD_FAST:retention
+LOAD_CONST:None | LOAD_CONST:None | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | LOAD_FAST:h | BINARY_OP:*
+STORE_FAST:new_h | LOAD_FAST:new_h | LOAD_FAST:delta | LOAD_CONST:None | LOAD_CONST:None | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE | BUILD_TUPLE
+BINARY_SUBSCR | LOAD_GLOBAL:NULL + lin0 | LOAD_FAST:E | LOAD_CONST:'core.b_in' | CALL | BINARY_OP:* | BINARY_OP:+ | STORE_FAST:new_h | LOAD_FAST:new_h
+LOAD_FAST:state | BINARY_OP:+ | LOAD_FAST:h | LOAD_FAST:E | BINARY_OP:+ | BINARY_OP:- | STORE_FAST:new_h | LOAD_GLOBAL:NULL + audit_block | LOAD_GLOBAL:NULL + lin0
+LOAD_FAST:new_h | LOAD_CONST:'core.c_out' | CALL | LOAD_CONST:'core.coda.0' | CALL | STORE_FAST:new_h | LOAD_GLOBAL:NULL + norm0 | LOAD_FAST:new_h | LOAD_ATTR:NULL|self + mean
+LOAD_CONST:1 | KW_NAMES:('dim',) | CALL | LOAD_CONST:'core.out_norm' | CALL | STORE_FAST:out | LOAD_FAST:out | LOAD_FAST:new_h | BUILD_TUPLE
+RETURN_VALUE
+
+=== INPUT AND STATE SCALES ===
+core_probe_previous shape (64, 4, 192) quantiles [-154.85779  -19.73314   -0.88659   22.83428  166.25412]
+core_probe_h shape (64, 4, 192) quantiles [-126.48135  -17.79913   -0.87067   19.9748   113.01765]
+core_probe_e shape (64, 192) quantiles [-5.25726 -1.03728  0.03595  1.10118  4.14178]
+core_probe_u shape (64, 192) quantiles [-3.06522 -0.99822 -0.02395  1.00163  4.4271 ]
+core_probe_z shape (64, 32) quantiles [-0.92323 -0.15737 -0.00477  0.11253  0.95902]
+core_probe_memory shape (64, 51, 192) quantiles [-5.69741 -0.50552  0.       0.53298  4.752  ]
+core_probe_dt shape (64,) quantiles [299.88 299.88 299.88 299.88 299.88]
+core_probe_ages shape (64, 51, 1) quantiles [    0.          0.          0.      46800.      93899.88281]
+saved out RMS: 1.0127745866775513
+saved h RMS: 41.94512939453125
+
+=== RECURRENT PARAMETERS ===
+core.delta_in [0.413489 0.481191 0.539117 0.594906 0.661114]
+core.a_in [-0.099111 -0.038828  0.014477  0.075581  0.179616]
+core.flow.a [-17.898201 -16.818906 -12.263233  -7.483629  -6.35175 ]
+first probe dt: [299.8800048828125, 299.8800048828125, 299.8800048828125, 299.8800048828125, 299.8800048828125, 299.8800048828125]
+first probe ages: [43499.87890625, 39899.87890625, 36299.87890625, 36000.0, 32699.880859375, 32400.0, 29099.880859375, 28800.0]
+first probe memory mask: [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, False, False, False, False]
+
+=== ENCODING/PREVIOUS-STATE OBJECT NAMES ===
+previous (24, 992)
+context_base (24, 192)
+context (24, 192)
+context_part (24, 192)
+valid_previous_audit (3935,)
+contexts_audit (4035, 192)
+prev_audit (3935, 992)
+encoded_actions (1191, 192)
+core_probe_previous (64, 4, 192)
+
+```

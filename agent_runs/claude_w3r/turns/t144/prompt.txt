@@ -1,0 +1,48 @@
+OUTPUT of Python run 131 of at most 300:
+```
+FUNCS: ['LNt', 'age_emb', 'atom_vec', 'build_bundles', 'core_step', 'core_step_m', 'core_step_p', 'core_step_v', 'cross_val_predict', 'cvfit', 'cvr2', 'cvr2_', 'drop_edit', 'edges_of', 'edited', 'enc_eu', 'eval_stay_rel', 'fbin', 'ffn', 'fn', 'head_feats', 'head_inputs', 'load', 'load_original', 'm_of', 'mha', 'mlp_t', 'pred', 'pred_c', 'pred_mean_gf', 'pred_v', 'read_stays', 'run_stay', 's_of', 'save_edit', 'score', 'score2', 'stay_data', 'step_at', 'step_parts', 'sv', 'u_of', 'zsc']
+VARS: ['A:ndarray', 'A_:ndarray', 'A_atoms:Tensor', 'B0:list', 'BANDS:list', 'B_:list', 'Bd:ndarray', 'C:ndarray', 'CEN:dict', 'CODE:dict', 'D:DataFrame', 'DEV:ndarray', 'DH:DataFrame', 'E0:Tensor', 'E160:Tensor', 'E1:Tensor', 'E:Tensor', 'EM:ndarray', 'EPS:Tensor', 'EU0:list', 'EU_:list', 'FA:ndarray', 'FH:ndarray', 'Gf:ndarray', 'GroupKFold:ABCMeta', 'H2:ndarray', 'H2b:ndarray', 'H:ndarray', 'HD:Head', 'Head:type', 'Ins:ndarray', 'J:ndarray', 'JE:ndarray', 'JX:ndarray', 'Jo:ndarray', 'JoE:ndarray', 'Js:list', 'Jz:list', 'L1:ndarray', 'L1g:ndarray', 'LASTREG:dict', 'LinearRegression:ABCMeta', 'M:type', 'MBAND:list', 'MT:DataFrame', 'Mage:Tensor', 'Mcell:ndarray', 'Mem:Tensor', 'Mq:ndarray', 'NAMES:list', 'NUM:dict', 'OI:ndarray', 'OPTS:dict', 'PA:dict', 'PMm:list', 'PN:tuple', 'PREV:dict', 'PREVt:dict', 'Q:ndarray', 'QW:ndarray', 'R:ndarray', 'RidgeCV:ABCMeta', 'Rv:ndarray', 'S2:Tensor', 'SHAPES:dict', 'SHR:ndarray', 'SST:ndarray', 'SX:ndarray', 'S_:NpzFile', 'S_list:list', 'Sg:Tensor', 'Si:ndarray', 'Sig:ndarray', 'Sig_r:ndarray', 'T_:ndarray', 'Ti:ndarray', 'Tn:ndarray', 'U:Tensor', 'Ug:Tensor', 'V:dict', 'VOCAB:dict', 'V_:Tensor', 'Vc:ndarray', 'W2:ndarray', 'W:dict', 'W_m1:Tensor', 'W_m2:Tensor', 'Wt:dict', 'X:ndarray', 'XE:ndarray', 'XO:ndarray', 'XU:ndarray', 'XW:ndarray', 'X_:Tensor', 'Xc:ndarray', 'Xd:ndarray', 'Xg:ndarray', 'Xs0:Tensor', 'Xs1:Tensor', 'Zall:ndarray', 'a:float', 'abar:Tensor', 'act:list', 'act_:list', 'age:float64', 'age_s:float', 'ages:float64', 'al:list', 'att0:Tensor', 'att:Tensor', 'attz:list', 'b:float', 'bE:Tensor', 'b_m1:Tensor', 'b_m2:Tensor', 'bad:list', 'best:dict', 'bidx:dict', 'c12:float64', 'c13:float64', 'c17:Tensor', 'c1:float', 'c:int64', 'cc:str', 'cell:ndarray', 'cen:Tensor', 'chk:float32', 'co:code', 'code:str', 'code_txt:str', 'codes:list', 'cs:list', 'ctrl:ndarray', 'ctx:Tensor', 'ctx_:Tensor', 'cvec:ndarray', 'd1:ndarray', 'd2:ndarray', 'd:str', 'dE:Tensor', 'd_:Tensor', 'dead1:ndarray', 'dead2:ndarray', 'dec:Tensor', 'decay:Tensor', 'dif:ndarray', 'dm:str', 'dt:float', 'dtk:float', 'dtn:float']
+5234
+---- with_code 
+ e number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_
+---- embed_transition 
+ + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    con
+---- register 
+ t_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - 
+---- attr_heads.value 
+  embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and 
+
+```

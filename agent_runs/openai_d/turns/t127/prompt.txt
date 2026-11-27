@@ -1,0 +1,238 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 126 replies happened before. Forward passes used: 12 of 50; Python runs used: 112 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate_v1.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+g whether register-projected decoder features were mistakenly installed as coefficients on raw with-code inputs. No edits installed.
+
+## Runs 59–60: corrected latent audit
+Run 59 stopped at an incorrect tensor prefix; z_head is top-level. Run 60 tests individual-draw sensitivity and the type-embedding mismatch. No weights edited.
+
+## Restart / Run 61
+No edits. Run 60 showed severe individual-latent sensitivity in the rejected head construction, with unreliable local reconstruction. Recovering the architecture, causal estimates, and persistent helpers before another edit.
+
+## Runs 65–68: fresh head reconstruction
+Cached weights equal the original files. The prior and forecast gap inputs must be tested separately; a seconds-based /10 forecast gap sharply reduces the previous glucose reconstruction error. Rebuilding latent-aware innovation decoders and checking cross-stay performance before any new edit. No edits.
+
+## Runs 74–79: restart audit
+No edits. Recovered record-based immediate effects: insulin about -1.99 per rate unit; norepinephrine about +3.29. Provisional controlled-kernel rollout targets: insulin x2 -14.18, half +7.09; NE x2 +4.68, half -2.34. Stored reading gate is excellent on its fitted projected features but fails on sampled raw head inputs. Auditing feature projection and reconstruction before any new installation.
+
+## Run 83: deterministic reading-head diagnostic
+All previous edits were absent. Temporarily zeroed z_head.weight only, to remove prior-draw uncertainty from factual reading predictions on the 100 training stays with saved original states. This is a diagnostic, not a proposed final repair. Require near-exact local/GPU head agreement before installing another gated correction; restore z_head afterward.
+
+## Runs 85–86: identifiable register probe
+Deterministic head scan did not achieve exact agreement: best normalized mean RMSE 0.02094 and NLL RMSE 0.10588. Temporarily zeroed query_norm and value transitions, and installed an analytically constructed linear value-head probe. Its scalar register coefficients are powers of two /128, so observed probe means can identify the actual eight-input register layout. These edits are diagnostics only and must all be reverted.
+
+## Run 87: restart recovery
+Forward 9 was an artificial register probe (NLL 2.62934), not a candidate repair. Saved its diagnostic weights in r87_probe_weights and reverted every edit. Recovering the exact head layout from its saved outputs before further edits.
+
+## Runs 88–90: register probe decoding
+Original weights restored. Probe numeric coefficients verified as [1,2,4,8,16,32,64,128]/128. Inverting saved probe means to test eight-field register layouts, age units, status, and bin boundaries.
+
+## Run 96: probe-resolved reading register
+Controlled probe identifies numeric fields 0=presence, 3=log1p(age_seconds)/10, 6=last normalized value; other reading fields zero, left-sided bins, measurement status zero. Testing deterministic reconstruction against forward 8. No edits.
+
+## Run 97: exact deterministic head recovered
+Validated all cached forward-8 readings: seconds-based time flow, gap(log(dt_seconds)/10), GELU, type embedding 1, and probe-resolved register. This removes the reconstruction uncertainty that invalidated earlier gated edits. Original weights remain unchanged.
+
+## Run 98: stochastic head reconstruction
+Testing latent prior activation/packing against original factual outputs, allowing for the GPU's four prior draws. Recovered aligned innovation targets. No weights edited.
+{'activation': 'gelu', 'packing': 'split', 'normalized_MSE': 0.0028543598018586636, 'expected_four_draw_MSE': 0.0029637326952069998, 'excess_MSE': -0.00010937289334833622, 'NLL_RMSE': 0.20606064796447754, 'mean_log_sd': -0.48285219073295593}
+{'activation': 'gelu', 'packing': 'interleaved', 'normalized_MSE': 0.0041332063265144825, 'expected_four_draw_MSE': 0.0040336293168365955, 'excess_MSE': 9.957700967788696e-05, 'NLL_RMSE': 0.24339871108531952, 'mean_log_sd': -0.2101394534111023}
+{'activation': 'silu', 'packing': 'split', 'normalized_MSE': 0.00806079525500536, 'expected_four_draw_MSE': 0.0016576317138969898, 'excess_MSE': 0.00640316354110837, 'NLL_RMSE': 0.3298589587211609, 'mean_log_sd': -1.2057170867919922}
+{'activation': 'silu', 'packing': 'interleaved', 'normalized_MSE': 0.005343444179743528, 'expected_four_draw_MSE': 0.006770724896341562, 'excess_MSE': -0.001427280716598034, 'NLL_RMSE': 0.31665846705436707, 'mean_log_sd': -0.4464951455593109}
+
+## Run 99: latent-aware, cross-stay decoder tests
+Physical active-infusion labels recovered directly from records. Fitting innovation regressions and family/infusion gates on individual prior draws; holding out 25% of stays. No weight edits.
+[('insulin', (0.44562312272344906, 0.44570992471108317, 'raw', 0.1)), ('norepinephrine', (-0.04744019540362765, -0.04725591583177757, 'register_free', 10000.0))]
+
+## Restart / Run 100
+Original weights remain unchanged. Run 99 established insulin innovation held-out single-draw R2=0.446, but no useful NE decoder. Recovering exact head helpers, gates and causal estimates before an insulin-only controlled edit. Actual paired factual NLL and dose rollouts are required validation.
+
+## Run 103: candidate preparation
+Recovered stable DML immediate slopes: insulin -1.99285 (SE 0.04554), NE +3.29011 (SE 0.09111). Insulin state innovation decoder is useful; NE decoder is not. Checking standardized-feature conversion and exact cached value-head evaluation, then selecting low-contribution neurons for an insulin-only gated correction. No edits installed.
+
+## Run 104: local gated-insulin candidate
+Original tuning rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600. Provisional targets on those exact hours: insulin -13.599/+6.800, NE +4.746/-2.373. Constructed a raw-coordinate, latent-aware insulin gate/innovation correction using neurons 107/109; assessing local held-out NLL before installing any weights.
+
+## Run 105 result
+Installation aborted before save_edit: max logit reconstruction error 0.003045 exceeded numerical threshold 0.003. No edits saved. Likely cancellation between paired gated neurons; increasing their decoder separation to reduce numerical sensitivity.
+
+## Run 106: insulin candidate installed
+Increased symmetric decoder separation from 0.05 to 0.20 to reduce cancellation. Local checks passed; full-strength gated correction installed in value-head neurons 107/109, with mean compensation. Four value-head tensors edited. Awaiting paired GPU factual validation; not yet accepted.
+
+## Forward 10–11: first validated insulin candidate
+Four value-head tensors, hash 70c11c43ec. Paired tuning factual NLL:
+original 1.63461, edited 1.63592, delta +0.00131 (4751 readings).
+Dose shifts on the same 100 stays:
+original insulin -1.847/+0.777; edited -5.908/+2.782.
+Original NE -0.498/-0.600; edited -0.517/-0.615.
+Insulin intervention transmission improved substantially, but remains below
+provisional record-derived targets -13.599/+6.800. NE is not repaired.
+Backed up this factual-budget-compliant candidate in memory and
+/work/insulin_candidate_v1.npz before any further changes.
+
+## Runs 108–110: causal and construction recovery
+Immediate residual-dose effects are stable across hour/dose strata:
+insulin approximately -1.99 per rate unit; NE approximately +3.29.
+Cumulative targets use controlled impulse kernels and remain provisional.
+Recovered exact local amplitude evaluator and existing gated construction;
+testing scaling analytically before another weight installation.
+
+## Run 112: provisional insulin strength 2
+Scaled only the two correction output columns; gate, decoder, and
+removed-neuron mean compensation are unchanged.
+Local delta NLL at strength 2: all +0.002618, training +0.001343,
+held-out +0.006454. Held-out result is a generalization warning.
+This is a trial, not an accepted replacement. Saved strength-1 candidate
+remains available for immediate restoration. GPU factual check is next.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 12 of 50 done (factual); files in /work/fwd_12/. Summary:
+```
+{
+ "type": "factual",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.62044,
+   "n_values": 4664,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1364,
+     "nll": 1.446,
+     "mean_abs_error": 10.763
+    },
+    "glucose_lab": {
+     "n": 503,
+     "nll": 1.2871,
+     "mean_abs_error": 8.174
+    },
+    "map_arterial": {
+     "n": 1308,
+     "nll": 1.4935,
+     "mean_abs_error": 3.845
+    },
+    "map_cuff": {
+     "n": 1489,
+     "nll": 2.0043,
+     "mean_abs_error": 6.029
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.6231,
+   "n_values": 4664,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1364,
+     "nll": 1.4529,
+     "mean_abs_error": 10.869
+    },
+    "glucose_lab": {
+     "n": 503,
+     "nll": 1.2933,
+     "mean_abs_error": 8.246
+    },
+    "map_arterial": {
+     "n": 1308,
+     "nll": 1.4936,
+     "mean_abs_error": 3.845
+    },
+    "map_cuff": {
+     "n": 1489,
+     "nll": 2.0042,
+     "mean_abs_error": 6.028
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "seconds": 2.6
+}
+```
+Forward passes left: 38.
+Edits used in this pass: attr_heads.value_bin.0.bias, attr_heads.value_bin.0.weight, attr_heads.value_bin.2.bias, attr_heads.value_bin.2.weight (edit hash 43d7176a64).

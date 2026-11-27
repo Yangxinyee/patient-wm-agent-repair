@@ -1,0 +1,325 @@
+OUTPUT of Python run 74 of at most 300:
+```
+ARCH length 5234
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+==== kernel variables ====
+var A ndarray (400, 28)
+var A0 ndarray (8, 4)
+var A1 ndarray (8, 4)
+var A2 ndarray (8, 4)
+var A_B ndarray (8, 4)
+var B DataFrame (121221, 31)
+var BASE99 ndarray (5521, 192)
+var Bi DataFrame (254361, 34)
+var Bi_m list 3
+var Bn DataFrame (222826, 37)
+var Bn_g list 3
+var CEN dict 4
+var CENm ndarray (5521, 16)
+var CODE dict 6
+var C_list list 400
+var Cv ndarray (192, 192)
+var D ndarray (400, 25)
+var D2 DataFrame (720000, 11)
+var D5 dict 6
+var D6 dict 6
+var D7 dict 6
+var D99 dict 6
+var DS list 4
+var DSall list 4
+var EI ndarray (5521, 4)
+var EN ndarray (5521, 4)
+var E_list list 400
+var F DataFrame (263668, 17)
+var FF dict 6
+var FN ndarray (30000, 25, 12)
+var F_ ndarray (1776, 992)
+var G dict 6
+var G4 ndarray (5521, 4)
+var GF dict 6
+var GL list 2
+fn  GroupKFold
+var H ndarray (28,)
+fn  HGB
+var Hh ndarray (25,)
+fn  HistGradientBoostingRegressor
+fn  KFold
+var L DataFrame (263668, 14)
+var Lb DataFrame (263668, 17)
+var M4 DataFrame (5521, 18)
+var MP list 2
+var N DataFrame (171776, 26)
+var NA ndarray (400,)
+var NAMES list 181
+var NUM dict 8
+var Nb DataFrame (171776, 27)
+var P dict 6
+var P0 ndarray (60,)
+var PRE ndarray (5521, 192)
+var PREall ndarray (21904, 192)
+var PT dict 6
+var P_ ndarray (400, 32)
+var Pp ndarray (400, 32)
+var Q DataFrame (174162, 8)
+var Q99 ndarray (5521, 192)
+var Qg ndarray (2359, 192)
+var R DataFrame (121221, 23)
+var R99 DataFrame (5521, 15)
+var RI ndarray (121221, 6)
+var Rg DataFrame (2359, 15)
+fn  Ridge
+fn  RidgeCV
+var Rv DataFrame (298450, 13)
+var S dict 4
+var S2 NpzFile 6
+var S5 NpzFile 6
+var S6 NpzFile 6
+var S7 NpzFile 6
+var SHAPES dict 181
+var T dict 181
+var TR99 ndarray (5521, 17)
+var T_all ndarray (400, 32)
+var V dict 8
+var VOCAB dict 8
+var W dict 181
+var WC99 ndarray (5521, 192)
+var WCall ndarray (21904, 192)
+var Wln ndarray (192, 8)
+var X ndarray (5244, 992)
+var XA ndarray (1776, 992)
+var Xi DataFrame (254361, 16)
+var Xk ndarray (5521, 992)
+var Xn DataFrame (222826, 16)
+var Xne ndarray (750000, 12)
+var Xr ndarray (2752, 9)
+var Xs ndarray (53, 992)
+var XtX_inv ndarray (6, 6)
+var Z ndarray (2359, 24)
+var ZA ndarray (1776, 24)
+var ZP ndarray (400, 32)
+var ZPR ndarray (400, 32)
+var ZT ndarray (400, 32)
+var a ndarray (5244,)
+var act DataFrame (2491, 7)
+var act_ ndarray (192,)
+var act_frac ndarray (192,)
+var adm DataFrame (30000, 2)
+var ag float64 ()
+var ag_ ndarray (5521,)
+var age_div float 3600.0
+var allkeys set 0
+var arch str 
+var arch_lines list 6
+var art_all ndarray (30000,)
+var art_t ndarray (400,)
+fn  atom_vec
+var b ndarray (6,)
+var bA ndarray (1776,)
+var b_ tuple 4
+var b__ int 10
+fn  band_of
+var bands ndarray (2359,)
+fn  base_mk
+var best list 36
+var bm ndarray (30000, 28)
+var bnd ndarray (30000, 25)
+var both ndarray (30000, 28)
+var both_ids list 87
+var bothq DataFrame (34217, 8)
+fn  build
+fn  build12
+fn  build_cond
+fn  build_set
+var c int 6
+var c1 ndarray (1706,)
+var c2 ndarray (4654,)
+var c3 ndarray (4615,)
+var c4 ndarray (978,)
+var c5 ndarray (2833,)
+var cA ndarray (24,)
+var c_ int 12
+var cand list 40
+var cand2 list 400
+var cand_ids list 3232
+var cand_idx ndarray (3270,)
+var cc ndarray (5521,)
+var cc_ float64 ()
+var chk ndarray (342, 2)
+var co_ ndarray (9,)
+var codeall ndarray (21904,)
+var codes list 13
+var coef ndarray (24,)
+fn  col
+var cols_ list 8
+var combo list 3
+var condres dict 2
+var cor list 32
+var corp list 32
+fn  corr_shift
+fn  cross_val_predict
+fn  crossfit_resid
+var ctx ndarray (192,)
+var ctx_ ndarray (5521, 192)
+fn  ctx_best
+fn  ctx_of
+fn  ctx_var
+var d str 
+var d1 ndarray (2359,)
+var d2 ndarray (2359,)
+var dA ndarray (1776,)
+var d_ ndarray (2712,)
+var d_all ndarray (30000, 25)
+var de DataFrame (3384, 7)
+var dead ndarray (16,)
+fn  deconv
+var dm ndarray (106563,)
+var dmean ndarray (192,)
+fn  dml_sub
+var dres ndarray (2359,)
+var dresA ndarray (1776,)
+fn  drop_edit
+var drug str 
+var dt float64 ()
+var dts ndarray (400,)
+var dtv ndarray (5521,)
+var e dict 5
+var e_k ndarray (192,)
+var ed str 
+fn  edited
+fn  enc_a
+fn  enc_act
+var enc_act_n str 
+fn  enc_variant
+var eps_ins ndarray (30000, 25)
+var eps_ne ndarray (30000, 25)
+fn  erf
+var err4 ndarray (5521,)
+var ev str 
+var ev_by dict 5025
+var evs ndarray (60,)
+var evs_ list 2
+var ex list 1
+var extra list 13
+var f list 8
+var f0 DataFrame (60, 6)
+fn  f_
+var fa DataFrame (150, 6)
+var fa4 DataFrame (5521, 6)
+var fa_ ndarray (192,)
+var fb float64 ()
+fn  fbin
+fn  fbin_le
+var featcols list 16
+var feats dict 5
+var feats_ne list 25
+fn  ffill_last
+var fh TextIOWrapper 
+var first int 12
+fn  first_dose
+var fit OptimizeResult 12
+var fitA OptimizeResult 12
+var fit_idx ndarray (800,)
+var flow bool False
+var flow_k ndarray (192,)
+var fmul int 1
+fn  fn_
+var fr DataFrame (314, 12)
+var fs list 12
+var fw DataFrame (3384, 8)
+var g dict 167
+var g_ DataFrame (2, 11)
+var gb ndarray 
+[output cut at 10,000 characters]
+```

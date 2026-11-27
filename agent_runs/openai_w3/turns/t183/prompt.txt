@@ -1,0 +1,234 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 182 replies happened before. Forward passes used: 10 of 50; Python runs used: 164 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.2.bias', 'core.prelude.0.ffn.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+radients.
+
+Python run 96; forwards 7. No edits. Matching local readout reconstruction to existing authoritative factual outputs before calibrating core injection.
+
+Python run 97; forwards 7. Brute-force matching readout conventions against authoritative original factual means, using prior mean and known registers. No weights changed.
+
+Python runs 99-100; forwards 7. Original weights remain restored. Architecture re-read; recovering dose-extraction fits, identification evidence, and exact readout conventions before an effective recurrent edit.
+
+Python runs 103-104; forwards 7. Latent-token gate is strongly isolated: ordinary-token SD .00092, changed-action SD .00064 versus latent mean 1. Testing explicit dose decoder and low-variance attention-payload features for a posterior innovation channel. No weights edited yet.
+
+Python run 105; forwards 7. Refined explicit dose decoder and calibrated head-2 value-channel directions with numerical finite differences; exact prelude/core replay checked. No model gradients or weight edits.
+
+Python run 107; forwards 7. Calibration is not yet trusted: local readout and core disagreement require exact replay diagnosis. Original weights remain unchanged; recovering compact helper inventory.
+
+Python run 112; forwards 7. Dose-policy residual noise assessed (insulin .60, NE .25 on active bundles). New readout helper disagrees with earlier reconstruction; checking authoritative recurrent states and memory timing before any weight edit.
+
+Python run 118; forwards 7. Original weights unchanged. Recovered replay helpers; explicitly tested seconds versus hours for memory age against authoritative drug-bundle states.
+
+Python run 122; forwards 7. Context/view replay is close, but readout/register reconstruction remains unvalidated. Recovering architecture and retained helper inventory before calibration. No weights edited.
+
+Python run 128; forwards 7. Correct query type is 1. Prior-mean readout RMSE 1.766, averaged-prior RMSE 1.677, four-draw noise SD 1.156. Local readout is approximate; factual acceptance must use authoritative forwards. Moving to a reversible dose-contrast pilot rather than further exact-readout search.
+
+Python run 130; forwards 7. Restart recovered architecture and early identification evidence. No edits. Original rollout is severely attenuated relative to record-derived insulin and NE kernels; proceeding to a reversible action-path pilot with authoritative factual validation, not further exact-readout reconstruction.
+
+Python run 133; forwards 7. Retained Bdelta88 and payload104 fail direct paired-contrast validation (large error versus near-zero response); neither applied. Refit attention-pooled dose contrasts directly with whole-stay holdout and factual-covariance regularization. Original weights remain unchanged.
+
+Python run 136; forwards 7. Fresh FFN contrast fit has low factual variance and consistent insulin signs but misses NE stopping/halving; unsuitable as final full-dose solution. Constructed finite-difference low-rank injection directions and x2 contrast normalization for a reversible pathway pilot. No weight edits yet.
+
+Python runs 137-141; forwards 7. Recovered architecture and identification evidence. Record-derived immediate effects ~-1.94 insulin/glucose and +3.2 NE/MAP; 12-hour tuning reference shifts -12.96,+6.48,+4.28,-2.14. Candidate FFN hidden decoder has small factual residuals in each slot (insulin SD ~.06, NE ~.034); no cancellation across slots. Installed reversible rank-two correction to core.prelude.0.ffn.2 weight and bias: dW=directions136@B136.T, db=-dW@mu136, gains [1,1]. Directions are numerical finite-difference calibrations, no model gradients. Factual acceptance and actual rollout effects remain untested. NE halving/stopping decoder is known imperfect; this is a pathway pilot, not a final edit.
+
+Python run 142; forwards 9. Rank-two FFN pilot rejected and dropped. At gain [1,1], factual NLL rose 1.63982->1.64743 (+.00761), exceeding budget. Actual rollout shifts were -0.570,+0.194,-0.721,-0.303, versus originals -0.422,+0.213,-0.742,-0.238. Thus local finite-difference calibration did not translate into meaningful rollout repair. All weights restored. Investigating an explicit latent/action dose-innovation transport channel.
+
+Python run 143; forwards 9. Original weights remain restored. Recovering architecture, data schema, and earlier record-only causal evidence after failed FFN pilot; next correction must validate dose transport through actual rollout, not only local readout sensitivity.
+
+Python run 144; forwards 9. Record-derived insulin and NE effects disagree strongly with original rollouts. Recovering exact action/prelude/core helpers and explicit dose decoder to validate transport before another edit. No weights changed.
+
+Python run 145; forwards 9. Testing a dedicated latent-transport attention head, with zero payload first. Replayed original prelude and fitted three-head compensation on factual training states with whole-stay holdout; no weights changed.
+
+Python run 146; forwards 9. New prelude replay failed equality checks, so no head edit is justified. Comparing retained exact helper and raw-versus-normalized token conventions; original weights remain unchanged.
+
+Python run 147; forwards 9. Raw-token replay validated. Dedicated latent head 3; three-head and closed-form FFN compensation, held-out E RMSE 0.000725809. Zero-payload candidate installed=True; factual acceptance still requires authoritative forward. No dose payload yet.
+
+Python run 148; forwards 10. Zero-payload latent-head transport passed tuning factual test (1.63982 original, 1.63985 edited). Checking retained nonlinear action decoder and context dose-policy accuracy before adding a causal signal.
+
+Python run 149; forwards 10. Restart recovery: zero-payload latent-head transport remains installed and factual-neutral (+0.00003 NLL). Retained action decoder rate RMSE is about 0.021 insulin and 0.016 NE; context-policy prediction errors are much larger. Recovering exact transport, decoder, and record-identification evidence before adding any dose payload. No weights changed in this run.
+
+Python run 150; forwards 10. Architecture recovered. Current five-tensor edit reserves an attention transport head with factual compensation but no causal payload. Recovering its compact implementation and retained nonlinear decoder before a payload contrast test. No weights changed.
+
+Python runs 151-152; forwards 10. Run 151 diagnostic stopped on structured reference data; no weight changes. Recovered reference structure, prior posterior-pilot notes, decoder scenario checks, and reserved-head projection norms.
+
+Python run 153; forwards 10. Reconstructed original and saved gated-posterior pilot on aligned factual and scaled action cases, measuring latent contrasts before transport. Previous pilot rollout failure must be distinguished from decoder failure. Current five zero-payload transport edits remain unchanged; saved posterior pilot was not installed.
+
+Python run 154; forwards 10. Constructed, but did not install, four-neuron gated physical-dose innovations with fresh whole-stay-held-out context policies, compensated posterior outputs, and two explicit orthogonal latent carrier directions. Candidate dictionaries post154/zin154/zb154 retained. Transport and physiological output calibration still required; current five zero-payload edits unchanged.
+
+Python run 157; forwards 10. Posterior replay is authoritative (RMS 2.4e-5), but recurrent replay and readout calibration are not validated. Recovering architecture and retained transport/posterior candidates before further edits. Existing five-tensor zero-payload transport remains unchanged.
+
+Python run 162; forwards 10. Recurrent replay explicitly tested learned core.age embeddings, key-only versus source insertion, seconds/hours, log scaling, and memory inclusion. Best configuration: (0.002028598915785551, 1.4811970686423592e-05, True, 3600.0, 1.0, 0). No weights changed.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 164 of at most 300:
+```
+Posterior shape (4213, 32)
+Largest coordinate changes (SD, mean, coordinate): [(0.2887878715991974, 0.013763964176177979, 8), (0.1357770562171936, -0.06922029703855515, 30), (0.0017463952535763383, 7.845174695830792e-05, 5), (0.0010983835672959685, -4.931667717755772e-05, 3), (0.0010895391460508108, -4.893458026344888e-05, 11), (0.0010318568674847484, 4.632959098671563e-05, 26)]
+
+=== CARRIER DEFINITION ===
+reserved154 (2,) RMS 21.95449840010015 first [8, 30]
+rows154 (4,) RMS 80.79449238654823 first [31, 74, 93, 105]
+row154 np.int64(105)
+value_extract154 (192, 2) RMS 0.9839334178295129 first [-0.38424943825409436, -1.0418995877473909, -1.6095578906438115, -0.6437052026876674, -0.035939801192144925, 0.30019420558495574]
+presence154 (193,) RMS 789.5738207647158 first [228.47768333974338, 852.1067844638217, 1831.7128634670664, 704.2814300118808, -603.3403473625146, -1486.6024352328147]
+rate154 (193,) RMS 1351.380475846831 first [3668.182113829434, -491.24737235953216, 3559.0603544109726, -967.601616709577, 1152.5580965048073, -1669.7417573834962]
+sigma_ref154 0.2809787309540899
+
+=== READOUT LAYOUT ===
+codes97 (200,)
+first: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]
+transition97 torch.Size([200, 17])
+centres105 torch.Size([200, 17])
+attr_static105 torch.Size([200, 192])
+readrows121 (200, 6)
+   stay_id  hour          event  observed  predicted_mean    nll
+2020000086   9.0 glucose_finger     142.0        145.7734 0.9322
+2020000069  10.0 glucose_finger     190.0        173.6739 1.8211
+2020000004  11.0 glucose_finger     153.0        159.3316 1.3361
+2020000099   1.0 glucose_finger     116.0        113.1982 0.7044
+2020000003   7.0 glucose_finger     234.0        209.4495 2.7161
+2020000042   0.0 glucose_finger     176.0        209.9886 4.4993
+2020000078  22.0 glucose_finger     201.0        191.5779 1.1611
+2020000013  21.0 glucose_finger     173.0        188.6707 2.4503
+
+=== ACTION HELPERS AND SCENARIOS ===
+action_vectors87 (factors=(1.0, 1.0)) ('factors', 'names87', 'atoms87', 'owners87', 'counts87', 'local87', 'global87', 'row87', 'is_end87', 'mult87', 'changed87', 'summed87', 'hidden87', 'count87') ('np', 'zeros', 'len', 'idx81', 'float32', 'enumerate', 'r40_info', 'int', 'event', 'float', 'index', '_replace', 'rate', 'dose', 'append', 'atom80', 'torch', 'mlp', 'stack', 'index_add_', 'tensor', 'long', 'from_numpy', 'layer_norm', 'clamp_min', 'sqrt', 'linear', 'log1p')
+repair_action_vectors (end_mode, multipliers) ('end_mode', 'multipliers', 'atoms', 'owners', 'counts', 'local_i', 'global_i', 'row', 'is_end', 'mult', 'changed', 'atom_tensor', 'hidden', 'summed', 'count_tensor', 'encoded') ('np', 'zeros', 'len', 'r41_action_idx', 'int64', 'enumerate', 'r40_info', 'event', 'r41_drug_names', 'index', '_replace', 'float', 'rate', 'dose', 'append', 'make_atom', 'torch', 'stack', 'mlp', 'index_add_', 'tensor', 'float32', 'clamp_min', 'layer_norm', 'sqrt', 'linear', 'log1p', 'numpy')
+atom80 (row, is_end=False, end_mode='preserve') ('row', 'is_end', 'end_mode', 'a80', 'old80') ('make_atom', 'event', 'units80', 'startswith', 'W')
+u_cases153 (11, 1054, 192)
+y_cases153 (11, 1054, 4)
+z_original153 (11, 1054, 32)
+z_pilot153 (11, 1054, 32)
+latent_original153 (11, 1054, 192)
+latent_pilot153 (11, 1054, 192)
+
+=== PRELUDE INJECTION INTERFACE ===
+BINARY_OP +
+STORE_FAST after155
+LOAD_FAST injection
+POP_JUMP_IF_NONE to 848
+LOAD_FAST after155
+LOAD_GLOBAL NULL + tensor153
+LOAD_FAST injection
+CALL 
+BINARY_OP +
+STORE_FAST after155
+LOAD_GLOBAL NULL + F
+LOAD_ATTR layer_norm
+LOAD_FAST after155
+LOAD_CONST (192,)
+PUSH_NULL 
+LOAD_FAST w155
+LOAD_FAST p155
+LOAD_FAST after155
+LOAD_GLOBAL NULL + tensor153
+LOAD_FAST injection
+CALL 
+BINARY_OP +
+STORE_FAST after155
+LOAD_GLOBAL NULL + F
+LOAD_ATTR layer_norm
+LOAD_FAST after155
+LOAD_CONST (192,)
+PUSH_NULL 
+LOAD_FAST w155
+LOAD_FAST p155
+LOAD_CONST '.norm3.weight'
+BINARY_OP +
+CALL 
+PUSH_NULL 
+
+=== NUMERIC VOCAB SAMPLE ===
+list
+[{'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 78.0, 81.0, 84.0, 89.0, 92.0, 95.0, 98.0]}, {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [40.0, 46.0, 52.0, 60.0, 69.0, 74.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}, {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [78.0, 87.0, 96.0, 109.0, 128.0, 144.0, 154.0, 164.0, 173.0, 183.0, 196.0, 214.0, 230.0, 243.0, 259.0]}, {'code': 'glucose_lab', 'attribute': 'value', 'median': 142.0, 'iqr': 52.0, 'fine_bin_edges': [74.0, 81.0, 89.0, 98.0, 111.0, 122.0, 132.0, 142.0, 152.0, 163.0, 177.0, 198.0, 216.0, 230.0, 246.0]}, {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.208, 'iqr': 2.88, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.384, 0.72, 1.152, 1.68, 2.208, 2.784, 3.456, 4.176, 4.8, 4.8, 4.8, 4.8]}, {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, {'code': 'insulin', 'attribute': 'rate', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, {'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.46, 'iqr': 0.6000000000000001, 'fine_bin_edges
+Traceback (most recent call last):
+  File "<run>", line 64, in <module>
+AttributeError: 'numpy.ndarray' object has no attribute 'columns'
+
+```

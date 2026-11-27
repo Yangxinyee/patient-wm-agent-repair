@@ -1,0 +1,127 @@
+OUTPUT of Python run 65 of at most 300:
+```
+=== NOTEBOOK: SELECTIVE EDIT RESULTS ===
+factual_projection_mean': 0.5156701322550686, 'factual_projection_sd': 0.5009638916755382}, 'white': {'dose_projection': 0.09488102309376231, 'readout_projection': 1.0660110224997374, 'rank1_response_per_alpha': 0.10114421644400276, 'factual_projection_mean': 0.019418567291535963, 'factual_projection_sd': 0.12360463576393582}}}}
+- These regressions approximate head sensitivity; forward tests remain decisive.
+- Python runs: 14; forward passes: 8.
+
+## Run 15: candidate C, action numeric amplification
+- Head surrogates give immediate insulin sensitivity -0.319 per unit and NE sensitivity +0.808 per rate unit, but are approximate.
+- Whitened directions overlap (cosine 0.848); whitening reverses the estimated insulin readout sign. Direct head amplification is not justified yet.
+- Applied one input-side rank-one edit to embed.numeric.weight: multiply the equal z_dose/z_rate signal by 4. Measurement numeric inputs, presence flags, bins, and reading registers are unchanged.
+- Test factual NLL first, then dose rollouts if the fit holds.
+- Python runs: 15; forward passes: 8.
+
+## Run 16 / forwards 9?10: candidate C results
+- Numeric dose/rate gain 4: factual NLL 1.63584 versus 1.63461 (+0.00123).
+- Probe rollouts: insulin x2 -2.503, half +1.691; NE x2 +0.127, half -0.003.
+- Modest insulin improvement, no adequate NE response. Retained while investigating targeted directions.
+- Python runs: 16; forward passes: 10.
+
+## Run 18: numeric gain 16
+- Latent-posterior action erasure had negligible factual and rollout effects (forwards 6?7).
+- Replaced numeric gain 4 with gain 16; no other edits.
+- Test whether stronger numeric signal remains factual-safe and avoids dose-response saturation.
+- Python runs: 18; forward passes: 10.
+
+## Forwards 11?12 / run 19: numeric saturation
+- Gain 16 factual increase +0.00246, but rollouts insulin -2.231/+1.531 and NE +0.157/+0.085.
+- Numeric gain saturates; restored gain 4 (-2.503/+1.691, NE +0.127/-0.003).
+- Investigating dose-sensitive recurrent/latent directions with low factual second moment.
+- Python runs: 19; forward passes: 12.
+
+## Restart / Python run 20
+- Forward 13 saved paired original/gain-4 states on 100 training stays.
+- Re-inspecting architecture, earlier identification evidence, and persistent variables before designing a targeted recurrent edit.
+- Python runs: 20; forward passes: 13.
+
+## Python run 21: paired-state geometry
+- Compared gain-4 and original states using generalized delta/factual second moments.
+- Ratios: {'out': 1.1637545257572386, 'h0': 1.2496169933065107, 'h1': 1.2495189336363508, 'h2': 1.1449731622522863, 'h3': 1.2496636229526032, 'z': 0.43184577403443003}
+- Python runs: 21; forward passes: 13.
+
+## Python run 22: selective correction design
+- Examined stored dose-state estimators and inferred the slot-to-out normalization from observable states, without accessing weight files.
+- Slot-to-out reconstruction RMSE: 7.449458051528166e-08
+- Python runs: 22; forward passes: 13; edits unchanged.
+
+## Python run 23: calibrated slot shear design
+- Designed separate minimum-variance insulin/NE sensors with zero factual mean, and reading-output directions orthogonal to the sensors.
+- Candidate matrices add approximate immediate responses -1.5 insulin/glucose and +2.5 NE/MAP at full strength; approximation must be checked by forward passes.
+- No additional edits applied. Python runs: 23; forward passes: 13.
+
+## Python run 24: candidate D, selective slot shear
+- Applied numeric gain 4 plus a 15%-strength, rank-two left transformation of core.c_out.weight, factored exactly into allowed rank-one operations.
+- Based on dose-innovation state coefficients and reading surrogates; the output directions are orthogonal to the dose sensors (nilpotent correction).
+- Full-strength sensor noise was too high; this is a small empirical pilot, not a validated causal repair.
+- Next test factual NLL. Python runs: 24; forward passes: 13.
+
+## Forward 14 / Python run 25: reduce candidate D
+- Slot shear 0.15 plus numeric gain 4: factual NLL 1.64052 versus 1.63461, +0.00591, exceeding the limit; rejected at that strength.
+- Reduced shear to 0.08. Next inspect dose rollouts before further tuning.
+- repair_candidates now stores copied vector arrays; replay_ops restores candidates. pilot_basis and pilot_design define the shear.
+- Python runs: 25; forward passes: 14.
+
+## Forward 15 / restart
+- Numeric gain 4 + slot shear 0.08: insulin x2 -2.644, half +1.736; NE x2 +0.103, half -0.037.
+- The shear adds little beyond numeric gain 4; factual safety at 0.08 is untested.
+- Recovering identification evidence and architecture before further edits.
+- Python runs: 26; forward passes: 15.
+
+## Python run 27
+- Run 26 output truncated; retrieving causal evidence and saved variable names compactly.
+- Edits unchanged; forward passes: 15.
+
+## Python run 28
+- Recovered record-based sensor-masked probe targets: insulin -12.036/+6.018; NE +4.732/-2.366. These are estimates, not counterfactual truth.
+- Restored factual-safe numeric gain 4 alone; slot shear gave too little benefit.
+- Inspecting direct reading-head corrections. Forward passes: 15.
+
+## Python run 29
+- Assessing centered diagonal edits to reconstructible core.out_norm, rather than assuming c_out shear propagates unchanged through coda.
+- No new edits. Forward passes: 15.
+
+## Python run 30: direct NE reading-head pilot
+- Rejected large diagonal out
+
+=== TRANSFORM HELPER SIGNATURES ===
+replay_ops (specifications)
+apply_lowrank_left_transform (name, basis, reduced_transform)
+apply_lowrank_right_transform (name, basis, reduced_transform)
+effective_transform (saved_ops, tensor_name, width, side)
+freeze_ops (specifications)
+state_dose_coefficients (mask, ridge=20.0)
+
+=== CORE OUTPUT / CODA TENSORS ===
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+
+=== DESIGN DICTIONARIES (KEYS ONLY) ===
+saved_candidates ['A_bin_erasure', 'B_posterior_action_erasure', 'C_numeric_x4']
+head_surrogates ['glucose_finger', 'map_arterial']
+repair_candidates ['numeric_gain4', 'slot_shear_015', 'slot_shear_008', 'head_ne_pilot', 'numeric_value_mix_m2', 'latent_in_gain21', 'outnorm_diag_010', 'numeric_gain16', 'query_gain15', 'flow_slow_115']
+state_correction_designs [0.01, 0.1, 1.0, 10.0]
+pilot_design ['R', 'T', 'S', 'predicted_shift']
+diag_designs [0.0001, 0.001, 0.01, 0.1, 1.0]
+head_ne_design ['sensor', 'output', 'basis', 'reduced']
+fit ['w', 'ridge', 'O', 'R', 'frame', 'cv_rmse', 'penalty']
+saved_fit ['w', 'ridge', 'O', 'R', 'frame', 'cv_rmse', 'penalty']
+candidate ['op', 'name', 'vector', 'alpha', 'side']
+empirical_head59 ['glucose_finger', 'map_arterial']
+
+=== DOSE DIRECTION STRUCTURE ===
+insulin {'out': (192,), 'hmean': (192,), 'z': (32,)}
+norepinephrine {'out': (192,), 'hmean': (192,), 'z': (32,)}
+
+```

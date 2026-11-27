@@ -1,0 +1,88 @@
+OUTPUT of Python run 269 of at most 300:
+```
+DATA DOCUMENTATION:
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+TRAINING DOSE SUPPORT:
+insulin: rows=276181, positive=276181, unique_positive_rates=26
+rate_quantiles={0.0: 0.5, 0.01: 0.5, 0.1: 1.0, 0.25: 1.0, 0.5: 1.5, 0.75: 2.0, 0.9: 3.0, 0.99: 5.0, 1.0: 14.5}
+most_common_rates={1.0: 90903, 1.5: 56754, 2.0: 41206, 2.5: 27725, 0.5: 23686, 3.0: 15939, 3.5: 9021, 4.0: 4944, 4.5: 2636, 5.0: 1469}
+dose/rate quantiles={0.0: 1.0, 0.5: 1.0, 1.0: 1.0}
+norepinephrine: rows=241638, positive=241638, unique_positive_rates=100
+rate_quantiles={0.0: 0.01, 0.01: 0.03, 0.1: 0.08, 0.25: 0.2, 0.5: 0.46, 0.75: 0.79, 0.9: 1.0, 0.99: 1.0, 1.0: 1.0}
+most_common_rates={1.0: 32919, 0.05: 5175, 0.04: 4956, 0.06: 4641, 0.07: 4163, 0.08: 3713, 0.09: 3476, 0.03: 3384, 0.1: 3324, 0.11: 3156}
+dose/rate quantiles={0.0: 4.799999999999999, 0.5: 4.8, 1.0: 4.800000000000001}
+
+PREVIOUS ACTION-PATH EXPERIMENTS:
+## Run 39: first reversible weight probe
+- Posterior z retains some innovation signal (held-out R2 ~0.10 insulin, ~0.08 NE); value hidden does not. This supports probing action transmission rather than fitting an innovation readout to unsupported features.
+- Temporarily doubled embed.numeric.weight columns 2 (z_dose) and 4 (z_rate), leaving measurement numerical inputs untouched.
+- Next: paired original/edited factual validation on first 100 tuning stays, followed by rollout if useful. This is a probe, not an accepted repair. Five forward passes used.
+
+
+## Forward 6 and run 40
+- Doubling embed.numeric.weight dose/rate columns: tuning first-100 original value NLL 1.63164; edited 1.63216; difference +0.00052 (4,751 readings), below +0.005 tolerance.
+- This establishes only factual feasibility, not causal improvement. Recovering exact IDs and identification evidence before paired rollouts.
+- Python runs: 40. Forward passes: 6. Probe edit remains active.
+
+- Run 41: bounded recovery after run 40 output truncation. Architecture confirms the action-input probe affects shared state; all-head effects remain a concern. No further edits.
+
+
+## Forward 7 and run 42: rejected input-gain probe
+- Original/edited insulin x2: -3.680/-3.638; half: +2.018/+2.380. NE x2: +0.465/+0.342; half: -0.871/-1.090.
+- Scaling numerical dose/rate columns did not repair the main response and weakened NE doubling. Restored original embed.numeric.weight.
+- N
+...
+t64(1), np.int64(1), np.int64(0), np.int64(1)))), 'norepinephrine': (0.046266671270132065, ('original', 'observation', (np.int64(5), np.int64(2), np.int64(0), np.int64(0), np.int64(1), np.int64(3), np.int64(1))))}.
+  - Best measurement-unit result: (0.049574967473745346, 1, 2).
+
+
+## Run 64: reversible posterior-only probe
+- Added rank-two dose-contrast corrections to z_post.2 mean rows and corresponding biases; log-SD rows unchanged.
+- Strength 4 for both drugs, using innovation decoders with factual_weight=10 and alpha=100 and original latent dose directions.
+- This is a pathway probe, not an accepted repair. Require paired held-out factual fit and rollout response before retaining it.
+- Python runs: 64. Forward passes: 9.
+
+
+## Runs 256?257: nonlinear rejection and causal audit
+- Forward 32 / fwd_33 current edit: insulin -10.251/+5.482; NE +0.899/-1.573.
+- Current pooled tuning factual dNLL +0.00357436 across 400 stays.
+- Saved nonlinear scalar candidates provide negligible held-out doubling improvement; not installed.
+- Run 256 failed only in diagnostic printing; no weights changed.
+- Reviewing identification and prior action-path attempts before choosing a distinct experiment.
+
+
+## Run 258: independent nonlinear-feature feasibility
+- NE kernel target requires sequential-unconfoundedness assumptions; it is not observed intervention truth.
+- Prior posterior-only probe was ineffective and restored.
+- Inspecting existing value-head hidden features for an independent low-rank output correction.
+- No weights changed.
+
+
+
+VOCAB KEYS:
+['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+
+Diagnostic characters: 5085 ; current edits: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+
+```

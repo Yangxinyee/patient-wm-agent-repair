@@ -1,0 +1,134 @@
+OUTPUT of Python run 102 of at most 300:
+```
+RECORD SCHEMA
+ # Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+STATE FILES
+/work/fwd_3/states_original.npz [('x', (4035, 992)), ('stay_id', (4035,)), ('hour', (4035,)), ('has_insulin', (4035,)), ('has_norepinephrine', (4035,)), ('n_atoms', (4035,))]
+
+RELEVANT RETAINED OBJECTS
+Ztarget84: Tensor torch.Size([4035, 32])
+action_cases50: list[1191]
+allflags22: Tensor torch.Size([256, 8])
+bundle_lookup65: dict[4035] [(1010000000, -120), (1010000000, -60), (1010000000, 0), (1010000000, 5), (1010000000, 60)]
+bundle_rows65: list[4035]
+case: tuple[3]
+case72: dict[4] ['index', 'event', 'encoder_maxdiff', 'posterior_rms']
+case73: dict[4] ['index', 'event', 'encoder_maxdiff', 'posterior_rms']
+case_ctx44: Tensor torch.Size([24, 192])
+case_idx44: ndarray (24,)
+case_u44: Tensor torch.Size([24, 192])
+cases: list[12]
+end_cases57: list[40]
+end_cases59: list[12]
+end_target41: Tensor torch.Size([64, 32])
+end_target42: Tensor torch.Size([40, 32])
+flag_columns21: list[6]
+flag_masks21: Tensor torch.Size([64, 8])
+flag_vectors21: Tensor torch.Size([64, 192])
+flagvectors22: Tensor torch.Size([256, 192])
+innovation: ndarray (780000,)
+innovation28: ndarray (4510,)
+innovation_slope(ra, ry, groups)
+lagidx27: ndarray (4510,)
+lagkeys27: MultiIndex (4510,)
+latent_bundles: list[1312]
+latent_state: ndarray (4035, 992)
+make_panel(df)
+other_cases63: list[1070]
+panel: DataFrame (780000, 6)
+state_hours: ndarray (4035,)
+state_ids: ndarray (4035,)
+state_mask: ndarray (780000,)
+state_paths82: list[1]
+state_paths83: list[1]
+state_read28: ndarray (4510, 992)
+state_x: ndarray (4035, 992)
+target: Tensor torch.Size([24, 32])
+target28: ndarray (4510,)
+target63: Tensor torch.Size([32])
+target64: Tensor torch.Size([1, 32])
+target70: Tensor torch.Size([3935, 32])
+target77: Tensor torch.Size([3935, 32])
+target_rows29: list[4]
+target_z65: Tensor torch.Size([3935, 32])
+targets29: DataFrame (4, 5)
+tpanel: DataFrame (10400, 6)
+
+LAG-EVIDENCE EXCERPTS
+.
+- No weights changed. Insulin ~-2 and post-startup NE ~+3 remain provisional record-based estimates.
+
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.090980
+  map_arterial        1 146556            3.288830                0.09124
+cts.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.090980
+  map_arterial        1 146556            3.288830                0.091241
+  map_arterial        2 140386            2.619413                0.108577
+  map_arterial        3 134227            1.746272                0.119747
+  map_arterial        4 128040            0.978531                0.129902
+  map_arterial        5 121841            0.413443                0.
+-flag search ? Python 21; forward 4
+- Tested 64 binary flag layouts and five age encodings without changing weights.
+- Original rollout responses are weak relative to record-based impulse estimates.
+               age flag_columns      rms     bias      nll  mask_id
+              zero         (4,) 4.246606 1.894217 1.687699        4
+   hours_log_div10         (4,) 4.279984 2.014240 1.689289        4
+hours_linear_div10         (4,) 4.371322 2.171057 1.693805        4
+              zero           () 4.627127 1.905579 1.705522        0
+   hours_log_div10           () 4.673152 2.009212 1.706651        0
+              zero    (0, 3, 4) 4.680979 2.030317 1.754868        7
+   hours_log_div10    (0, 3, 4) 4.753480 2.146869 1.757741        7
+hours_linear_div10           () 4.776523 2.145068 1.711134        0
+
+## Register layout resolved ? Python 22?23; forward 4
+- Exhaustive input search identifies previous z_value in column 6, not column 2.
+- Flags are columns 0 and 3; age is provisionally log1p(age in hours)/10.
+- Added head_exact helper correcting inputs only; no weights changed.
+Full 32-draw reconstruction: RMS 1.581861, bias 0.147118, NLL 1.627269; reference 1.63805
+
+VOCAB KEYS ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+CATEGORICAL VOCAB {'event_kinds': {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}, 'atom_kinds': {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}}
+EDITED []
+
+```

@@ -1,0 +1,128 @@
+OUTPUT of Python run 54 of at most 300:
+```
+DATA DESCRIPTION
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+EARLY EVIDENCE FROM NOTEBOOK
+- Read architecture and record definitions before choosing an identification strategy.
+- Infer drug effects only from the simulated ICU records; impose no medical assumptions.
+- Validate weight edits against original factual NLL and paired dose rollouts.
+- Required factual NLL degradation: at most 0.005 nats per reading.
+Drug atoms have their own action encoder, but enter posterior and recurrent updates. Value heads also use last-reading registers and code-specific bin transitions. No causal conclusion yet. Full records loaded for timing and identification analysis.
+Readings occur on integer hours; infusions start at hour + 0.0833 and last one hour. Built full panels with absent infusion=0, prior reading registers, ages, and next-hour outcomes. Initial regressions are diagnostics, not yet accepted causal estimates.
+## Run 4: selection and threshold identification
+Unadjusted insulin/glucose slope +23.36, adjusted about -1.92 per unit/hour. NE/MAP slope changes from -30.02 raw to -1.90 with current reading and +2.25 with history. These are not accepted as causal. Insulin dose thresholds near 150/180/220 motivate fuzzy RD. Test independent lab outcomes and observation availability to diagnose selection artifacts.
+RD roughly -2 per additional insulin unit/hour, with serious observation jump at 150; prefer thresholds 180/220 and check temporal persistence. Boundary observations are mixtures because measurements are rounded.
+## Run 5?6: dynamic identification
+Pooled insulin RD excludes rounded cutoff values at 180/220. Immediate glucose jump -2.2131 (SE .1583), dose jump 1.0361. Reduced-form outcome discontinuity fades over six hours; downstream dosing also changes. Joint impulse fit beta=-2.2778, persistence=.85743; provisional, not exact truth. NE polynomial-history coefficients remain about +3.09, but dose-policy nonlinearity may bias them. Cross-fitted flexible nuisance models now test residual-dose effects.
+NE DML beta=3.248868, cluster SE=0.096302.
+Original factual value NLL on the fixed 100-stay tuning sample: 1.63461 (4751 readings); allowed sample ceiling 1.63961. Recovering architecture and retained analysis state before choosing an edit.
+## Run 8: action pathway and identification audit
+## Run 9: compact units and causal audit
+Retrieved dynamic identification, dose units/support, exact action/posterior shapes, and head-input configuration. No weights edited yet.
+Loaded original 4356 bundle states for tuning stays 2020000000..99 and all original tensors. Computed provisional fixed-dose schedule responses over several persistence values; these are statistical targets, not hidden truth. No weights edited.
+Enumerated register layouts and activation types. Best: gelu, (6, 3, (0,)); decoder RMSE 1.5651. Provisional insulin x2 target on recorded reached hours: -13.586; half target +6.793, assuming beta=-2.2778 and persistence=.8574.
+## Run 12: policy residual probes
+Fitted training-record dose-policy nuisance models (260000 sampled intervals). Cross-stay ridge probes test residual dose and raw-dose recovery from reading-head features; separately quantified prior-sampling noise. Probe results: [(0.1, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0309, 'raw_dose_R2': 0.7405, 'other_event_leakage_RMS': 0.0716}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0588, 'raw_dose_R2': 0.5973, 'other_event_leakage_RMS': 0.0171}]), (1.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.03, 'raw_dose_R2': 0.7384, 'other_event_leakage_RMS': 0.067}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0447, 'raw_dose_R2': 0.6053, 'other_event_leakage_RMS': 0.0166}]), (10.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.028, 'raw_dose_R2': 0.7306, 'other_event_leakage_RMS': 0.0539}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0171, 'raw_dose_R2': 0.6227, 'other_event_leakage_RMS': 0.0132}]), (100.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0198, 'raw_dose_R2': 0.7251, 'other_event_leakage_RMS': 0.0339}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': 0.0015, 'raw_dose_R2': 0.6356, 'other_event_leakage_RMS': 0.0079}]), (1000.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0094, 'raw_dose_R2': 0.7131, 'other_event_leakage_RMS': 0.0186}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': 0.0017, 'raw_dose_R2': 0.6434, 'other_event_leakage_RMS': 0.0037}])]
+Downstream probes encode policy-associated dose but almost no residual dose; a head-only edit is unlikely to recover intervention sensitivity reliably. Recovering exact recurrent/action architecture and retained statistical objects before designing a dose-specific, factually compensated edit. No weights edited.
+Pos
+
+HELPER NAMES
+activation0(x, kind='gelu')
+capturing_core_lin46(x, prefix)
+coda46(hnew)
+contrast_metrics52(coeff)
+core_attn(x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+core_ffn(x, p)
+core_layer(x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+core_lin(x, p)
+core_norm(x, p)
+core_update_local(z, config, h_flow=None, e=None, u=None, memory_data=None)
+decoder_query(kind='gelu', gap_style='log1p', type_id=1)
+dose_covariates(frame)
+drop_edit(name)
+edited()
+edited_action46(drug, factor)
+fn(frame)
+fn44(indices, e, u)
+fun(indices, e, u)
+head_calc(input0, idx=None, kind='gelu')
+least_squares(fun, x0, jac='2-point', bounds=(-inf, inf), method='trf', ftol=1e-08, xtol=1e-08, gtol=1e-08, x_scale=None, loss='linear', f_scale=1.0, diff_step=None, tr_solver=None, tr_options=None, jac_sparsity=None, max_nfev=None, verbose=0, args=(), kwargs=None, callback=None, workers=None)
+linear0(x, prefix)
+load(name)
+load_original(name)
+make_core_memory(include_current=False)
+make_panel(data)
+mlp0(x, prefix, kind='gelu')
+next_means45(h45, out45)
+norm0(x, prefix)
+np45(x)
+nuisance_features(s, nlags=4)
+old_core_lin46(x, p)
+ols_cluster(X, y, ids)
+pooled_rd(horizon, window=12, order=1)
+prelude46(h, e, u, z, batch=256)
+r2_score(y_true, y_pred, *, sample_weight=None, multioutput='uniform_average', force_finite=True)
+rd_dynamic_residual(par)
+rd_estimate(running, outcome, drug, cutoff, window, adjust=False, order=1)
+recon_atom(drug, records, unit_id=0, rate_unit_id=0, kq_id=None)
+recon_ctx(indices, act='gelu', gap_style='log1p')
+recon_lin(x, p)
+recon_mlp(x, p, act='gelu')
+recon_norm(x, p)
+recon_record_atom(row, kind=0, end_numeric='absent', end_units='none')
+recon_sets(atom_lists, prefix='encode', empty_zero=False)
+recon_single_set(atoms, prefix='encode_action')
+recovery_function(beta, phi, drug, outcome, source_panel=event     stay_id   t  ...  glucose_any_f8  insulin_f8
+0      2020000000  -1  ...           173.0         1.5
+1      2020000000   0  ...           141.0         0.0
+2      2020000000   1  ...             NaN         0.0
+3      2020000000   2  ...           155.0         1.0
+4      2020000000   3  ...           142.0         0.0
+...           ...  ..  ...        
+
+RELEVANT TENSOR SHAPES
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.b_in.weight (192, 192)
+embed_transition.value_bin.weight (221, 17)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+
+RELEVANT RETAINED NAMES
+['Gfactual46', 'baseline_rollout', 'chosen_anchor47', 'dose_policy', 'factual0', 'factual45', 'factual47', 'factual4_original', 'factual4_trial', 'factual_design46', 'factual_rms', 'factual_weight', 'innovation_factual51', 'policy_X', 'policy_rng', 'policy_sample', 'slot_factual47', 'slot_metrics47', 'train_policy_idx', 'train_policy_rows', 'trial_b_delta', 'trial_b_weight', 'trial_direction47', 'trial_outer52', 'trial_outer_multiplier52', 'trial_strength47']
+
+TRIAL FIT METRICS
+{1.0: {('insulin', 2.0): 0.3034938518008662, ('insulin', 0.5): 0.5598952350567973, ('norepinephrine', 2.0): 0.052093735051237926, ('norepinephrine', 0.5): 0.2798982447587364}, 10.0: {('insulin', 2.0): 0.16939213021379554, ('insulin', 0.5): 0.3939971561776273, ('norepinephrine', 2.0): 0.0377090221112717, ('norepinephrine', 0.5): 0.20298224736319848}, 50.0: {('insulin', 2.0): 0.07312657902033562, ('insulin', 0.5): 0.2828459479836688, ('norepinephrine', 2.0): 0.022192915388566176, ('norepinephrine', 0.5): 0.15560043283099834}}
+dose_policy insulin HistGradientBoostingRegressor
+dose_policy norepinephrine HistGradientBoostingRegressor
+
+```

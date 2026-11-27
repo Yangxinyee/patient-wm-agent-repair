@@ -1,0 +1,219 @@
+OUTPUT of Python run 259 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== NOTEBOOK HEADINGS ===
+# Weight-repair notebook
+## Objective and constraints
+## Run 1
+## Run 2
+## Run 3
+## Forward requests 1 and 2
+## Run 4
+## Run 5
+## Run 7
+## Run 8
+## Forward 4
+## Run 10
+## Run 11
+## Run 12
+## Restart / Run 14
+## Run 15
+## Runs 16?19
+## Run 20: compensated continuous-dose trial
+## Forward 5?6: rejected continuous-dose amplification
+## Run 25: systematic local-head check
+## Run 26: latent integration check
+## Runs 27?31: recovery and head-instrument diagnostics
+## Run 34: restart recovery
+## Runs 35?38: aligned residual and decoder checks
+## Run 38 result / Run 39
+## Run 39 result / Run 40
+## Run 41: pathway recovery
+## Run 46: register-invariant decoding
+## Restart / Run 48
+## Run 53: first gated head trial
+## Forward 7 / Run 55: rejected gated head edit
+## Run 57: rejected-head projection audit
+## Runs 59?60: corrected latent audit
+## Restart / Run 61
+## Runs 65?68: fresh head reconstruction
+## Runs 74?79: restart audit
+## Run 83: deterministic reading-head diagnostic
+## Runs 85?86: identifiable register probe
+## Run 87: restart recovery
+## Runs 88?90: register probe decoding
+## Run 96: probe-resolved reading register
+## Run 97: exact deterministic head recovered
+## Run 98: stochastic head reconstruction
+## Run 99: latent-aware, cross-stay decoder tests
+## Restart / Run 100
+## Run 103: candidate preparation
+## Run 104: local gated-insulin candidate
+## Run 105 result
+## Run 106: insulin candidate installed
+## Forward 10?11: first validated insulin candidate
+## Runs 108?110: causal and construction recovery
+## Run 112: provisional insulin strength 2
+## Restart / Runs 113?115 and Forward 12?13
+## Run 116: insulin strength-2.6 trial
+## Forward 14 / Run 117: strength 2.6 rejected provisionally
+## Run 124: controlled NE representation probe
+## Run 125: probe recovery
+## Runs 129?130: controlled NE head-direction test
+## Run 131: latent-cache mismatch audit
+## Run 132: verified NE direction efficiency
+## Runs 133?136: restart recovery
+## Runs 137?138: verified local NE scan
+## Run 139: NE trial installed
+## Run 140: factual trial failed acceptance
+## Forward 17 / Run 143: actual NE response is partial
+## Run 149: isolate factual failure
+## Forward 18 / Run 150: insulin fallback passes narrowly
+## Run 157: warm-up insulin trial
+## Forward 19 / Run 158: warm-up trial rejected
+## Run 164: guarded insulin trial
+## Forward 20?21 / Run 165: guarded insulin validated provisionally
+## Run 170: combined guarded-insulin / prior-NE trial
+## Runs 171?173: restart audit and combined-trial results
+## Run 179: restart after failed reconstruction assertion
+## Run 180: restore checked combined fallback
+## Run 182: transition-logit audit
+## Run 183: guarded stronger-NE trial installed
+## Run 184: restart audit
+## Run 185: preserve stronger trial
+## Run 186: stronger trial fails second factual cohort
+## Run 187: gate and persistence audit
+## Run 188: correct event-label audit
+## Run 189: recover controlled-dose probes
+## Run 190: NE probe limitation and loss decomposition
+## Runs 191?196: restart audit and restore
+## Forward 27 / Run 197: weaker fallback fails another cohort
+## Run 198: restart recovery audit
+## Run 201?202: reconstruction assertion failed safely
+## Run 203: fresh independent tuning cache
+## Run 207: independent candidate decomposition
+## Run 210: generic independent cache evaluator
+## Run 211: closed-form calibration screen
+## Run 212: restart and calibration audit
+## Run 217: neuron-removal hypothesis refuted; conditional centering screen
+## Run 222: independent exposure-loss audit
+## Run 224: low-dimensional transition calibration screen
+## Run 225: fresh NE covariance-direction audit
+## Run 230: raw NE covariance screen
+## Run 231: all-code covariance and fresh code gate
+## Run 232: install fresh-code-gated NE trial
+## Run 233: restart recovery
+## Run 234: focused recovery
+## Forward 29 / 30 and Run 235: validated fallback
+## Run 236: compact evaluator recovery
+## Run 237: nonlinear factual-cancellation preparation
+## Run 238: restart and cancellation audit
+## Run 239: exact cancellation interfaces
+## Run 240: training-only nonlinear factual cancellation screen
+## Run 241: cancellation limitations and actual-dose recovery
+## Run 242: install modest nonlinear-cancellation trial
+## Forward 32?33 / Run 244: cancellation trial validated
+## Run 246: amplitude reconstruction and screen
+## Run 247: reversible stronger-NE population-budget trial
+## Forward 34 / Run 248: stronger-NE trial rejected
+## Run 249: restart recovery
+## Run 250: bounded recovery
+## Forward 35 / Run 251: current checkpoint needs more factual margin
+## Run 252: previous-reading-bin factual cancellation screen
+## Run 253: small statistical calibration screen
+## Run 254: N
+[output cut at 10,000 characters]
+```

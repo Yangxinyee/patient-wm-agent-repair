@@ -1,0 +1,92 @@
+OUTPUT of Python run 266 of at most 300:
+```
+notes len 10092
+0 # Notebook
+11 ## Setup facts (runs 1-6)
+526 ## Insulin policy (runs 9-12)
+947 ## NE policy (runs 13-14)
+1314 ## Insulin effect estimate (runs 15-18) -- randomization within band, deconvolved for policy feedbac
+1717 ## NE effect estimate (runs 19-20)
+2142 ## Model diagnostics (fwd 1-2, run 25-27), tuning sel1 (100 stays, /work/sel1.json)
+2816 ## Restart 2 (runs 37-46)
+5044 ## Restart 3 (runs 72-81)
+6363 ## Restart 4 (runs 94-119): exact encoder in /work/impl.py (exec it)
+6974 ## Restart 5 (runs 134-141): EXACT CORE STEP FOUND (code in /work/core_test.py, needs impl.py exec'd
+8710 ## Restart 5 (runs 134-141): EXACT CORE STEP FOUND (code in /work/core_test.py, needs impl.py exec'd
+9398 ## Oracle lag-only kernels (run 207), ids_o 100 train stays, 20 paths
+=================== UNSEEN PART (capped 11000) ===================
+# Notebook
+## Setup facts (runs 1-6)
+- Stays ~24h. Readings at integer hours (-1..24); infusion records start at h+0.0833, run 1h. Policy picks hourly rates.
+- insulin rate in 0.5 steps (0.5..14, mostly 0.5-3), dose=rate. NE rate 0.01..1.0 (capped at 1.0; 13.5% at cap), dose=4.8*rate (weight 80kg for all).
+- 61% stays get insulin, 43% NE. stay_id sequential, no structure.
+- Dose pathway in model: embed.numeric cols z_dose/z_rate (cols 2..5), embed.bins.dose/rate -> encode_action -> u_k -> prelude tokens + z_post input.
+
+## Insulin policy (runs 9-12)
+- Deterministic sliding scale on latest glucose (fresh gf, else fresh gl): none if <150; band base rates ~1 [150,180), ~2 [180,220), ~3 [220,250), ~3.7 [250,300) (has inner step), ~6.5 >=300.
+- Within band, rate noise (0.5 steps) is independent of all observed covariates (R2~1e-4) => randomized experiment. No hidden confounding apparent.
+- gf measured every hour while last glucose >150.
+
+## NE policy (runs 13-14)
+- Uses map_arterial if present else cuff. Start (~0.05) when MAP<65. Titration: log(rate_t/rate_{t-1}) = adj + N(0,~0.3); adj ~ +0.1 (<65), 0 (65-74), -0.25 (>=75, sometimes stop). Cap 1.0.
+- So NE rate = accumulated random walk => lots of exogenous variation.
+- Insulin rate ~ base(band)*exp(N(0,0.3)) rounded to 0.5 (fits band-1 shares).
+
+## Insulin effect estimate (runs 15-18) -- randomization within band, deconvolved for policy feedback
+- 1h effect -2.0 mg/dL per U/h, same in all bands (linear, no glucose dependence). gf and gl same glucose (no offset, diff sd 9).
+- Structural impulse K(k), k=1..10 (fixed other doses): -2.0 -2.5 -2.2 -1.8 -1.4 -1.15 -0.94 -0.75 -0.50 -0.42 (sum -13.7).
+- Insulin does not move NE or MAP materially.
+
+## NE effect estimate (runs 19-20)
+- NE noise (rate - E[rate|prev rate, MAP band]) unpredictable (R2 0.001). Stops only from rate<=0.06 & MAP>=75.
+- Structural K_N(k) on MAP per (mcg/kg/min * 1h): +3.6 +2.7 +1.7 +1.1 +0.4 +0.45 ~0 ... (sum ~10.4). Same on ma and mc. mc reads ~3 mmHg above ma (sd 6.7).
+- NE first stage persists (0.73,0.56,0.44,...) due to random-walk titrat
+=================== FILES ===================
+sel1.json                    1200  t+    0.0 min
+fwd_1                        4096  t+    1.9 min
+fwd_2                        4096  t+    6.2 min
+selT.json                    1200  t+   12.8 min
+fwd_3                        4096  t+   13.4 min
+fwd_4                        4096  t+   44.7 min
+impl.py                      8862  t+  140.1 min
+core_test.py                 2346  t+  163.0 min
+head.py                      1428  t+  168.8 min
+tf.py                         778  t+  186.1 min
+tf2k_orig.parquet         1674361  t+  186.2 min
+rollout.py                  10348  t+  196.8 min
+cf.py                        2296  t+  212.3 min
+rollout_h.py                 8159  t+  221.6 min
+oracle.py                    3382  t+  234.1 min
+policy.py                    2558  t+  234.1 min
+evalh.py                      849  t+  253.4 min
+dec.py                        884  t+  261.3 min
+states_ins.py                 979  t+  265.2 min
+rollout_h2.py                8381  t+  274.9 min
+wI_chan.npy                   896  t+  280.0 min
+wI_head2.npy                  512  t+  282.4 min
+transfer_T.npy             147584  t+  284.1 min
+notes.md                    10092  t+  293.0 min
+resid.py                     1448  t+  308.1 min
+linor.py                     1960  t+  310.2 min
+corechan.npz                 5060  t+  327.6 min
+gen_wc.py                    1468  t+  360.5 min
+chan.py                      5923  t+  406.0 min
+--- impl.py: def getW(loader): | def make_atoms(df): | def atom_features(A): | def embed(A,feats,W): | def mlp(x,W,pre,act='gelu'): return F.linear(ACTF[act](F.linear(x,W[pre+'.0.weight'],W[pre+'.0.bias'])),W[pre+ | def LN(x,W,pre,eps=1e-5): return F.layer_norm(x,(x.shape[-1],),W[pre+'.weight'],W[pre+'.bias'],eps) | def set_encode(xa,gidx,ng,W,pre): | def encode_bundles(A,W,u_none='zero'): | def encode_bundles(A,W,end_attr=False): | def embed(A,feats,W): | def attn_(xq,xkv,W,pre,mask=None,kadd=None,inadd=None): | def layer_sa(x,W,pre): | def layer_blk(x,W,pre,M,mask,agee,age_mode): | def attn_kv(xq,k,v,W,pre,mask):
+--- core_test.py: def prep_core(trdf, ids, W, Sx, Ssid, Shr): | def core_eval(B,E,U,hasu,Sx,W,include_cur=False,age_unit=1.0,age_mode='kadd',age_div=1.0,uzero=False,gdiv=10.0
+--- head.py: def CEN_of(code_ids): | def head_base(out_p,h_p,dt_s,W,gdiv=10.0): | def head_value_logits(base,codes,f8,lastbin,status,W,z,ty=3): | def head_probs_mc(base,codes,f8,lastbin,status,W,ty=3,nz=0,seed=0):
+--- tf.py: def teacher_forced(df, ids, W, chunk=500):
+--- rollout.py: def _cen_table(): | def _z(code,x): | def prep_rollout(df, ids): | def arm_embed(R,W,arm): | def run_rollout(R,W,arms,n_paths=20,seed=0,t_hide=13.0,want_nll=False,chunk=None,store=None,store_h=False): | def _z_vec(c,x): | def readout(R,res,arms,drug='insulin',outcome='glucose_finger',t0=12.0,arm_ids=None,lo=13,hi=24):
+--- cf.py: def arm_embed(R,W,arm): | def arm_mult(R,arm,drug): | def dose_grid(R,drug,mult=None): | def cf_collect(df,ids,arms,W,seed=0):
+--- rollout_h.py: def run_rollout_h(R,W,arms,n_paths=20,seed=0,t_hide=13.0,want_nll=False,chunk=None,store=None,store_h=False,ho
+--- oracle.py: def tilt_P(P,cen,r,iters=4): | def dose_stack(R,arms,drug): return np.stack([dose_grid(R,drug,arm_mult(R,a,drug)) for a in arms]) | def lag_diff(DG,a,si,tau,L=12): | def make_oracle(R,DGi,Gi,DGn=None,Gn=None): | def truth_rows(R,DG,a,rows,Kf): | def G_from_K(K,kap): | def make_dev_oracle(R,DGi,Gf,t_hide=13.0,pf=None):
+--- policy.py: def build_policy_table(df): | def make_pf(tab): | def make_pf(tab,minc=30): | def make_pf(tab,minc=30): | def make_pf_band(tab,edges=(150,180,220,250,260,300),minc=200):
+--- evalh.py: def eval_arms(res, arms, R, K=None, drug='insulin', outcome='glucose_finger'):
+--- dec.py: def lag_abs(DG,a,si,tau,L=12): | def wc_hidden(D_, W, idx): | def lag_feats(R_, D_, arms, pfn, idx, L=12, drug='insulin'):
+--- states_ins.py: def collect_states_ins(R_, arms, W, idsel=None):
+--- rollout_h2.py: def run_rollout_h2(R,W,arms,n_paths=20,seed=0,t_hide=13.0,want_nll=False,chunk=None,store=None,store_h=False,h
+--- resid.py: def build_resid_tab(tf_, gg_): | def ols_tab(M,ycol,xcols): | def build_resid_tab2(tf_, gg_, K=6):
+--- linor.py: def make_lin_oracle(R,DGi=None,a_i=None,c_i=None,k_i=0.0,pf=None,DGn=None,a_n=None,k_n=0.0,t_hide=13.0,gain_i=
+--- gen_wc.py: def gen_wc(Rx, arms, W, a_i, c_i, pf, seed=0, L=4):
+--- chan.py: def _np(t): return (t.detach().numpy() if torch.is_tensor(t) else np.asarray(t)).astype(np.float64) | def _gelu(x): return F.gelu(torch.as_tensor(x)).numpy() | def _ln(X,g,b,eps=1e-5): | def _lnstd(X,eps=1e-5): | def _small_dirs(M,C=None,k=2): | def enc_u(Wn,XU,key): | def design_build(W,Dd,P):
+
+```

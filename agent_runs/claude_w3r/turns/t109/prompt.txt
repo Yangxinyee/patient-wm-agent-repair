@@ -1,0 +1,44 @@
+OUTPUT of Python run 100 of at most 300:
+```
+EKIND = {'measurement':1,'drug_admin':2,'visit':3,'visit_detail':4}
+def build_bundles(ev, opts):
+    """ev: dataframe of one stay. returns list of (time_hours, atoms). atom=dict"""
+    atoms=[]
+    for r in ev.itertuples():
+        e=r.event
+        if e in ('glucose_finger','glucose_lab','map_arterial','map_cuff'):
+            atoms.append((r.hour, dict(code=CODE[e],kind=0,ek=1,unit=opts['unit'][e],ru=0,val=(e,r.value),dose=None,rate=None)))
+        elif e in ('insulin','norepinephrine'):
+            atoms.append((r.hour, dict(code=CODE[e],kind=0,ek=2,unit=opts['unit'][e],ru=opts['ru'][e],val=None,dose=(e,r.dose),rate=(e,r.rate))))
+            endat = dict(code=CODE[e],kind=2,ek=2,unit=opts['unit'][e] if opts['end_attrs'] else 0,ru=opts['ru'][e] if opts['end_attrs'] else 0,val=None,
+                         dose=(e,r.dose) if opts['end_attrs'] else None, rate=(e,r.rate) if opts['end_attrs'] else None)
+            atoms.append((r.end_hour, endat))
+        else:
+            ek = 3 if e=='hospital_admission' else 4
+            atoms.append((r.hour, dict(code=CODE[e],kind=0,ek=ek,unit=0,ru=0,val=None,dose=None,rate=None)))
+            atoms.append((r.end_hour, dict(code=CODE[e],kind=2,ek=ek,unit=0,ru=0,val=None,dose=None,rate=None)))
+    atoms.sort(key=lambda a:a[0])
+    bundles=[]; 
+    for t,a in atoms:
+        tm=round(t*60)
+        if bundles and bundles[-1][0]==tm: bundles[-1][1].append(a)
+        else: bundles.append((tm,[a]))
+    return [(tm/60.0, al) for tm,al in bundles]
+obj[s0][1]: [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833  3.
+  3.0833  4.      4.0833  5.      5.0833  6.      6.0833  7.      7.0833
+  8.      8.0833  9.      9.0833 10.     10.0833 11.     11.0833 12.
+ 12.0833 13.     13.0833 14.     14.0833 15.     15.0833 16.     16.0833
+ 17.     17.0833 18.     18.0833 19.     19.0833 20.     20.0833 21.
+ 21.0833 22.     22.0833 23.     23.0833 24.     24.0833 25.0833 25.1667]
+key_k[s0][1]: [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833  3.
+  3.0833  4.      4.0833  5.      5.0833  6.      6.0833  7.      7.0833
+  8.      8.0833  9.      9.0833 10.     10.0833 11.     11.0833 12.
+ 12.0833 13.     13.0833 14.     14.0833 15.     15.0833 16.     16.0833
+ 17.     17.0833
+bidx[s0][1]: [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833  3.
+  3.0833  4.      4.0833  5.      5.0833  6.      6.0833  7.      7.0833
+  8.      8.0833  9.      9.0833 10.     10.0833 11.     11.0833 12.
+ 12.0833 13.     13.0833 14.     14.0833 15.     15.0833 16.     16.0833
+ 17.     17.0833
+
+```

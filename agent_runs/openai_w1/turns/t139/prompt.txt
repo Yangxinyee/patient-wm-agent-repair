@@ -1,0 +1,194 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 138 replies happened before. Forward passes used: 6 of 50; Python runs used: 127 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+vered record-based dose-innovation evidence and original weak rollouts. These estimates require sequential-exogeneity assumptions. Created an isolated original-weight dictionary; inspecting tensor layout and prior reconstruction checks before deriving a new residualized edit. No edits applied.
+Counts: 100 Python runs, 6 forward passes.
+
+## Run 101
+Fresh training/tuning records and state exports loaded separately. Prior six-hour deconvolved kernels support dynamic—not constant-offset—repair. Inspecting corrected helper interfaces and previous latent candidates; none will be reused without alignment and extrapolation checks. No edits.
+Counts: 101 Python runs, 6 forward passes.
+
+## Run 102
+Fresh atom/bundle reconstruction with verified unit IDs. Export4 atom-count disagreements: 0 / 5215. Rejected obsolete innovation decoders because their dose extrapolation was distorted. No model weights edited.
+Counts: 102 Python runs, 6 forward passes.
+
+## Run 103
+Posterior reconstruction best: (0.0636540874838829, ('drug_END_observation', False), ('rounded_minutes', 'log', 'gelu')). Valid-row maximum posterior RMSE: 0.42946339. Fresh records and exported state rows have matching atom counts. No weights edited.
+Counts: 103 Python runs, 6 forward passes.
+
+## Run 104
+Fresh reconstruction gives numerical agreement for active-drug posteriors (max RMSE 5.5e-7), but not reading posteriors. Drug/time paths validated; observation path remains invalid. Checking atom construction and error dependence on bundle size. No edits.
+Counts: 104 Python runs, 6 forward passes.
+
+## Run 105
+Dose-only reconstruction is validated, but the fresh observation path is not. Inspecting architecture and retained exact helpers before any calibration or weight edit. No edits. Counts: 105 Python runs, 6 forward passes.
+
+## Run 106
+Architecture recovered. Run 105 inventory was truncated by tensor representations; restricting output to fresh helper signatures and array shapes. No edits. Counts: 106 Python runs, 6 forward passes.
+
+## Run 107
+Recent objects use different names than expected. Locating actual kernel objects and recovering original causal findings; no edits. Counts: 107 Python runs, 6 forward passes.
+
+## Run 108
+Located fresh objects under rr_*. Original record evidence supports insulin-negative and NE-positive adjusted effects, subject to identification assumptions. Comparing fresh versus validated set encoders; no edits. Counts: 108 Python runs, 6 forward passes.
+
+## Run 111
+Correcting tensor-only encoder return handling and comparing full-range atoms, normalization constants, and best-context posterior. No edits. Counts: 111 Python runs, 6 forward passes.
+
+## Run 112
+Testing categorical-offset explanations against exported posteriors with an explicit cache-free set encoder. No weights edited. Counts: 112 Python runs, 6 forward passes.
+
+## Run 113
+Recovered architecture, identification notes, and helper inventory after restart. Run 112 ruled out rate-unit alternatives; reading reconstruction remains unvalidated. No weights edited. Counts: 113 Python runs, 6 forward passes.
+
+## Run 114
+Recovered early identification evidence and tensor layouts. No causal magnitudes inferred from signs alone; no weights edited. Counts: 114 Python runs, 6 forward passes.
+
+## Run 115
+Localized value-head editing is structurally possible, but dynamic effect and exact feature calibration are required. Recovering prior validated helpers rather than repeating broad reconstruction searches. No edits. Counts: 115 Python runs, 6 forward passes.
+
+## Run 116
+Prior deconvolved kernels imply multi-hour, decaying responses. Prioritizing a value-head-only algebraic edit to preserve other teacher-forced outputs. Checking atom construction and validated cache dependencies; no weights edited. Counts: 116 Python runs, 6 forward passes.
+
+## Run 117
+Comparing fresh and validated components only after alignment by exported posterior vectors. This isolates reconstruction errors from cache-order errors. No edits. Counts: 117 Python runs, 6 forward passes.
+
+## Run 118
+Aligned fresh context, observation, and action inputs agree with validated arrays. Recomputed posterior from these components to distinguish stale inputs from encoder defects. No edits. Counts: 118 Python runs, 6 forward passes.
+
+## Run 119
+Fresh posterior remains exact on drug bundles but not reading bundles. Directly testing empty-action handling. Rejecting the prior value-head innovation decoder because held-out R2 was negative; considering a gated action/posterior repair instead. No edits. Counts: 119 Python runs, 6 forward passes.
+
+
+## Run 120
+Run 119 resolved posterior reconstruction: empty actions must use the normalized empty-set encoding. Reading and drug posteriors now agree with exported states to numerical precision. Recovering architecture and quantitative effect estimates before constructing a fresh, reversible edit. No weights edited. Counts: 120 Python runs, 6 forward passes.
+
+
+## Run 121
+Recovered six-hour adjusted/deconvolved response kernels: insulin [-1.850,-2.256,-1.943,-1.561,-1.022,-0.690], NE [3.351,2.621,1.717,0.943,0.494,0.409]. These are record-based estimates under conditional exogeneity, not known simulator truth. Inspecting compact replay/head interfaces to construct a localized algebraic repair. No edits. Counts: 121 Python runs, 6 forward passes.
+
+
+## Run 122
+Value head has a 192-unit hidden layer and a 17-class linear output. Exact posterior inputs and exported full recurrent slots are available. Inspecting existing head reconstruction and recurrent tensor layout to build a factual-constrained, gradient-free dose-sensitivity edit. No edits. Counts: 122 Python runs, 6 forward passes.
+
+
+## Run 123
+Run 122 output was truncated by disassembly; no new model validation or edit resulted. Using bounded diagnostics for configuration, recurrent weights, and cached head arrays. No edits. Counts: 123 Python runs, 6 forward passes.
+
+
+## Run 124
+Constructed a gradient-free CPU one-step recurrent replay and tested activation, memory inclusion, and age-key conventions against original exported states. Best tests: [(7.2469563484191895, 0.14198486506938934, 'silu', True, 'before_kv', 1.0), (7.803891658782959, 0.1437201201915741, 'gelu', True, 'before_kv', 1.0), (12.443230628967285, 0.23995333909988403, 'silu', False, 'before_kv', 1.0), (13.114036560058594, 0.24768725037574768, 'gelu', False, 'before_kv', 1.0)]. No weights edited. Counts: 124 Python runs, 6 forward passes.
+
+
+## Run 125
+Initial CPU replay was not validated (best h RMSE 7.25, out RMSE 0.142). Tested key-only age projections, attention layouts, and independent FFN/age activations. Best refined tests: [(6.965161323547363, 0.13313856720924377, 'split', 'before_kv', 'gelu', 'silu', 'silu', 'gelu'), (6.990720272064209, 0.13382229208946228, 'split', 'before_kv', 'silu', 'silu', 'silu', 'gelu'), (6.9959635734558105, 0.13433274626731873, 'split', 'before_kv', 'gelu', 'silu', 'gelu', 'gelu')]. No weights edited. Counts: 125 Python runs, 6 forward passes.
+
+
+## Run 126
+Independent activation/layout tests did not validate replay. Tested memory observation filtering, padding, current-bundle inclusion, memory normalization, and age units. Best tests: [(6.930703639984131, 0.13412946462631226, True, False, False, 1.0, 1.0, 'before'), (6.954826831817627, 0.1345936805009842, True, True, False, 1.0, 1.0, 'before'), (6.965161323547363, 0.13313856720924377, True, False, False, 1.0, 1.0, 'none')]. No weights edited. Counts: 126 Python runs, 6 forward passes.
+
+
+## Run 127
+Memory conventions did not validate replay. Added the previously omitted ReLU option for all feed-forward/age layers. Best tests: [(6.965161323547363, 0.13313856720924377, 'gelu', 'silu', 'silu', 'gelu', 'before_kv'), (6.970487117767334, 0.1373649388551712, 'gelu', 'silu', 'relu', 'gelu', 'before_kv'), (6.970667839050293, 0.1330784112215042, 'relu', 'silu', 'silu', 'gelu', 'before_kv')]. No edits. Counts: 127 Python runs, 6 forward passes.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 127 of at most 300:
+```
+=== RELU-INCLUSIVE REPLAY TESTS ===
+(6.965161323547363, 0.13313856720924377, 'gelu', 'silu', 'silu', 'gelu', 'before_kv')
+(6.970487117767334, 0.1373649388551712, 'gelu', 'silu', 'relu', 'gelu', 'before_kv')
+(6.970667839050293, 0.1330784112215042, 'relu', 'silu', 'silu', 'gelu', 'before_kv')
+(6.9736409187316895, 0.1373089998960495, 'relu', 'silu', 'relu', 'gelu', 'before_kv')
+(6.990720272064209, 0.13382229208946228, 'silu', 'silu', 'silu', 'gelu', 'before_kv')
+(6.9959635734558105, 0.13433274626731873, 'gelu', 'silu', 'gelu', 'gelu', 'before_kv')
+(6.9987897872924805, 0.13805416226387024, 'silu', 'silu', 'relu', 'gelu', 'before_kv')
+(7.001588821411133, 0.13428232073783875, 'relu', 'silu', 'gelu', 'gelu', 'before_kv')
+seconds: 1.39
+
+```

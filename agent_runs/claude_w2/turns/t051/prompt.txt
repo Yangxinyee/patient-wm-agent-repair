@@ -1,0 +1,26 @@
+OUTPUT of Python run 46 of at most 300:
+```
+mlp ('x', 'pre', 'act') | names: ('lin', 'ACTS') | consts: ['.0', '.2']
+lin ('x', 'pre') | names: ('W', 'T') | consts: ['.weight', '.bias']
+ln ('x', 'pre', 'eps') | names: ('Fnn', 'layer_norm', 'shape', 'W') | consts: [-1, '.weight', '.bias']
+atom_vec ('code', 'kind', 'ekind', 'value', 'rate', 'dose', 'unit_row', 'side', 'rate_unit_row') | names: ('W', 'torch', 'zeros', 'float64', 'names', 'np', 'isnan', 'zsc', 'fbin') | consts: ['embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.categorical.unit.weight', 'embed.kq.weight', 0, 6, 'value', 1, 'embed.bins.value.weight', 'embed.numeric.weight', 'embed.numeric.bias']
+atom_vec2 ('code', 'kind', 'ekind', 'value', 'rate', 'dose', 'unit_row', 'side', 'rate_unit_row', 'use_kq') | names: ('W', 'torch', 'zeros', 'float64', 'names', 'np', 'isnan', 'zsc', 'fbin') | consts: ['embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.categorical.unit.weight', 'embed.categorical.rate_unit.weight', 'embed.kq.weight', 0, 6, 'value', 1, 'embed.bins.value.weight', 'dose']
+encode ('xs', 'act', 'pre') | names: ('len', 'sum', 'np', 'sqrt', 'W', 'log1p', 'ln', 'mlp') | consts: ['.size.weight', 0, '.size.bias', '.mlp2', '.norm']
+ctx_from ('prev_row', 'dt', 'act', 'gapmode') | names: ('reshape', 'torch', 'exp', 'W', 'np', 'log', 'log1p', 'mlp', 'tensor', 'float64', 'ln', 'mean') | consts: [192, 960, 4, 'core.flow.a', 10, 'gap', 0, 'core.out_norm']
+ctx_v ('ip', 'dt', 'gscale') | names: ('X', 'reshape', 'torch', 'exp', 'W', 'ln', 'mean', 'mlp', 'tensor', 'np', 'log', 'float64') | consts: [192, 960, 4, 'core.flow.a', 0, 'core.out_norm', 10, 'gap', 'gelu']
+zpred ('ip', 'ik', 'a', 'dt', 'act', 'unit_row', 'side', 'variant') | names: ('X', 'reshape', 'torch', 'exp', 'W', 'mlp', 'tensor', 'np', 'log', 'float64', 'ln', 'mean', 'atom_vec', 'int', 'code', 'value', 'nan', 'encode', 'cat', 'zeros') | consts: [192, 960, 4, 'core.flow.a', 10, 'gap', 0, 'core.out_norm', 'no_out', 'out', 'no_hn', 'hn']
+zsc ('code_name', 'attr', 'x') | names: ('NUM', 'float', 'np', 'clip') | consts: ['median', 'iqr', -10, 10]
+fbin ('code_name', 'attr', 'x', 'side') | names: ('NUM', 'int', 'np', 'searchsorted') | consts: ['fine_bin_edges', 1]
+stay_atoms ('df_stay',) | names: ('itertuples', 'event', 'append', 'hour', 'code_id', 'value', 'np', 'nan', 'rate', 'dose', 'end_hour', 'pd', 'DataFrame', 'round', 't', 'astype', 'int', 'sort_values', 'reset_index') | consts: [0, 1, 2, 'hospital_admission', 3, 4, 60, 'minute', True]
+T ('n',) | names: ('load', 'double') | consts: []
+band ('v',) | names: ('pd', 'cut') | consts: [False]
+deconv ('R', 'F') | names: ('range', 'len', 'append', 'sum', 'np', 'array') | consts: [1, 0]
+true_shift_rows ('rows', 'drug', 'mult', 'Kv', 'start') | names: ('zip', 'stay_id', 'hour', 'range', 'gtt', 'index', 'at', 'np', 'nan', 'isnan', 'append', 'array') | consts: [0.0, 1]
+build_grid ('df',) | names: ('copy', 'np', 'floor', 'hour', 'astype', 'int', 'event', 'isin', 'pivot_table', 'pd', 'MultiIndex', 'from_product', 'stay_id', 'unique', 'range', 'DataFrame', 'join', 'columns', 'reset_index') | consts: ['h', 'stay_id', 'event', 'value', 'first', 'insulin', 'norepinephrine', 'rate', -1, 25, 'gf', 'gl']
+c_out: |W-I|/|I| 1.2355438470840454 diag mean -0.021710485219955444 fro 9.63142204284668
+last_numeric col norms [2.97 3.04 2.74 3.18 2.79 2.86 3.56 4.49]
+embed.numeric col norms [3.42 2.83 2.95 2.92 3.1  3.18]
+z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins. The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1].
+[{'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 60.0, 66.0, 70.0, 74.0, 78.0, 81.0, 84.0, 89.0, 92.0, 95.0, 98.0]}, {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [40.0, 46.0, 52.0, 60.0, 69.0, 75.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}, {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [77.0, 87.0, 96.0, 109.0, 129.0, 144.0, 155.0, 164.0, 173.0, 183.0, 196.0, 215.0, 230.0, 244.0, 260.0]}, {'code': 'glucose_lab', 'attribute': 'value', 'median': 142.0, 'iqr': 53.0, 'fine_bin_edges': [73.0, 81.0, 89.0, 98.0, 111.0, 122.0, 132.0, 142.0, 152.0, 163.0, 177.0, 199.0, 217.0, 230.57499999998254, 247.0]}, {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.208, 'iqr': 2.88, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.336, 0.72, 1.152, 1.632, 2.208, 2.784, 3.456, 4.176, 4.8, 4.8, 4.8, 4.8]}, {'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.46, 'iqr': 0.6000000000000001, 'fine_bin_edges': [0.03, 0.04, 0.05, 0.07, 0.15, 0.24, 0.34, 0.46, 0.58, 0.72, 0.87, 1.0, 1.0, 1.0, 1.0]}, {'code': 'insulin', 'attribute': 'rate', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}]
+
+```

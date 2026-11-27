@@ -1,0 +1,281 @@
+OUTPUT of Python run 39 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+=====
+NAMES ('list', 181)
+SHAPES ('dict', 181)
+VOCAB ('dict', 8)
+V ('dict', 8)
+k ('str', 32)
+s ('DataFrame', (171745, 27))
+e ('ndarray', (121221,))
+tr ('DataFrame', (1997441, 11))
+tu ('DataFrame', (26251, 10))
+notes ('str', 343)
+adm ('DataFrame', (30000, 2))
+d ('dict', 22)
+x ('DataFrame', (241638, 10))
+H ('ndarray', (28,))
+P ('dict', 6)
+ids ('list', 30000)
+PT ('dict', 6)
+ids_t ('list', 400)
+G ('dict', 6)
+hrs ('list', 28)
+f ('list', 8)
+ins ('ndarray', (30000, 28))
+ne ('ndarray', (30000, 28))
+on ('DataFrame', (178174, 13))
+onn ('ndarray', (30000, 25))
+gf ('ndarray', (30000, 28))
+gl ('ndarray', (30000, 28))
+ma ('ndarray', (30000, 28))
+mc ('ndarray', (30000, 28))
+glast ('ndarray', (30000, 28))
+mlast ('ndarray', (30000, 28))
+rows ('list', 23)
+t ('int', None)
+j ('int', None)
+D ('ndarray', (400, 25))
+on_ ('DataFrame', (266874, 12))
+tab ('DataFrame', (12, 8))
+mid ('DataFrame', (137909, 10))
+D2 ('DataFrame', (720000, 11))
+icc ('float64', ())
+both ('ndarray', (30000, 28))
+bm ('ndarray', (30000, 28))
+dm ('ndarray', (106563,))
+R ('DataFrame', (121221, 23))
+Rv ('DataFrame', (298450, 13))
+gb ('ndarray', (298450, 14))
+res ('DataFrame', (19, 2))
+on2 ('DataFrame', (255998, 13))
+gbest ('ndarray', (30000, 28))
+b ('ndarray', (6,))
+L ('DataFrame', (263668, 14))
+X ('ndarray', (5244, 992))
+r ('DataFrame', (3, 2))
+jj ('int', None)
+F ('DataFrame', (263668, 17))
+r1 ('DataFrame', (6, 2))
+r2 ('DataFrame', (6, 2))
+out ('list', 8)
+sb ('DataFrame', (3097, 14))
+N ('DataFrame', (171776, 26))
+nm ('list', 11)
+ry ('ndarray', (121221,))
+rf ('DataFrame', (12, 2))
+Lb ('DataFrame', (263668, 17))
+jcols ('dict', 25)
+Nb ('DataFrame', (171776, 27))
+Q ('DataFrame', (174162, 8))
+bothq ('DataFrame', (34217, 8))
+onlyc ('DataFrame', (49094, 8))
+none ('DataFrame', (9704, 8))
+HistGradientBoostingRegressor ('ABCMeta', None)
+KFold ('ABCMeta', None)
+featcols ('list', 16)
+results ('dict', 2)
+drug ('str', 2)
+B ('DataFrame', (121221, 31))
+rd ('ndarray', (222826,))
+m ('ndarray', (222826,))
+se ('ndarray', (6,))
+md ('ndarray', (222826,))
+rdk ('ndarray', (117482,))
+fb ('float64', ())
+o ('tuple', 5)
+tot ('list', 12)
+h ('ndarray', (8,))
+Bi ('DataFrame', (254361, 34))
+Xi ('DataFrame', (254361, 16))
+rdi ('ndarray', (254361,))
+mi ('dict', 10)
+Bn ('DataFrame', (222826, 37))
+Xn ('DataFrame', (222826, 16))
+rdn ('ndarray', (222826,))
+mn ('dict', 11)
+m0 ('ndarray', (222826,))
+ryn1 ('ndarray', (222826,))
+mlo ('int', None)
+mhi ('int', None)
+row ('list', 4)
+lo ('float', None)
+hi ('float', None)
+Bn_g ('list', 3)
+yy ('ndarray', (254361,))
+mbest ('ndarray', (30000, 28))
+Bi_m ('list', 3)
+res12 ('dict', 2)
+se_ ('list', 12)
+fs ('list', 12)
+ins_t ('ndarray', (400, 25))
+ne_t ('ndarray', (400, 25))
+has_ins12 ('ndarray', (400,))
+has_ne12 ('ndarray', (400,))
+art_t ('ndarray', (400,))
+h_ins ('ndarray', (12,))
+h_ne ('ndarray', (12,))
+both_ids ('list', 87)
+extra ('list', 13)
+sel1 ('list', 100)
+fw ('DataFrame', (3384, 8))
+sid_index ('dict', 400)
+gf_t ('ndarray', (400, 28))
+ma_t ('ndarray', (400, 28))
+chk ('ndarray', (342, 2))
+sid ('int', None)
+ed ('str', 5)
+g ('DataFrame', (12, 7))
+i ('int', None)
+A ('ndarray', (400, 28))
+present ('list', 12)
+first ('int', None)
+reach_pred ('list', 12)
+mults ('dict', 4)
+S ('dict', 4)
+summ ('DataFrame', (4, 3))
+T ('dict', 181)
+n ('str', 15)
+ex ('list', 1)
+allkeys ('set', 0)
+v ('list', 2)
+fr ('DataFrame', (314, 12))
+condres ('dict', 2)
+RI ('ndarray', (121221, 6))
+XtX_inv ('ndarray', (6, 6))
+meat ('ndarray', (6, 6))
+ins_all ('ndarray', (30000, 25))
+ne_all ('ndarray', (30000, 25))
+rng ('Generator', None)
+maxins ('ndarray', (30000,))
+maxne ('ndarray', (30000,))
+nins ('ndarray', (30000,))
+nne ('ndarray', (30000,))
+art_all ('ndarray', (30000,))
+c1 ('ndarray', (1706,))
+c2 ('ndarray', (4654,))
+c3 ('ndarray', (4615,))
+c4 ('ndarray', (978,))
+c5 ('ndarray', (2833,))
+pick ('list', 99)
+sel_states ('list', 99)
+S2 ('NpzFile', 6)
+st ('DataFrame', (5244, 7))
+Ridge ('ABCMeta', None)
+GroupKFold ('ABCMeta', None)
+sidx ('dict', 30000)
+act ('DataFrame', (2491, 7))
+ii ('ndarray', (2491,))
+tt ('ndarray', (2491,))
+l ('int', None)
+=====
+/work/fwd_1 ['summary.json', 'dose_edit_original.csv']
+/work/fwd_2 ['summary.json', 'states_original.npz']
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospi
+[output cut at 10,000 characters]
+```

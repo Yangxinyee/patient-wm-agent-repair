@@ -1,0 +1,122 @@
+OUTPUT of Python run 116 of at most 300:
+```
+=== CORE DISCREPANCY ===
+True/pred slot mean, SD: 2.8831100463867188 2.8770947456359863 86.85908508300781 86.94221496582031
+Mean difference across channels RMS: 0.026779962703585625
+Channel-centered difference RMS: 0.5169717073440552
+Best per-slot scale mean/SD: 0.9989519 0.0030456078
+Centered/rescaled RMSE: 0.4395863711833954
+Finite posterior rows: 1191 1191
+Valid drug posterior RMSE: 0.017682870849967003
+=== CORE HELPER OPERATIONS ===
+
+ repair_core_step names: ('Fnn', 'linear', 'wt', 'torch', 'cat', 'repair_simple_block', 'ln', 'repair_self_attention', 'repair_cross_attention', 'mlp', 'softplus', 'exp', 'mean')
+constants: ['z_in.weight', 'z_in.bias', 'core.slots', 1, 'core.prelude.0', 4, 'core.prelude_norm', '.norm1', '.attn', '.norm2', '.cross', '.norm3', '.ffn', 'gelu', 'core.delta_in', 'core.a_in', 'core.b_in.weight', 'core.c_out.weight', 'core.coda.0', 'core.out_norm']
+LOAD_GLOBAL NULL + Fnn
+LOAD_GLOBAL NULL + wt
+LOAD_CONST 'z_in.weight'
+LOAD_GLOBAL NULL + wt
+LOAD_CONST 'z_in.bias'
+STORE_FAST z_token
+LOAD_GLOBAL torch
+LOAD_GLOBAL NULL + wt
+LOAD_CONST 'core.slots'
+LOAD_CONST None
+BINARY_OP +
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST 1
+STORE_FAST tokens
+LOAD_GLOBAL NULL + repair_simple_block
+LOAD_CONST 'core.prelude.0'
+STORE_FAST prelude
+LOAD_GLOBAL NULL + ln
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST 4
+LOAD_CONST 'core.prelude_norm'
+STORE_FAST E_local
+BINARY_OP +
+STORE_FAST recurrent
+LOAD_CONST ('core.blocks.0.0', 'core.blocks.0.1')
+STORE_FAST prefix
+LOAD_GLOBAL NULL + repair_self_attention
+LOAD_GLOBAL NULL + ln
+LOAD_CONST '.norm1'
+BINARY_OP +
+LOAD_CONST '.attn'
+BINARY_OP +
+BINARY_OP +
+STORE_FAST recurrent
+LOAD_GLOBAL NULL + repair_cross_attention
+LOAD_GLOBAL NULL + ln
+LOAD_CONST '.norm2'
+BINARY_OP +
+LOAD_CONST '.cross'
+BINARY_OP +
+BINARY_OP +
+STORE_FAST recurrent
+LOAD_GLOBAL NULL + mlp
+LOAD_GLOBAL NULL + ln
+LOAD_CONST '.norm3'
+BINARY_OP +
+LOAD_CONST '.ffn'
+BINARY_OP +
+LOAD_CONST 'gelu'
+BINARY_OP +
+STORE_FAST recurrent
+LOAD_GLOBAL NULL + Fnn
+LOAD_GLOBAL NULL + wt
+LOAD_CONST 'core.delta_in'
+STORE_FAST delta
+LOAD_GLOBAL torch
+LOAD_GLOBAL torch
+LOAD_GLOBAL NULL + wt
+LOAD_CONST 'core.a_in'
+BINARY_OP *
+STORE_FAST abar
+BINARY_OP *
+LOAD_GLOBAL NULL + Fnn
+LOAD_GLOBAL NULL + wt
+LOAD_CONST 'core.b_in.weight'
+BINARY_OP *
+BINARY_OP +
+BINARY_OP +
+BINARY_OP +
+BINARY_OP -
+STORE_FAST next_h
+LOAD_GLOBAL NULL + Fnn
+LOAD_GLOBAL NULL + wt
+LOAD_CONST 'core.c_out.weight'
+STORE_FAST next_h
+LOAD_GLOBAL NULL + repair_simple_block
+LOAD_CONST 'core.coda.0'
+STORE_FAST next_h
+LOAD_GLOBAL NULL + ln
+LOAD_CONST 1
+LOAD_CONST 'core.out_norm'
+STORE_FAST next_out
+RETURN_VALUE 
+
+ repair_simple_block names: ('repair_self_attention', 'ln', 'mlp')
+constants: ['.norm1', '.attn', '.norm3', '.ffn', 'gelu']
+
+ repair_self_attention names: ('shape', 'Fnn', 'linear', 'wt', 'reshape', 'transpose', 'chunk', 'torch', 'softmax', 'np', 'sqrt')
+constants: ['.q.weight', 4, 48, 1, 2, '.kv.weight', -1, -2, '.out.weight']
+
+=== CORE TENSOR SHAPES ===
+[('core.a_in', (192,)), ('core.b_in.weight', (192, 192)), ('core.c_out.weight', (192, 192)), ('core.coda.0.attn.kv.weight', (384, 192)), ('core.coda.0.attn.out.weight', (192, 192)), ('core.coda.0.attn.q.weight', (192, 192)), ('core.coda.0.ffn.0.bias', (768,)), ('core.coda.0.ffn.0.weight', (768, 192)), ('core.coda.0.ffn.2.bias', (192,)), ('core.coda.0.ffn.2.weight', (192, 768)), ('core.coda.0.norm1.bias', (192,)), ('core.coda.0.norm1.weight', (192,)), ('core.coda.0.norm3.bias', (192,)), ('core.coda.0.norm3.weight', (192,)), ('core.delta_in', (192,)), ('core.prelude_norm.bias', (192,)), ('core.prelude_norm.weight', (192,))]
+
+=== NOTEBOOK CORE AUDIT EXCERPTS ===
+all_slots        insulin   10.0  0.028877     0.266526
+all_slots norepinephrine 1000.0 -0.012698     0.023955
+
+```

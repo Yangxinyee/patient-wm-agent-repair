@@ -1,0 +1,236 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 314 replies happened before. Forward passes used: 25 of 50; Python runs used: 277 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'glucose_115_candidate.npz', 'map_feature_trial.npz', 'map_feature_trial_backup.npz', 'notes.md', 'pre_recurrent_candidate.npz', 'recurrent_glucose_valid.npz', 'recurrent_half_backup.npz', 'rejected_map_trial.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ering separate drug components and replay interfaces before redesign. No weights changed.
+- Python runs: 254; forward passes: 19.
+
+## Run 255: separate recurrent readout routes
+- Algebraically recovering glucose and MAP components of the rank-two correction.
+- Inspecting multiplier-general rate feature contrasts and one-step evaluator before testing selective routing. No weights changed.
+- Python runs: 255; forward passes: 19.
+
+## Run 256: full-strength glucose-only recurrent candidate
+- Split correction into glucose route (norm 118.13) and MAP route (norm 1169.18).
+- Current feature contrasts are nonlinear: insulin x2/x3 ~0.304/0.323; NE x2/half ~0.03174/-0.00397, explaining weak half-dose response.
+- Submitted core.b_in = original + glucose route, with MAP route disabled.
+- Local multiplier checks are diagnostic only; official factual and rollout validation next.
+- Python runs: 256; forward passes: 19.
+
+## Run 257: slot-mean factual constraints
+- Glucose-only candidate passes forward 20 factual, delta 0.00300080; forward 21 shifts insulin -10.203/+4.439, NE +0.327/-0.048.
+- Fitting multiplier-normalized physical-rate contrasts with separate penalties on slot-mean and within-slot factual energy. Hypothesis: avoid penalizing cancellation directions that have little readout effect.
+- No weights changed. Python runs: 257; forward passes: 21.
+
+## Run 258: recover exact interfaces before further edits
+- Slot-mean feature fits alone do not resolve dose-response asymmetry.
+- Preserved the factual-validated glucose-only edit in recurrent_glucose_valid.npz.
+- Recovering architecture, identification evidence and retained helper interfaces.
+- Submitted weights unchanged. Python runs: 258; forward passes: 21.
+
+## Run 259: compact interface inventory
+- Run 258 output was truncated before the helper inventory.
+- Record-based immediate and dynamic effects recovered; no medical assumptions used.
+- Recovering compact helper and candidate metadata. No weights changed.
+- Python runs: 259; forward passes: 21.
+
+## Run 260: inspect recurrent calibration and centering
+- Separate glucose and MAP routes are retained; investigating MAP asymmetry.
+- Inspecting exact prediction helpers, route norms and factual feature means.
+- No weights changed. Python runs: 260; forward passes: 21.
+
+## Run 261: constrained MAP dose-feature fits
+- Current features are centered; constant-bias correction is not justified.
+- Fitting minimum-factual-energy MAP features with explicit multiplier constraints.
+- Targets use record-estimated MAP impulse effect, not medical knowledge.
+- No weights changed. Python runs: 261; forward passes: 21.
+
+## Run 262: conservative MAP route
+- Exact all-multiplier constraints produced unacceptable factual feature energy.
+- Fitted selected dose constraints and capped factual feature SD at 0.50 MAP units locally.
+- Checking insulin cross-talk and NE x0/.5/1.5/2/3 responses before submission.
+- No weights changed. Python runs: 262; forward passes: 21.
+
+## Run 263: submit conservative MAP trial
+- Added capped, multiplier-constrained MAP route to the validated glucose route.
+- Local NE x2/half arterial shifts: +0.3409/-0.1122; x3 still flattens.
+- Local factual MAP RMS shift ~0.84; official eligibility remains unknown.
+- Glucose-only fallback remains archived and recoverable.
+- Python runs: 263; forward passes: 21.
+
+## Run 264: recover after rejected MAP trial
+- Forward 22 factual delta +0.00909 exceeds the +0.005 limit.
+- Recovering the archived eligible glucose-only candidate and exact replay interfaces.
+- Current trial is not acceptable for submission; no weights changed.
+- Python runs: 264; forward passes: 22.
+
+## Run 265: verify separable corrections
+- Checking the glucose fallback and rejected MAP addition against their retained matrices.
+- Recovering exact local cases and validation stays before attenuation tests.
+- No weights changed. Python runs: 265; forward passes: 22.
+
+## Run 266: reject inefficient MAP route; strengthen glucose modestly
+- Forward 23 rejected MAP trial: insulin -10.779/+4.926; NE +1.113/-0.359.
+- MAP improvement is too small for its +0.00909 total factual-loss cost.
+- Submitted glucose-only correction at strength 1.15; MAP disabled.
+- Recovering full-distribution readout interfaces for a better MAP route.
+- Python runs: 266; forward passes: 23.
+
+## Run 267: full-distribution MAP routing
+- Forward 24 glucose strength 1.15 factual delta +0.00383 passes on the original 100-stay batch.
+- Computing finite-difference value-probability Jacobians and minimum-Fisher-cost MAP routes.
+- No autograd, backpropagation or weight optimiser used; submitted weights unchanged.
+- Python runs: 267; forward passes: 24.
+
+## Run 268: verified probability capture and MAP route fit
+- Corrected latent-dimension handling; verified probability-derived means before fitting.
+- Fitted minimum-categorical-distortion routes by finite differences and linear algebra only.
+- Submitted glucose-only weights unchanged.
+- Python runs: 268; forward passes: 24.
+
+## Run 269: restart recovery
+- Reading architecture, identification evidence and retained interfaces.
+- Minimum-Fisher MAP routes remain locally tested only.
+- Submitted glucose-only strength 1.15 edit unchanged.
+- Python runs: 269; forward passes: 24.
+
+## Run 270: bounded interface recovery
+- Run 269 output truncated before fit inventory; retrieving compact objects and archives.
+- No weights changed. Python runs: 270; forward passes: 24.
+
+## Run 271: focused construction audit
+- Retrieving injection formula and initial record-identification evidence.
+- No weights changed. Python runs: 271; forward passes: 24.
+
+## Run 272: compare minimum-distortion MAP routes
+- Recovered retained Fisher-route fits and checked the recurrent injection factorization.
+- Compared local factual mean disturbance and NE doubled/halved responses with the same dose feature.
+- No weights changed; local results are not official factual or rollout validation.
+- Python runs: 272; forward passes: 24.
+
+## Runs 273-274: separate archived components and compare KL
+- Run 273 stopped on a rank-one assertion before edits or probability tests.
+- Run 274 subtracted the archived glucose component before checking the MAP factorization.
+- Compared probability KL and NE dose responses on 320 local cases, including 296 outside the direction-fitting subset.
+- No weights changed. Python runs: 274; forward passes: 24.
+
+## Run 275: feature-aware factual distortion
+- Direction-only Fisher routes had similar held-out KL; half strength cost approximately 0.0009 categorical nats locally.
+- Computed scalar-slot finite differences and the induced probability Fisher matrix for a linear dose feature.
+- Recovered record-based target metadata and a second factual-validation batch.
+- No backpropagation, weight optimizer, or weight changes.
+- Python runs: 275; forward passes: 24.
+
+## Run 276: slot-aware dose-feature regression
+- Glucose-only strength 1.15 passed a second 100-stay factual batch; computed pooled exact delta from forwards 24 and 25.
+- Built dose-contrast features by scalar-slot finite differences, for x0/.5/1.5/2/3 of both drugs.
+- Fit small linear dose-feature models using record-estimated MAP effects, factual probability distortion, and optional slot-energy penalties.
+- Alternating local cases held out from fitting; candidate quadratic KL capped at 0.0012 on both halves.
+- No weight changes, backpropagation, or weight optimizer.
+- Python runs: 276; forward passes: 25.
+
+## Run 277: exact local tests and bounded MAP trial
+- Low-penalty feature fits overfit the local fitting half; rejected those routes.
+- Exactly evaluated regularized feature candidates and full-local-sample refits across all five NE multipliers and insulin cross-talk.
+- Any submitted trial has a recoverable glucose-only backup in map_feature_trial_backup.npz.
+- Selected trial: ('full_fit', 0.01, 5.0). Official eligibility and rollout response remain unvalidated.
+- Python runs: 277; forward passes: 25.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 277 of at most 300:
+```
+('heldout_fit', 0.001, 5.0) {'weighted_KL': 0.0006733188124215288, 'validation_half_KL': 0.0012023884773738483, 'factual_RMS': [0.11168000102043152, 0.0828000009059906, 0.35367000102996826, 0.40185999870300293], 'matrix_norm': 1183.6270227728746, 'feature_norm': 216.91818773345184, 'NE_0.0_exact_shift': [0.0036700000055134296, 0.00810999982059002, -0.19429999589920044, -0.19731000065803528], 'NE_0.5_exact_shift': [-0.0006200000061653554, 0.0014600000577047467, -0.08517999947071075, -0.08629000186920166], 'NE_1.5_exact_shift': [0.013790000230073929, 0.0177800003439188, 0.11467999964952469, 0.11292000114917755], 'NE_2.0_exact_shift': [0.06319999694824219, 0.06594999879598618, 0.2659600079059601, 0.25161999464035034], 'NE_3.0_exact_shift': [0.0963200032711029, 0.11699999868869781, 0.4633899927139282, 0.46129000186920166], 'insulin_2.0_added_shift': [-0.0026599999982863665, -0.0026000000070780516, 0.02493000030517578, 0.015780000016093254], 'insulin_0.5_added_shift': [0.007009999826550484, -0.0007800000021234155, 0.012760000303387642, 0.033580001443624496], 'dose_error': 3.2944369881173965, 'eligible_for_official_trial': True}
+('heldout_fit', 0.01, 0.5) {'weighted_KL': 0.0008053551919709951, 'validation_half_KL': 0.0012022668909580385, 'factual_RMS': [0.1398800015449524, 0.10311000049114227, 0.37463000416755676, 0.3983199894428253], 'matrix_norm': 2849.96256168285, 'feature_norm': 522.3002703504999, 'NE_0.0_exact_shift': [0.003659999929368496, 0.008919999934732914, -0.2463500052690506, -0.24955999851226807], 'NE_0.5_exact_shift': [-0.0024399999529123306, 9.999999747378752e-05, -0.11249999701976776, -0.11472000181674957], 'NE_1.5_exact_shift': [0.012690000236034393, 0.01735999993979931, 0.146479994058609, 0.14142000675201416], 'NE_2.0_exact_shift': [0.058139998465776443, 0.06321000307798386, 0.3030799925327301, 0.29572999477386475], 'NE_3.0_exact_shift': [0.08254999667406082, 0.10903999954462051, 0.5618100166320801, 0.5374000072479248], 'insulin_2.0_added_shift': [0.0025100000202655792, 0.001500000013038516, 0.005030000116676092, -0.01460999995470047], 'insulin_0.5_added_shift': [0.0029100000392645597, -0.003930000122636557, 0.004689999856054783, 0.023560000583529472], 'dose_error': 2.832179544429179, 'eligible_for_official_trial': True}
+('heldout_fit', 0.01, 5.0) {'weighted_KL': 0.0007777257218085461, 'validation_half_KL': 0.0012018113354444408, 'factual_RMS': [0.12847000360488892, 0.09070999920368195, 0.38245001435279846, 0.40658000111579895], 'matrix_norm': 2280.293948965234, 'feature_norm': 417.89957595789906, 'NE_0.0_exact_shift': [-0.002400000113993883, 0.006049999967217445, -0.286190003156662, -0.28863000869750977], 'NE_0.5_exact_shift': [-0.0035200000274926424, -0.0002300000051036477, -0.12721000611782074, -0.12801000475883484], 'NE_1.5_exact_shift': [0.013949999585747719, 0.01826000027358532, 0.16009999811649323, 0.1534299999475479], 'NE_2.0_exact_shift': [0.06818000227212906, 0.06875000149011612, 0.3865300118923187, 0.3537600040435791], 'NE_3.0_exact_shift': [0.09954000264406204, 0.12234999984502792, 0.6496400237083435, 0.6180700063705444], 'insulin_2.0_added_shift': [-0.0028800000436604023, -0.003060000017285347, 0.03162999823689461, 0.014340000227093697], 'insulin_0.5_added_shift': [0.010870000347495079, -0.0008200000156648457, 0.021080000326037407, 0.05262000113725662], 'dose_error': 2.357779607358199, 'eligible_for_official_trial': True}
+('full_fit', 0.001, 5.0) {'weighted_KL': 0.0011696690971720722, 'validation_half_KL': 0.0011505903491335861, 'factual_RMS': [0.17326000332832336, 0.12195000052452087, 0.47290000319480896, 0.46140000224113464], 'matrix_norm': 2841.824787667506, 'feature_norm': 520.8088958231954, 'NE_0.0_exact_shift': [-0.005260000005364418, 0.004220000002533197, -0.3078100085258484, -0.30169999599456787], 'NE_0.5_exact_shift': [-0.0038799999747425318, 0.0007900000200606883, -0.13062000274658203, -0.12553000450134277], 'NE_1.5_exact_shift': [0.01522000040858984, 0.017720000818371773, 0.20258000493049622, 0.17354999482631683], 'NE_2.0_exact_shift': [0.05770999938249588, 0.06616000086069107, 0.4751099944114685, 0.4079599976539612], 'NE_3.0_exact_shift': [0.10722000151872635, 0.135110005736351, 0.8691499829292297, 0.7333099842071533], 'insulin_2.0_added_shift': [0.006430000066757202, 0.003719999920576811, -0.0015899999998509884, -0.014480000361800194], 'insulin_0.5_added_shift': [0.020269999280571938, 0.001979999942705035, -0.020810000598430634, 0.003389999968931079], 'dose_error': 1.7935859689200409, 'eligible_for_official_trial': True}
+('full_fit', 0.01, 0.5) {'weighted_KL': 0.0011526107095113382, 'validation_half_KL': 0.0011299938101549732, 'factual_RMS': [0.16665999591350555, 0.12071999907493591, 0.4578700065612793, 0.47148001194000244], 'matrix_norm': 3911.370916304323, 'feature_norm': 716.8199731790618, 'NE_0.0_exact_shift': [0.0004400000034365803, 0.007029999978840351, -0.2855699956417084, -0.2805500030517578], 'NE_0.5_exact_shift': [-0.0029800001066178083, 0.0013200000394135714, -0.12105000019073486, -0.11712999641895294], 'NE_1.5_exact_shift': [0.013079999946057796, 0.016140000894665718, 0.18591000139713287, 0.16695000231266022], 'NE_2.0_exact_shift': [0.04008999839425087, 0.05784999951720238, 0.42135998606681824, 0.3652600049972534], 'NE_3.0_exact_shift': [0.08156999945640564, 0.11761999875307083, 0.7829599976539612, 0.6496300101280212], 'insulin_2.0_added_shift': [0.00107999995816499, -0.0012799999676644802, 0.0009299999801442027, -0.013559999875724316], 'insulin_0.5_added_shift': [0.014630000106990337, -0.0006099999882280827, -0.023269999772310257, -0.011590000241994858], 'dose_error': 2.1154826850455413, 'eligible_for_official_trial': False}
+('full_fit', 0.01, 5.0) {'weighted_KL': 0.0011513632189294413, 'validation_half_KL': 0.0011914884610279915, 'factual_RMS': [0.16399000585079193, 0.11367999762296677, 0.47238999605178833, 0.4655100107192993], 'matrix_norm': 3414.8483311742143, 'feature_norm': 625.824433821712, 'NE_0.0_exact_shift': [-0.006440000142902136, 0.0037499999161809683, -0.32815998792648315, -0.3229599893093109], 'NE_0.5_exact_shift': [-0.0047900001518428326, 0.00018000000272877514, -0.14092999696731567, -0.13627000153064728], 'NE_1.5_exact_shift': [0.015949999913573265, 0.018479999154806137, 0.21448999643325806, 0.18774999678134918], 'NE_2.0_exact_shift': [0.06004000082612038, 0.06741999834775925, 0.5129299759864807, 0.4426400065422058], 'NE_3.0_exact_shift': [0.1127299964427948, 0.13830000162124634, 0.9402599930763245, 0.7924500107765198], 'insulin_2.0_added_shift': [0.011599999852478504, 0.006839999929070473, -0.0038900000508874655, -0.02710000053048134], 'insulin_0.5_added_shift': [0.01803000085055828, 0.0012400000123307109, -0.019039999693632126, 0.008430000394582748], 'dose_error': 1.5587816130138488, 'eligible_for_official_trial': True}
+('full_fit', 0.1, 5.0) {'weighted_KL': 0.0010130616686601865, 'validation_half_KL': 0.001195852624587546, 'factual_RMS': [0.14916999638080597, 0.09982000291347504, 0.43849000334739685, 0.45232000946998596], 'matrix_norm': 5560.670685924338, 'feature_norm': 1019.0799842905385, 'NE_0.0_exact_shift': [-0.00930000003427267, 0.0033599999733269215, -0.37922999262809753, -0.37560999393463135], 'NE_0.5_exact_shift': [-0.007009999826550484, -0.000750000006519258, -0.1661899983882904, -0.16207000613212585], 'NE_1.5_exact_shift': [0.018810000270605087, 0.02092999964952469, 0.27000001072883606, 0.24089999496936798], 'NE_2.0_exact_shift': [0.07518000155687332, 0.07539000362157822, 0.6567599773406982, 0.577049970626831], 'NE_3.0_exact_shift': [0.13091999292373657, 0.16193999350070953, 1.2330100536346436, 1.0373200178146362], 'insulin_2.0_added_shift': [0.020269999280571938, 0.012910000048577785, -0.010379999876022339, -0.06571000069379807], 'insulin_0.5_added_shift': [0.016270000487565994, 0.00022000000171829015, 0.004129999782890081, 0.03853999823331833], 'dose_error': 0.8429232527779212, 'eligible_for_official_trial': False}
+SUBMITTED FOR VALIDATION: ('full_fit', 0.01, 5.0) {'weighted_KL': 0.0011513632189294413, 'validation_half_KL': 0.0011914884610279915, 'factual_RMS': [0.16399000585079193, 0.11367999762296677, 0.47238999605178833, 0.4655100107192993], 'matrix_norm': 3414.8483311742143, 'feature_norm': 625.824433821712, 'NE_0.0_exact_shift': [-0.006440000142902136, 0.0037499999161809683, -0.32815998792648315, -0.3229599893093109], 'NE_0.5_exact_shift': [-0.0047900001518428326, 0.00018000000272877514, -0.14092999696731567, -0.13627000153064728], 'NE_1.5_exact_shift': [0.015949999913573265, 0.018479999154806137, 0.21448999643325806, 0.18774999678134918], 'NE_2.0_exact_shift': [0.06004000082612038, 0.06741999834775925, 0.5129299759864807, 0.4426400065422058], 'NE_3.0_exact_shift': [0.1127299964427948, 0.13830000162124634, 0.9402599930763245, 0.7924500107765198], 'insulin_2.0_added_shift': [0.011599999852478504, 0.006839999929070473, -0.0038900000508874655, -0.02710000053048134], 'insulin_0.5_added_shift': [0.01803000085055828, 0.0012400000123307109, -0.019039999693632126, 0.008430000394582748], 'dose_error': 1.5587816130138488, 'eligible_for_official_trial': True}
+
+```

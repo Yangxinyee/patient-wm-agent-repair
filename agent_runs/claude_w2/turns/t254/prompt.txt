@@ -1,0 +1,153 @@
+OUTPUT of Python run 246 of at most 300:
+```
+===== gen_wc.py
+
+def gen_wc(Rx, arms, W, a_i, c_i, pf, seed=0, L=4):
+    store=[]
+    res=run_rollout_h2(Rx,W,arms,n_paths=1,seed=seed,t_hide=1e9,want_nll=True,store=store)
+    A=Rx['A']; seq_si=res['seq_si']; seq_arm=res['seq_arm']
+    DG=dose_stack(Rx,arms,'insulin'); DGn=dose_stack(Rx,arms,'norepinephrine')
+    hk=make_lin_oracle(Rx,DGi=DG,a_i=a_i,c_i=c_i,k_i=0.0,pf=pf,t_hide=1e9)
+    g=torch.Generator().manual_seed(seed); out={k:[] for k in ['wc','code','arm','si','hj','t','lb','P','pm0','val']}
+    for tup in store:
+        hn_,hj,base,P,f8,lb_,zmu=tup[:7]
+        codes=torch.as_tensor(A.code.values[hj],dtype=torch.long)
+        pr=mlp(base,W,'z_prior'); zls=pr[:,32:]
+        z=zmu+torch.exp(zls)*torch.randn(zmu.shape,generator=g)
+        lg,wc=head_value_logits(base,codes,f8,lb_,torch.zeros(len(hj),dtype=torch.long),W,z,1)
+        out['wc'].append(wc.numpy().astype(np.float32)); out['code'].append(A.code.values[hj]); out['arm'].append(seq_arm[hn_])
+        out['si'].append(seq_si[hn_]); out['hj'].append(hj); out['t'].append(A.t.values[hj]); out['lb'].append(lb_.numpy())
+        out['P'].append(P.numpy().astype(np.float32)); out['val'].append(A.value.values[hj])
+    D={k:np.concatenate(v) for k,v in out.items() if len(v)}
+    tau=np.round(D['t']).astype(int)
+    D['d']=lag_abs(DG,D['arm'],D['si'],tau,8); D['p']=hk.plags(np.zeros(len(tau),int),D['si'],tau,np.zeros((1,1),int),8)
+    D['n']=lag_abs(DGn,np.zeros(len(tau),int),D['si'],tau,8)
+    return D, res
+
+===== linor.py
+
+def make_lin_oracle(R,DGi=None,a_i=None,c_i=None,k_i=0.0,pf=None,DGn=None,a_n=None,k_n=0.0,t_hide=13.0,gain_i=1.0,gain_n=1.0):
+    A=R['A']; code=A.code.values; tt=A.t.values; val=A.value.values; loc=A['loc'].values; S_=len(R['stays'])
+    GFI=np.full((S_,32),-1); GLI=np.full((S_,32),-1)
+    for cc,arr in [(CODE['glucose_finger'],GFI),(CODE['glucose_lab'],GLI)]:
+        m=np.where((code==cc)&(np.abs(tt-np.round(tt))<1e-6))[0]; arr[A.si.values[m],np.round(tt[m]).astype(int)+3]=m
+    def gval(n,j,drawn):
+        v=val[j].astype(float).copy(); hid=tt[j]>=t_hide
+        if hid.any(): b=drawn[n[hid],loc[j[hid]]]; v[hid]=CENT[code[j[hid]],np.maximum(b,1)-1]
+        return v
+    def plags(n,si,tau,drawn,L):
+        Pm=np.zeros((len(n),L))
+        for kk in range(1,L+1):
+            ix=tau-kk+3; ok=ix>=0; ixc=np.clip(ix,0,31)
+            jf=GFI[si,ixc]; jl=GLI[si,ixc]; g=np.full(len(n),np.nan)
+            m1=ok&(jf>=0); g[m1]=gval(n[m1],jf[m1],drawn); m2=ok&(jf<0)&(jl>=0); g[m2]=gval(n[m2],jl[m2],drawn)
+            Pm[:,kk-1]=np.where(np.isnan(g),0.0,pf(np.nan_to_num(g)))
+        return Pm
+    def hook(k,hn_,hj,P,ctx):
+        P=P.clone()
+        for codes_,drug in [(GLC,'i'),(MPC,'n')]:
+            DG=DGi if drug=='i' else DGn
+            if DG is None: continue
+            m=np.isin(code[hj],codes_)
+            if not m.any(): continue
+            n=hn_[m]; si=ctx['seq_si'][n]; a=ctx['seq_arm'][n]; tau=np.round(tt[hj[m]]).astype(int)
+            if drug=='i':
+                d=lag_abs(DG,a,si,tau,len(a_i)); r=d@np.asarray(a_i)+k_i
+                if c_i is not None: r=r+plags(n,si,tau,ctx['drawn'],len(c_i))@np.asarray(c_i)
+                r=gain_i*r
+            else:
+                d=lag_abs(DG,a,si,tau,len(a_n)); r=gain_n*(d@np.asarray(a_n)+k_n)
+            ii=torch.as_tensor(np.where(m)[0])
+            P[ii]=tilt_P(P[ii],torch.as_tensor(CENT[code[hj[m]]],dtype=torch.float32),r)
+        return P
+    hook.plags=plags; return hook
+
+===== resid.py
+
+def build_resid_tab(tf_, gg_):
+    G=gg_.sort_values(['stay_id','h']).copy()
+    gb=G.groupby('stay_id')
+    G['nexp']=G['nor_l0']-G['e_nor']
+    for k in range(1,6):
+        G['pol_l%d'%k]=gb.ins_base.shift(k); G['ei_l%d'%k]=gb.e_ins.shift(k)
+        G['en_l%d'%k]=gb.e_nor.shift(k); G['nexp_l%d'%k]=gb.nexp.shift(k)
+    T=tf_[np.abs(tf_.t-np.round(tf_.t))<1e-6].copy(); T['h']=np.round(T.t).astype(int)
+    M=T.merge(G,on=['stay_id','h'],how='left'); M['res']=M.value-M.pm
+    return M
+def ols_tab(M,ycol,xcols):
+    d=M[[ycol]+xcols].dropna(); X=np.c_[np.ones(len(d)),d[xcols].values]; y=d[ycol].values
+    b,*_=np.linalg.lstsq(X,y,rcond=None); r=y-X@b; s2=r@r/(len(y)-X.shape[1])
+    se=np.sqrt(np.diag(np.linalg.inv(X.T@X))*s2)
+    return pd.DataFrame({'b':b,'se':se},index=['const']+xcols).round(3), len(y), np.sqrt(s2)
+
+def build_resid_tab2(tf_, gg_, K=6):
+    G=gg_.sort_values(['stay_id','h'])[['stay_id','h','ins0','e_ins','nor0','e_nor','glu_now','map_pol']].copy()
+    G['polm']=G.ins0-G.e_ins; G['nexp']=G.nor0-G.e_nor
+    gb=G.groupby('stay_id')
+    for k in range(0,K+1):
+        G['d%d'%k]=gb.ins0.shift(k); G['p%d'%k]=gb.polm.shift(k); G['e%d'%k]=gb.e_ins.shift(k)
+        G['n%d'%k]=gb.nor0.shift(k); G['x%d'%k]=gb.nexp.shift(k); G['u%d'%k]=gb.e_nor.shift(k)
+    T=tf_[np.abs(tf_.t-np.round(tf_.t))<1e-6].copy(); T['h']=np.round(T.t).astype(int)
+    M=T.merge(G,on=['stay_id','h'],how='left'); M['res']=M.value-M.pm
+    return M
+
+===== dec.py
+
+def lag_abs(DG,a,si,tau,L=12):
+    X=np.zeros((len(si),L))
+    for k in range(1,L+1):
+        ix=tau-k+3; ok=ix>=0
+        X[ok,k-1]=DG[a[ok],si[ok],ix[ok]]
+    return X
+def wc_hidden(D_, W, idx):
+    base=D_['base'][idx]; codes=torch.as_tensor(D_['code'][idx],dtype=torch.long)
+    lg,wc=head_value_logits(base,codes,D_['f8'][idx],D_['lb'][idx],torch.zeros(len(idx),dtype=torch.long),W,D_['zmu'][idx],1)
+    h1=F.gelu(F.linear(wc,W['attr_heads.value_bin.0.weight'],W['attr_heads.value_bin.0.bias']))
+    return wc,h1,lg
+def lag_feats(R_, D_, arms, pfn, idx, L=12, drug='insulin'):
+    DG=dose_stack(R_, arms, drug)
+    hk=make_dev_oracle(R_, DG, np.zeros(L), t_hide=1e9, pf=pfn)
+    si=D_['si'][idx]; a=D_['arm'][idx]; tau=np.round(D_['t'][idx]).astype(int)
+    dev=hk.devs(D_['n'][idx], si, a, tau, np.zeros((1,1),int), L)
+    d=lag_abs(DG, a, si, tau, L)
+    return d, d-dev, dev
+
+===== evalh.py
+
+def eval_arms(res, arms, R, K=None, drug='insulin', outcome='glucose_finger'):
+    K=Kins if K is None else K
+    DG=dose_stack(R, arms, drug); outl=[]
+    key={'insulin':'ins','norepinephrine':'ne'}[drug]
+    for ai in range(1,len(arms)):
+        t0=arms[ai].get(key+'_from',12.0)
+        rows,reached,o=readout(R,res,arms,drug,outcome,t0=t0,lo=int(t0)+1,hi=24)
+        sh=np.nanmean(o[ai]-o[0],1)[reached]; tr_=truth_rows(R,DG,ai,rows[reached],K)
+        lag=np.round(R['A'].t.values[rows[reached]]).astype(int)-int(t0)
+        prof=[(np.nanmean(sh[lag==l]), np.mean(tr_[lag==l])) for l in [1,3,6,9,12] if (lag==l).any()]
+        outl.append((str({k:v for k,v in arms[ai].items() if not isinstance(v,np.ndarray)}), round(float(np.nanmean(sh)),2), round(float(np.mean(tr_)),2), len(sh), [(round(a,1),round(b,1)) for a,b in prof]))
+    return outl
+
+===== states_ins.py
+
+def collect_states_ins(R_, arms, W, idsel=None):
+    A_=R_['A']; codeA=A_.code.values; kindA=A_.kind.values
+    insS=np.where((codeA==CODE['insulin'])&(kindA==0))[0]
+    sk2j={(int(A_.si.values[j]),int(A_.bidx.values[j])):j for j in insS}
+    store=[]
+    def hs(k,act_n,h,out,ctx):
+        s=ctx['seq_si'][act_n]; m=np.array([(int(x),k) in sk2j for x in s])
+        if not m.any(): return
+        mi=np.where(m)[0]; n=act_n[mi]
+        js=np.array([sk2j[(int(x),k)] for x in s[mi]])
+        store.append(dict(n=n,j=js,arm=ctx['seq_arm'][n],si=s[mi],u=ctx['u'][mi].clone(),Ep=ctx['Ep'][mi].mean(1).clone(),
+                          hn=ctx['hn'][mi].reshape(len(mi),-1).clone(),y=h[n].reshape(len(mi),-1).clone(),out=out[n].clone()))
+    res_=run_rollout_h(R_,W,arms,n_paths=1,seed=0,t_hide=1e9,hook_state=hs)
+    C={k_:(np.concatenate([d[k_] for d in store]) if not torch.is_tensor(store[0][k_]) else torch.cat([d[k_] for d in store]).numpy()) for k_ in store[0]}
+    return C
+
+===== corechan {'wI48': ((48,), dtype('float64')), 'wN48': ((48,), dtype('float64')), 'vI': ((192,), dtype('float64')), 'vN': ((192,), dtype('float64')), 'nsc': ((), dtype('float64'))}
+wI_chan.npy (96,) float64
+wI_head2.npy (48,) float64
+transfer_T.npy (192, 192) float32
+
+```

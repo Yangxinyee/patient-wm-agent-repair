@@ -1,0 +1,247 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 95 replies happened before. Forward passes used: 6 of 50; Python runs used: 87 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+, 1, 1, 2), (0.07164975255727768, 'observation', 'absent', 'absent', 'absent', 1, 0, 2), (0.07251051813364029, 'observation', 'absent', 'absent', 'absent', 0, 0, 2)].
+
+## Python 43; forward 6 — reconstruction diagnostics
+- END flags are false for both drugs, supporting a non-action pathway.
+- Start context checks: [(0.0003667452547233552, False, True, False), (0.00036694578011520207, True, True, False), (0.0003715317288879305, False, True, True)].
+- No weights changed.
+
+## Python 44; forward 6 — absent-field test
+- END omitted-field tests: [(0.07251055538654327, False, 'default', 2, 2), (0.07251055538654327, False, 'none', 2, 2), (0.07626894861459732, False, 'default', 2, 0)].
+- Comparing new start reconstruction with retained exact inputs; no weights changed.
+
+## Python 48; forward 6 — correction proposal
+- Retrieved controlled impulse estimates: insulin initially -1.99 per rate unit, with a multi-hour tail; NE initially +3.29 with a shorter tail.
+- Considering a posterior-mean low-rank edit driven by decoded dose innovations, with synthetic rate changes used only to test representation/extrapolation.
+- Effects are estimated from records, not medical assumptions. No weights changed.
+
+## Python 51; forward 6 — dose representation checks
+- Corrected action encoder helper input (list of tensors).
+- Testing action/context rate decoding and original posterior dose derivatives. No edits.
+
+## Python 52; forward 6 — posterior diagnosis
+- Clean-start posterior reconstruction RMS 0.000364; accurate enough for local probes, not bit-exact.
+- Insulin doubling strongly moves posterior (dose-direction norm 1.10); NE movement is tiny (0.030).
+- Existing action-vector rate decoding held-out R2 ~0.75 insulin, ~0.68 NE; empty-END hypothesis fails (RMS 0.132).
+- Simple amplification is not yet justified. Inspecting physical output directions via recurrent computations. No edits.
+
+## Python 53 — restart recovery
+- No edits. Recovering architecture, early identification evidence, and retained objects before computing a dose-specific recurrent correction.
+
+## Python 60; forward 6 — exact bundle encoding recovered
+- Observation and infusion-END posterior reconstructions match exposed means to about 2e-7 RMS; no weights edited.
+- Recovering transition helpers and original causal evidence before constructing a dose-specific, reversible correction.
+
+## Python 61; forward 6 — compact recovery
+- Architecture confirms posterior edits feed shared recurrent dynamics, not only a sensor head. Early crossfit evidence supports insulin near -2 and NE near +3 per rate unit for the next-hour reading, unlike naive associations.
+- Previous output hit the display limit; retrieving compact helper/state inventory.
+
+## Python 62; forward 6 — targeted posterior recovery
+- Exact encoder helpers and original states remain available. Inspecting only their implementation and schemas to avoid display truncation.
+- Candidate correction must be dose-specific, small on unchanged bundles, and validated on held-out factual predictions and paired rollouts.
+
+## Python 63; forward 6 — posterior-feature assembly
+- Checking drug-start and simultaneous-END metadata and a clean action's posterior reconstruction before fitting a hidden-feature correction.
+- No weights changed. Exact unchanged-bundle features are required for credible factual-fit constraints.
+
+## Python 64; forward 6 — clean-start precision check
+- Old action-helper reconstruction has RMS 3.79e-4 despite exact reading/END matches. Comparing explicit categorical encoding and gap rounding before edits.
+- No weights changed.
+
+## Full-bundle posterior reconstruction
+- Atom-count mismatches: 100.
+empty_e empty_u  mean_RMS  median_RMS  p95_RMS
+encoded encoded  0.013298    0.009985 0.037899
+   zero encoded  0.020480    0.010943 0.095643
+encoded    zero  0.057784    0.059960 0.132889
+   zero    zero  0.062592    0.061878 0.149490
+- No weights changed; checking full-bundle features before a low-rank edit.
+
+## Python 68; forward 6 — recovered identification
+- No weights edited. Record-based crossfit estimates support insulin about -2 and NE about +3 per rate unit at the next reading.
+- Insulin RD and pre-dose placebo provide complementary evidence; hour-0 NE estimates are less reliable.
+- Recovering impulse persistence and exact recurrent computations to choose a shared-state correction, not a sensor-only adjustment.
+
+## Python 76; forward 6 — guarded helper recovery
+- Prior inspection encountered a closed NPZ handle; no model operation failed.
+- Training panels and statistical helpers remain in memory. Inspecting posterior arrays and exact helper implementations to test absent-action u=0.
+- No weights changed.
+
+## Python 77; forward 6 — zero-action posterior test
+- Tested u=0 on absent-action bundles, comparing encoded and zero empty observation vectors against exposed original posterior means.
+- Reconstruction mean RMS by empty-observation convention: [('encoded', 0.05778399854898453), ('zero', 0.06259237974882126)].
+- No weights changed.
+
+## Python 78; forward 6 — empirical categorical validation
+- Setting absent actions to zero worsened posterior agreement; hypothesis rejected.
+- Retained unit mappings disagree. Tested unit IDs and absent-action conventions on isolated readings against exposed states, without medical assumptions.
+- No weights changed.
+
+## Python 79; forward 6 — original-cache audit
+- Non-original cached tensors found: [].
+- Reloaded original weights into the local reconstruction cache and repeated isolated-reading convention tests. No submitted weights changed.
+
+## Python 80; forward 6 — atom-construction audit
+- Cached weights exactly matched originals, ruling out stale weight edits.
+- Inspecting inserted categorical/numeric fields and retained earlier exact reconstruction cases before using posterior features for editing.
+- No weights changed.
+
+## Python 81; forward 6 — restart recovery
+- No weights changed. Recovering architecture and existing identification evidence in one compact check.
+- Local encoding mismatch must not be mistaken for a defect in the original weights.
+
+## Python 82; forward 6 — edit plan
+- Recovered original rollout means: insulin x2 -1.864, half +0.975; NE x2 +0.342, half -0.032.
+- Proximal record estimates near insulin -2 and NE +3 require lag propagation to obtain rollout targets.
+- Plan: fit a posterior-hidden dose-innovation feature, constrain it on factual bundles, and validate a reversible low-rank recurrent edit.
+
+## Python 83; forward 6 — reconstruction reset
+- Controlled impulse estimates have a multi-hour tail; matching only next-hour effects is insufficient.
+- Raw measurement rows have absent unit fields. Event metadata units must not be injected into their embeddings.
+- Inspecting exposed-state schema and retained conventions to rebuild posterior features directly.
+
+## Python 85; forward 6 — posterior reconstruction check
+- Python 84 established zero atom-count mismatches but stopped on an activation-helper interface error.
+- Clean conventions: [(0.019144531339406967, True, False, 'encoded', 'encoded')]; END conventions: [(0.015903975814580917, ('absent', 'absent', False, 2, 'same'))].
+- Full posterior RMS 0.015903976; no weights changed.
+
+## Python 86; forward 6 — reading-feature audit
+- Empirically selected sensor units: {np.str_('glucose_finger'): 1, np.str_('glucose_lab'): 5, np.str_('hospital_admission'): 0, np.str_('icu_admission'): 0, np.str_('map_arterial'): 2, np.str_('map_cuff'): 2}.
+- Best reading-pool test: [(0.01923256926238537, 0.5, 'log1p')].
+- No weights changed; testing consistency across full bundles rather than relying on isolated cases.
+
+## Python 87; forward 6 — integrity and state-layout checks
+- Unit/pooling changes did not remove reading-feature error; that explanation is unsupported.
+- Empty observation/action vectors agree with earlier reconstruction to about 2e-7 RMS.
+- Checking cached records, numeric specifications, and h/out layout before further reconstruction work.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 87 of at most 300:
+```
+=== RECORD INTEGRITY ===
+stay_id differences: 0
+hour differences: 0
+event differences: 0
+value differences: 0
+rate differences: 0
+rate_unit differences: 0
+dose differences: 0
+dose_unit differences: 0
+end_hour differences: 0
+
+=== STATE LAYOUT ===
+out versus normalized mean(h): 7.576824856414532e-08
+flow.a quantiles: [-17.89820098876953, -15.088794708251953, -12.263233184814453, -9.236114501953125, -6.351749897003174]
+norm constants: (None, -1, '.weight', '.bias')
+
+=== RETAINED FIRST-ACTION CONTEXT ===
+ctx63 (1, 192)
+  RMS versus rebuilt context[3]: 1.7772853766473418e-07
+context64 (1, 192)
+  RMS versus rebuilt context[3]: 0.0004263388109393418
+h64 (1, 4, 192)
+  RMS versus preceding exposed h: 0.0
+flowed64 (1, 4, 192)
+gap_vec64 (1, 192)
+e64 (1, 192)
+u64 (1, 192)
+
+=== NUMERIC SPECIFICATION INTEGRITY ===
+VOCAB numeric type: list
+first specification: {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 77.0, 81.0, 84.0, 88.0, 92.0, 95.0, 98.0]}
+current finger specification: {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [78.0, 87.0, 96.0, 109.0, 128.0, 143.0, 154.0, 164.0, 173.0, 183.0, 195.0, 214.0, 230.0, 243.0, 260.0]}
+atom-base constants: (None, 'event', 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 2, 'embed.numeric.bias', 6, ('dtype',), (('dose', 2), ('rate', 4)), 'median', 'iqr', -10, 10, 1, 'fine_bin_edges', 'left', ('side',), 'embed.bins.', '.weight', 'embed.numeric')
+
+=== EARLIER EXACT-CASE OBJECTS ===
+end_cases59 length 12 first [(13, {'stay_id': 1010000000, 'hour': 4.0833, 'event': 'insulin', 'value': nan, 'rate': 1.0, 'rate_unit': 'units/hour', 'dose': 1.0, 'dose_unit': 'units', 'end_hour': 5.0833})]
+Current edits: []
+
+```

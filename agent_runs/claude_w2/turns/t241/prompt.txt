@@ -1,0 +1,31 @@
+OUTPUT of Python run 233 of at most 300:
+```
+0 import numpy as np, torch, torch.nn.functional as F, math, pandas as pd
+1 def run_rollout_h2(R,W,arms,n_paths=20,seed=0,t_hide=13.0,want_nll=False,chunk=None,store=None,store_h=False,hook_P=None,hook_draw=None,hook_state=Non
+2     A=R['A']; S_=len(R['stays']); nA=len(arms); Kmax=R['Kmax']; nb=R['nb']; tb=R['tb']
+44         # ---- heads for meas atoms of bundle k (state after k-1)
+45         mm=ismeas[pj] & (hidden[pj] | want_nll)
+46         if k>0 and mm.any():
+49             pos=np.searchsorted(act_n,un)
+50             base=head_base(out[un],h[un],dt_s[pos],W,10.0)
+51             pr=mlp(base,W,'z_prior'); zmu,zls=pr[:,:32],pr[:,32:]
+60                 z=zmu+torch.exp(zls)*eps[:,d]
+61                 lg,_=head_value_logits(base[inv],c_,f8,lb_,st_,W,z[inv],1); P=P+lg.softmax(-1)
+62             P=P/4
+63             if hook_P is not None: P=hook_P(k,hn_,hj,P,dict(seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p,drawn=drawn,base=base,inv=inv,out=out,h=h,un=un)
+64             if store is not None: store.append((hn_.copy(),hj.copy(),base[inv].clone(),P.clone(),f8.clone(),lb_.clone(),zmu[inv].clone(),(h[un][inv].r
+69             pm_rec.update(dict(zip(key.tolist(),pmv.tolist())))
+70             if want_nll:
+71                 ob=np.where(np.isnan(val[hj]),0,bfact[hj])
+78                 drawn[hn_[hd],A['loc'].values[hj[hd]]]=b
+79                 if hook_draw is not None: hook_draw(k,hn_[hd],hj[hd],drawn,dict(seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p))
+80         # ---- embeddings of bundle k atoms
+101         z=mlp(torch.cat([ctx,e,u],-1),W,'z_post')[:,:32]
+102         if hook_z is not None: z=hook_z(k,act_n,z,ctx,e,u,dict(seq_si=seq_si,seq_arm=seq_arm))
+103         if hook_pre is not None: hook_pre(k,act_n,hf,ctx,e,u,z,dict(seq_si=seq_si,seq_arm=seq_arm))
+104         Xt=torch.cat([hf+W['core.slots'][None],e[:,None],u[:,None],F.linear(z,W['z_in.weight'],W['z_in.bias'])[:,None]],1)
+119         h[act_n]=y; out[act_n]=LN(y.mean(1),W,'core.out_norm')
+120         if hook_state is not None: hook_state(k,act_n,h,out,dict(seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p,e=e,u=u,Ep=Ep,hn=hn))
+121         # ---- registers
+
+```

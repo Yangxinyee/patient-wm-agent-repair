@@ -1,0 +1,28 @@
+OUTPUT of Python run 282 of at most 300:
+```
+lines 91
+hits 21
+14 - its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+20 - fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+21 - numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+42 - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+43 - The state update uses the posterior mean.
+44 3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+46 - The 4 slot outputs, through `core.prelude_norm`, give E.
+49 - `u = blocks(h + E)`.
+50 - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+56 **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+57 - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+58 - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+64 - **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+67 with_code = q + embed.code[code]
+68 + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+69 + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+71 The "last" fields are a register: the most recent earlier value of the same code in this stay.
+72 - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+75 - **rate:** `rate_bin` works the same way for drug rates.
+76 - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+85 3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+FUNCS LN LNf LNn LO M2 add_pol atom_e atom_e_full atom_e_side atom_e_unit atom_vec atoms_of_stay avec base_ins best_snr block_stats build build_panel build_v2 build_v3 build_v4 bundles_of_stay cdist cell_resid cellmean cellres cenof check cidx cinfo core_step cos cres cross_val_predict ctrl_ins ctrl_ne ctx_of cvp cvr cvr2 cvr2g cvres deconv desc design dfac diag direct dose_arr drop_edit edited emean enc_set enc_set2 encode_set encset eval2 eval3 eval_det eval_det2 eval_head f_at fb_ fbin ffn fit_dec fitdir fn_ gel gel_ gelu gen_many gen_rows_all gen_samples get_w getv gf head_P head_P2 head_logits head_mean head_value head_value2 hourly init_ctx lagU lagX lagm lagmat lastbin_of lin linn ln_ lnp load load_original log_softmax logsm lp lp_series make mha mlp mlp2n mstat mvdr mvdr2 mvdr2b mvdr_dec ne_expect nll_from nu_of obj ols ols_cl panel pis pmat prelude_attn probs proc_stay prof q_of q_row
+
+```

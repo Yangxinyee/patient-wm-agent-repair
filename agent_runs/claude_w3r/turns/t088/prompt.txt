@@ -1,0 +1,50 @@
+OUTPUT of Python run 81 of at most 300:
+```
+2401
+def m_of(g): return 0.0 if (g is None or g!=g) else MBAND[int(np.searchsorted(BANDS[1:],g,side='right'))]
+def fbin(code, attr, x):
+def zsc(code, attr, x):
+def read_stays(path, stays=None, usecols=('stay_id','hour','event','value','rate','dose','end_hour')):
+----- head_inputs
+head_inputs <class 'function'> could not get source code
+----- Head
+class Head:
+    def __init__(self, W): self.W={k:torch.tensor(np.asarray(v)) for k,v in W.items()}; self.fa=self.W['core.flow.a']
+    def L(self,x,n):
+        y=x@self.W[n+'.weight'].T
+        return y+self.W[n+'.bias'] if n+'.bias' in self.W else y
+    def MLP(self,x,n): return self.L(Fnn.gelu(self.L(x,n+'.0')),n+'.2')
+    def LN(self,x,n): return Fnn.layer_norm(x,(x.shape[-1],),self.W[n+'.weight'],self.W[n+'.bias'],1e-5)
+    def ctx(self, out_, h_, dt):
+        hf=h_*torch.exp(-dt*torch.exp(self.fa))
+        return out_+self.LN(hf.mean(-2),'core.out_norm')+self.MLP(torch.tensor([math.log(dt)/10],dtype=torch.float32),'gap')
+    def zprior(self, ctx): pr=self.MLP(ctx,'z_prior'); return pr[...,:32], pr[...,32:]
+    def wc(self, ctx, z, code_name, lv, age_s, typ=1):
+        view=ctx+self.L(z,'z_head'); q=self.LN(view+self.W['type_emb.weight'][typ],'query_norm')
+        c_=CODE[code_name]; num=torch.zeros(8); lb=0
+        if lv is not None:
+            lb=fbin(code_name,'value',lv); num[0]=1; num[1]=math.log(1+age_s/60)/10; num[2]=zsc(code_name,'value',lv); num[3]=1
+        return q+self.W['embed.code.weight'][c_]+self.L(num,'last_numeric')+self.W['embed.bins.value.weight'][lb], c_*17+lb
+    def hidden(self, wc): return Fnn.gelu(self.L(wc,'attr_heads.value_bin.0'))
+    def logits(self, hid, trow): return self.L(hid,'attr_heads.value_bin.2')+self.W['embed_transition.value_bin.weight'][trow]
+
+FH ndarray (1865, 192)
+DH DataFrame (1865, 11)
+PMm list 1865
+SX ndarray (5301, 992)
+SST ndarray (5301,)
+SHR ndarray (5301,)
+fac DataFrame (5684, 6)
+recs DataFrame (9640, 7)
+HD Head 
+hid Tensor torch.Size([192])
+wc Tensor torch.Size([192])
+zm Tensor torch.Size([32])
+st_ DataFrame (102, 7)
+ip DataFrame (1, 7)
+ip2 DataFrame (1, 7)
+rows_h list 1865
+fsa DataFrame (1865, 6)
+key_k dict 100
+
+```

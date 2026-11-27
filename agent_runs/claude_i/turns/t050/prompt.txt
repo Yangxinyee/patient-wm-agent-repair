@@ -1,0 +1,62 @@
+OUTPUT of Python run 46 of at most 300:
+```
+['load', 'load_original', 'save_edit', 'drop_edit', 'edited', 'panel', 'show', 'last_obs', 'base', 'ols', 'drug_after', 'eff', 'deconv', 'effN', 'true_shift', 'rn', 'lin', 'ln', 'mlp', 'encode_set', 'atom_vec', 'zpost_cand']
+----- load 241
+    def load(name):
+        """your current edit of the tensor if there is one, else the original, as float32"""
+        _check(name)
+        return load_file(_file(name))["w"].float() if os.path.exists(_file(name)) else load_original(name)
+
+----- load_original 142
+    def load_original(name):
+        """the original tensor, as float32"""
+        _check(name)
+        return _ORIG.get_tensor(name).float()
+
+----- save_edit 822
+    def save_edit(name, tensor):
+        """replace a tensor by your edited version (same shape, finite values)"""
+        _check(name)
+        t = torch.as_tensor(tensor).detach().to("cpu", torch.float32).contiguous()
+        o = load_original(name)
+        if tuple(t.shape) != tuple(o.shape):
+            raise ValueError(f"save_edit refused: shape {tuple(t.shape)} differs from the original {tuple(o.shape)}")
+        if not torch.isfinite(t).all():
+            raise ValueError("save_edit refused: the tensor has NaN or infinite values")
+        os.makedirs(EDITED, exist_ok=True)
+        tmp = 
+----- drop_edit 248
+    def drop_edit(name):
+        """go back to the original tensor"""
+        _check(name)
+        if os.path.exists(_file(name)):
+            os.remove(_file(name))
+            return f"dropped edit of {name}"
+        return f"{name} had no edit"
+
+----- edited 240
+    def edited():
+        """the names of the tensors you have edited"""
+        if not os.path.isdir(EDITED):
+            return []
+        return sorted(f[: -len(".safetensors")] for f in os.listdir(EDITED) if f.endswith(".safetensors"))
+
+panel no source could not get source code
+show no source could not get source code
+last_obs no source could not get source code
+base no source could not get source code
+ols no source could not get source code
+drug_after no source could not get source code
+eff no source could not get source code
+deconv no source could not get source code
+effN no source could not get source code
+true_shift no source could not get source code
+rn no source could not get source code
+lin no source could not get source code
+ln no source could not get source code
+mlp no source could not get source code
+encode_set no source could not get source code
+atom_vec no source could not get source code
+zpost_cand no source could not get source code
+
+```

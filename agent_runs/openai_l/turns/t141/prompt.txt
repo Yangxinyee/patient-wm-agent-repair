@@ -1,0 +1,85 @@
+OUTPUT of Python run 131 of at most 300:
+```
+=== PRIOR HEAD AND CHANNEL EXPERIMENTS ===
+
+## Run 89 / reject unvalidated latent probe
+Run 88 baseline RMSE=25.09, so its near-zero sensitivities and large latent direction are not evidence. Checking decoder return shapes and state alignment; no edits.
+
+## Run 96 / value-head input reconstruction
+Hidden reconstruction RMS=0. Generated validated one-step head inputs for both drugs at factors 0,.5,1.5,2,3. Original dose slopes: {('insulin', 0.0): -0.37897342443466187, ('insulin', 0.5): -0.3507140576839447, ('insulin', 1.5): -0.3287563920021057, ('insulin', 2.0): -0.2550761103630066, ('insulin', 3.0): -0.1641843467950821, ('norepinephrine', 0.0): 0.17117874324321747, ('nor
+
+## Run 97 / raw-head-input scalar correction
+Fitted analytic ordinal bin-tilt scores using dose contrasts at 0,.5,1.5,2,3, with factual-zero regularization and stay-held-out validation. Results: {0.001: {'train_dNLL': 1.185721693243569, 'heldout_dNLL': 1.7496438853273455, 'coef_norm': 207.88876103546804, 'slopes': {('insulin', 2.0): -0.9745049185444954, ('insulin', 0.5): -0.7526900369443214, ('norepinephrine', 2.0): -0.24
+
+## Run 98 / upstream repair recovery
+Run 97 confirms that a factual-preserving raw-head correction cannot recover the supported drug slopes. Recovering architecture, causal evidence, and retained interfaces before testing an upstream dose-residual correction. No weights edited.
+
+## Run 100 / causal timing and selective-path audit
+Inspecting retained causal response kernels and validated one-step dependencies. Next candidate must encode dose deviations from observational policy, rather than apply a broad value-head shift. No weights edited.
+
+## Run 110 / direct latent-token controllability
+Testing 48 orthonormal token directions with central finite differences (?2), using validated recurrence and decoder. No weights saved. This separates a weak existing z-coordinate route from weak token controllability.
+
+## Run 112 / selective-route recovery
+Large latent perturbations change slots but barely change predictive output; recovering the architecture and validated helpers before choosing a dose-residual route. No weights edited.
+
+## Run 118 / private-state readout feasibility
+Direct attention routes require norms?15,675/34,276 and are rejected. Captured original pre-coda states and tested four low-variance state channels with covariance-penalized value-input readouts. State baseline RMS=[0.013631374845695361, 0.013241554470490004, 0.01301869408009892, 0.01310210398858578]; head baseline SD=[0.04169307177247208, 0.036776184078815034, 0.03405533666690
+
+=== ACTIVE CPU HELPERS ===
+linear63 actual: linear63 globals: ('w63', 'T', 'SHAPES')
+constants: (None, '.weight', '.bias')
+norm63 actual: norm63 globals: ('F', 'layer_norm', 'w63')
+constants: (None, (192,), '.weight', '.bias', 1e-05)
+attention63 actual: attention63 globals: ('shape', 'linear63', 'reshape', 'transpose', 'w63', 'chunk', 'T', 'math', 'sqrt', 'masked_fill', 'softmax')
+constants: (None, 1, '.q', 4, 48, 2, '.kv.weight', 0, ('dim',), -1, -2, -1000000000.0, 192, '.out')
+decode67 actual: decode67 globals: ('mlp63', 'exp', 'linear63', 'norm63', 'w63', 'F', 'gelu', 'softmax', 'sum', 'mean')
+constants: (None, 'z_prior', 32, 'z_head', 'type_emb.weight', 1, 'query_norm', 'attr_heads.value_bin.0', 'attr_heads.value_bin.2', -1, 0)
+linear_before125 actual: linear63 globals: ('w63', 'T', 'SHAPES')
+constants: (None, '.weight', '.bias')
+capture_pre125 actual: capture_pre125 globals: ('capture125', 'append', 'detach', 'cpu', 'numpy', 'copy', 'linear_backup118')
+constants: (None, 'core.c_out')
+
+=== PRIVATE STATE AND HEAD DIRECTIONS ===
+Vsignal118 (192, 4) column norms [68.6175 69.6407 67.9114 61.3665]
+R118 (192, 4) column norms [1. 1. 1. 1.]
+Jselected118 (4, 192) column norms RMS=0.001642
+Jhead118 (20, 192) column norms RMS=0.001602
+T125 (192, 4) column norms [0.3832 0.3825 0.3801 0.3913]
+QE125 (192, 4) column norms [1. 1. 1. 1.]
+SP125 (192, 4) column norms [0.9652 0.9595 0.9632 0.9762]
+Jpre125 (32, 192, 4) column norms RMS=0.025183
+Jselected118 @ R118: [[ 0.0204  0.0002 -0.0003  0.0009]
+ [ 0.0002  0.0213  0.0005  0.0003]
+ [-0.0003  0.0003  0.0218 -0.0001]
+ [ 0.0008  0.0002 -0.0001  0.0222]]
+Vsignal118.T @ R118: [[ 5.25190e+01  9.80900e-01 -9.28000e-02 -2.72920e+00]
+ [ 1.99200e-01  5.13967e+01 -5.82600e-01 -4.25600e-01]
+ [ 4.31580e+00 -6.15800e-01  4.92308e+01 -1.95850e+00]
+ [ 5.05000e-02 -1.61830e+00 -9.29100e-01  4.71476e+01]]
+T125 minus mean(Jpre125): 0.08770601501414119
+private state factual RMS: [1547.23755117 6276.74731623 1307.20415841  711.7531864 ]
+head input factual RMS: [0.43877348 0.69134002 0.31391399 0.5481946 ]
+
+=== RELEVANT WEIGHT SHAPES ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.a_in (192,)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+
+=== GENERIC INPUT / DECODER INTERFACES ===
+bundle_inputs74 constants: (None, (Ellipsis, None))
+globals: ('bundle_inputs73',)
+decode67 constants: (None, 'z_prior', 32, 'z_head', 'type_emb.weight', 1, 'query_norm', 'attr_heads.value_bin.0', 'attr_heads.value_bin.2', -1, 0)
+globals: ('mlp63', 'exp', 'linear63', 'norm63', 'w63', 'F', 'gelu', 'softmax', 'sum', 'mean')
+head_inputs96 constants: (None, 'z_prior', 32, 'z_head', 'type_emb.weight', 1, 'query_norm')
+globals: ('mlp63', 'exp', 'linear63', 'norm63', 'w63')
+
+```

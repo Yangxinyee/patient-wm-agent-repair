@@ -1,0 +1,29 @@
+OUTPUT of Python run 225 of at most 300:
+```
+0: # The world model
+2: An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+3: likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+4: Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+5: `vocab.json["config"]`.
+7: ## Input
+9: A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+10: **atom**. An atom has:
+11: - a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+12:   hospital_admission, icu_admission;
+13: - an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+14: - its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+16: **Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+17: - code: `embed.code[code]`;
+18: - kind: `embed.kind`, `embed.ekind`;
+19: - unit: the `embed.categorical.*` tables;
+20: - fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+21: - numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+23: Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+25: **Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+26: - Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+27: - Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+28:   none).
+30: ## State and one step per bundle (`core.*`)
+32: **State:**
+
+```

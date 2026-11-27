@@ -1,0 +1,279 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 347 replies happened before. Forward passes used: 42 of 50; Python runs used: 291 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['balanced_candidate.npz', 'balanced_paired400.csv', 'balanced_validated400.npz', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_36', 'fwd_37', 'fwd_38', 'fwd_4', 'fwd_40', 'fwd_41', 'fwd_42', 'fwd_43', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'glucose_115_candidate.npz', 'map_feature_trial.npz', 'map_feature_trial_backup.npz', 'map_regularized_trial.npz', 'margin_candidate.npz', 'margin_paired400.csv', 'margin_validated400.npz', 'notes.md', 'pre_recurrent_candidate.npz', 'recurrent_glucose_valid.npz', 'recurrent_half_backup.npz', 'rejected_map_trial.npz', 'validated_current400.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+al factual mean disturbance and NE doubled/halved responses with the same dose feature.
+- No weights changed; local results are not official factual or rollout validation.
+- Python runs: 272; forward passes: 24.
+
+## Runs 273-274: separate archived components and compare KL
+- Run 273 stopped on a rank-one assertion before edits or probability tests.
+- Run 274 subtracted the archived glucose component before checking the MAP factorization.
+- Compared probability KL and NE dose responses on 320 local cases, including 296 outside the direction-fitting subset.
+- No weights changed. Python runs: 274; forward passes: 24.
+
+## Run 275: feature-aware factual distortion
+- Direction-only Fisher routes had similar held-out KL; half strength cost approximately 0.0009 categorical nats locally.
+- Computed scalar-slot finite differences and the induced probability Fisher matrix for a linear dose feature.
+- Recovered record-based target metadata and a second factual-validation batch.
+- No backpropagation, weight optimizer, or weight changes.
+- Python runs: 275; forward passes: 24.
+
+## Run 276: slot-aware dose-feature regression
+- Glucose-only strength 1.15 passed a second 100-stay factual batch; computed pooled exact delta from forwards 24 and 25.
+- Built dose-contrast features by scalar-slot finite differences, for x0/.5/1.5/2/3 of both drugs.
+- Fit small linear dose-feature models using record-estimated MAP effects, factual probability distortion, and optional slot-energy penalties.
+- Alternating local cases held out from fitting; candidate quadratic KL capped at 0.0012 on both halves.
+- No weight changes, backpropagation, or weight optimizer.
+- Python runs: 276; forward passes: 25.
+
+## Run 277: exact local tests and bounded MAP trial
+- Low-penalty feature fits overfit the local fitting half; rejected those routes.
+- Exactly evaluated regularized feature candidates and full-local-sample refits across all five NE multipliers and insulin cross-talk.
+- Any submitted trial has a recoverable glucose-only backup in map_feature_trial_backup.npz.
+- Selected trial: ('full_fit', 0.01, 5.0). Official eligibility and rollout response remain unvalidated.
+- Python runs: 277; forward passes: 25.
+
+## Run 278: recover official-validation inputs
+- Current MAP trial remains unvalidated; glucose-only backup is preserved.
+- Recovered architecture, record-derived targets, archived components and validation stay IDs.
+- No weights changed. Python runs: 278; forward passes: 25.
+
+## Run 279: bounded validation recovery
+- Run 278 output truncated before validation metadata; narrowed output.
+- Record evidence supports persistent insulin/glucose and NE/MAP effects, subject to identification assumptions.
+- No weights changed. Python runs: 279; forward passes: 25.
+
+## Run 280: reject unstable MAP feature route
+- Forward 26: edited factual NLL 5.24586 versus original 1.63155; catastrophic recurrent amplification.
+- Restored exact glucose-only strength-1.15 backup from map_feature_trial_backup.npz.
+- Local probability KL is insufficient for recurrent-edit eligibility; inspect lower-norm routes before retrying.
+- Python runs: 280; forward passes: 26.
+
+## Run 281: lower-norm regularized MAP trial
+- Added half of retained ridge-1.0 minimum-Fisher MAP route to glucose strength 1.15.
+- Addition norm approximately 294.64 versus 3414.85 for the catastrophic trial.
+- Full-sequence factual and rollout validation required; no stability claim from norm alone.
+- Backup and trial saved in map_regularized_trial.npz.
+- Python runs: 281; forward passes: 26.
+
+## Run 282: recover final calibration evidence
+- Forward 28 current trial: insulin x2/half -11.952/+5.366; NE x2/half +0.665/-0.164.
+- These are predictions, not drug-effect truth. Recovering record targets and forward 27 factual fit before retaining the MAP addition.
+- No weights changed. Python runs: 282; forward passes: 28.
+
+## Run 283: narrow eligibility and interface recovery
+- Read architecture and early record identification evidence in run 282; output truncated before current factual fit.
+- Retrieving forward 27 NLL, candidate keys and compact interfaces without repeating architecture.
+- No weights changed. Python runs: 283; forward passes: 28.
+
+## Run 284: prepare independent validation
+- Forward 27 exact factual delta: +0.00486788045 nats on 4,751 readings; narrow pass on one 100-stay batch.
+- Recovering disjoint tuning batches, cumulative record targets and exact archived edit components.
+- No weights changed. Python runs: 284; forward passes: 28.
+
+## Run 285: pooled validation and balanced strength trial
+- Previous candidate passed all 400 tuning stays: paired value-NLL delta 0.003163118 over 18654 readings; stay-bootstrap 95% interval [0.0017847891050899794, 0.0045359666147188745].
+- First-batch record convolution targets: insulin x2 approximately -10.37 to -11.39; NE x2 approximately +4.21 to +4.25.
+- Archived eligible 400-stay fallback in validated_current400.npz.
+- Submitted glucose strength 1.08 instead of 1.15 and 1.6 times the current MAP addition (full-route strength approximately 0.8).
+- Trial needs official factual and dose-rollout validation. No gradients or weight optimizer.
+- Python runs: 285; forward passes: 31.
+
+## Run 286: balanced-trial eligibility recovery
+- Forward 32 first-batch value-NLL delta approximately +0.00613; not eligible on that batch alone.
+- Recovering exact archives, architecture and validation inputs before pooled validation or rollback; no weights changed.
+- Python runs: 286; forward passes: 32.
+
+## Run 287: balanced candidate, complete factual validation
+- Forwards 32/34/35/36: paired 400-stay value-NLL delta 0.004253115, 18654 readings; bootstrap quantiles [2.5%,50%,95%,97.5%]=[0.002651140325587262, 0.0042566779481620865, 0.005619416365475324, 0.00586519285366469].
+- Forward 33 predictions: insulin x2/half -11.712/+5.178; NE x2/half +0.926/-0.311. MAP remains substantially under-responsive relative to retained record estimates.
+- Archived exact current weights and pooled validation; no weights changed.
+- Python runs: 287; forward passes: 36.
+
+## Run 288: safety-margin candidate
+- Balanced candidate passes the observed 400-stay mean but its 97.5% stay-bootstrap bound exceeds +0.005; not selected as final.
+- Submitted glucose strength 1.00 and MAP full-route strength 0.70 (1.40 times the validated fallback MAP component).
+- Goal: insulin x2 nearer record-derived target, stronger MAP response than fallback, and a safer factual-loss margin.
+- Archived in margin_candidate.npz; needs official factual and dose-rollout validation. No gradients or weight optimizer.
+- Python runs: 288; forward passes: 36.
+
+## Run 289: final-stage recovery
+- Forward 38 safety-margin candidate: value-NLL delta approximately +0.00282 on 4664 readings.
+- Recovering architecture, exact forwards 37/38, validation batches and archived components.
+- No weights changed; margin candidate still requires pooled factual and rollout validation.
+- Python runs: 289; forward passes: 38.
+
+## Run 290: exact partial validation and record-evidence recovery
+- Margin candidate forwards 37/38 pooled delta: 0.003947722 over 9415 readings from 200 stays.
+- Retrieved remaining disjoint factual batches and prior record-identification evidence.
+- No weights changed. Python runs: 290; forward passes: 38.
+
+## Run 291: margin candidate complete factual validation and first rollout
+- Factual files fwd_37/38/40/41: exact pooled 400-stay delta 0.003384797 over 18654 readings.
+- Stay-bootstrap quantiles [2.5%,50%,95%,97.5%]: [0.0019512287514498496, 0.00338410632250692, 0.004614249016037766, 0.00487369511280955].
+- Forward count 41, file fwd_42: insulin x2/half -10.879/+4.850; NE x2/half +0.854/-0.257.
+- Insulin is near retained record-convolution targets; NE remains materially under-responsive.
+- Archived exact validated weights; no weights changed, gradients, or weight optimizer.
+- Python runs: 291; forward passes: 41 (one failed request created a folder-number offset).
+
+```
+Continue from here.
+
+Last result:
+Forward pass 42 of 50 done (dose_edit); files in /work/fwd_43/. Summary:
+```
+{
+ "type": "dose_edit",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -1.708,
+     "n_stay_hours": 487,
+     "n_stays": 52
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 1.172,
+     "n_stay_hours": 487,
+     "n_stays": 52
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.216,
+     "n_stay_hours": 300,
+     "n_stays": 27
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.021,
+     "n_stay_hours": 300,
+     "n_stays": 27
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -9.287,
+     "n_stay_hours": 487,
+     "n_stays": 52
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 6.039,
+     "n_stay_hours": 487,
+     "n_stays": 52
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.508,
+     "n_stay_hours": 300,
+     "n_stays": 27
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.118,
+     "n_stay_hours": 300,
+     "n_stays": 27
+    }
+   },
+   "file": "dose_edit_edited.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  }
+ },
+ "seconds": 72.6
+}
+```
+Forward passes left: 8.
+Edits used in this pass: core.b_in.weight (edit hash 8a5db896f9).

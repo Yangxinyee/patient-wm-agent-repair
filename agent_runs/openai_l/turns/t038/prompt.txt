@@ -1,0 +1,232 @@
+OUTPUT of Python run 33 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RETAINED BEST DECODER ===
+r32_best: (('gelu', 'seconds', 0.1, 0.1, 'gelu', 'gelu', 1), 'left', 'seconds', 6, 3, (0,))
+
+=== FUNCTIONS AVAILABLE ===
+act22 (x, activation)
+aligned_ssm_nll (theta, obs, inputs, get_innovations=False)
+clustered_residual_fit (X, y, mask, groups)
+crossfit17 (key, target)
+discontinuity (x, y, a, cutoff, width)
+drop_edit (name)
+edited ()
+fixed_ssm_nll (theta, obs, inputs, return_fixed=False, reml=True)
+forward_fill (a, fallback)
+future17 (mat, lag)
+hist_fit_predict (y, fold, observed=None)
+kalman_nll (theta, data, drug, return_filter=False)
+lin22 (x, prefix)
+load (name)
+load_original (name)
+mlp22 (x, prefix, activation)
+norm22 (x, prefix)
+ols_cluster (X, y, groups, within=False)
+r30_act (x, name)
+r30_lin (x, name)
+r30_mlp (x, name, activation)
+r30_norm (x, name)
+r30_w (name)
+r32_features (spec)
+rd16 (running, treatment, outcome, cutoff, width, extra_mask=None)
+residual_effect (ra, ry, mask)
+save_edit (name, tensor)
+w22 (name)
+
+=== RETAINED DATA / STATE OBJECTS ===
+DX ndarray (720000, 2)
+GID ndarray (720000,)
+Hhist ndarray (720000, 44)
+I ndarray (30000, 24)
+N ndarray (30000, 24)
+T ndarray (720000,)
+XX ndarray (720000, 44)
+Xhistory ndarray (720000, 44)
+Xrich ndarray (720000, 84)
+a ndarray (30000, 24)
+a1 ndarray (720000,)
+a2 ndarray (720000,)
+a21 ndarray (4356,)
+aa15 ndarray (720000,)
+aa22 ndarray (400, 25)
+active ndarray (720000,)
+adjusted18 ndarray (720000,)
+age22 ndarray (1000,)
+age24 ndarray (1000,)
+age25 ndarray (1000,)
+age_hours22 ndarray (1000,)
+age_screen25 Tensor torch.Size([450, 1])
+ai14 ndarray (720000,)
+ar ndarray (30000, 24)
+arr21 ndarray (30000, 26)
+b ndarray (83,)
+b14 ndarray (2,)
+base22 Tensor torch.Size([1000, 192])
+base_no_status24 Tensor torch.Size([1000, 192])
+baseline_rollout DataFrame (2500, 7)
+both ndarray (720000,)
+both16 ndarray (30000, 24)
+both_now ndarray (30000, 24)
+c1 ndarray (720000,)
+c2 ndarray (720000,)
+candidate15 ndarray (3000,)
+centre_screen25 Tensor torch.Size([450, 16])
+centres22 Tensor torch.Size([1000, 16])
+changed22 ndarray (400, 25)
+ci ndarray (30000,)
+cm ndarray (30000, 26)
+code22 Tensor torch.Size([1000])
+constant25 Tensor torch.Size([1000, 192])
+conv22 ndarray (400, 24)
+count ndarray (30000,)
+counts ndarray (30000, 24)
+ctx22 Tensor torch.Size([1000, 192])
+ctx24 Tensor torch.Size([1000, 192])
+ctx25 Tensor torch.Size([1000, 192])
+cu ndarray (30000, 24)
+d17 ndarray (720000,)
+d19 ndarray (720000,)
+d21 DataFrame (4751, 6)
+d22 DataFrame (4751, 9)
+delta ndarray (400, 26)
+den19 float64 ()
+den2 float64 ()
+den3 float64 ()
+diff ndarray (30000, 26)
+dose ndarray (30000, 24)
+ds22 DataFrame (1000, 9)
+dt22 ndarray (1000,)
+effects14 dict keys: [('glucose_finger', 'all'), ('glucose_finger', 'active'), ('glucose_finger', 'current own'), ('glucose_finger', 'active, both current'), ('glucose_lab', 'all'), ('glucose_lab', 'active'), ('glucose_lab', 'current own'), ('glucose_lab', 'active, both current'), ('map_arterial', 'all'), ('map_arterial', 'active'), ('map_arterial', 'current own'), ('map_arterial', 'active, both current'), ('map_cuff', 'all'), ('map_cuff', 'active'), ('map_cuff', 'current own'), ('map_cuff', 'active, both current')]
+effects15 dict keys: [('glucose_finger', 'all'), ('glucose_finger', 'active'), ('glucose_finger', 'current own'), ('glucose_finger', 'active, both current'), ('glucose_lab', 'all'), ('glucose_lab', 'active'), ('glucose_lab', 'current own'), ('glucose_lab', 'active, both current'), ('map_arterial', 'all'), ('map_arterial', 'active'), ('map_arterial', 'current own'), ('map_arterial', 'active, both current'), ('map_cuff', 'all'), ('map_cuff', 'active'), ('map_cuff', 'current own'), ('map_cuff', 'active, both current')]
+eps25 Tensor torch.Size([8, 1000, 32])
+err19 ndarray (311610,)
+err2 ndarray (421471,)
+err25 float64 ()
+error24 ndarray (331,)
+f22 DataFrame (4751, 6)
+ff25 Tensor torch.Size([450, 192])
+fg ndarray (30000, 24)
+fg_last ndarray (30000, 24)
+finite15 ndarray (3000,)
+first_id int64 ()
+fixed_first25 Tensor torch.Size([450, 192])
+flow22 Tensor torch.Size([1000, 1, 192])
+flow_summary22 Tensor torch.Size([1000, 192])
+fold_hist ndarray (720000,)
+g2 float64 ()
+gap_input22 Tensor torch.Size([1000, 1])
+gap_input24 Tensor torch.Size([1000, 1])
+gid_rd ndarray (720000,)
+grid22 DataFrame (180, 25)
+group_hist ndarray (720000,)
+groups14 ndarray (720000,)
+h22 Tensor torch.Size([1000, 4, 192])
+has22 ndarray (1000,)
+has_screen25 Tensor torch.Size([450, 1])
+hh ndarray (720000,)
+hidden24 Tensor torch.Size([1000, 192])
+hist_full ndarray (30000, 25)
+hour_rd ndarray (720000,)
+hours ndarray (26,)
+idx MultiIndex (780000,)
+ii15 ndarray (3000,)
+ins_base ndarray (30000, 24)
+j22 ndarray (38,)
+kernel22 ndarray (12,)
+kernel_se19 dict keys: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff
+[output cut at 10,000 characters]
+```

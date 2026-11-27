@@ -1,0 +1,103 @@
+OUTPUT of Python run 133 of at most 300:
+```
+=== EARLIER RECORD-BASED EVIDENCE ===
+Notebook characters: 32177
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440       -1.8588          -1.7805      0.1641
+  220.0   5  10878     1.0678       -3.1426          -2.9430      0.7643
+  220.0  10  24707     1.0534       -2.2490          -2.1350      0.4629
+  220.0  15  39001     1.0530       -2.2109          -2.0996      0.3641
+  220.0  20  53461     1.0493       -2.1822          -2.0797      0.3138
+  260.0   5   1722     0.9170       -4.7440          -5.1732      2.5458
+  260.0  10   3976     1.0306       -3.9808          -3.8625      1.3933
+  260.0  15   6526     1.0794       -3.8052          -3.5254      1.0430
+  260.0  20   9462     1.0751       -3.7279          -3.4675      0.8812
+Two-fold, stay-separated history-adjusted dose/outcome residual regressions:
+          drug         target      n     beta  cluster_se  dose_R2  dose_residual_SD  outcome_residual_SD
+       insulin glucose_finger 391466 -2.04924     0.04571  0.80748           0.48910             12.20504
+norepinephrine   map_arterial 330203  3.17146  
+
+--- Later evidence ---
+-2.049/rate and NE +3.171/rate; deconvolved kernels show additional persistence. Preparing a closed-form head-feature regression with independent factual validation, not treating one-step fit as rollout success. No edits.
+
+## Run 81
+Head-only rank-one calibration cannot restore direct effects within the factual budget: meaningful increases cost far above 0.005 nats. No candidates saved. Investigating posterior action innovations and a targeted transition repair instead of globally tilting the value head.
+
+## Run 82
+Tested posterior-hidden dose-innovation regressions with 60/40 stay-separated validation and controlled half/double response constraints. No weight edits; decoder transfer and non-action leakage determine whether a posterior repair is plausible.
+
+Runs 83?85: recovered architecture and initial record evidence. Original tuning dose shifts are small; immediate record-based effects are insulin about -2 and NE about +3.17 per rate. Neither identifies the sustained 12-hour effect alone. No edits.
+
+Run 87: tested raw posterior-input dose-innovation decoders and action-presence gates with stay-separated validation. No weights saved. Six-lag insulin kernel has a delayed peak, unlike a single exponential.
+
+Runs 88?89: insulin action gate has perfect held-out classification under all four controlled dose inputs. Two-pole kernel fits six insulin lags closely but longer-tail targets remain provisional. Corrected a pandas shift-column collision. No edits.
+
+## Run 90
+Two-pole kernel targets remain provisional, not established truth. Recovering architecture and retained causal/repair fixtures before validating sustained effects and choosing a targeted edit. No edits.
+
+## Run 91
+Architecture confirms an explicit action/posterior pathway. Inspecting retained innovation and act
+
+=== FUNCTION INTERFACES ===
+replay_factual125 (weights=None, capture_decoder=True)
+locals: ('weights', 'capture_decoder', 'old_bank', 'old_weights', 'old_linear', 'local_bank', 'replay_linear', 'result')
+dependencies: ('repair_bank', 'rW', 'rp_linear', 'dict', 'reference_bank125', 'reference_x125', 'copy', 'np', 'full', 'len', 'nan', 'float32', 'replay_levels125', 'transition73', 'detach', 'cpu', 'numpy')
+defaults: tuple, len=2, first=None
+source filename: <run>
+transition73 (indices, action_override=None)
+locals: ('indices', 'action_override', 'parts', 'ctx', 'hf', 'ek', 'uk', 'zk', 'tok', 'ep', 'mem', 'ages', 'mask', 'agevec', 'xx', 'nn', 'cp', 'delta', 'abar', 'hr', 'hc', 'out')
+dependencies: ('np', 'asarray', 'int', 'pre_context_repair', 'repair_bank', 'next', 'E65', 'U65', 'rp_mlp', 'torch', 'cat', 'rW', 'rp_linear', 'rp_norm', 'self_block67', 'memory67', 'log1p', 'attention67', 'F', 'softplus', 'exp', 'mean', 'reshape', 'len')
+defaults: tuple, len=1, first=None
+source filename: <run>
+transition_with_b110 (indices, shift)
+locals: ('indices', 'shift', 'linear110')
+dependencies: ('torch', 'as_tensor', 'float32', 'rp_linear', 'transition73', 'rp_linear_saved110')
+defaults: None
+source filename: <run>
+probe_means95 (state_values)
+locals: ('state_values', 'bank', '_', 'probability')
+dependencies: ('dict', 'repair_bank', 'np', 'asarray', 'copy', 'probe_indices95', 'head_features_fixed', 'probe_data95', 'sum', 'centres95')
+defaults: None
+source filename: <run>
+
+=== SOURCE / CAUSAL / REPLAY VARIABLE NAMES ===
+['best_nll_repair', 'causal_beta80', 'dnll', 'factual_target111', 'fit_target102', 'gated_innovation94', 'head_innovation_probes', 'head_tuning_data_repair', 'kernel55', 'kernel_models88', 'mc_nll_repair', 'nll', 'nll_best_sample', 'nll_channel129', 'nll_full_repair', 'nll_original129', 'nll_rms_grid', 'nll_scales129', 'nlls4', 'nlls_best4', 'nlls_grid', 'policy_pred_tuning', 'posterior_target_repair', 'provisional_kernels', 'r41_source', 'r45_target', 'reference_nll_repair', 'replay_factual125', 'replay_levels125', 'replayed_channel125', 'replayed_original125', 'replayed_rejected125', 'rms_nll', 'sample_ref_nll', 'source_drugs_repair', 'src67', 'target', 'target102', 'target110', 'target118', 'target65', 'target95', 'target_attention103', 'target_fact80', 'target_h67', 'target_out67', 'target_rate', 'target_rows88', 'target_rows89', 'target_table89', 'targets', 'tuning', 'tuning_ids', 'tuning_ids_repair', 'tuning_records_repair', 'two_pole_kernel88']
+
+=== CURRENT EDIT MAGNITUDES ===
+core.b_in.weight norm 1190.68018 max 58.29646
+core.prelude.0.attn.kv.weight norm 30.36157 max 2.97703
+core.prelude.0.attn.out.weight norm 152.3392 max 15.96424
+core.prelude.0.attn.q.weight norm 202.22263 max 20.39902
+z_in.bias norm 1383.69312 max 265.67026
+z_in.weight norm 28.84275 max 2.75852
+z_post.0.bias norm 20.3765 max 19.9173
+z_post.0.weight norm 506.5679 max 89.12172
+z_post.2.bias norm 0.02314 max 0.00933
+z_post.2.weight norm 1.56799 max 0.46456
+
+```

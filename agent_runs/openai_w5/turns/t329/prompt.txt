@@ -1,0 +1,64 @@
+OUTPUT of Python run 284 of at most 300:
+```
+=== SENSOR AND IDENTIFICATION CHECKS ===
+## Sensor checks and correction (runs 8?9)
+- Sensor-specific held-out next-hour estimates: glucose_finger insulin -1.8383 (SE .1026), glucose_lab -1.9344 (.1744); map_arterial NE +3.4086 (.2191), map_cuff +2.8671 (.4111).
+- Cross-drug coefficients are small relative to their uncertainty.
+- Corrected a diagnostic indexing error: clustered_ols includes an intercept. The initial dose-stratum printouts were intercepts, not drug effects, and must be discarded.
+- Run 8 dynamic-alternative calculation stopped before completion; no edits were made.
+
+## Local head reconstruction (run 10, forward 4)
+- Obtained original states for 100 training stays (4,314 bundles).
+- Computing a no-gradient local value-head reconstruction and checking it against original GPU predictions.
+- Corrected local-projection dictionary access and calculated ARX/deconvolved alternatives.
+
+## Head reconstruction validation (run 11)
+- Simple prior-mean reconstruction had nontrivial error; testing register conventions and latent integration.
+- ARX alternatives: glucose phi .7807, beta_now -1.8381, beta_lag -.7382; MAP phi .5116, beta_now 3.2133, beta_lag 1.3739. These remain conditional estimates.
+
+## Restart / run 13
+- Run 12's approximate value-head reconstruction retained meaningful mean and NLL errors; no edits are justified by that reconstruction yet.
+- Re-reading architecture and inspecting persistent analysis objects before correcting the reconstruction and checking causal estimates.
+
+## Reconstruction conventions / run 16
+- Tested schema-valid last-numeric features, last-status embeddings, type embeddings, activations, and prior/head gap scaling.
+- Best deterministic convention: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1}.
+- No tensor edits; sampling and register conventions still require validation.
+
+## Runs 17?18
+- Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+- Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+- No edits. Dyn
+=== TARGET / PRIVATE-CHANNEL DETAILS ===
+- Use non-gradient statistical fits to design targeted weight edits.
+- No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+- Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+- No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+Run 95 rejects the large action directions: finite effects saturate and frequently reverse sign. No weights edited. Moving to a GPU-validated, targeted value-head correction.
+- Reserved coordinates [61, 21, 15, 66] by zeroing their c_out and coda residual-output rows.
+- Clearing four state coordinates costs only +.00034 factual value NLL on tuning A.
+- Temporarily zeroed one prelude attention-head output (minimum output-weight norm), in addition to the four cleared state coordinates.
+- Private state coordinates receive paired rate signals and decay before subsequent updates.
+- Re-read architecture and earlier record-derived effects. Dynamic targets remain conditional on identification and response-form assumptions.
+- Equalized paired coordinates in out/query normalization and additive head inputs; removed incidental old value-head pair sensitivity.
+- Four-neuron head distillation has negligible local likelihood cost; no causal head edit was installed in run 141.
+- Freed eight low-energy value-head neurons by frozen-feature ridge distillation; no model gradients.
+- Fixed-dose perturbations affect only the intended reserved neuron; ordinary hidden neurons are unchanged.
+- Private recurrent coordinates nearly match edited GPU states; ordinary replay still does not.
+- Factual reconstructed signal neurons are near +8, not GELU-clipped.
+- Private core.flow.a=0 resets dose coordinates within seconds. Multi-hour persistence therefore relies on ordinary autoregressive feedback.
+- Insulin coordinates 21/61 now decay with tau=1500 seconds; core.a_in pair equalized to preserve antisymmetry.
+- Added ordinary-feature corrections to glucose control neurons; private drug coefficients unchanged.
+- Recovered architecture, provisional record-derived targets, and private-channel layout.
+- Recovering architecture, record-derived targets, and saved edit objects before a smaller reversible adjustment.
+=== AVAILABLE HELPER FUNCTIONS ===
+load, load_original, save_edit, drop_edit, edited, save_file, linear205, norm205, drug_atom205, set205, make_head_inputs212, summarize216, brief224, lin225, ln225, head225, fn, summarize234, install_strength238, v, bounded_definition, r249_save_file, end_atom262, load_file
+=== RELEVANT OBJECTS ===
+private_pairs: len=2 [(21, 61), (15, 66)]
+r248_private: len=4 [21, 61, 15, 66]
+BASE264: keys=['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.b_in.weight', 'core.blocks.0.0.attn.out.weight', 'core.blocks.0.0.cross.out.weight', 'core.blocks.0.0.ffn.2.bias', 'core.blocks.0.0.ffn.2.weight', 'core.blocks.0.1.attn.out.weight', 'core.blocks.0.1.cross.out.weight', 'core.blocks.0.1.ffn.2.bias']
+coef: shape=(188,)
+
+```

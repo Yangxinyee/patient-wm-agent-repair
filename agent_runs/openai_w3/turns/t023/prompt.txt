@@ -1,0 +1,147 @@
+OUTPUT of Python run 18 of at most 300:
+```
+=== NUMERIC NOTES ===
+z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1].
+=== ATOM BUILDER: NUMERIC SECTION ===
+0 RESUME 
+2 LOAD_FAST r
+4 LOAD_ATTR event
+24 STORE_FAST ev
+26 LOAD_GLOBAL code_ids
+36 LOAD_FAST ev
+38 BINARY_SUBSCR 
+42 STORE_FAST cid
+44 LOAD_FAST ev
+46 LOAD_CONST ('insulin', 'norepinephrine')
+48 CONTAINS_OP 
+50 POP_JUMP_IF_FALSE to 56
+52 LOAD_CONST 2
+54 JUMP_FORWARD to 84
+56 LOAD_FAST ev
+58 LOAD_CONST ('glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff')
+60 CONTAINS_OP 
+62 POP_JUMP_IF_FALSE to 68
+64 LOAD_CONST 1
+66 JUMP_FORWARD to 84
+68 LOAD_FAST ev
+70 LOAD_CONST 'hospital_admission'
+72 COMPARE_OP ==
+76 POP_JUMP_IF_FALSE to 82
+78 LOAD_CONST 3
+80 JUMP_FORWARD to 84
+82 LOAD_CONST 4
+84 STORE_FAST ek
+86 LOAD_GLOBAL np
+96 LOAD_ATTR NULL|self + zeros
+116 LOAD_CONST 6
+118 LOAD_GLOBAL np
+128 LOAD_ATTR float32
+148 KW_NAMES ('dtype',)
+150 CALL 
+158 STORE_FAST numbers
+160 LOAD_CONST 0
+162 LOAD_CONST 0
+164 LOAD_CONST 0
+166 LOAD_CONST ('value', 'dose', 'rate')
+168 BUILD_CONST_KEY_MAP 
+170 STORE_FAST bins
+172 LOAD_GLOBAL NULL + enumerate
+182 BUILD_LIST 
+184 LOAD_CONST ('value', 'dose', 'rate')
+186 LIST_EXTEND 
+188 CALL 
+196 GET_ITER 
+198 FOR_ITER to 562
+202 UNPACK_SEQUENCE 
+206 STORE_FAST j
+208 STORE_FAST attr
+210 LOAD_GLOBAL NULL + getattr
+220 LOAD_FAST r
+222 LOAD_FAST attr
+224 CALL 
+232 STORE_FAST val
+234 LOAD_GLOBAL np
+244 LOAD_ATTR NULL|self + isfinite
+264 LOAD_FAST val
+266 CALL 
+274 POP_JUMP_IF_TRUE to 278
+276 JUMP_BACKWARD to 198
+278 LOAD_FAST is_end
+280 POP_JUMP_IF_FALSE to 294
+282 LOAD_FAST end_mode
+284 LOAD_CONST 'preserve'
+286 COMPARE_OP ==
+290 POP_JUMP_IF_TRUE to 294
+292 JUMP_BACKWARD to 198
+294 LOAD_GLOBAL numeric_tables
+304 LOAD_FAST ev
+306 LOAD_FAST attr
+308 BUILD_TUPLE 
+310 BINARY_SUBSCR 
+314 STORE_FAST tab
+316 LOAD_GLOBAL np
+326 LOAD_ATTR NULL|self + clip
+346 LOAD_GLOBAL NULL + float
+356 LOAD_FAST val
+358 CALL 
+366 LOAD_FAST tab
+368 LOAD_CONST 'median'
+370 BINARY_SUBSCR 
+374 BINARY_OP -
+378 LOAD_FAST tab
+380 LOAD_CONST 'iqr'
+382 BINARY_SUBSCR 
+386 BINARY_OP /
+390 LOAD_CONST -10
+392 LOAD_CONST 10
+394 CALL 
+402 LOAD_FAST numbers
+404 LOAD_CONST 2
+406 LOAD_FAST j
+408 BINARY_OP *
+412 STORE_SUBSCR 
+416 LOAD_CONST 1
+418 LOAD_FAST numbers
+420 LOAD_CONST 2
+422 LOAD_FAST j
+424 BINARY_OP *
+428 LOAD_CONST 1
+430 BINARY_OP +
+434 STORE_SUBSCR 
+438 LOAD_CONST 1
+440 LOAD_GLOBAL np
+450 LOAD_ATTR NULL|self + sum
+470 LOAD_GLOBAL NULL + float
+480 LOAD_FAST val
+482 CALL 
+490 LOAD_GLOBAL np
+500 LOAD_ATTR NULL|self + asarray
+520 LOAD_FAST tab
+522 LOAD_CONST 'fine_bin_edges'
+524 BINARY_SUBSCR 
+528 CALL 
+536 COMPARE_OP >
+540 CALL 
+548 BINARY_OP +
+=== BUNDLE ALIGNMENT ===
+n_atoms disagreements: 0 state counts: (array([1, 2, 3, 4, 5]), array([1108, 2394,  498,  312,    1]))
+gap tensors: [('gap.0.bias', (192,)), ('gap.0.weight', (192, 1)), ('gap.2.bias', (192,)), ('gap.2.weight', (192, 192))]
+=== ISOLATED EVENT DIAGNOSTICS ===
+map_cuff dt range (3600.0, 7200.0) z previous MSE 0.6542913317680359 state previous MSE 87.89938354492188 prior MSE 0.02684764564037323
+glucose_lab dt range (3300.1201171875, 3600.0) z previous MSE 0.04661117121577263 state previous MSE 75.83601379394531 prior MSE 0.018592745065689087
+map_arterial dt range (3300.1201171875, 3600.0) z previous MSE 0.06104034557938576 state previous MSE 139.58856201171875 prior MSE 0.01683827117085457
+insulin dt range (299.8800048828125, 299.8800048828125) z previous MSE 0.0996360033750534 state previous MSE 233.9093017578125 prior MSE 0.07109793275594711
+insulin END dt range (299.8800048828125, 3600.0) z previous MSE 0.06659996509552002 state previous MSE 331.27532958984375 prior MSE 0.02209986001253128
+norepinephrine dt range (299.8800048828125, 299.8800048828125) z previous MSE 0.10839821398258209 state previous MSE 224.5828857421875 prior MSE 0.0676625445485115
+norepinephrine END dt range (299.8800048828125, 3600.0) z previous MSE 0.08431883156299591 state previous MSE 271.4163513183594 prior MSE 0.012921790592372417
+glucose_finger dt range (3300.1201171875, 3600.0) z previous MSE 0.6919560432434082 state previous MSE 364.55426025390625 prior MSE 0.015385430306196213
+icu_admission dt range (3600.0, 7200.0) z previous MSE 3.8166160583496094 state previous MSE 737.673828125 prior MSE 0.00984563585370779
+insulin encoder implementation difference: 4.76837158203125e-07
+map_cuff encoder implementation difference: 9.5367431640625e-07
+=== EXAMPLES OF MISMATCHES ===
+map_cuff index 1 state hour -1.0 record [(Pandas(stay_id=1010000000, hour=-1.0, event='map_cuff', value=77.0, rate=nan, rate_unit=nan, dose=nan, dose_unit=nan, end_hour=nan), False)] MSE 0.00589952
+glucose_finger index 255 state hour 15.0 record [(Pandas(stay_id=1010000096, hour=15.0, event='glucose_finger', value=175.0, rate=nan, rate_unit=nan, dose=nan, dose_unit=nan, end_hour=nan), False)] MSE 0.0064911926
+insulin END index 122 state hour 25.0833 record [(Pandas(stay_id=1010000048, hour=24.0833, event='insulin', value=nan, rate=1.0, rate_unit='units/hour', dose=1.0, dose_unit='units', end_hour=25.0833), True)] MSE 0.20896614
+
+```

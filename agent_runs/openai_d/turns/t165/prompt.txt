@@ -1,0 +1,144 @@
+OUTPUT of Python run 143 of at most 300:
+```
+
+## Run 97: exact deterministic head recovered
+Validated all cached forward-8 readings: seconds-based time flow, gap(log(dt_seconds)/10), GELU, type embedding 1, and probe-resolved register. This removes the reconstruction uncertainty that invalidated earlier gated edits. Original weights remain unchanged.
+
+
+
+## Run 98: stochastic head reconstruction
+Testing latent prior activation/packing against original factual outputs, allowing for the GPU's four prior draws. Recovered aligned innovation targets. No weights edited.
+{'activation': 'gelu', 'packing': 'split', 'normalized_MSE': 0.0028543598018586636, 'expected_four_draw_MSE': 0.0029637326952069998, 'excess_MSE': -0.00010937289334833622, 'NLL_RMSE': 0.20606064796447754, 'mean_log_sd': -0.48285219073295593}
+{'activation': 'gelu', 'packing': 'interleaved', 'normalized_MSE': 0.0041332063265144825, 'expected_four_draw_MSE': 0.0040336293168365955, 'excess_MSE': 9.957700967788696e-05, 'NLL_RMSE': 0.24339871108531952, 'mean_log_sd': -0.2101394534111023}
+{'activation': 'silu', 'packing': 'split', 'normalized_MSE': 0.00806079525500536, 'expected_four_draw_MSE': 0.0016576317138969898, 'excess_MSE': 0.00640316354110837, 'NLL_RMSE': 0.3298589587211609, 'mean_log_sd': -1.2057170867919922}
+{'activation': 'silu', 'packing': 'interleaved', 'normalized_MSE'
+
+## Run 99: latent-aware, cross-stay decoder tests
+Physical active-infusion labels recovered directly from records. Fitting innovation regressions and family/infusion gates on individual prior draws; holding out 25% of stays. No weight edits.
+[('insulin', (0.44562312272344906, 0.44570992471108317, 'raw', 0.1)), ('norepinephrine', (-0.04744019540362765, -0.04725591583177757, 'register_free', 10000.0))]
+
+
+
+## Run 103: candidate preparation
+Recovered stable DML immediate slopes: insulin -1.99285 (SE 0.04554), NE +3.29011 (SE 0.09111). Insulin state innovation decoder is useful; NE decoder is not. Checking standardized-feature conversion and exact cached value-head evaluation, then selecting low-contribution neurons for an insulin-only gated correction. No edits installed.
+
+
+
+## Run 104: local gated-insulin candidate
+Original tuning rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600. Provisional targets on those exact hours: insulin -13.599/+6.800, NE +4.746/-2.373. Constructed a raw-coordinate, latent-aware insulin gate/innovation correction using neurons 107/109; assessing local held-out NLL before installing any weights.
+
+
+
+## Run 105 result
+Installation aborted before save_edit: max logit reconstruction error 0.003045 exceeded numerical threshold 0.003. No edits saved. Likely cancellation between paired gated neurons; increasing their decoder separation to reduce numerical sensitivity.
+
+
+
+## Run 106: insulin candidate installed
+Increased symmetric decoder separation from 0.05 to 0.20 to reduce cancellation. Local checks passed; full-strength gated correction installed in value-head neurons 107/109, with mean compensation. Four value-head tensors edited. Awaiting paired GPU factual validation; not yet accepted.
+
+
+
+=== HELPER SIGNATURES ===
+rh_eval (q, nf, head_act)
+  globals: ('rh_fixed', 'rc_lin', 'rc_act', 'torch', 'softmax', 'rh_trans', 'rh_centres', 'sum', 'rh_tool', 'rh_iqr', 'float', 'sqrt', 'mean')
+  variables: ('q', 'nf', 'head_act', 'wc', 'hidden', 'probs', 'means', 'err')
+rh_register (zpos, flagpos, age_kind)
+  globals: ('torch', 'zeros', 'len', 'rh_meta', 'rh_has', 'tensor', 'age', 'to_numpy', 'float32', 'startswith', 'rh_dt', 'clamp_min', 'endswith', 'log1p', 'rh_last')
+  variables: ('zpos', 'flagpos', 'age_kind', 'nf', 'age')
+local104 (multiplier)
+  globals: ('removed104', 'theta104', 'R104', 'tilt104', 'baseL104', 'max', 'np', 'exp', 'sum', 'mean', 'log', 'maximum', 'arange', 'len', 'bin104', 'C104')
+  variables: ('multiplier', 'delta', 'L', 'P', 'pm', 'nll', 'means')
+r124_context (s, meta)
+  globals: ('state_idx', 'to_numpy', 'np', 'int64', 'torch', 'as_tensor', 'float32', 'dt', 'reshape', 'exp', 'r124_W', 'r124_norm', 'mean', 'r124_mlp', 'log')
+  variables: ('s', 'meta', 'idx', 'a', 'dt', 'h', 'hf')
+r129_queries (ctx, pp)
+  globals: ('torch', 'exp', 'clamp', 'eps98', 'r124_lin', 'r124_norm', 'r124_W')
+  variables: ('ctx', 'pp', 'mu', 'log_sd', 'z', 'view')
+response_arrays (panel, ids, drug, kernel)
+  globals: ('to_numpy', 'reshape', 'len', 'np', 'zeros_like', 'bool', 'range')
+  variables: ('panel', 'ids', 'drug', 'kernel', 'dose', 'response', 'reached', 'h', 's')
+summary102 (x, depth=0)
+  globals: ('hasattr', 'type', '__name__', 'tuple', 'shape', 'isinstance', 'dict', 'repr', 'list', 'keys', 'items', 'str', 'summary102', 'len', 'all')
+  variables: ('x', 'depth', 'k', 'v')
+
+=== EARLIER DECODER/CACHE NAMES ===
+A99 ndarray (192, 19)
+C104 ndarray (4510, 17)
+D104 ndarray (32, 4510)
+G104 ndarray (32, 4510)
+H103 ndarray (32, 4510, 192)
+K104 ndarray (4510,)
+L106 ndarray (32, 4510, 17)
+M99 ndarray (32, 4510, 192)
+P104 ndarray (32, 4510, 17)
+P106 ndarray (32, 4510, 17)
+P99 ndarray (192, 192)
+Pmean104 ndarray (4510, 17)
+R104 ndarray (32, 4510)
+S99 ndarray (19,)
+U99 ndarray (192, 19)
+W1103 Tensor (192, 192)
+W2103 Tensor (17, 192)
+X99 ndarray (32, 4510, 192)
+XX99 ndarray (32, 4510, 192)
+a104 Tensor (32, 4510)
+a106 Tensor (32, 4510)
+a98 DataFrame (4510, 10)
+actions99 DataFrame (1483, 5)
+active104 ndarray (4510,)
+active99 ndarray (4510,)
+active_error106 float 7.1836133928623655e-06
+aligned99 DataFrame (4510, 10)
+alpha99 float 10000.0
+b1103 Tensor (192,)
+b2103 Tensor (17,)
+baseL104 ndarray (32, 4510, 17)
+baseNLL104 ndarray (4510,)
+bin104 ndarray (4510,)
+cache98 dict ['mean', 'log_sd', 'q', 'with_code', 'probs', 'predicted_mean', 'nll']
+candidates99 list [(-0.04744019540362765, -0.04725591583177757, 'register_free', 10000.0, Ridge(alpha=10000.0)), (-0.0
+centered_W2103 ndarray (17, 192)
+ctx98 Tensor (4510, 192)
+d104 Tensor (32, 4510)
+d106 Tensor (32, 4510)
+db104 float 20.272030268298145
+decoder_step104 float 0.2
+delta105 ndarray (32, 4510, 17)
+delta106 ndarray (32, 4510, 17)
+dnn106 ndarray (4510,)
+drawmean98 Tensor (32, 4510)
+drug98 str norepinephrine
+drug99 str norepinephrine
+dv104 ndarray (192,)
+eligible99 ndarray (4510,)
+eps98 Tensor (32, 4510, 32)
+err105 float 0.0030451077048436748
+events99 ndarray (4510,)
+expected105 ndarray (32, 4510, 17)
+expected106 ndarray (32, 4510, 17)
+expected98 float 0.006770724896341562
+fam99 ndarray (4510,)
+family99 list ['map_arterial', 'map_cuff']
+feat99 dict ['X', 'mean', 'sd', 'projection']
+features99 dict ['raw', 'register_free']
+fit104 Ridge Ridge(alpha=0.1)
+fit99 Ridge Ridge(alpha=10000.0)
+fitdraws99 ndarray (8,)
+fits99 dict ['insulin', 'norepinephrine']
+gate104 LogisticRegression LogisticRegression(max_iter=600)
+gate99 LogisticRegression LogisticRegression(max_iter=600)
+
+=== FACTUAL CACHE STAYS ===
+               stay_id
+                 count
+event                 
+glucose_finger    1295
+glucose_lab        529
+map_arterial       989
+map_cuff          1697
+stay range: 1010000000 1010000099
+NE feature keys: dict_keys(['v', 'b', 'pair', 'probe_derivative'])
+NE feature factual SD: 1.1703530358136416
+
+```

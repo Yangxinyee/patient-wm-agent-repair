@@ -1,0 +1,211 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 100 replies happened before. Forward passes used: 12 of 50; Python runs used: 87 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['dml_results.csv', 'dynamic_iv.csv', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'head_contrast_cv.csv', 'kernel_targets.csv', 'local_action_probe.csv', 'local_projections.csv', 'notes.md', 'posterior_contrast_cv.csv', 'proxy_iv.csv', 'sensor_iv.csv'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ving numerical inputs and absent rows unchanged. This is an exploratory probe, not an accepted causal repair. Next require paired factual NLL and rollout validation. Seven forward passes used.
+
+## Forward passes 8–9; run 50: rejected bin gain
+- Bin gain factual NLL +0.00029, but insulin x2/half changed from -3.680/+2.018 to -3.198/+1.436; NE x2/half from +0.465/-0.871 to +0.552/-0.642. Restored both tensors.
+- Simple input gains have failed. Next investigate a history-conditioned action innovation in the posterior pathway.
+- Nine forward passes used. No active edits.
+
+## Run 53: restart recovery
+- Drug-only posterior reconstruction is exact; observation/END reconstruction remains unvalidated.
+- Recovering architecture, identification evidence, and cached helpers before another reversible edit.
+- No active edits; nine forward passes used.
+
+## Run 57: posterior counterfactual features
+- Held factual context fixed and computed action-encoder/posterior hidden features for factors 0, .5, 1.5, 2, 3.
+- Next test: a cross-stay regression with low factual activation and dose-proportional counterfactual differences.
+- No weight edits; nine forward passes used.
+
+## Runs 58–59: posterior dose-contrast feasibility
+- First fit failed on nonfinite reconstructed boundary contexts; excluded invalid rows without imputation.
+- Re-ran two-fold-by-stay decoder fits and saved posterior_contrast_cv.csv.
+- Computed original latent dose directions from counterfactual contrasts.
+- No weight edits; nine forward passes used.
+
+## Run 64: reversible posterior-only probe
+- Added rank-two dose-contrast corrections to z_post.2 mean rows and corresponding biases; log-SD rows unchanged.
+- Strength 4 for both drugs, using innovation decoders with factual_weight=10 and alpha=100 and original latent dose directions.
+- This is a pathway probe, not an accepted repair. Require paired held-out factual fit and rollout response before retaining it.
+- Python runs: 64. Forward passes: 9.
+
+## Forward 10–11; run 65: rejected posterior probe
+- Factual NLL change -0.00003, but rollout changes negligible: insulin -3.665/+2.041; NE +0.472/-0.837.
+- Restored both z_post tensors. Posterior amplification is not an effective repair at this strength.
+- Next inspect direct action state transmission and dose-contrast features at the value readout.
+- Python runs: 65. Forward passes: 11. No active edits.
+
+## Restart after run 65
+- Posterior probe was rejected and all tensors restored.
+- Recovering the architecture and record-derived causal estimates before testing a more direct action/state or readout correction.
+
+## Run 73: restart recovery
+- Run 72 stopped at a 17-versus-16 feature-width mismatch; no candidate edit was completed.
+- Recovering architecture, identification results, and cached state-reconstruction variables.
+- Forward passes used: 11. No active edits.
+
+## Run 78: completed local dose/readout probe
+- Fixed the 16-centre/17-probability mismatch by assigning centre zero to absent bin 0.
+- Compared half/double action doses with preceding factual history held fixed, using paired local reconstruction.
+- This is a one-step sensitivity diagnostic, not an estimate of the complete rollout effect.
+          drug  factor         sensor   n  mean_shift  shift_per_rate  hidden_contrast_rms
+       insulin     0.5 glucose_finger 702    0.537753       -0.690184             0.016065
+       insulin     0.5    glucose_lab 137    0.392925       -0.536551             0.017112
+       insulin     0.5   map_arterial 349   -0.066143        0.099230             0.010804
+       insulin     0.5       map_cuff 413   -0.103785        0.149118             0.012442
+       insulin     2.0 glucose_finger 702   -1.197305       -0.623038             0.027112
+       insulin     2.0    glucose_lab 137   -0.926200       -0.481478             0.029429
+       insulin     2.0   map_arterial 349    0.169807        0.113507             0.021118
+       insulin     2.0       map_cuff 413    0.193420        0.103494             0.016757
+norepinephrine     0.5 glucose_finger 410    0.193066       -1.103544             0.014316
+norepinephrine     0.5    glucose_lab 146    0.250551       -1.327360             0.018582
+norepinephrine     0.5   map_arterial 453   -0.096489        0.526949             0.015520
+norepinephrine     0.5       map_cuff 372   -0.180990        0.969575             0.015233
+norepinephrine     2.0 glucose_finger 410   -0.347372       -0.815955             0.017707
+norepinephrine     2.0    glucose_lab 146   -0.267375       -0.520790             0.021008
+norepinephrine     2.0   map_arterial 453    0.124883        0.249423             0.016829
+norepinephrine     2.0       map_cuff 372    0.275713        0.478595             0.017145
+
+## Run 79: cross-stay value-head contrast feasibility
+- Original local doubled-dose slopes: insulin approximately -0.62; NE approximately +0.25.
+- Tested ridge decoders of paired action contrasts, penalising activation on factual readings.
+- Targets use record-derived impulse estimates; this does not establish their long-horizon magnitude.
+ factual_weight  alpha   cv_dNLL  factual_tilt_rms  I0.5_slope  I2.0_slope  N0.5_slope  N2.0_slope  cf_error_rms
+         0.0001   0.01  1.978607          1.837946   -1.423472   -1.332793    1.139293    0.914887      1.700958
+         0.0001   1.00  0.546045          1.237420   -1.297390   -1.235879    1.019866    0.698440      1.524774
+         0.0001 100.00  0.051761          0.507723   -1.029262   -0.924418    1.079291    0.498542      1.417778
+         0.0010   0.01  0.458680          0.945657   -1.446038   -1.350512    1.651055    0.999246      1.533357
+         0.0010   1.00  0.218051          0.810625   -1.365826   -1.260926    1.430983    0.789428      1.434998
+         0.0010 100.00  0.035854          0.466332   -1.021180   -0.912780    1.078592    0.490405      1.415444
+         0.0100   0.01  0.094565          0.440330   -1.485959   -1.300104    1.776417    0.883415      1.356543
+         0.0100   1.00  0.068987          0.419160   -1.319666   -1.171150    1.739160    0.879135      1.363606
+         0.0100 100.00  0.004579          0.301283   -0.970907   -0.844726    1.046162    0.455961      1.422162
+         0.1000   0.01  0.010414          0.207996   -1.211593   -1.022776    1.441706    0.633440      1.368502
+         0.1000   1.00  0.006810          0.180768   -1.135437   -0.948462    1.381309    0.613546      1.378502
+         0.1000 100.00 -0.005179          0.108531   -0.847516   -0.723706    0.906969    0.403609      1.460297
+         1.0000   0.01 -0.003449          0.047223   -0.816576   -0.709779    0.820803    0.366184      1.472085
+         1.0000   1.00 -0.003215          0.044323   -0.808817   -0.703610    0.811493    0.363391      1.474688
+         1.0000 100.00 -0.001995          0.024773   -0.740213   -0.653903    0.682935    0.316604      1.501409
+        10.0000   0.01 -0.000583          0.005557   -0.704996   -0.632989    0.565834    0.265346      1.518024
+        10.0000   1.00 -0.000576          0.005509   -0.704867   -0.632892    0.565649    0.265282      1.518075
+        10.0000 100.00 -0.000390          0.004066   -0.700258   -0.629535    0.557262    0.262230      1.520000
+
+## Run 80: reversible value-head contrast candidate
+- Installed a rank-one ordinal-bin tilt in attr_heads.value_bin.2.weight and bias only.
+- Decoder fitted to local dose contrasts with factual_weight=0.1, alpha=100; no model gradients used.
+- Highly aggressive contrast fits failed factual preservation; selected a regularised candidate.
+- This is not accepted until GPU held-out factual and paired rollout checks pass.
+- Forward passes used: 11.
+
+## Forward 12: rejected value-head candidate
+- Tuning factual NLL rose from 1.63164 to 2.42507 (+0.79343).
+- Restored both value-head tensors immediately.
+- Reconstructed training NLL was misleading; validate reconstruction against GPU predictions before another fit.
+- Forward passes used: 12. No active edits.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 87 of at most 300:
+```
+FEATURE COMPARISONS
+repair_fH RMS difference from repair_fH: 0.0
+repair_base_H RMS difference from repair_fH: 0.02010890379952699
+head_hidden RMS difference from repair_fH: 0.0
+Axis: [ 0.  -7.5 -6.5 -5.5 -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5
+  5.5  6.5  7.5]
+Raw decoder norm / intercept: 1.449791751671133 0.2357918971163385
+Feature SD quantiles: [0.02       0.05243589 0.45698167 0.98811063 1.71878381]
+Raw vs fitted tilt RMS difference: 1.3041917630013458
+Deterministic tilt RMS: 0.07426318069327868
+Sampled tilt RMS: min/mean/max 0.1227649673819542 0.12950069131329656 0.1337513029575348
+MC original/candidate NLL: 1.719424843788147 1.7201262712478638
+MC candidate dNLL: 0.0007016430026851594
+ACTIVE EDITS: []
+
+```

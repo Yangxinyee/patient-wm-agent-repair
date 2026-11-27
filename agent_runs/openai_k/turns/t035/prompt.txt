@@ -1,0 +1,151 @@
+OUTPUT of Python run 29 of at most 300:
+```
+=== CAUSAL DYNAMICS AND RECONSTRUCTION NOTES ===
+## Run 6: dynamic identification
+- Cross-fitted immediate effects: glucose finger -1.9347 (SE .0445), lab -2.0148 (.0747); arterial MAP +3.0526 (.0887), cuff +2.5282 (.1734).
+- Estimated treatment impulse responses using dose innovations and removed their induced future-dose changes by moment deconvolution.
+- Used independent/randomly sampled glucose_lab for glucose dynamics and arterial MAP for pressure dynamics, with stay-cluster bootstrap.
+- Impulse estimates: {'glucose_lab': array([-2.07283356, -2.23466817, -2.14515517, -1.43875875, -1.28052947,
+       -0.90473374]), 'map_arterial': array([2.95159917, 2.49611187, 1.62799136, 1.02869814, 0.34279884,
+       0.21392442])}
+- Interpretation depends on residual treatment variation being conditionally exogenous; dose-regime checks assess linearity within observed support.
+- Python runs: 6; forward passes: 2.
+
+## Run 7: restart inspection
+- Re-read architecture and schema and inventoried retained analysis objects before choosing an edit.
+- No new causal conclusion or weight edit in this run.
+- Python runs: 7; forward passes: 2.
+
+## Run 8: edit-boundary inspection
+- Dedicated action encoding changes a shared state, so broad edits may damage non-value outputs.
+- Inspecting value-head and state layouts for a conditionally centered, targeted correction.
+- Python runs: 8; forward passes: 2.
+
+## Run 9 / forward 3: original training states
+- Obtained 4,035 post-bundle states from 100 training stays.
+- Checked whether linear state readouts retain conditionally centered dose innovations.
+- Recovery diagnostics: {('out', 'actual rate'): [0.7464798056041226, 0.5793095632860579], ('out', 'dose innovation'): [0.014224321981154309, -0.010256190838008106], ('out+h+z', 'actual rate'): [0.8209381610756414, 0.5761447082503632], ('out+h+z', 'dose innovation'): [0.14643522829061584, -0.10865335500972084]}
+- No weights edited.
+- Python runs: 9; forward passes: 3.
+
+## Run 10 / forward 4: factual residual and action-contrast diagnostics
+- Original train-100 factual value NLL: 1.63805 over 4,510 readings.
+- Factual-error innovation slopes: {'glucose_finger': {'beta': [-2.0213525150007543, -0.8642344520105519], 'se': [1.0749416026751106, 6.437951025950719], 'n': 1207}, 'glucose_lab': {'beta': [-2.1402151269169334, 5.8731650809484615], 'se': [2.8894259636083786, 7.18666777339531], 'n': 489}, 'map_arterial': {'beta': [-0.4176368016509025, 4.049828159080294], 'se': [0.33286110151897685, 1.9466967832560893], 'n': 914}, 'map_cuff': {'beta': [-1.3798312320807482, 3.841096696440792], 'se': [0.4707643862776628, 2.4905594022701707], 'n': 1567}}
+- Pre/post-action innovation recovery: {('pre+post out', 10.0): [0.004214188536758923, -0.019954426503093314], ('pre+post out', 100.0): [0.012494810294534697, -0.002386756631993059], ('pre+post out', 1000.0): [0.006069711150727075, 0.0011565628426700725], ('action contrasts', 10.0): [0.03918410241440473, -0.13992020687565376], ('action contrasts', 100.0): [0.07106420927132506, -0.07724699273376356], ('action contrasts', 1000.0): [0.034740616853687345, -0.03114449562207211]}
+- No weights edited. These small-sample diagnostics do not replace full-record causal estimates.
+- Python runs: 10; forward passes: 4.
+
+## Run 11: action/posterior reconstruction
+- Small train-100 factual residuals suggest missing responses, but are not precise effect estimates.
+- Reconstructed stateless action and posterior primitives; compared directly to saved z means.
+- Best reconstruction configurations: {'insulin': (0.09675629436969757, 'relu', 'log1p', False, 3, 2, 'chunk'), 'norepinephrine': (0.12859904766082764, 'gelu', 'log1p', False, 2, 2, 'chunk')}
+- No weights edited.
+- Python runs: 11; forward passes: 4.
+
+## Run 12: reconstruction audit
+- The posterior reconstruction remains inaccurate; no edit is justified by it yet.
+- Re-reading the exact architecture and inventorying retained helpers before further reconstruction.
+- Python runs: 12; forward passes: 4; no weights edited.
+
+## Runs 13?14: vocabulary and retained-state audit
+- Run 13 printed vocabulary and remaining tensors but its global inventory failed on an imported callable.
+- Fine-bin edges are strict (edges below x), with repeated insulin edges; reconstruction must honor this.
+- Run 14 fixes the inventory and inspects saved-state metadata.
+- Python runs: 14; forward passes: 4; no weights edited.
+
+
+
+=== FUNCTIONS DEFINED IN THE KERNEL ===
+load (name) uses: ('_check', 'os', 'path', 'exists', '_file', 'load_file', 'float', 'load_original')
+load_original (name) uses: ('_check', '_ORIG', 'get_tensor', 'float')
+save_edit (name, tensor) uses: ('_check', 'torch', 'as_tensor', 'detach', 'to', 'float32', 'contiguous', 'load_original', 'tuple', 'shape', 'ValueError', 'isfinite', 'all', 'os', 'makedirs', 'EDITED', '_file', 'save_file', 'replace', 'float')
+drop_edit (name) uses: ('_check', 'os', 'path', 'exists', '_file', 'remove')
+edited () uses: ('os', 'path', 'isdir', 'EDITED', 'sorted', 'listdir')
+summarize_vocab (x, depth=0) uses: ('isinstance', 'dict', 'items', 'summarize_vocab', 'list', 'len')
+fwl_fit (X, T, y, groups) uses: ('np', 'eye', 'shape', 'T', 'linalg', 'solve', 'unique', 'zeros', 'max', 'add', 'at', 'inv', 'sqrt', 'diag', 'mean')
+residual_cluster_fit (rt, ry, groups) uses: ('np', 'column_stack', 'ones', 'len', 'T', 'linalg', 'solve', 'unique', 'zeros', 'max', 'shape', 'add', 'at', 'inv', 'sqrt', 'diag')
+cluster_ols_diagnostic (x, y, groups) uses: ('np', 'column_stack', 'ones', 'len', 'asarray', 'float', 'isfinite', 'all', 'linalg', 'pinv', 'T', 'unique', 'zeros', 'max', 'shape', 'add', 'at', 'sqrt', 'diag')
+lin0 (x, prefix) uses: ('F', 'linear', 'W0', 'get')
+act0 (x, kind='gelu') uses: ('F', 'gelu', 'silu', 'relu')
+mlp0 (x, prefix, kind='gelu') uses: ('lin0', 'act0')
+norm0 (x, prefix) uses: ('F', 'layer_norm', 'W0')
+fn (x, prefix) uses: ('F', 'layer_norm', 'W0')
+encode_single_audit (atom, prefix, activation) uses: ('mlp0', 'lin0', 'torch', 'full', 'shape', 'np', 'log', 'float32', 'norm0')
+embed_record_audit (row, kind, end_numeric='absent', end_categories='absent') uses: ('event', 'np', 'zeros', 'float32', 'getattr', 'nan', 'pd', 'notna', 'drug_codes', 'num_spec0', 'clip', 'searchsorted', 'W0', 'code_id0', 'event_kind_ids_audit', 'lin0', 'torch', 'tensor', 'unit_ids_audit', 'get')
+encode_sets_audit (atom_sets, prefix, zero_empty=False) uses: ('np', 'array', 'len', 'int64', 'torch', 'zeros', 'sum', 'stack', 'tensor', 'repeat', 'arange', 'index_add_', 'mlp0', 'sqrt', 'maximum', 'float32', 'lin0', 'log1p', 'norm0')
+embed_consistent_audit (row, kind, end_numeric='absent', end_categories='absent', end_kq=0) uses: ('embed_record_audit', 'event', 'measure_codes', 'W0', 'world_kq_audit', 'world_bin_side_audit', 'num_spec0', 'np', 'searchsorted', 'value')
+bundle_encodings_audit (indices, end_route, end_numeric, end_categories, end_kq=0) uses: ('bundle_records_audit', 'state_keys_audit', 'embed_consistent_audit', 'event', 'drug_codes', 'append', 'encode_sets_audit', 'action_empty_mode_audit')
+r23_base_embed (row, kind, end_numeric='absent', end_categories='absent', end_kq=0) uses: ('embed_record_audit', 'event', 'measure_codes', 'W0', 'world_kq_audit', 'world_bin_side_audit', 'num_spec0', 'np', 'searchsorted', 'value')
+audit_attention (x, memory, prefix, mask=None, key_memory=None) uses: ('shape', 'lin0', 'chunk', 'reshape', 'transpose', 'np', 'sqrt', 'masked_fill', 'torch', 'softmax')
+audit_block (x, prefix, memory=None, mask=None, key_memory=None) uses: ('norm0', 'audit_attention', 'mlp0')
+audit_core_update (z, age_scale=1.0, keys_only=False) uses: ('core_probe_h', 'torch', 'cat', 'W0', 'core_probe_e', 'core_probe_u', 'lin0', 'audit_block', 'norm0', 'mlp0', 'log1p', 'core_probe_ages', 'core_probe_memory', 'core_probe_mask', 'F', 'softplus', 'exp', 'mean')
+
+=== IMPORTANT PERSISTENT OBJECTS ===
+sample DataFrame (16, 9)
+df DataFrame (1997441, 9)
+tune DataFrame (26251, 9)
+sub DataFrame (241638, 9)
+item dict 5 keys: ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+ids ndarray (30000,)
+m DataFrame (1419622, 4)
+P DataFrame (780000, 6)
+a DataFrame (517819, 4)
+rates DataFrame (780000, 2)
+last DataFrame (780000, 4)
+past DataFrame (780000, 4)
+previous_rate DataFrame (780000, 2)
+next_values DataFrame (780000, 4)
+hours ndarray (780000,)
+y ndarray (333382,)
+base0 DataFrame (30000, 4)
+base_values ndarray (780000, 4)
+last_values ndarray (780000, 4)
+past_values ndarray (780000, 4)
+med ndarray (4,)
+scale_m ndarray (4,)
+lv ndarray (780000, 4)
+pv ndarray (780000, 4)
+bv ndarray (780000, 4)
+Xbasic ndarray (780000, 25)
+T_all ndarray (780000, 2)
+valid_time ndarray (780000,)
+preliminary dict 4 keys: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+mask ndarray (720000,)
+cur ndarray (333382,)
+t ndarray (333382, 2)
+raw_beta ndarray (2,)
+raw_se ndarray (2,)
+sx ndarray (4035, 992)
+X ndarray (333382, 38)
+beta ndarray (2,)
+se ndarray (2,)
+residual_sd ndarray (2,)
+factual0 DataFrame (4751, 6)
+rollout0 DataFrame (2500, 7)
+obs_times DataFrame (780000, 4)
+ages ndarray (780000, 4)
+cumr ndarray (780000, 2)
+Xhistory ndarray (780000, 37)
+causal_rows ndarray (720000,)
+Xc ndarray (720000, 37)
+Tc ndarray (720000, 2)
+gc ndarray (720000,)
+hc ndarray (720000,)
+fold ndarray (720000,)
+dose_pred ndarray (720000, 2)
+dose_models dict 4 keys: [('insulin', 0), ('insulin', 1), ('norepinephrine', 0), ('norepinephrine', 1)]
+tr ndarray (720000,)
+te ndarray (720000,)
+dose_resid ndarray (720000, 2)
+nz ndarray (720000,)
+tmp DataFrame (328946, 3)
+dml_results dict 4 keys: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+outcome_residuals dict 4 keys: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+outcome_predictions dict 4 keys: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+yy ndarray (720000,)
+pred ndarray (720000,)
+ry ndarray (720000,)
+b ndarray (2,)
+subdivisions dict 5 keys: ['drug_positive', 'current_sensor_observed', 'both_current_sensors', 'hours_0_to_11', 'hours
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,192 @@
+OUTPUT of Python run 197 of at most 300:
+```
+RECENT FORWARD NOTES
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645   
+## Run 8; forward passes used: 3
+Original states obtained on first 100 tuning stays, all bundles, 4531 rows in /work/fwd_4/states_original.npz.
+Aligned states to hourly records; tested held-out-stay ridge rate decoding from out, out+h, and out+h+z.
+Inspected normalisation, last-numeric dimensions and retained DML objects.
+No weights edited.
+
+## Run 25; forward passes used: 4
+Built reusable head dataset and feature functions, verified tuning alignment, fit insulin-innovation decoders on independent training states with MAP scores penalised toward zero, and checked tuning transfer plus approximate factual costs. No weights edited. Selected decoder alpha: 10000.
+
+## Forward 5 / Run 118
+Channel-only factual validation, first 100 tuning stays: original 1.59524, edited 1.59518 (delta -0.00006). Now testing B_in response directions against record-based insulin immediate coefficient -2.04924, with MAP target zero. Finite perturbations are design checks, not causal evidence.
+
+## Forward 6 / Run 124: reject rank-one connection
+Full factual first-100 tuning NLL: original 1.59524, connected edit 1.92945, delta +0.33421. All four reading types worsened. Dropped core.b_in.weight; nine channel-only edits remain. Immediate finite-difference calibration did not control recurrent persistence/feedback. Next: reconstruct complete factual trajectories and design a dynamically constrained, reading-selective connection.
+
+## Forward 7?8 / Run 131
+Scale-0.4 edit tuning rollouts: insulin x2 -1.712, half +2.202; NE x2 +0.095, half -0.299. Asymmetry remains unexplained. Independent tuning stays 100?199 factual NLL: original 1.59931, edited 1.59848 (delta -0.00083). Recovering lag estimates and rollout detail; these predictions are not truth.
+
+
+EARLY IDENTIFICATION NOTES
+# World-model weight repair
+
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+
+KERNEL FUNCTIONS
+ _fn(indices, action_override=None)
+_fn122(x, prefix)
+act_repair(x, kind)
+arr177(x)
+arr64(x)
+array171(x)
+as_np184(x)
+atom_clean58(event, values, rates, doses)
+atom_clean60(event, values, rates, doses, kind=0, unit_override=None, rate_unit_override=None)
+atom_embedding_repair(event, values=None, rates=None, doses=None, unit=0, rate_unit=0, kind=0, ekind=None, side='left')
+atom_exact65(event, values, rates, doses, kind=0, unit_override=None, rate_unit_override=None)
+attention67(qsrc, mem, prefix, mask=None, agevec=None, age_mode='after')
+attention_features104(norm_tokens, qweight, kvweight)
+brief132(obj, depth=0)
+brief146(v)
+brief154(v, depth=0)
+brief170(x, depth=0)
+build_head_dataset_fixed(states, records, reference=None)
+build_history_features(p)
+calibrated_prob80(p, x, coef)
+capture_attention103(indices)
+capture_call87(fn, *args)
+capture_ep111(indices)
+capture_ep112(indices)
+capture_q111(indices, qvalue)
+capture_transition102(indices, action_override=None)
+centres_for159(ds)
+collect_channel186()
+collect_selected187(ix, actions=None)
+compact(obj, limit=16)
+compact139(x, depth=0)
+compact144(obj, depth=0)
+compact151(v, depth=0)
+compact195(value, depth=0)
+compact_dis155(fn, stop_name=None)
+cpu_factual129(state_array, weights, draws=4)
+deconvolve_lp136(entries)
+describe175(name, obj)
+dose_metrics192(coef)
+drop_edit(name)
+edited()
+f0(states, records, reference=None)
+f128(indices, mode)
+factual_eval194(weights)
+ffill_stay(s)
+fit_lp136(drug, target, horizons)
+fn(fn, stop_name=None)
+fn139(weights=None, capture_decoder=True)
+fn143(atoms)
+fn146(event, values, rates, doses, kind=0, unit_override=None, rate_unit_override=None)
+fn149(indices)
+fn157(indices, action_override=None)
+fn158(atom_vectors)
+fn170(indices, action_override=None)
+fn172(indices)
+fn56(states, dataset, draws=16, seed=2501)
+fn57(states, records, reference=None)
+fn64(bank, indices)
+fun(x, prefix)
+fun176(atoms)
+fun_obj(x, prefix, kind)
+gated_innovation94(raw)
+gated_ne185(raw, coef, scale=40.0)
+gelu94(x)
+head_features_fixed(states, dataset, draws=16, seed=2501)
+head_linear_fixed(x, prefix)
+head_mlp_fixed(x, prefix)
+head_norm_fixed(x, prefix)
+independent_copy164(x)
+insulin_labels_fixed(dataset, panel, hist, is_train)
+intervention_bank74(drug, factor)
+linear_repair(x, prefix)
+load(name)
+load_original(name)
+local_rd(score, dose, outcome, cutoff, bandwidth, eligible)
+make_panel(df)
+memory67(indices, mode)
+metrics80(coef)
+mlp_repair(x, prefix, kind)
+norm_before147(x, prefix)
+norm_capture147(*args, **kwargs)
+norm_latent104(q)
+norm_repair(x, prefix)
+note(text)
+obj66(p)
+original_linear118(x, prefix)
+persistence_loss(rho)
+pooled_encoder58(atoms58, bundle58, count58, prefix58)
+pre_context_repair(bank, indices)
+predicate(x)
+probabilities166(x)
+probe_means95(state_values)
+profile81(frame, event, arg)
+r2_185(y, p)
+r41_obj(atoms)
+reading_bin_fixed(ev, value)
+replay_factual125(weights=None, capture_decoder=True)
+rp_action_encoder(atoms)
+rp_linear(x, prefix)
+rp_linear_original103(x, prefix)
+rp_linear_saved110(x, prefix)
+rp_mlp(x, prefix)
+rp_mlp_original95(x, prefix)
+rp_norm(x, prefix)
+sample_metrics_repair(p)
+save_edit(name, tensor)
+self_block67(x, prefix)
+shape150(v)
+shifted_linear118(x, prefix)
+show_sourc
+CANDIDATE VARIABLE NAMES
+A192 D192 D_parts192 Ebase193 Ecf193 Enew186 Eold186 J187 Zbase193 Zcf193 Znew186 Zold186 active192 active_ix187 active_pos187 amplitude_tests187 axis_ne186 backup_before195 base_coef192 base_q192 baseline_losses194 baseline_probs194 baseline_replay188 baseline_states194 basis186 calibrations192 candidates194 carrier_ne186 cf_actions187 changed_names195 chosen188 chosen_ne193 coef_ne186 collect_channel186 collect_selected187 compact195 constraints186 cov186 cpu_backup186 decoders_ins186 decoders_ne186 delta_b187 directions_ne187 dose_metrics192 dual_candidate193 dual_channel186 ev186 factual_eval194 features186 features193 gamma186 gate_bias186 gate_ne186 gram186 gram193 gram_anchor192 gram_delta192 ins_direction187 items189 joint194 joint_decoders193 keyrow186 load_basis186 loading_ne186 matches190 mean192 n190 n191 names186 ne_direction194 ne_records188 old_b194 old_cf187 old_decoder187 old_ins_signal186 old_targets187 out186 paths195 penalty192 physical_ne188 preserved_b194 project_ne186 q_ins186 q_ne186 qbase193 qcf193 rate192 raw_base192 raw_cf192 residual192 residual_parts192 results194 rhs193 rhs_delta192 rhs_ins186 rhs_ne186 rollout_table195 sections188 selected195 show_source190 std192 submitted193 summary189 target193 target_ins186 target_ne186 target_ne187 te187 teslots186 teslots193 test192 test_b193 test_bundles187 tr187 train192 train_b193 train_bundles187 trial_cap187 trial_u187 trslots186 trslots193 valid188 validation_ids195 value_ne186 vec186 vunit186
+backup_before195 dict ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+results194 dict [0.0, 0.5, 1.0, 1.5, 2.0]
+
+```

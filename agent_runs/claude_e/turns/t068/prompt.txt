@@ -1,0 +1,134 @@
+OUTPUT of Python run 63 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+=====NOTES=====
+# Notebook
+## Facts (runs 1-5)
+- Stays: hosp adm -2h, ICU adm 0h, end 25.1667h. Readings at integer hours; insulin/NE records at h+0.0833, run 1h.
+- Insulin rate grid 0.5 u/h (0.5..14.5), dose=rate. NE rate 0.01..1.00 (cap 1.00, 33k recs), dose=4.8*rate.
+- 18335/30000 stays have insulin, 13174 have NE. NE x2 pushes rates >1 (never seen in training, bin 16).
+- Grid saved /work/grid.pkl: (stays_tr,Gtr,stays_tu,Gtu), Gtr[key] DataFrame stay x hour(-1..25), keys gf gl ma mc ins ne
+
+## Findings (runs 6-25, fwd 1)
+- Insulin protocol: sliding scale on the finger reading that hour: <150 none; 150-180 base 1; 180-220 base 2; 220-300 base 3; 300+ ~6 u/h.
+  rate = base * random multiplier (log sd ~0.33), rounded to 0.5. Multiplier: no autocorr (0.008), no stay effect, unrelated to covariates
+  -> within-tier dose variation is as good as random given gf_now. Finger readings hourly if last >=150, else ~1/3 per hour; lab random ~20%/h.
+  finger and lab measure same glucose (mean diff 0, noise sd grows with level).
+- NE protocol: titration. Start when MAP<65; continue 97.5%; adjust from previous rate: up if MAP<65, hold 65-75, down >75; big noise in steps.
+- Insulin effect (local projections, FE on gf_t, within tier, deconvolved for protocol feedback): direct response of gf to 1 u/h at lag 1..10 h:
+  finger-based [-1.99 -2.37 -2.01 -1.65 -1.12 -0.89 -0.61 -0.47 -0.26 -0.11] (sum -11.5); lab-based similar (sum -12.6). Same across tiers (linear, level-independent).
+- dose_edit tool: rows = hours 13-24 with a recorded outcome reading; reached = hour > first drug hour >=12 (verified exactly).
+- fwd 1 (original, tuning sel1 = /work/sel1.json, 100 stays): ins x2 -1.60, ins x1/2 +0.70, NE x2 -0.15, NE x1/2 -0.40.
+  My truth estimate on same rows: ins x2 ~ -13.3..-14.3, x1/2 ~ +6.7..+7.1. Model underestimates insulin ~8x.
+- Plan: re-implement model locally in torch, validate against 'states'/'factual' outputs, then design edit.
+
+- NE effect on map_arterial (LP, FE band x prev rate, deconvolved): direct per 1 mcg/kg/min, lags1-6: [3.36 2.55 1.84 0.94 0.50 0.20], ~0 after; sum ~9.4. lag-1 effect same at low/high rates (linear).
+  Titration uses arterial MAP band if present (else cuff): <65 up ~+0.12 log, 65-75 hold, >75 down ~-0.2; noise sd ~0.3 log. Arterial line in ~48% stays (95% hours, random).
+- Truth est on sel1 rows: ins x2 -13.3..-14.3, half +6.7..+7.1; NE x2 +4.53, half -2.27. Model: -1.60, +0.70, -0.15, -0.40.
+- Model's insulin shift ramps slowly (-0.4 at 1h ... -3 at 12h after first dose) vs truth (-3, -6.8, -9.7, -11.9 ... -20 at 12h). NE model ~0 flat.
+- fwd 2: states of original on sel1 in /work/fwd_2 (5116 bundles). Bundles = distinct times; END atoms at record end (s+1.0833); final bundle 25.1667 (admission ENDs). has_insulin = new insulin record.
+
+## Runs 39-43 (after restart 1)
+- Old local-reimplementation function sources are lost (no getsource). VOCAB has no categorical vocabularies -> exact re-implementation is guesswork.
+- States (fwd_2, sel1): x = [out 0:192 | h 4x192 192:960 | zpost 960:992]. Within-tier insulin dose is decodable from state: CV R2 out .54, h .67, all .68.
+- NEW PLAN: head-level edit (value head + transition table), driven by a dose readout from the state. A head-only edit leaves factual states unchanged
+  -> factual NLL can be computed offline once the local head matches the factual tool output. Correction must use dose minus protocol-expected dose
+  (otherwise it double-counts the average effect already absorbed by the model).
+
+- Run 46-47: TRUE one-step coefs (gf_{t+1} on gf_t tier-FE quad, gf_{t-1}, lab_t; train). Raw dose lags1-6: [-2.01 -.74 1.40 1.28 1.22 1.15] (lags>=3 confounded).
+  On dose DEVIATION (dose - E[dose|tier], tab E[dose|tier0..4,miss]=[0,1.03,2.07,3.24,6.24,.03]): [-2.01 -0.63 0.07 0.48 0.57 0.37]. Resid sd 12.8.
+- fwd 3: factual original on tuning 2020000000..99: value NLL 1.63461 (n 4751); gf 1.4639, gl 1.2941, ma 1.4712, mc 2.012. File /work/fwd_3/factual_original.csv
+
+
+```

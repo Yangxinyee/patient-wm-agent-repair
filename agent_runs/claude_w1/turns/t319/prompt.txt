@@ -1,0 +1,45 @@
+OUTPUT of Python run 271 of at most 300:
+```
+edited after drop: []
+arch lines 91
+A22: 
+A23: Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+A24: 
+A34: - a memory M of the last 128 bundle vectors e;
+A35: - `out` (192): the summary every head reads.
+A36: 
+A40: 2. **Latent z_k (32-dimensional).**
+A41:    - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+A42:    - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+A43:    - The state update uses the posterior mean.
+A51:      `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+A52: 5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+A53: 
+A54: ## Heads: predicting bundle k+1 from what is known before it
+A55: 
+A56: **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+A57: - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+A58: - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+A59: 
+A60: **Heads:**
+A61: - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+A62: - **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+A63:   (Poisson).
+A64: - **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+A65: - **Attributes.** They are read from:
+A66: 
+A67:       with_code = q + embed.code[code]
+A68:                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+A69:                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+A71:   The "last" fields are a register: the most recent earlier value of the same code in this stay.
+A72:   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+A73:     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+A74:     (`vocab.json["value_bin_centres"]`).
+A75:   - **rate:** `rate_bin` works the same way for drug rates.
+A76:   - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+A77:     continue).
+A86:    embedding. All other events are as recorded.
+A87: 4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+A88:    paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+```

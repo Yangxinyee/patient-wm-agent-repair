@@ -1,0 +1,225 @@
+OUTPUT of Python run 180 of at most 300:
+```
+=== INSTALLED VS BACKUPS ===
+attr_heads.value_bin.0.bias
+  validated_combined max difference 0.0
+  run178_fallback max difference 0.0
+  run178_candidate max difference 22.331405639648438
+attr_heads.value_bin.0.weight
+  validated_combined max difference 0.0
+  run178_fallback max difference 0.0
+  run178_candidate max difference 17.46228790283203
+attr_heads.value_bin.2.bias
+  validated_combined max difference 0.0
+  run178_fallback max difference 0.0
+  run178_candidate max difference 0.0
+attr_heads.value_bin.2.weight
+  validated_combined max difference 0.0
+  run178_fallback max difference 0.0
+  run178_candidate max difference 1.3095084428787231
+Restored the GPU-checked combined candidate.
+=== RECENT CONSTRUCTION RESULTS ===
+r175_screen [{'NE_multiplier': 1.0, 'all': 0.0026748705828264223, 'fit': 0.0025129763311438754, 'validation': 0.0031619923978890158, 'increment': 0.0}, {'NE_multiplier': 1.25, 'all': 0.0035381644224186486, 'fit': 0.0032979896971935953, 'validation': 0.004260823484540252, 'increment': 0.0008632938395922267}, {'NE_multiplier': 1.5, 'all': 0.004685883559367248, 'fit': 0.004312302787520458, 'validation': 0.005809946592879586, 'increment': 0.0020110129765408256}, {'NE_multiplier': 1.8, 'all': 0.006442381003714539, 'fit': 0.005833444797663648, 'validation': 0.008274602388143214, 'increment': 0.0037675104208881155}]
+r177_results [{'multiplier': 1.0, 'all': 0.002314880573951137, 'fit': 0.0018039370610889063, 'validation': 0.0038522528326521616, 'by_event': "dict keys=['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']"}, {'multiplier': 1.8176593668558014, 'all': 0.003386204845512726, 'fit': 0.0028193731636248073, 'validation': 0.005091738395015486, 'by_event': "dict keys=['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']"}]
+r178_rows [48, 171]
+=== CACHE STRUCTURES ===
+cache {'inds': 'ndarray(146556,)', 'X': 'ndarray(146556, 56)', 'y': 'ndarray(146556,)', 'd': 'ndarray(146556,)', 'groups': 'ndarray(146556,)', 'hours': 'ndarray(146556,)', 'pred_y': 'ndarray(146556,)', 'pred_d': 'ndarray(146556,)', 'ry': 'ndarray(146556,)', 'rd': 'ndarray(146556,)', 'models': [['HistGradientBoostingRegressor', 'HistGradientBoostingRegressor'], ['HistGradientBoostingRegressor', 'HistGradientBoostingRegressor']]}
+cache64 {'valid': 'ndarray(4510,)', 'rd': 'ndarray(4510,)', 'indices': 'ndarray(437,)'}
+cache81 ['dml_results:dict', 'dml_cache:dict', 'kernel:(12,)', 'head_records:list', 'head_meta:(4510, 12)', 'head_trials:list', 'head_act:str', 'gate:(440,)']
+cache98 {'mean': 'Tensor(4510, 32)', 'log_sd': 'Tensor(4510, 32)', 'q': 'Tensor(32, 4510, 192)', 'with_code': 'Tensor(32, 4510, 192)', 'probs': 'Tensor(32, 4510, 17)', 'predicted_mean': 'Tensor(4510,)', 'nll': 'Tensor(4510,)'}
+head_records [[1010000000, -1.0, 'map_arterial', 73.0, 73.0416, 2.6921, 'int64()', 'float64()'], [1010000000, -1.0, 'glucose_finger', 165.0, 159.5463, 2.5501, 'int64()', 'float64()'], [1010000000, 0.0, 'map_arterial', 67.0, 74.5808, 1.8958, 'int64()', 'float64()'], [1010000000, 0.0, 'map_cuff', 70.0, 76.9241, 1.6894, 'int64()', 'float64()'], [1010000000, 0.0, 'glucose_finger', 168.0, 163.9769, 1.4748, 'int64()', 'float64()'], [1010000000, 1.0, 'glucose_lab', 167.0, 166.7246, 0.8402, 'int64()', 'float64()'], [1010000000, 1.0, 'map_arterial', 70.0, 68.1695, 0.9512, 'int64()', 'float64()'], [1010000000, 1.0, 'glucose_finger', 175.0, 164.7791, 1.8054, 'int64()', 'float64()']]
+head_meta DataFrame(4510, 12)
+candidate_inputs {'decoder_input': 'ndarray(4510, 192)'}
+r177_draws [0, 8, 16, 24]
+r178_rows [48, 171]
+=== AVAILABLE LOCAL FUNCTIONS ===
+partial_linear (y, d, controls, groups)
+make_plain_panel (records, ids)
+rep_linear (x, name)
+r85_linear (x, prefix)
+r138_nll (logits)
+r144_nll (logits)
+r145_head (w, h=None)
+=== EARLY RECORD-BASED FINDINGS ===
+# Weight-repair notebook
+
+## Objective and constraints
+- Infer this simulated ICU's drug effects from the provided records only.
+- Repair the four dose-rollout readouts while increasing factual value NLL by no more than 0.005 nats per reading.
+- No model gradients or weight optimiser; statistical fits and computed weight edits only.
+- Limits: 300 Python runs and 50 forward requests.
+
+## Run 1
+Requested architecture, data schema, vocabulary, and tensor shapes. No causal conclusions or weight edits yet.
+
+## Run 2
+Architecture: actions have a separate DeepSets encoder, then enter the posterior and recurrent prelude. Reading heads also have same-code last-reading registers and transition logits. No drug effects inferred yet. Loaded train/tuning records and inspected schedule and drug encodings.
+
+## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+## Forward requests 1 and 2
+Original factual NLL (tuning IDs 2020000000..99): 1.63461; provisional maximum 1.63961.
+Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours >=12": [
+      -2.04868,
+      0.05966,
+      0.61587,
+      142454
+    ],
+    "lower half of doses": [
+      -1.94372,
+      0.07221,
+      0.40383,
+      158100
+    ],
+    "upper half of doses": [
+      -2.01779,
+      0.05771,
+      0.73907,
+      95763
+    ],
+    "away from maximum": [
+      -1.99092,
+      0.04556,
+      0.59868,
+      253862
+    ],
+    "current primary observed": [
+      -1.99783,
+      0.0459,
+      0.60385,
+      246971
+    ]
+  },
+  "norepinephrine": {
+    "all active": [
+      3.29011,
+      0.09111,
+      0.13328,
+      146556
+    ],
+    "hours >=12": [
+      3.38311,
+      0.11624,
+      0.13967,
+      75241
+    ],
+    "lower half of doses": [
+      3.50921,
+      0.15079,
+      0.10196,
+      74248
+    ],
+    "upper half of doses": [
+      3.17119,
+      0.11255,
+      0.14585,
+      72308
+    ],
+    "away from maximum": [
+      3.29965,
+      0.10114,
+      0.1253,
+      124482
+    ],
+    "current primary observed": [
+      3.29235,
+      0.09268,
+      0.13325,
+      139375
+    ]
+  }
+}
+
+## Run 5
+Estimated 1..12 hour local projections using held-out history models. Subtracted subsequent-treatment feedback using future-dose residual covariances to estimate controlled impulse responses. Geometric summaries are tentative; long-lag selection and recursive estimation can amplify error. No weight edits yet.
+{
+  "insulin": {
+    "rows": [
+      {
+        
+
+```

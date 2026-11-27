@@ -1,0 +1,414 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 234 replies happened before. Forward passes used: 14 of 50; Python runs used: 213 of 300. Your kernel is still running with its variables. Tensors currently edited: ['z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+. Python runs: 189; forward passes: 10.
+
+
+## Run 190: recover evidence and exact routing construction
+- Architecture places dose effects behind nonlinear latent/state routing; weak local insulin response is not evidence of a weak true effect.
+- Recovering identification estimates, candidate construction, and exact replay helpers.
+- No weights changed. Python runs: 190; forward passes: 10.
+
+
+## Run 191: compact interface recovery
+- Run 190 output truncated; record evidence still supports insulin about -2 and NE about +3 per rate unit.
+- Retrieving only routing helper dependencies and recent fit arrays to avoid another output overflow.
+- No weights changed. Python runs: 191; forward passes: 10.
+
+
+## Run 192: physical channel versus downstream bottleneck
+- Inspecting reserved-dose channel ranges, candidate construction, and output-direction norms.
+- Distinguishing dose-encoding failure from nonlinear downstream saturation before official testing.
+- No weights changed. Python runs: 192; forward passes: 10.
+
+
+## Run 193: submit smaller statistically calibrated routing candidate
+- Reserved physical-dose channels respond substantially to doubled doses; downstream routing is the bottleneck.
+- Replaced only the zero-candidate z_in reserved columns 30:32 with best188's fitted directions; retained baseline-compression posterior weights.
+- Saved candidate193; previous saved candidate139 retained in backup193.
+- Awaiting official factual and rollout validation. Python runs: 193; forward passes: 10.
+
+
+## Forwards 11–12 / Run 194: reject reconstructed-head calibration
+- Candidate193 official factual delta -0.00045 nats/reading.
+- Official rollout: insulin x2 -1.183, half +0.520; NE x2 -0.049, half -0.365. Worse than baseline despite promising local-head slopes.
+- Therefore local reconstructed value heads are not a reliable dose-response surrogate.
+- Starting a statistical readout calibrated directly to official original predictions and states; no new weights changed.
+- Python runs: 194; forward passes: 12.
+
+## Run 196: official-head audit
+- Recovered record-based immediate and dynamic effects; original rollout is substantially under-responsive.
+- Candidate193 local diagnostics were refuted by official rollout. Auditing exact head reconstruction before another calibrated edit.
+- Python runs: 196; forward passes: 12. Saved edits unchanged.
+
+## Run 197: inspect authoritative surrogate
+- Zero-channel compressed baseline matched original official rollout. Drug directions, rather than baseline compression, need replacement.
+- Inspecting retained official-prediction surrogate and physical-dose-channel interfaces.
+- Python runs: 197; forward passes: 12. Saved edits unchanged.
+
+## Run 198: recover paired-surrogate routing results
+- Original-only surrogate failed edit-delta validation; paired surrogate achieved held-out delta R2 of about .72–.85.
+- Recovering its retained routing candidates before further official validation.
+- Python runs: 198; forward passes: 12. Saved edits unchanged.
+
+## Run 199: official sign-reversal experiment
+- Paired-surrogate candidate158 required large directions and saturated; it was never submitted.
+- Candidate193's small directions moved official doubled-dose responses in the wrong direction, despite a factual delta of -0.00045.
+- Submitted -2 times those two added z_in columns, with the independently validated zero-channel baseline unchanged.
+- Hypothesis: reversal strengthens insulin lowering and NE raising; official factual and rollout tests will decide.
+- Previous saved tensors retained in backup199. Python runs: 199; forward passes: 12.
+
+## Run 200: restart after sign-reversal validation
+- Forward 14: reversed routing modestly improved insulin (x2 -2.682, half +1.339) but NE remained wrong (x2 -0.069, half +0.369).
+- Recovering architecture and record evidence; a shared sign change is not an adequate repair. No weights changed.
+- Python runs: 200; forward passes: 14.
+
+## Run 201: recover dynamics and current factual margin
+- Architecture and schema recovered. Earlier cross-fitted immediate effects were approximately insulin -2 and NE +3 per rate unit.
+- Retrieving retained interfaces and official forward-13 factual loss before testing drug-specific directions. No weights changed.
+- Python runs: 201; forward passes: 14.
+
+## Run 202: bounded routing-interface audit
+- Current factual delta is +0.002308 nats/reading, inside the +0.005 limit but not enough evidence to accept incorrect drug responses.
+- Inspecting reserved-channel candidates, core/head helpers, and record-derived dynamics. No weights changed.
+- Python runs: 202; forward passes: 14.
+
+## Run 203: bounded head-source recovery
+- Run 202 confirmed retained physical channels and six-tensor candidate interfaces; output overflow hid the head details.
+- Avoiding tensor-valued function defaults and retrieving focused head/token dependencies. No weights changed.
+- Python runs: 203; forward passes: 14.
+
+## Run 204: audit dose encoding independently of invalid heads
+- Record impulse responses persist for several hours; one-step head slopes alone cannot establish rollout repair.
+- Earlier local-head reconstructions were not authoritative. Recovering exact dose-channel and probe construction.
+- Python runs: 204; forward passes: 14. No weights changed.
+
+## Run 205: directly measure reserved-dose channels
+- Measuring factual, doubled-dose, and empty-action posterior channels using the actual saved posterior weights, without a value-head surrogate. No weights changed.
+- Python runs: 205; forward passes: 14.
+
+## Run 207: recover authoritative replay interface
+- Run 206 measured nonzero reserved-channel variation, then failed on an empty selection; this was a diagnostic indexing failure.
+- Reading architecture and schema and locating retained replay functions before further edits.
+- No weights changed. Python runs: 207; forward passes: 14.
+
+## Run 208: focused dose-channel recovery
+- Architecture confirms parallel direct-action and posterior-latent routes; a common latent sign reversal is not a drug-specific causal calibration.
+- Recovering exact physical-channel construction and candidate interfaces with bounded output.
+- No weights changed. Python runs: 208; forward passes: 14.
+
+## Run 209: official test-history comparison
+- Comparing all official rollout/factual results before selecting new routing directions; local-head diagnostics alone were refuted.
+- No weights changed. Python runs: 209; forward passes: 14.
+
+## Run 210: assess guarded physical-dose routing
+- Repeated run-209 output supplied no new validation. Official tested edits remain far from record-derived targets.
+- Inspecting reserved neurons and replay interfaces to assess stronger routing guarded against factual dose variation.
+- No weights changed. Python runs: 210; forward passes: 14.
+
+## Run 211: distinguish reserved neurons and bundle-input errors
+- Run 210 output truncated; visible dose channels are distributed posterior readouts, not simple two-neuron gates.
+- Checking reserved input rows and official bundle flags before altering their construction.
+- No weights changed. Python runs: 211; forward passes: 14.
+
+## Run 212: verify empty-action convention against official states
+- Local empty-action vectors have norm 11.67 despite architecture specifying zero; testing this as a replay mismatch, not assuming it is causal evidence.
+- Comparing original posterior means against official state dumps under both conventions.
+- No weights changed. Python runs: 212; forward passes: 14.
+
+## Run 213: reject zero-empty-action change; audit downstream surrogate
+- Zeroing empty actions worsened original posterior RMS (0.105 to 0.112) and created large false reserved-channel values; rejected.
+- Drug-bundle posterior RMS is 1.57e-5 under existing encoding, supporting its use for direct drug-bundle tests.
+- Auditing official paired-state readout calibration before another routing edit. No weights changed.
+- Python runs: 213; forward passes: 14.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 213 of at most 300:
+```
+=== READOUT TENSOR LAYOUT ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+embed_transition.value_bin.weight (221, 17)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+=== REPLAY/SURROGATE FUNCTIONS ===
+r131_f args ('indices', 'u') locals ('prev', 'dt', 'h', 'i', 'histories', 'L', 'memory', 'mask', 'ages', 'j', 'rows', 'n') uses ('np', 'asarray', 'int', 'all', 'rr33_stays', 'torch', 'tensor', 'rr33_hours', 'float32', 'sx', 'reshape', 'exp', 'W0', 'groups59', 'max', 'position59', 'map', 'len', 'zeros', 'bool', 'enumerate', 'zip', 'rr33_e_all', 'rr33_u_all', 'contexts_audit', 'mlp0', 'cat', 'repaired_core_local', 'ndim')
+repaired_core_local args ('h', 'e', 'u', 'z', 'memory', 'mask', 'ages', 'include_current') locals ('tokens', 'E', 'mem', 'state', 'delta', 'retention', 'new_h') uses ('torch', 'cat', 'ones', 'len', 'bool', 'zeros', 'W0', 'lin0', 'audit_block', 'norm0', 'mlp0', 'log1p', 'F', 'softplus', 'exp', 'mean')
+posterior_token154 args ('weights', 'u') locals ('x', 'hidden', 'z', 'token') uses ('torch', 'cat', 'context151', 'F', 'gelu', 'linear')
+local_token154 args ('token', 'u') locals ('override154', 'previous_lin154', 'result', 'out', 'h') uses ('context151', 'globals', 'repaired_core_local', 'torch', 'zeros', 'len', 'float32', 'next')
+dynamic_views154 args ('out', 'h') locals ('state',) uses ('np', 'concatenate', 'numpy', 'reshape', 'len', 'zeros', 'float32', 'views144', 'dt_next151')
+dynamic_delta154 args ('new_views', 'old_views') locals ('ev',) uses ('np', 'column_stack', 'events151', 'sum', 'asarray', 'models145', 'dynamic_weights154')
+r186_heads args ('indices', 'actions') locals ('out', 'h') uses ('r59_core', 'r179_capture_head')
+r186_means args ('heads',) locals ('s',) uses ('np', 'column_stack', 'r186_sensors', 'asarray', 'reshape', 'shape', 'mean')
+solve_routing158 args ('mask', 'alpha') locals ('x', 'y', 'gram', 'rhs') uses ('Xw158', 'reshape', 'Yw158', 'T', 'len', 'solve', 'np', 'eye')
+
+=== SURROGATE AND PROBE OBJECTS ===
+W144 dict 16 keys ['core.flow.a', 'core.out_norm.bias', 'core.out_norm.weight', 'gap.0.bias', 'gap.0.weight', 'gap.2.bias', 'gap.2.weight', 'query_norm.bias', 'query_norm.weight', 'type_emb.weight']
+V144o dict 3 keys ['out', 'context', 'query']
+V144e dict 3 keys ['out', 'context', 'query']
+models144 dict 4 keys ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+train144 ndarray (4716,)
+lines148 dict 15 keys [60, 61, 62, 63, 64, 65, 66, 67, 68, 69]
+line148 61
+captures148 dict 2 keys ['repaired_core_local', 'r59_core']
+probe_indices148 ndarray (2,)
+result148 tuple 2
+out150 Tensor (2, 192)
+h150 Tensor (2, 4, 192)
+event150 'map_cuff'
+m150 dict 13 keys ['score', 'diagnostic', 'model', 'scaler', 'spline', 'median', 'scale', 'offset', 'variant', 'ids']
+a150 ndarray (1591, 396)
+b150 ndarray (1591, 11)
+ids150 ndarray (1591,)
+v150 ndarray (1591, 192)
+start150 204
+block150 ndarray (1591, 192)
+scale150 0.07078736123185676
+error150 1.2344830858926898
+name150 'fun143'
+cf150 dict 4 keys ['drug', 'indices', 'u', 'dc']
+basew150 dict 6 keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+interaction151 dict 4 keys ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+readoutweights151 dict 4 keys ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+ev151 'map_cuff'
+mod151 dict 13 keys ['score', 'diagnostic', 'model', 'scaler', 'spline', 'median', 'scale', 'offset', 'variant', 'ids']
+raw151 ndarray (1591, 395)
+v151 ndarray (1591, 192)
+ratio151 ndarray (1591,)
+lv151 ndarray (1591,)
+s151 ndarray (1591,)
+choices151 dict 4 keys ['linear', 'clip2', 'clip3', 'tanh']
+errors151 dict 4 keys ['linear', 'clip2', 'clip3', 'tanh']
+coef151 ndarray (395,)
+pred151 ndarray (1591,)
+truth151 ndarray (1591,)
+indices151 ndarray (320,)
+drug151 ndarray (320,)
+dc151 ndarray (320,)
+captures151 dict 19 keys ['indices', 'u', 'prev', 'dt', 'h', 'i', 'histories', 'L', 'memory', 'mask']
+original_result151 tuple 2
+context151 dict 7 keys ['h', 'e', 'u', 'ctx', 'memory', 'mask', 'ages']
+ucf151 Tensor (320, 192)
+originalweights151 dict 6 keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+currentweights151 dict 6 keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+z0_151 Tensor (320, 32)
+zcf151 Tensor (320, 32)
+token0_151 Tensor (320, 192)
+tokencf151 Tensor (320, 192)
+d151 1
+take151 ndarray (320,)
+dz151 ndarray (160, 2)
+x151 ndarray (160,)
+events151 list 4
+next_hours151 ndarray (320,)
+dt_next151 ndarray (320,)
+lastvalues151 dict 4 keys ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+lastages151 dict 4 keys ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+groups151 dict 340 keys [(1010000000, 'glucose_finger'), (1010000000, 'glucose_lab'), (1010000000, 'map_arterial'), (1010000000, 'map_cuff'), (1010000001, 'glucose_finger'), (1010000001, 'glucose_lab'), (1010000001, 'map_cuff'), (1010000002, 'glucose_finger'), (1010000002, 'glucose_lab'), (1010000002, 'map_cuff')]
+values151 ndarray (320,)
+ages151 ndarray (320,)
+j151 319
+chosen151 list 10
+ev154 'glucose_finger'
+n154 'c90'
+dynamic_weights154 dict 4 keys ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+coef154 ndarray (192,)
+z_original154 Tensor (320, 32)
+token_original154 Tensor (320, 192)
+out_original154 Tensor (320, 192)
+h_original154 Tensor (320, 4, 192)
+reference_out154 Tensor (320, 192)
+zero_weights154 dict 6 keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+z_base154 Tensor (320, 32)
+token_base154 Tensor (320, 192)
+out_base154 Tensor (320, 192)
+h_base154 Tensor (320, 4, 192)
+views_base154 dict 3 keys ['out', 'context', 'query']
+eps154 0.05
+responses154 dict 2 keys [0, 1]
+targets158 ndarray (2, 4)
+stay158 ndarray (320,)
+unique158 ndarray (61,)
+validation158 ndarray (320,)
+training158 ndarray (320,)
+ratio158 ndarray (320, 2)
+baseline_rate158 ndarray (320, 4)
+X158 ndarray (320, 4, 384)
+Y158 ndarray (320, 4)
+event_scale158 ndarray (4,)
+rate_weight158 ndarray (320,)
+d158 1
+q158 ndarray (320,)
+weights158 ndarray (320, 4)
+Xw158 ndarray (320, 4, 384)
+Yw158 ndarray (320, 4)
+alphas158 list 9
+fits158 dict 9 keys [1e-06, 3e-06, 1e-05, 3e-05, 0.0001, 0.0003, 0.001, 0.003, 0.01]
+scores158 list 9
+alpha158 1e-05
+dtrain158 ndarray (192, 2)
+prediction158 ndarray (320, 4)
+error158 ndarray (100, 4)
+score158 0.4513605952695591
+dall158 ndarray (192, 2)
+nonlinear158 dict 3 keys [1e-06, 3e-06, 1e-05]
+D158 ndarray (192, 2)
+dtensor158 Tensor (192, 2)
+token_fact158 Tensor (320, 192)
+token_cf158 Tensor (320, 192)
+of158 Tensor (320, 192)
+hf158 Tensor (320, 4, 192)
+oc158 Tensor (320, 192)
+hc158 Tensor (320, 4, 192)
+vf158 dict 3 keys ['out', 'context', 'query']
+vc158 dict 3 keys ['out', 'context', 'query']
+nonlinear_rate158 ndarray (320, 4)
+factual_shift158 ndarray (320, 4)
+best_alpha158 1e-06
+D_best158 ndarray (192, 2)
+candidate158 dict 6 keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+r186_start 1794401607.315631
+r186_sensors list 4
+r186_sel ndarray (64,)
+r186_n 64
+r186_idx ndarray (128,)
+r186_u Tensor (128, 192)
+r186_perturb Tensor (192,)
+r186_dirs Tensor (192, 2)
+r186_backup dict 6 keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+r186_baseheads dict 4 keys ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+r186_M ndarray (128, 4)
+r186_J ndarray (128, 4, 192)
+r186_eps 0.05
+r186_z0 ndarray (64, 2)
+r186_zc ndarray (64, 2)
+r186_A ndarray (64, 4, 384)
+r186_B ndarray (64, 4, 384)
+r186_var ndarray (64, 4)
+r186_scale ndarray (64, 4)
+r186_target ndarray (64, 4)
+r186_y ndarray (64, 4)
+r186_solutions list 11
+
+=== EARLY CORE VALIDATION EVIDENCE ===
+- Core convention results (out/h RMS): {(1.0, False): (0.2553735375404358, 11.284152030944824), (1.0, True): (0.09784771502017975, 5.188462734222412), (0.1, False): (0.08613714575767517, 4.496523857116699), (0.1, True): (0.09909460693597794, 5.37593936920166)}.
+- Core reconstruction in run 27 remains unvalidated; no edit is justified from it yet.
+- General validated helper: repaired_core_local(h,e,u,z,prior_memory,mask,ages).
+- Checking validated core error and record-derived aggregate targets before reserving linear dose channels.
+- Reconstructed all 100 training stays; checked core against validated probes.
+- Expanded core matches validated probes; 4,035 factual feature rows and 4,000 counterfactual rows retained.
+- Recovering the exact core contract and retained candidate diagnostics before testing weights.
+- Boundary-safe original core agrees with saved states (out max error .00013).
+- Inspecting candidate construction, response targets, and exact local core before another response calibration.
+- External original factual NLL on training-100 is 1.63805; local score on these stays is ~5.064. The mismatch is not explained by train/tuning.
+- Inspecting exact matched-reading errors and head/feature implementations before trusting local edit scores.
+- Corrected that interface and measured exact-core finite-difference responses; recovering physical action contrast helper.
+## Runs 156-157: drug/bundle alignment and exact-core Jacobian
+- Fit ridge response directions using a numerical exact-core Jacobian, drug-specific physical-dose contrasts, and stay-held-out validation.
+
+```

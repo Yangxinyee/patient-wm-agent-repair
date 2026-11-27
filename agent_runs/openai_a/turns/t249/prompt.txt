@@ -1,0 +1,264 @@
+OUTPUT of Python run 216 of at most 300:
+```
+
+HELPER: make_contrast_graft
+dependencies: ('sc_original', 'items', 'np', 'asarray', 'float32', 'copy', 'map', 'int', 'sc_nodes', 'sc_gate_w', 'sc_names', 'float', 'sc_gate_b', 'sc_rank', 'sc_bias_comp')
+scalar constants: [('dtype',), 0, 1, 2, 3]
+  sc_original dict keys=['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+  items [('tuple', None), ('tuple', None), ('tuple', None), ('tuple', None), ('tuple', None), ('tuple', None), ('tuple', None), ('tuple', None)]
+  np module shape=<function shape at 0x7803eed6f370>
+  sc_nodes ndarray shape=(2,)
+  sc_gate_w ndarray shape=(192,)
+  sc_names [('str', None), ('str', None), ('str', None), ('str', None)]
+  sc_gate_b -18.832592010498047
+  sc_rank ndarray shape=(17,)
+  sc_bias_comp ndarray shape=(17,)
+
+HELPER: cache_losses
+dependencies: ('np', 'asarray', 'float32', 'torch', 'from_numpy', 'nn', 'functional', 'gelu', 'numpy', 'sc_rank', 'softmax', 'mean', 'log', 'maximum', 'arange', 'len')
+scalar constants: ['x', 'gate', 'logits', (Ellipsis, None), -1, 0, 'bins', 1e-30]
+  np module shape=<function shape at 0x7803eed6f370>
+  torch module shape=None
+  sc_rank ndarray shape=(17,)
+  mean Tensor shape=torch.Size([4751])
+
+OTHER SCREENING/FITTING HELPERS:
+cache_losses (cache, w, b, scale)
+make_contrast_graft (w, b, scale=1.0)
+make_selective_contrast_graft (w, b, scale, gate_strength=30.0)
+sc_cache_inputs (x, trans, meta)
+screen_value_candidate (cache, w, b, scale)
+selective_cache (cache, gate_strength)
+
+RELEVANT MATRIX/TARGET VARIABLES:
+delta (48, 992)
+delta0 (78,)
+gate_target2 (36080,)
+pooled_target (9268,)
+r3_C (150, 150)
+r3_Fq (20064, 150)
+r3_Q (192, 150)
+sc_D (156, 151)
+sc_F (20064, 192)
+sc_Fq (20064, 151)
+sc_Q (192, 151)
+sc_bias_comp (17,)
+sc_cov (151, 151)
+sc_eigenvalues (192,)
+sc_eigenvectors (192, 192)
+sc_gate_w (192,)
+sc_mean (192,)
+sc_mult (156,)
+sc_nodes (2,)
+sc_old_w (192,)
+sc_rank (17,)
+sc_reg_offset (78, 192)
+sc_stay (156,)
+sc_y (156,)
+target (4510,)
+target0 (4751,)
+train_target (3778,)
+ttarget (4751,)
+
+EARLY CONTRAST-DESIGN NOTES:
+## Sensor-contrast local projections; Python 9, forward 2
+- Reimplemented IV on future reading levels, controlling only pre-treatment history.
+- Pre-treatment placebo horizons test independence; weak first stages remain disqualifying.
+{
+  "('insulin', -2, False)": {
+    "n": 57248,
+    "beta": -0.038767269782738374,
+    "se": 0.6338392802791879,
+    "first_stage": 0.024831879550323475,
+    "first_stage_t": 46.31225775687944
+  },
+  "('insulin', -1, False)": {
+    "n": 61822,
+    "beta": -0.10167365879195693,
+    "se": 0.6044600978809811,
+    "first_stage": 0.0250430044370933,
+    "first_stage_t": 48.56454221088735
+  },
+  "('insulin', 1, False)": {
+    "n": 61734,
+    "beta": -9.265448953253808,
+    "se": 1.0477733869485997,
+    "first_stage": 0.01858921651030461,
+    "first_stage_t": 35.99484856927351
+  },
+  "('insulin', 2, False)": {
+    "n": 57208,
+    "beta": -3.307161009758553,
+    "se": 0.792613602550214,
+    "first_stage": 0.021875956858715104,
+    "first_stage_t": 41.148887829833676
+  },
+  "('insulin', 3, False)": {
+    "n": 53968,
+    "beta": -3.0635407733407476,
+    "se": 0.7
+## Protected synthetic-contrast regression; Python 168, forwards 11/50
+- Synthetic contrasts are edit-design probes, not causal evidence; recurrent reconstruction remains approximate.
+- lambda=1e-05: rmse=0.044994, norm=2969, CPU NLL deltas={'first': 10.77877962589264, 'extra': 10.458292722702026, 'tuning': 10.026473879814148}, local shifts={0.5: 0.5845948457717896, 2.0: -1.637196660041809}.
+- lambda=0.0001: rmse=0.050752, norm=864.8, CPU NLL deltas={'first': 40.168659806251526, 'extra': 39.027674436569214, 'tuning': 38.26569068431854}, local shifts={0.5: 0.7514326572418213, 2.0: -1.8307675123214722}.
+- lambda=0.001: rmse=0.054398, norm=286.1, CPU NLL deltas={'first': 6.04556143283844, 'extra': 5.586848497390747, 'tuning': 4.845047831535339}, local shifts={0.5: 0.6454774737358093, 2.0: -1.896890640258789}.
+- lambda=0.01: rmse=0.057879, norm=109.7, CPU NLL deltas={'first': 0.2523996829986572, 'extra': 0.19969582557678223, 'tuning': 0.21552026271820068}, local shifts={0.5: 0.5231385827064514, 2.0: -1.861480474472046}.
+- lambda=0.1: rmse=0.062806, norm=57.58, CPU NLL deltas={'first': 1.
+## Register-protected contrast regression; Python 169, forwards 11/50
+- Protected ['last_numeric.weight', 'embed.bins.rate.weight', 'embed.bins.value.weight', 'last_status.weight']; remaining dimension=151.
+- Prior variability penalized through factual covariance; synthetic targets remain design-only.
+- (0.0001, 1.0): NLL={'first': 8.051831841468811, 'extra': 7.795879125595093, 'tuning': 7.014154314994812}, shifts={0.5: 0.6631659269332886, 2.0: -1.9231616258621216}, rmse=0.05438.
+- (0.0001, 10.0): NLL={'first': 7.487581849098206, 'extra': 7.110296010971069, 'tuning': 6.521767497062683}, shifts={0.5: 0.663094162940979, 2.0: -1.9232141971588135}, rmse=0.05438.
+- (0.001, 1.0): NLL={'first': 7.092543244361877, 'extra': 6.795738935470581, 'tuning': 5.971243739128113}, shifts={0.5: 0.7128139138221741, 2.0: -1.990995168685913}, rmse=0.057421.
+- (0.001, 10.0): NLL={'first': 6.711177468299866, 'extra': 6.2663915157318115, 'tuning': 5.602711081504822}, shifts={0.5: 0.7128129601478577, 2.0: -1.9909915924072266}, rmse=0.057421.
+- (0.01, 1.0): NLL={'first': 1.3242086172103882, 'extra': 1.23961186
+
+THRESHOLD AND NE IDENTIFICATION NOTES:
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edits.
+- Insulin policy has sharp rate jumps near finger glucose 150, 180, etc.; testing fuzzy RD rather than assuming observed dose associations are causal.
+{
+  "rd_checks": {
+    "(5, 1, False)": {
+      "n": 89398,
+      "beta": -2.11567545402709,
+      "se": 0.33683734799038334,
+      "first_stage_jump": 0.7135711767182463,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 1, True)": {
+      "n": 89398,
+      "beta": -2.0571854815200568,
+      "se": 0.3057137413636479,
+      "first_stage_jump": 0.7135240538160252,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, False)": {
+      "n": 89398,
+      "beta": -2.1113769908453865,
+      "se": 0.7234826044355352,
+      "first_stage_jump": 0.683167099721991,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, True)": {
+      "n": 89398,
+      "beta": -2.179170250120743,
+      "se": 0.6564570134763864,
+      "first_stage_jump": 0.6832177747842112,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 1, False)": {
+      "n": 179126,
+      "beta": -1.919425767186608,
+      "se": 0.22837478130371563,
+      "first_stage_jump": 0.6926458851218907,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 1, True)": {
+      "n": 179126,
+      "beta": -1.9151498499552946,
+      "se": 0.20658614946993908,
+      "first_stage_jump": 0.6925843696745465,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 2, False)": {
+      "n": 179126,
+      "beta": -2.156108590545677,
+      "se": 0.365258324667667,
+      "first_stage_jump": 0.7396721616358036,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 2, True)": {
+      "n": 179126,
+      "beta": -2.1745694951076504,
+      "se": 0.3321482939180942,
+      "first_stage_jump": 0.7396569700924231,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(14, 1, False)": {
+      "n": 251784,
+      "beta": -1.9264398261906226,
+      "se": 0.20977497313947066,
+      "first_stage_jump": 0.6279632128988961,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(14, 1, True)": {
+      "n": 251784,
+      "beta": -1.9020941408234302,
+      "se": 0.18878471311489012,
+      "first_stage_jump": 0.62789453
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+- RD beta/persistence: [-1.9287092802694472, 0.8318395202800747].
+- Fixed-record insulin x2 target, train / first 100 tuning: ((-11.136162060797929, 152158), (-10.707835822880574, 554)); half is -0.5 times x2.
+- Flexible, stay-held-out NE estimates remain observational, not automatically causal.
+{
+  "1": {
+    "all": {
+      "beta": 3.3214268014980317,
+      "se": 0.09576999832526349,
+      "n": 299517,
+      "dose_residual_sd": 0.09073010103067478,
+      "outcome_residual_sd": 4.40471740317129
+    },
+    "interior": {
+      "beta": 3.3480345525779405,
+      "se": 0.10803830467896791,
+      "n": 116511,
+      "dose_residual_sd": 0.12413404307882044,
+      "outcome_residual_sd": 4.590900888397296
+    }
+  },
+  "4": {
+    "all": {
+      "beta": 3.280136875394464,
+      "se": 0.09669211095919605,
+      "n": 260475,
+      "dose_residual_sd": 0.09223969594935504,
+      "outcome_residual_sd": 4.268125306872915
+    },
+    "interior": {
+      "beta": 3.328771594136043,
+      "se": 0.10795623473196006,
+      "n": 99386,
+      "dose_residual_sd": 0.12647869705939818,
+      "outcome_residual_sd": 4.443289044173014
+    }
+  },
+  "8": {
+    "all": {
+      "beta": 3.3242140350967726,
+      "se": 0.10443699572843235,
+      "n": 208459,
+      "dose_residual_sd": 0.09364732007161047,
+      "outcome_residual_sd": 4.217548630415361
+    },
+    "interior": {
+      "beta": 3.3899126865451534,
+      "se": 0.11784978539028063,
+      "n": 77672,
+      "dose_residual_sd": 0.12868938320587522,
+      "outcome_residual_sd": 4.40078981957742
+    }
+  }
+}
+
+
+```

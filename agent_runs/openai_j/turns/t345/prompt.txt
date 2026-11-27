@@ -1,0 +1,87 @@
+OUTPUT of Python run 291 of at most 300:
+```
+=== VALIDATION GROUPS ===
+fwd_40 factual_edited.csv 100 2020000000 2020000099
+metadata: {'ok': True, 'type': 'factual', 'split': 'tuning', 'n_stays': 100, 'edit_hash': 'e9fb2db92f', 'seconds': 3.2, 'gpu_peak_mib': 232}
+fwd_42 dose_edit_edited.csv 99 2020000000 2020000099
+columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+metadata: {'ok': True, 'type': 'dose_edit', 'split': 'tuning', 'n_stays': 100, 'edit_hash': 'e9fb2db92f', 'seconds': 65.1, 'gpu_peak_mib': 1364}
+/results/original/edits/insulin_x2 -3.68 hours 554
+/results/original/edits/insulin_half 2.018 hours 554
+/results/original/edits/ne_x2 0.465 hours 281
+/results/original/edits/ne_half -0.871 hours 281
+/results/edited/edits/insulin_x2 -10.008 hours 554
+/results/edited/edits/insulin_half 5.254 hours 554
+/results/edited/edits/ne_x2 0.94 hours 281
+/results/edited/edits/ne_half -1.505 hours 281
+fwd_43 factual_edited.csv 100 2020000100 2020000199
+metadata: {'ok': True, 'type': 'factual', 'split': 'tuning', 'n_stays': 100, 'edit_hash': 'e9fb2db92f', 'seconds': 2.8, 'gpu_peak_mib': 232}
+fwd_44 factual_edited.csv 100 2020000200 2020000299
+metadata: {'ok': True, 'type': 'factual', 'split': 'tuning', 'n_stays': 100, 'edit_hash': 'e9fb2db92f', 'seconds': 3.0, 'gpu_peak_mib': 232}
+fwd_45 factual_edited.csv 100 2020000300 2020000399
+metadata: {'ok': True, 'type': 'factual', 'split': 'tuning', 'n_stays': 100, 'edit_hash': 'e9fb2db92f', 'seconds': 2.9, 'gpu_peak_mib': 232}
+fwd_46 dose_edit_edited.csv 100 2020000100 2020000199
+columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+metadata: {'ok': True, 'type': 'dose_edit', 'split': 'tuning', 'n_stays': 100, 'edit_hash': 'e9fb2db92f', 'seconds': 66.8, 'gpu_peak_mib': 1250}
+/results/original/edits/insulin_x2 -4.072 hours 487
+/results/original/edits/insulin_half 2.273 hours 487
+/results/original/edits/ne_x2 0.615 hours 300
+/results/original/edits/ne_half -0.858 hours 300
+/results/edited/edits/insulin_x2 -10.321 hours 487
+/results/edited/edits/insulin_half 5.436 hours 487
+/results/edited/edits/ne_x2 1.32 hours 300
+/results/edited/edits/ne_half -1.543 hours 300
+
+=== NE SENSOR-IV ESTIMATES ===
+          drug       sensor  horizon     n          beta           se  dose_slope  outcome_slope  instrument_sd
+norepinephrine map_arterial       -1 93508 -9.654502e-15 1.448844e-13   -0.000262   2.534160e-18       6.739468
+norepinephrine     map_cuff       -1 29269  5.778530e-14 4.128357e-13   -0.000172  -9.916259e-18       6.749699
+norepinephrine map_arterial        1 89549 -1.762320e+01 9.530409e+00   -0.000270   4.756649e-03       6.736901
+norepinephrine     map_cuff        1 28126 -3.657557e+01 4.299693e+01   -0.000164   6.007260e-03       6.766562
+norepinephrine map_arterial        2 85763 -1.382977e+00 9.144241e+00   -0.000291   4.021478e-04       6.732659
+norepinephrine     map_cuff        2 26996 -2.568958e+01 2.014433e+01   -0.000354   9.099212e-03       6.735749
+norepinephrine map_arterial        4 77961 -5.638157e+00 1.091277e+01   -0.000286   1.609991e-03       6.738791
+norepinephrine     map_cuff        4 24588 -3.309781e+01 3.121742e+01   -0.000253   8.367140e-03       6.709314
+
+=== METHOD NOTES (BOUNDED) ===
+# Weight-repair notebook
+
+## Baseline rollout and flexible residualisation
+- Original tuning first 100: insulin x2 -3.68; half +2.018; NE x2 +0.465; half -0.871.
+- Two-fold cross-fitting by stay; flexible history controls and treatment-presence indicators.
+        sensor                  sample      n   insulin  insulin_se  norepinephrine  norepinephrine_se
+glucose_finger       all next readings 400154 -2.009795    0.045709        0.385314           0.264109
+glucose_finger current sensor observed 298450 -2.018225    0.04
+## Causal identification checks
+- Paired-sensor IV suggests insulin lowers next glucose, approximately 2 per rate unit.
+- Norepinephrine sensor-difference instrument is weak; do not use its IV ratios.
+- Earlier zero placebos were mechanical because controls contained the placebo outcome; corrected here.
+          drug     n       beta        se  dose_slope  past_outcome_slope
+       insulin 59658  -0.104668  0.609526    0.025015           -0.002618
+norepinephrine 93508 -20.380205 14.355973   -0.
+## Run 282: safety-first recovery
+- Current calibrated four-tensor edit remains installed; no weights changed.
+- Recovering architecture, records-derived causal estimates, and calibration builders.
+- Observed pooled tuning dNLL +0.00431938 passes, but bootstrap safety margin is weak.
+- Counts: 282 Python runs, 38 forward passes.
+
+
+## Run 283: bounded causal and candidate recovery
+- Architecture and early estimates reconfirm treatment-selection confounding.
+- Retrieving final record-based estimates and calibration frontier; no edits changed.
+- Counts: 283 Python runs, 38 forward passes.
+
+
+## Run 287: bounded safety recovery
+- Previous recovery output was truncated; reading compact candidate, effect-estimate, and factual summaries.
+- No weights changed. Counts: 287 Python runs, 40 forward passes.
+
+
+
+=== CANDIDATE 285 NOTES ===
+
+=== RECOVERY HELPERS ===
+['audit_head_logits', 'candidate_wt277', 'corrected_register_head', 'estimate_response_kernel', 'head177_eval', 'head177_make', 'kernel_readout', 'reconstruct_reading_head', 'score_head_variant']
+Current edits: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+
+```

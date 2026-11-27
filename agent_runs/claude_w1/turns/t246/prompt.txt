@@ -1,0 +1,62 @@
+OUTPUT of Python run 226 of at most 300:
+```
+notes length 13070
+# Notebook
+
+## Run 1-2: orientation
+- Read ARCHITECTURE.md and README. Dose enters via encode_action (u_k), embed.numeric (z_dose,z_rate), embed.bins.dose/rate.
+
+## Runs 3-10: data structure & dosing policy (train.csv)
+- All stays 25.17h. Readings at integer hours (-1..24); infusions at h+0.0833, each 1h. Insulin dose==rate; NE dose=4.8*rate.
+- Glucose finger/lab intermittent; map_arterial hourly in ~48% stays (art line); map_cuff ~60% hours.
+- INSULIN POLICY (uses the reading taken that hour, finger; lab if no finger): ON if G>160 (always); 140-160 depends on prev on (0.68 vs 0.23); <140 ~off.
+  Base rate steps on recorded finger value: ~1.05 (<180), ~2.08 (180-220), ~3.15 (220-260?), higher above; sharp jump AT the recorded value
+  (at exactly 180 mean 1.56 -> threshold on unrounded reading). Multiplicative noise, rounded to 0.5 (sd ~0.37 at base1, ~0.65 at base2).
+- NE POLICY: start if MAP<65 (art if available else cuff); titrate: MAP<65 up (log ratio +0.07..0.15), 65-75 hold, >75 down (-0.2..-0.28);
+  log-ratio noise sd ~0.29; cap 1.0. Thresholds sharp at 65/75.
+- IDEA: dose noise given recorded reading = natural experiment; thresholds (180,220; 65,75) allow regression discontinuity (RD) check vs hidden confounding.
+
+## Runs 11-23: causal effect estimates (train.csv), using exogenous dose noise
+- Insulin noise log(rate/base) iid: corr with prev noise 0.000, with G/MAP/NE/h ~0.01. NE innovation (log ratio resid) corr prev -0.014, MAP -0.04.
+- Measurement: finger vs lab same hour: no bias, sd diff ~5.5% of G (multiplicative). cuff - arterial = +3.0 mmHg, sd 6.7.
+- No cross effects: NE->glucose ~0, insulin->MAP ~0.
+- Insulin -> glucose: local projection total effect per +1 u/h shock: k=1..6: -2.08,-2.29,-1.87,-1.37,-0.76,-0.45 (->0 by 12).
+  Linear in dose (shock^2 ~0). Mildly larger at high G: -1.83 (G~164), -2.07 (196), -2.21 (234), -2.43 (272) at k=1.
+  Feedback on later doses small: -0.06 u/h. Deconvolved fixed-dose impulse response h_ins(k):
+  -2.08,-2.41,-2.16,-1.79,-1.26,-0.95,-0.77,-0.63,-0.55,-0.43,-0.33,-0.30 (cum -13.7 at 12h)  [tail uncertain]
+- NE -> MAP_arterial: total per +1 mcg/kg/min innovation: 3.4,5.1,5.4,5.1,4.4,3.8,...; dose persistence 0.73,0.56,0.44,...
+  Deconvolved h_ne(k): 3.40,2.60,1.62,0.94,0.41,0.33,0.0,... (cum ~9.3). Linear in rate (k=1 effect 3.3-3.6 across rate levels).
+- Model-side caution: NE rate>1.0 / dose>4.8 -> bins 13-16 never seen in training (x2 edit hits them).
+
+## Run 24-29 + fwd 1 (dose_edit original, tuning setA = /work/setA.json, 100 stays)
+- RD at insulin thresholds 180/220 agrees with noise-based estimates (-1.9..-2.6 per u/h at k=1) -> no hidden confounding.
+- dose_edit rows = stay-hours 13-24 where the record HAS the outcome reading (finger glucose / map_arterial); reached = hour > first dose hour>=12.
+  mean_shift = POOLED mean over reached stay-hours.
+- ORIGINAL model on setA: ins x2 -1.448, ins x1/2 +0.824, ne x2 +0.152, ne x1/2 -0.411.
+- My estimated TRUTH on same rows (deconvolved h): ins x2 -14.17, ins x1/2 +7.09, ne x2 +4.82, ne x1/2 -2.41.
+  => model's effects ~10x (insulin) and ~30x (NE) too small.
+
+## Runs 30-41 (after restart)
+- fwd_2 = factual ORIGINAL on tuning setA: value NLL/reading 1.51903 (finger 1.531, lab 1.261, art 1.349, cuff 1.746). Baseline for +0.005 limit.
+- fwd_3 = states ORIGINAL on tuning setA (5075 bundle rows; layout out|h0..h3|zpost).
+- Runs 30-37 tried to reimplement core locally: not matching yet (best err 1.79 on z after bundle0). Parked.
+- Value head = MLP 192->192->17 (+ embed_transition[code*17+lastbin]); shared by all 4 value codes.
+- PLAN: readout edit. Decode a dose-innovation feature (dose minus policy-expected dose given reading, lagged) from head input
+  computed from states; repurpose one hidden unit of attr_heads.value_bin per drug to add a logit tilt (gated to glucose / MAP codes);
+  calibrate gain with dose_edit on setA vs my truth (-14.17/+7.09/+4.82/-2.41). Check factual with 'both'.
+
+## Runs 42-69: replicas
+- Dose innovation decodability (tuning states): insulin nu1 R2 ~0.24 from head query q (slope 0.29); NE innovation R2 0.09 (slope 0.10).
+  => pure readout edit too noisy (esp. NE). Need upstream signal.
+- Original model rollout insulin x2 per hour: -0.53 (h13) .. -2.28 (h24); truth -3.2 .. -18.8. Model persistence ~0.78/h.
+- HEAD replica (from states): view=out+LN_out(mean_slots(h*exp(-dt*exp(flow.a))))+gap(log(dt_s)/10)+z_head(z_prior mean); q=LN_query(view+type_emb[1]);
+  with_code=q+code+last_numeric([has,log1p(age_min)/10,zlast,has,has,0,0,0])+bins.value[lastbin]; GELU; MAE 2.4 vs tool (noise floor ~1.2).
+- ENCODER/z_post replica EXACT (rel err 0.008 on drug bundles): GELU everywhere; empty set -> LN(mlp2(size(0))) (not zero);
+  units: mg/dL->3, mmHg->2, mg->4, units->5; rate_unit: mcg/kg/min->3, units/hour->2; drug END atoms go to e (measurement encoder), not u.
+  atom = code+kind+ekind+kq[0]+unit+rate_unit+bins+numeric@[zv,hv,zd,hd,zr,hr]+bias. z_post([ctx,e,u]) ctx=out+LN_out(mean h decayed)+gap(log dt/10).
+- Runs 70-74: z_post replica EXACT on all bundle types. Uni
+=====KERNEL=====
+FUNCS: load, load_original, save_edit, drop_edit, edited, panel, block_stats, ols, base_ins, lp, lp_series, deconv, ctrl_ins, ctrl_ne, rd, true_shift, lin, LN, mlp, encode_set, atom_vec, f_, RidgeCV, GroupKFold, add_pol, gf, cvr2, cvr2g, Wt, LNf, erf, M2, zsc, fbin, dec, run_head, head_P, head_P2, truth_rows, cvr, zs_, fb_, atom_e, enc_set, zpost_err, Ridge, cross_val_predict, relerr, ne_expect, zpost_batch, enc_set2, zpost_batch2, zpost_batch3, zpost_batch4, atom_e_side, zpost_rows, atom_e_unit, atom_e_full, obj, show, f_at, gelu, LNn, linn, mlp2n, zb, avec, atoms_of_stay, encset, bundles_of_stay, zpost_of, ctx_of, softplus, mha, ffn, core_step, head_value, eval_head, head_value2, eval2, eval3, eval_det, eval_det2, prelude_attn, init_ctx, run_stay, wc_vec, gen_samples, fit_dec, cvp, vdiff, lagm, cvres, gen_many, gel, lastbin_of, head_mean, build_panel, nu_of, regr, mvdr, u_grid, vfun, cinfo, fn_, lagmat, ols_cl, pmat, hourly, pis, resreg, lnp, cos, run_rows, lagX, prof, design, fitdir, lagU, run_rows_wc, relay_snr, gen_rows_all, Counter, q_of, dose_arr, proc_stay, cell_resid, solve_unit, diag, get_w, resp, best_snr, mvdr2, log_softmax, head_logits, LO, cellmean, within_sd, q_rows, mvdr2b
+ARRS: v(27,), s(), tr(2002095, 9), tu(25883, 9), st(2500,), ends(30000,), has(30000, 8), ev(192,), cov(8, 27), ne_stays(8057,), sid(), Ptr(780000, 8), Ptu(10400, 8), r2(), P(780000, 12), col(153015,), insever(780000,), Q(456950, 21), Qon(276831, 21), hi(12,), nocur(7822, 21), neever(780000,), N(329700, 23), Non(227588, 28), sub(266639, 12), X(5075, 992), m(3128,), on(21168,), cc(2958,), both(107989, 85), d(17,), noins(304772, 30), x(1352,), a(), ok(164108,), mb(5,), S(192, 192), res(35007,), sub2(86713, 85), X2(86713, 8), r3(7, 2), Nall(242830, 58), cont(220395, 12), stp(233398, 58), T(35007,), cells(206160, 54), mk(73,), C(22835, 54), mk2(206160,), C2(108360, 54), TGi(12,), TIi(12,), T2(143876, 90), C_all(143876, 54), TGn(12,), TIn(12,), hn(12,), dd(107989,), Sf(256645, 86), j(), se(10,), ji(), Pt(10400, 10), tu_ids(400,), de(2956, 7), tuP(10400, 10), rec(1200, 4), mm(634, 8), hh(28015,), ts(518, 3), byh(12, 4), ps(89, 3), ps2(47, 3), fa(192,), tuP2(10400, 36), fg(1776, 29), msk(5075,), W(384, 192), F(39178, 6), sid_arr(5075,), hr_arr(5075,), ref0(992,), act(3128, 192), e0(54, 992), u0(192,), h(4, 192), hm(5177, 192), ctx(192,), zp(32,), err(1352,), p(21168,), fr(5075,), prev(992,), nor(780000,), Ptr2(780000, 12), Ptu2(10400, 14), tab(497,), X_(41748, 192), sid_(5075,), hr_(), ii(2958,), hs(47,), RI(1580, 12), hI(4,), Xs(1580, 992), y(17722,), RB(1416, 6), XB(1416, 992), Xc(17002, 192), fa2(5177, 6), order(192,), ser(21,), Xp(5177, 992), outp(5177, 192), hp(5177, 4, 192), dt(), CM(5177, 16), obs(5177,), TT(221, 17), TE(15, 192), CE(13, 192), VB(17, 192), RB_(17, 192), LS(2, 192), gp(614, 192), zpm(5177, 32), view(5177, 192), f8(5177, 8), lnum(5177, 192), base(5177, 192), q(749,), lg(5177, 17), pm(5177,), P_(5177, 17), pm_(5177,), r_(1520,), P64(5177, 17), pm64(5177,), P4a(5177, 17), pm4a(5177,), Pm(5177, 17), pmm(5177,), ob(5177,), obin(5177,), nll64(5177,), P16(5177, 17), pm16(5177,), nll16(5177,), de1(2956, 7), hI_full(12,), hN_full(6,), fac(28015,), d_(72, 9), g_(192,), gpc(5177, 192), ctx_(5177, 192), zo_(5177, 64), view_(5177, 192), q_(192,), base_(5177, 192), wc_(5177, 192), hid_(5177, 192), mG(5177,), sub_(1776, 22), grp_(1352,), s0(), w(192,), CI(614, 192), EI(614, 192), UI(614, 192), ZT(614, 32), GI(614,), B(), j0(), j1(), dtk(), hprev(4, 192), C_(614, 192), inp(614, 576), o_(614, 64), pr_(18163,), pr2(614, 32), p_(1017,), btype(614,), idx(780000,), CI_nd(614, 192), oh(1776, 17), pr1(1352,), b_(5,), on_(41748,), ratio_tab(55,), start(506096, 12), start_tab(52,), nomap_cont(13003, 12), ratio_nomap(), Ptr3(780000, 14), Ptu3(10400, 14), m_(13051,), mA(3128,), subA(1352, 21), zr(766, 3), zr_(509, 3), gl(509,), X3(5075, 992), sid3(5075,), hr3(5075,), tuA(8519, 9), errs(1238, 2), cnt(23428, 2), zt(32,), ht(4, 192), ot(192,), F2(5177, 6), tk(53,), ZS(64, 32), D(63997,), PRE(400, 192), pr(17002,), sg(4,), A_(35007, 7), S_(24, 992), hh_(41,), zt0(32,), St(38, 992), rel(54,), pred(17722,), pert(17722,), bins_(6,), ints(39178,), V(39178, 192), H(5075, 4, 192), sd(4, 192), mu(3128,), ai(192,), di(192,), sp_(39178,), abar(192,), dec1h(192,), H0(70738, 192), Hc(5075, 192), O(21168, 192), Oc(5075, 192), evo(192,), dfs(92, 9), s1(4,), d1_(70738,), mi(201522,), d2_(67, 9), mg(67,), p2(780000, 12), nr(780000,), Dprev(780000,), hv(780000,), S_ord(30000,), Dm(30000, 26), Gi(780000,), po(780000,), Epi(780000,), NUm(30000, 26), hins(10,), st3(3000,), trs(201522, 9), trp(201522, 9), dDm(30000, 26), xF(35007, 192), xP(35007, 192), rs(35007,), rt(23585,), LdD(35007, 10), Lnu(35007, 10), dX(35007, 192), r2a(), Sig(192, 192), Si(192, 192), Gm(10, 10), yhat(35007,), LD(35007, 10), lastbin(41954,), gl1(35007,), gl2(41954,), res1(41954,)
+[output cut at 10,000 characters]
+```

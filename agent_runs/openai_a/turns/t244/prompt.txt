@@ -1,0 +1,270 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 243 replies happened before. Forward passes used: 22 of 50; Python runs used: 212 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+tual and dose-edit tests pass.
+
+## Protected-contrast GPU validation; Python 179, forwards 13/50
+- Current r3 lambda=0.1, scale=1 candidate: factual tuning GPU NLL 1.63536 versus original 1.63461, delta +0.00075 on 4,751 readings.
+- Paired tuning rollout (100 stays): insulin x2 -3.613, half +1.566; original -1.847, +0.777. Norepinephrine x2 -0.526, half -0.608; original -0.498, -0.600.
+- Directional improvement but insulin effects still too weak. Recovering causal evidence and edit machinery before further scaling.
+
+## Contrast-strength trial; Python 183, forwards 13/50
+- Recovered strong insulin RD evidence: beta=-1.928709, rho=0.831840; training x2 target -11.136, first-100 tuning target -10.708, half +5.354.
+- NE flexible estimates approximately +3.3 remain observational; do not treat their agreement as identification.
+- Preserved GPU13 scale=1 checkpoint. Installed scale=2 trial through the same four value-head tensors; NOT accepted pending GPU factual/rollout checks.
+- Cached scale checks: {1.0: {'first': 0.0035964250564575195, 'extra': -7.808208465576172e-05, 'tuning': 0.0026171207427978516}, 1.5: {'first': 0.009099960327148438, 'extra': 0.0028220415115356445, 'tuning': 0.0078277587890625}, 2.0: {'first': 0.017010092735290527, 'extra': 0.007724761962890625, 'tuning': 0.015634536743164062}}
+
+## Scale-2 paired GPU validation; Python 187, forwards 15/50
+- Factual first-100 tuning NLL 1.63798 vs 1.63461: +0.00337.
+- Paired rollout insulin x2 -5.195, half +2.401; NE x2 -0.549, half -0.625.
+- Improvement over scale 1, but insulin remains weaker than record-derived target.
+- Preserved scale2_checkpoint; needs broader factual validation.
+
+## Independent factual check; forwards 16/50
+- Second 100 tuning stays: original 1.62044, scale2 1.62352, delta +0.00308.
+- Scale2 remains a provisional fallback; lab NLL cost motivates a finger-selective gate.
+
+## Finger-selective gate screen; Python 193, forwards 16/50
+- Recovered two-GELU contrast algebra and insulin RD target; NE remains less securely identified.
+- Testing code-selective gates in cached inputs only. Current scale-2 GPU checkpoint remains unchanged.
+ strength  lam  scale    first    extra   tuning     half    double
+      0.0 0.03    2.0 0.040788 0.025227 0.041015 0.738998 -2.746265
+      0.0 0.03    3.0 0.093166 0.067853 0.099304 1.165354 -3.830328
+      0.0 0.03    4.0 0.167114 0.129071 0.184110 1.589271 -4.855529
+      0.0 0.03    6.0 0.378071 0.301399 0.425815 2.429489 -6.768322
+      0.0 0.10    2.0 0.017010 0.007725 0.015635 0.364833 -2.124365
+      0.0 0.10    3.0 0.039905 0.023827 0.039437 0.604162 -2.944476
+      0.0 0.10    4.0 0.072211 0.048577 0.074517 0.843099 -3.731196
+      0.0 0.10    6.0 0.165755 0.123436 0.180135 1.318546 -5.215725
+      0.0 0.30    2.0 0.003770 0.000031 0.002871 0.052037 -1.435453
+      0.0 0.30    3.0 0.009751 0.003290 0.008613 0.135020 -1.947661
+      0.0 0.30    4.0 0.018366 0.008799 0.017243 0.218307 -2.447557
+      0.0 0.30    6.0 0.043392 0.026831 0.043663 0.385748 -3.411588
+     20.0 0.03    2.0 0.025009 0.017013 0.023154 0.747584 -2.750105
+     20.0 0.03    3.0 0.058877 0.043023 0.060044 1.178392 -3.836717
+     20.0 0.03    4.0 0.106097 0.079751 0.114604 1.606855 -4.865393
+     20.0 0.03    6.0 0.241504 0.187110 0.272660 2.456854 -6.802500
+     20.0 0.10    2.0 0.009783 0.006032 0.007464 0.370285 -2.126626
+     20.0 0.10    3.0 0.024730 0.016482 0.021944 0.612284 -2.948105
+     20.0 0.10    4.0 0.045835 0.031981 0.044094 0.853856 -3.736327
+     20.0 0.10    6.0 0.106090 0.077352 0.111685 1.334444 -5.224510
+     20.0 0.30    2.0 0.001514 0.000611 0.000318 0.054797 -1.436462
+     20.0 0.30    3.0 0.005229 0.003030 0.003426 0.139121 -1.949230
+     20.0 0.30    4.0 0.010804 0.006824 0.008482 0.223725 -2.449722
+     20.0 0.30    6.0 0.027233 0.018472 0.024657 0.393717 -3.415042
+     30.0 0.03    2.0 0.025010 0.017013 0.023154 0.652833 -2.715823
+     30.0 0.03    3.0 0.058878 0.043024 0.060044 1.035414 -3.782063
+     30.0 0.03    4.0 0.106098 0.079752 0.114604 1.415170 -4.787458
+     30.0 0.03    6.0 0.241506 0.187110 0.272660 2.165688 -6.644083
+     30.0 0.10    2.0 0.009783 0.006032 0.007464 0.307842 -2.104795
+     30.0 0.10    3.0 0.024730 0.016482 0.021944 0.518935 -2.914065
+     30.0 0.10    4.0 0.045835 0.031981 0.044094 0.729829 -3.689286
+     30.0 0.10    6.0 0.106091 0.077352 0.111685 1.149778 -5.148796
+     30.0 0.30    2.0 0.001514 0.000611 0.000317 0.023005 -1.425998
+     30.0 0.30    3.0 0.005229 0.003030 0.003426 0.091645 -1.933229
+     30.0 0.30    4.0 0.010804 0.006824 0.008482 0.160709 -2.427986
+     30.0 0.30    6.0 0.027233 0.018472 0.024657 0.300062 -3.381276
+     40.0 0.03    2.0 0.025010 0.017013 0.023154 0.660471 -2.722188
+     40.0 0.03    3.0 0.058879 0.043024 0.060044 1.046869 -3.791756
+     40.0 0.03    4.0 0.106100 0.079752 0.114604 1.430451 -4.800529
+     40.0 0.03    6.0 0.241508 0.187110 0.272660 2.188703 -6.663623
+     40.0 0.10    2.0 0.009783 0.006032 0.007464 0.313134 -2.109083
+     40.0 0.10    3.0 0.024730 0.016482 0.021944 0.526874 -2.920552
+     40.0 0.10    4.0 0.045836 0.031981 0.044094 0.740424 -3.698010
+     40.0 0.10    6.0 0.106092 0.077352 0.111685 1.165710 -5.162071
+     40.0 0.30    2.0 0.001514 0.000611 0.000317 0.025763 -1.428252
+     40.0 0.30    3.0 0.005229 0.003030 0.003426 0.095783 -1.936621
+     40.0 0.30    4.0 0.010804 0.006824 0.008481 0.166228 -2.432522
+     40.0 0.30    6.0 0.027234 0.018472 0.024657 0.308349 -3.388133
+
+## Reversible finger-selective trial; Python 196, forwards 16/50
+- Python 195 failed before weight changes; corrected Torch snapshot method.
+- Installed register-protected separator lambda 0.01, gate strength 30; r3 lambda 0.1, scale 3.
+- Synthetic separator scores remain approximately +/-0.05 under insulin edits.
+- NOT accepted until paired GPU factual and rollout validation; scale2_checkpoint retained.
+
+## Restart audit; Python 197, forwards 16/50
+- Current finger-selective scale-3 trial remains unaccepted.
+- Recovering architecture, causal evidence, checkpoints, and IDs before GPU factual and rollout validation.
+
+## Finger-selective GPU validation; Python 199, forwards 18/50
+- Hash 46c1a1e52a: first-100 tuning factual delta +0.00294 nats.
+- Insulin x2 -5.993, half +3.126; NE x2 -0.514, half -0.611.
+- Preserved finger_scale3_checkpoint; stronger than scale2, but still below record-derived insulin magnitude.
+- Broader factual validation remains required.
+
+## Stronger-regularization trial; Python 200, forwards 18/50
+- Installed selective r3 lambda=0.3, scale=6, gate strength=30.
+- Finger scale3 and scale2 validated checkpoints remain preserved.
+- Candidate is unaccepted pending paired GPU factual/rollout checks.
+
+## Stronger selective candidate; Python 203, forwards 21/50
+- Preserved stronger6_checkpoint (hash 98f3968009).
+- GPU factual deltas: first 100 tuning +0.00321; second 100 +0.00371.
+- Paired first-100 rollout: insulin x2 -7.613, half +3.390; NE x2 -0.504, half -0.602.
+- Better insulin magnitude, still short of the record-derived target. Further candidates must retain factual-fit margin.
+
+## Restart recovery and repaired screening; Python 211, forwards 21/50
+- Confirmed current four tensors exactly match stronger6_checkpoint.
+- Python 206 failed because cache_losses returns a per-reading vector; screening now explicitly averages losses.
+- Recovered insulin fuzzy-RD beta=-1.928709 and persistence=0.831840; fixed-record targets train -11.136, first-100 tuning -10.708, half +5.354.
+- NE flexible estimates around +3.3 remain observational.
+- CPU candidate screens are design evidence only; no weights changed.
+
+## Reversible ridge-1 trial; Python 212, forwards 21/50
+- Installed r3 lambda=1, scale=16, finger gate strength=30.
+- CPU local doubling contrast -3.970 versus current stronger6 -3.390 at comparable cached NLL cost; halving contrast is uncertain.
+- stronger6_checkpoint remains the GPU-tested fallback.
+- Candidate is NOT accepted pending paired GPU factual and rollout tests.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 22 of 50 done (factual); files in /work/fwd_22/. Summary:
+```
+{
+ "type": "factual",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.63461,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.4639,
+     "mean_abs_error": 10.843
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.2941,
+     "mean_abs_error": 8.565
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.4712,
+     "mean_abs_error": 3.776
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.012,
+     "mean_abs_error": 6.303
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.63803,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.4746,
+     "mean_abs_error": 10.982
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.2941,
+     "mean_abs_error": 8.565
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.4711,
+     "mean_abs_error": 3.775
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.012,
+     "mean_abs_error": 6.303
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "seconds": 2.8
+}
+```
+Forward passes left: 28.
+Edits used in this pass: attr_heads.value_bin.0.bias, attr_heads.value_bin.0.weight, attr_heads.value_bin.2.bias, attr_heads.value_bin.2.weight (edit hash e6c401663b).

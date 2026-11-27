@@ -1,0 +1,252 @@
+OUTPUT of Python run 221 of at most 300:
+```
+HELPERS (parameter names only)
+load (name)
+load_original (name)
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+compact_panel (df)
+shifted_col (col, horizon)
+insulin_rd (horizon, bandwidth, degree, history)
+rd_dynamic_residual (par)
+causal_shift_table (panel_array, ids, outcome, drug, beta, rho)
+make_ne_data (n_lags)
+lin (x, prefix, weights)
+mlp (x, prefix, weights)
+ln (x, prefix, weights)
+reading_metadata (records, states)
+make_head_features (meta, states, gap_style, register_style, status, type_id, age_style, view_style)
+_fn (cache, w, b, scale)
+as_numpy (x)
+head_score (mean, nll)
+cpu_head_parts (meta, states)
+cpu_head_probs (parts, n_samples, seed)
+fn (x, trans, meta)
+repair_head_features (meta, states)
+state_matrix (obj)
+make_policy_data (panel)
+head_dose_data (meta, panel, ids, predicted_policy)
+fn0 (panel_array, ids, outcome, drug, beta, rho)
+head_unit_target (meta0, logits0, dose_data0)
+approximate_edit_cost (meta0, feature_tuple)
+repair_feature_sets (meta, sf)
+np32 (x)
+make_insulin_graft (beta)
+graft_probs (x, trans, tensors)
+short_stats (x)
+func0 (x, trans, tensors)
+fn1 (parts, n_samples, seed)
+brief_structure (obj)
+head_average_probs3 (tensors, hidden)
+rr_f (records, states)
+rm_lin (x, prefix)
+rm_ln (x, prefix)
+rm_mlp (x, prefix, activation)
+rm_set (atom_vectors, prefix, activation)
+rm_insulin_atoms (unit_id, rate_unit_id, side, use_kq, activation)
+_r93_obj (unit_id, rate_unit_id, side, use_kq, activation)
+_r94_obj (x, prefix, activation)
+r96_empty_world (size_n, atom)
+r101_fn (size_n, atom)
+empty_set_vector (prefix, batch)
+reconstruction_mlp (x, prefix, activation)
+fnx (beta)
+tensor_prefix (ending)
+rec_context (prev, dt_seconds)
+rec_attention (query, key, value, prefix)
+rec_attn_apply (x, prefix, memory, ages, mask, age_mode)
+rec_layer (x, prefix, memory, ages, mask, age_mode)
+rec_memory (indices, embeddings)
+rec_step_with_z (prev, dt, e_world, u_action, z, memory, ages, mask)
+func (indices, embeddings)
+r131_step (prev, dt, e_world, u_action, z, memory, age_embedding, mask, age_mode)
+show_function (fn, limit)
+compact_dis (fn, max_chars, min_line)
+probe_rms (a)
+probe_head_eval (meta0, states0, head_weights, n_samples, seed)
+shape_summary (obj, depth)
+to_np0 (x)
+sc_cache_inputs (x, trans, meta)
+sc_evaluate (cache, w, b, scale)
+compact_dis160 (fn)
+matched_causal_targets163 (cube, beta, rho, drug_col, outcome_col)
+compact_structure (obj, depth)
+r2_np (x)
+make_contrast_graft (w, b, scale)
+small_descriptor (v)
+fun (x, trans, meta)
+selective_cache (cache, gate_strength)
+cache_losses (cache, w, b, scale)
+make_selective_contrast_graft (w, b, scale, gate_strength)
+_describe_small (v, depth)
+screen_value_candidate (cache, w, b, scale)
+compact_summary (obj)
+as_np_recovery (x)
+
+RELEVANT VARIABLE NAMES
+['A_gate', 'C_gate', 'F_gate', 'HistGradientBoostingRegressor', 'Q_gate', 'Ridge', 'alt_contrast_config', 'base_rd', 'cache', 'cache_losses', 'cache_registry_recovery', 'compact_panel', 'contrast_sections', 'd_gate', 'finger_scale3_checkpoint', 'gate', 'gate0', 'gate_X', 'gate_b', 'gate_b2', 'gate_extra0', 'gate_factor', 'gate_fit', 'gate_loc1', 'gate_loc2', 'gate_models1', 'gate_reg2', 'gate_scale1', 'gate_scale2', 'gate_sep_candidates', 'gate_target2', 'gate_train0', 'gate_train2', 'gate_w', 'gate_w2', 'gate_y', 'gate_y0', 'gateloc3', 'gatepool3', 'gatereg3', 'gatescale3', 'gateypool3', 'gpu13_checkpoint', 'graft_checkpoint_beta2', 'graft_checkpoint_beta24', 'graft_gate_scale', 'head_unit_target', 'ins_target', 'insulin_rd', 'keywords', 'make_contrast_graft', 'make_selective_contrast_graft', 'matched_causal_targets163', 'mu_gate', 'ne_dml_cache', 'panel', 'policy_predictions_panel', 'pooled_target', 'r100_selected', 'r103_target', 'r118_target', 'r140_age_cached', 'rd_checks', 'rd_dynamic_fit', 'rd_dynamic_residual', 'rd_lp', 'rec_h_target', 'rec_out_target', 'rec_wtarget', 'record_cube160', 'records_extra', 'restart_checkpoint', 'ridge', 'ridge1_scale16_checkpoint', 'rm_candidate_cache', 'rm_records', 'rm_target_z', 'rr_cached', 'sc_cache_inputs', 'sc_checkpoint', 'sc_gate_b', 'sc_gate_w', 'scale2_checkpoint', 'scale7_checkpoint', 'selected', 'selections', 'selective_cache', 'selective_grid', 'selective_grid_df', 'selective_sep_b', 'selective_sep_w', 'selective_strength', 'selective_trial', 'selective_trial_before', 'selective_trial_lam', 'selective_trial_scale', 'standardized_pred', 'stronger6_checkpoint', 'target', 'target0', 'target_h', 'target_name', 'target_o', 'targets0', 'tpanel', 'tpolicy_predictions_panel', 'train_target', 'trial_contrast_weights', 'ttarget', 'whitener']
+
+EARLY NOTEBOOK
+# Weight-repair notebook
+
+## Initial inspection
+- Python runs: 1. Forward requests: 0.
+- No drug effects assumed; all effect estimates must come from these simulated records.
+- First inspect architecture, event ordering, dose encoding, and available histories.
+- Then estimate dose effects, measure original rollouts/factual fit, and test targeted weight edits with the factual NLL constraint.
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.024098411603330767,
+    "first_stage_t": 34.65836012846078,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'past_difference')": {
+    "beta": -1.7098169631722566,
+    "se": 0.49571479741038577,
+    "first_stage": 0.024088881089054243,
+    "first_stage_t": 34.682785128203996,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'stayFE')": {
+    "beta": 0.6604909236239173,
+    "se": 0.531745510423111,
+    "first_stage": 0.027494693802790897,
+    "first_stage_t": 23.486841143670325,
+    "n": 15729
+  },
+  "('norepinephrine', 'map_arterial', 'history')": {
+    "beta": -18.770179837459043,
+    "se": 10.725044751264742,
+    "first_stage": 0.00023924704982281593,
+    "first_stage_t": 4.630621380691009,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'past_difference')": {
+    "beta": -18.46746024463273,
+    "se": 10.79598180969503,
+    "first_stage": 0.00023698386029265031,
+    "first_stage_t": 4.589330754374463,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'stayFE')": {
+    "beta": 45.967013136779165,
+    "se": 17.626632496359736,
+    "first_stage": 0.0001960059721602588,
+    "first_stage_t": 3.583611528216762,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_cuff', 'history')": {
+    "beta": -44.76692008065325,
+    "se": 44.17355258218645,
+    "first_stage": 0.0001653959279835562,
+    "first_stage_t": 1.8429218212513345,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'past_difference')": {
+    "beta": -44.445574103820974,
+    "se": 44.36183449302977,
+    "first_stage": 0.00016465813087278928,
+    "first_stage_t": 1.836249722244463,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'stayFE')": {
+    "beta": -670.8096489513821,
+    "se": 406.4526866401043,
+    "first_stage": 0.00019082169114508174,
+    "first_stage_t": 1.659997261215908,
+    "n": 29358
+  }
+}
+
+## Factual baseline and dynamic identification; Pyt
+[output cut at 10,000 characters]
+```

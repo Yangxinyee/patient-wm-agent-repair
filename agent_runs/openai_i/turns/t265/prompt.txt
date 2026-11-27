@@ -1,0 +1,66 @@
+OUTPUT of Python run 236 of at most 300:
+```
+=== EXACT HELPER CONTRACTS ===
+mlp136 (x, prefix) references ('linear136', 'F', 'gelu')
+posterior137 (indices, e, u) references ('mlp136', 'torch', 'cat', 'context')
+encode_actions168 (scales) references ('act_rows152', 'dict', 'float', 'append', 'encode_rows152', 'act_groups152', 'len')
+private_posterior215 (inputs) references ('F', 'linear', 'gelu', 'post0w215', 'post0b215', 'post2w215', 'post2b215')
+route_tokens229 (candidate, action_inputs) references ('W', 'items', 'torch', 'as_tensor', 'float32', 'mlp136', 'cat', 'context', 'e_cal161', 'args_cache182', 'exp', 'ids182', 'linear136')
+att_features220 (tokens, qw, kvw) references ('F', 'layer_norm', 'orig220', 'shape', 'linear', 't220', 'reshape', 'transpose', 'split', 'torch', 'softmax', 'np', 'sqrt')
+
+=== NEUTRAL209 CHANGED ROWS / COLUMNS ===
+z_post.0.weight nonzero rows 4 top rows [(191, 0.0), (187, 0.0), (1, 550.326), (105, 963.446), (166, 1378.25), (74, 1525.343)] top cols [(550, 327.948), (569, 355.293), (492, 356.992), (570, 381.386), (430, 386.947), (557, 416.212)]
+z_post.0.bias [(191, 0.0), (187, 0.0), (166, -15.963), (1, -15.993), (74, -16.532), (105, -18.365)]
+z_post.2.weight nonzero rows 64 top rows [(20, 0.148), (54, 0.152), (22, 0.161), (7, 0.176), (16, 1.913), (12, 2.066)] top cols [(12, 0.382), (96, 0.417), (166, 1.017), (1, 1.047), (105, 1.051), (74, 1.099)]
+z_post.2.bias [(49, -0.0), (26, 0.0), (7, -0.0), (4, 0.0), (16, 0.0), (12, -0.003)]
+z_in.weight nonzero rows 192 top rows [(125, 0.376), (9, 0.376), (100, 0.381), (154, 0.381), (163, 0.408), (107, 0.439)] top cols [(5, 0.578), (7, 0.623), (4, 0.726), (9, 0.814), (12, 1.501), (16, 1.567)]
+z_in.bias [(56, 0.01), (128, -0.01), (164, 0.01), (165, -0.01), (154, 0.011), (100, -0.011)]
+
+=== PRIVATE COORDINATES ===
+private_indices209 [16, 12]
+private_dims196 [16, 12]
+private_cols222 [16, 12]
+pair196 [30, 4]
+
+=== POSTERIOR INPUT AND METADATA ===
+input196 (4035, 576)
+zero action rows 2844
+innovation207 ndarray (4035, 2) 
+innovation_row ndarray (576,) 
+residual ndarray (445,) 
+residual220 ndarray (15740, 192) 
+
+=== SHORT DESIGN NOTES ===
+## Python 188; forwards 15?16 ? establish fallback, inspect stronger pathway
+- Gain .6 head edit: tuning dNLL +.00277; insulin x2 -2.250, half +1.301; NE x2 +.383, half -.039.
+- This is safe on the first 100 tuning stays but too weak to constitute a sufficient repair.
+- Saved fallback188.npz and restored original weights to isolate further experiments.
+
+## Python 196 ? private innovation channel preparation
+- Gated features have zero inactive leakage and near-unit dose-contrast slopes across x0?x3.
+- Measuring latent and attention-head redundancy before constructing a dedicated transport channel.
+- Python 195 ended on a NumPy/Torch conversion error after the useful diagnostics; no edits were installed.
+
+## Python 201?202 ? neutral private-channel calibration
+- The gated innovations have exact linear reconstruction from modified posterior hidden features (RMS below 1e-13).
+- Matched all 3,935 prelude-token rows to official state rows.
+- Corrected tuple-return handling in the attention helper and tested held attention-output reconstruction with a reserved donor head.
+- No edits installed; reconstructi
+## Python 208?209 ? rebuild neutral token from actual posterior
+- Cached all_z201 was not the recomputed private posterior; zin_bias_base201 contained the large routing anchor.
+- Actual innovation coordinates are insulin 16 and NE 12. Recomputed original/private posteriors directly from input196.
+- Attention-preserving neutral held token RMS: 0.00989672.
+- Neutral candidate has zero response columns 
+## Python 222 ? small-signal, anchor-free routing candidate
+- Built isolated innovation axes; latent-token selector uses no anchor.
+- Best held attention RMS 0.219222; best held final-slot RMS 0.319911.
+- Saved small_route222.npz with zero response output columns. Not installed yet; requires factual validation.
+
+
+=== ACTION CALIBRATION SOURCE ===
+Ubase215 (4035, 192) n182 258
+args_cache182 type list length 258
+first cached entry type tuple
+e_cal161 type Tensor shape/length torch.Size([4035, 192])
+
+```

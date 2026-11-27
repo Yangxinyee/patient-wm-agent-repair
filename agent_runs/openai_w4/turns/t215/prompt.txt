@@ -1,0 +1,209 @@
+OUTPUT of Python run 189 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+CHANNEL/GATE OBJECTS
+ix180 array (4059,)
+active_ne180 array (4059,)
+sids180 array (4059,)
+train180 array (4059,)
+test180 array (4059,)
+raws180 list len=5
+xx180 array (20295, 192)
+yy180 array (20295,)
+tr180 array (20295,)
+te180 array (20295,)
+gate_fits180 dict keys=[0.1, 1.0, 10.0, 100.0]
+c180 100.0
+g180 LinearSVC(C=100.0, class_weight='balanced', dual=False, max_iter=20000,
+          tol=1e-07)
+pred180 array (4780,)
+y180 array (4780,)
+key180 tuple len=3
+v180         stay_id  hour           event  observed  prev       dt    last_z       age  has  last_bin  code  observed_bin
+0    1010000000   5.0  glucose_finger     143.0     8  3300.12
+k180 'probe_data95'
+f180 <_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+r2_185 function (y, p); dependencies=('np', 'isfinite', 'asarray', 'sum', 'max', 'mean')
+gated_ne185 function (raw, coef, scale=40.0); dependencies=('as_np184', 'gate_fits180', 'decision_function', 'expit')
+hold185 array (4059,)
+inactive185 array (4059,)
+delta185 array (4059,)
+gamma185 array (192,)
+bias185 array (192,)
+sig185 array (192,)
+car185 array (192,)
+val185 array (192,)
+names186 list len=7
+cpu_backup186 dict keys=['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']
+dual_channel186 dict keys=['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']
+axis_ne186 array (32,)
+gamma186 array (192,)
+keyrow186 array (192,)
+constraints186 array (7, 192)
+basis186 array (192, 185)
+cov186 array (185, 185)
+ev186 array (185,)
+vec186 array (185, 185)
+vunit186 array (192,)
+carrier_ne186 array (192,)
+value_ne186 array (192,)
+out186 array (192, 192)
+load_basis186 array (192, 189)
+loading_ne186 array (192,)
+coef_ne186 array (577,)
+gate_ne186 array (576,)
+gate_bias186 -320.961617384856
+project_ne186 array (32, 32)
+collect_channel186 function (); dependencies=('range', 'len', 'indices102', 'capture_transition102', 'append', 'as_np184', 'np', 'concatenate')
+Eold186 array (4059, 4, 192)
+Zold186 array (4059, 32)
+Enew186 array (4059, 4, 192)
+Znew186 array (4059, 32)
+q_ne186 array (4059,)
+q_ins186 array (4059,)
+old_ins_signal186 array (4059, 4)
+target_ne186 array (16236,)
+target_ins186 array (16236,)
+features186 array (16236, 192)
+trslots186 array (16236,)
+teslots186 array (16236,)
+gram186 array (192, 192)
+rhs_ne186 array (192,)
+rhs_ins186 array (192,)
+decoders_ne186 dict keys=[0.0001, 0.01, 0.1, 1.0]
+decoders_ins186 dict keys=[0.0001, 0.01, 0.1, 1.0]
+delta_b187 array (192, 192)
+old_decoder187 array (192,)
+ins_direction187 array (192,)
+target_ne187 array (526,)
+J187 array (526, 192)
+directions_ne187 dict keys=[0.001, 0.01, 0.1, 1.0]
+collect_selected187 function (ix, actions=None); dependencies=('range', 'len', 'torch', 'from_numpy', 'np', 'asarray', 'float32', 'copy', 'capture_transition102', 'append', 'as_np184', 'concatenate')
+trial_u187 array (8, 192)
+trial_cap187 dict keys=['ctx', 'hf', 'ek', 'uk', 'zk', 'tok', 'ep', 'hr', 'hc', 'out']
+active_pos187 array (680,)
+active_ix187 array (680,)
+cf_actions187 dict keys=[0.5, 2.0]
+old_cf187 dict keys=[0.5, 2.0]
+old_targets187 array (21676,)
+train_bundles187 array (5419,)
+test_bundles187 array (5419,)
+tr187 array (21676,)
+te187 array (21676,)
+amplitude_tests187 dict keys=[10.0, 20.0, 40.0]
+
+RETAINED RAW NE DECODERS
+raw_candidates87 dict keys=[('insulin', 0.001, 0.0), ('insulin', 0.001, 1.0), ('insulin', 0.001, 10.0), ('insulin', 0.01, 0.0), ('insulin', 0.01, 1.0), ('insulin', 0.01, 10.0), ('insulin', 0.1, 0.0), ('insulin', 0.1, 1.0), ('insulin', 0.1, 10.0), ('insulin', 1.0, 0.0), ('insulin', 1.0, 1.0), ('insulin', 1.0, 10.0), ('norepinephrine', 0.001, 0.0), ('norepinephrine', 0.001, 1.0), ('norepinephrine', 0.001, 10.0), ('norepinephrine', 0.01, 0.0), ('norepinephrine', 0.01, 1.0), ('norepinephrine', 0.01, 10.0)]
+  ('insulin', 0.001, 0.0) array (577,)
+  ('insulin', 0.001, 1.0) array (577,)
+  ('insulin', 0.001, 10.0) array (577,)
+  ('insulin', 0.01, 0.0) array (577,)
+  ('insulin', 0.01, 1.0) array (577,)
+  ('insulin', 0.01, 10.0) array (577,)
+  ('insulin', 0.1, 0.0) array (577,)
+  ('insulin', 0.1, 1.0) array (577,)
+  ('insulin', 0.1, 10.0) array (577,)
+  ('insulin', 1.0, 0.0) array (577,)
+  ('insulin', 1.0, 1.0) array (577,)
+  ('insulin', 1.0, 10.0) array (577,)
+gate_fits180 dict keys=[0.1, 1.0, 10.0, 100.0]
+  0.1 LinearSVC(C=0.1, class_weight='balanced', dual=False, max_iter=20000, tol=1e-07)
+  1.0 LinearSVC(class_weight='balanced', dual=False, max_iter=20000, tol=1e-07)
+  10.0 LinearSVC(C=10.0, class_weight='balanced', dual=False, max_iter=20000,
+          tol=1e-07)
+  100.0 LinearSVC(C=100.0, class_weight='balanced', 
+[output cut at 10,000 characters]
+```

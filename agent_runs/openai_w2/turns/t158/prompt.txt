@@ -1,0 +1,168 @@
+OUTPUT of Python run 138 of at most 300:
+```
+## Run 5: recording-policy falsification
+Initial insulin RD was accompanied by a large discontinuity in future finger-reading availability, threatening identification. Rounded threshold values have half-jumps, so this audit uses cuts at 150/180/220/260 and excludes exact cut values. Testing lab outcomes and their availability separately, and unadjusted past-outcome placebos rather than treating history-adjusted placebos as decisive.
+[
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 5,
+    "adjusted": true,
+    "n": 18414,
+    "dose_jump": 1.033,
+    "effect_per_unit": -1.5496,
+    "cluster_se": 0.3235,
+    "ci95": [
+      -2.1836,
+      -0.9155
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 5,
+    "adjusted": true,
+    "n": 80147,
+    "dose_jump": 1.0508,
+    "effect_per_unit": -1.8271,
+    "cluster_se": 0.2196,
+    "ci95": [
+      -2.2576,
+      -1.3967
+    ]
+  },
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 36529,
+    "dose_jump": 1.0337,
+    "effect_per_unit": -1.5257,
+    "cluster_se": 0.2116,
+    "ci95": [
+      -1.9405,
+      -1.1108
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 161183,
+    "dose_jump": 1.0415,
+    "effect_per_unit": -1.7381,
+    "cluster_se": 0.1439,
+   
+## Run 6: independent effect checks
+Clean threshold RD supports insulin next-hour effect about -1.55/unit on lab readings. Lab availability is smooth at thresholds; unadjusted past-outcome placebos are null. Finger availability jumps, and its effect estimate is more negative. Fitting stay-crossfitted history-adjusted effects and two-sensor transition models.
+{
+  "DML": [
+    {
+      "label": "insulin_next_lab",
+      "drug": "insulin",
+      "n": 80365,
+      "effect_per_rate_unit": -1.9687,
+      "cluster_se": 0.0734,
+      "ci95": [
+        -2.1127,
+        -1.8248
+      ],
+      "dose_residual_sd": 0.4903,
+      "outcome_residual_sd": 8.957,
+      "seconds": 1.0
+    },
+    {
+      "label": "NE_next_cuff_both_current_MAP",
+      "drug": "norepinephrine",
+      "n": 29293,
+      "effect_per_rate_unit": 3.4255,
+      "cluster_se": 0.442,
+      "ci95": [
+        2.5591,
+        4.2918
+      ],
+      "dose_residual_sd": 0.0935,
+      "outcome_residual_sd": 6.7848,
+      "seconds": 0.7
+    },
+    {
+      "label": "NE_next_cuff_any_current_MAP",
+      "drug": "norepinephrine",
+      "n": 240000,
+      "effect_per_rate_unit": 2.7802,
+      "cluster_se": 0.2277,
+      "ci95": [
+        2.334,
+        3.2265
+      ],
+      "dose_residual_sd": 0.0659,
+      "outcome_residual_sd": 7.0783,
+## Run 11: rich pre-dose history, stay-crossfitted estimates
+                    label      n   effect  cluster_se  dose_residual_sd  outcome_residual_sd  seconds
+     NE_cuff_both_current  28031  3.51113     0.46432           0.09161              6.82217      1.5
+ NE_arterial_both_current  89388  3.91356     0.16693           0.09039              4.27770      2.1
+    NE_cuff_all_histories 250000  3.61924     0.23487           0.06341              7.05825      3.6
+insulin_lab_all_histories 137825 -1.96674     0.07393           0.37319              9.97434      2.5
+States from 100 randomly sampled training stays loaded as S; history features F.
+
+
+## Run 12: persistence and rollout target sensitivity
+          drug     n  assumed_effect  persistence  cluster_se  cross_sensor_residual_cov
+       insulin 15266           -1.55      0.99773     0.00781                  108.17329
+       insulin 15266           -1.80      1.00763     0.00782                  108.17329
+       insulin 15266           -2.00      1.01556     0.00784                  108.17329
+norepinephrine 28031            3.00      0.89761     0.02096                   10.64188
+norepinephrine 28031            3.60      0.89803     0.02098                   10.64188
+norepinephrine 28031            4.00      0.89831     0.02099                   10.64188
+          drug     b    a  eligible_stays       x2    half
+       insulin -1.55 0.80             205  -6.8094  3.4047
+       insulin -1.55 0.90             205  -9.0062  4.5031
+       insulin -1.55 0.95             205 -10.5409  5.2705
+       insulin -1.80 0.80             205  -7.9077  3.9539
+       insulin -1.80 0.90             205 -10.4588  5.2294
+       insulin -1.80 0.95             205 -12.2411  6.1205
+       insulin -2.00 0.80             205  -8.7864  4.3932
+       insulin -2.00 0.90             205 -11.6209  5.8105
+       insulin -2.00 0.95             205 -13.6012  6.8006
+norepinephrine  3.00 0.70        
+## Run 22: consolidated evidence and alignment audit
+Insulin clean lab threshold estimates approximately -1.55/rate unit; history-adjusted lab estimates approximately -1.97. NE rich-history estimates approximately +3.5 to +3.9/rate unit. Positive persistence is supported, but accumulated rollout targets remain uncertain. No edits; inspecting state/head alignment and exact features.
+
+
+## Run 33: head-only route rejected; within-stay persistence check
+Held-out factual-zero decoders cannot recover much probe response: at weight 512 insulin gain 0.112 costs factual RMS 1.427 rate units; NE gain 0.280 costs 0.873. Do not install decoder edits. Next route: amplify action pathway and recalibrate factual predictions using code/last-value transition weights. Differenced IV removes stay intercepts; cross-sensor lag1 and same-sensor lag2 instruments check persistence conditional on externally supported drug coefficients. Interpret with missing-reading selection and instrument-strength caution.
+[{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-1.55,"rho":-4.9046918397,"cluster_se":2.5152764014,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-1.8,"rho":-4.8978516129,"cluster_se":2.5155655386,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-2.0,"rho":-4.8923794314,"cluster_se":2.5158191282,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"same_sensor_lag2","n":211634,"b":-1.55,"rho":7.0994367275,"cluster_se":1.9500454994,"instrument_x_cov":1.7201035657},{"sensor":"glucose_finger","instrument":"same_sensor
+## Run 39: converged persistence and first action candidate
+insulin: {'rho': 0.9641085379393141, 'b': -1.8, 'drift': array([0.98483209, 0.78975363]), 'Q': 23.593656044205655, 'R': array([76.75776955, 12.33854852]), 'bias': array([ 0.        , -0.02751273]), 'in
+=== CACHED ESTIMATES / FIT ===
+sensor_iv_persistence <function sensor_iv_persistence at 0x7b3c4383e200>
+iv_persistence_table         sensor        instrument      n     b       rho  cluster_se  instrument_x_cov
+glucose_finger other_sensor_lag1  46123 -1.55 -4.904692    2.515276         -2.576500
+glucose_finger other_sensor_lag1  46123 -1.80 -4.897852    2.515566         -2.576500
+glucose_finger other_sensor_lag1  46123 -2.00 -4.892379    2.515819         -2.576500
+glucose_finger  same_sensor_lag2 211634 -1.55  7.099437    1.950045          1.720104
+glucose_finger  same_sensor_lag2 211634 -1.80  7.103355    1.949178          1.720104
+glucose_finger  same_sensor_lag2 211634 -2.00  7.106490    1.948489          1.720104
+   glucose_lab other_sensor_lag1   2770 -1.55 -0.464533    0.997831          5.479914
+   glucose_lab other_sensor_lag1   2770 -1.80 -0.579662    1.052097          5.479914
+   glucose_lab other_sensor_lag1   2770 -2.00 -0.671765    1.102642          5.479914
+   glucose_lab  same_sensor_lag2    937 -1.55 -1.075368    3.348316          3.240353
+   glucose_lab  same_sensor_lag2    937 -1.80 -1.03343
+linear_rollout_targets <function linear_rollout_targets at 0x7b3c4383f1a0>
+record_targets    stay_id  hour         edit  target  eligible
+2020000000    13   insulin_x2    0.00     False
+2020000000    13 insulin_half   -0.00     False
+2020000016    13   insulin_x2   -2.70      True
+2020000016    13 insulin_half    1.35      True
+2020000032    13   insulin_x2   -1.80      True
+2020000032    13 insulin_half    0.90      True
+2020000048    13   insulin_x2    0.00     False
+2020000048    13 insulin_half   -0.00     False
+2020000064    13   insulin_x2   -0.90      True
+2020000064    13 insulin_half    0.45      True
+2020000080    13   insulin_x2    0.00     False
+2020000080    13 insulin_half   -0.00     False
+record_impulse_targets <function record_impulse_targets at 0x7b3c3cc55f80>
+fit128 {'B': (193, 2), 'mu': (192,), 'sd': (192,), 'report': "{'family': 'E', 'probe_weight': 0.3, 'insulin_rms': 0.10123088680402641, 'insulin_half_gain': 0.21637638374023566, 'insulin_x2_gain': 0.16368916327053964, 'insulin_rms_per_gain': 0.5327022541254253, 'norepinephrine_rms': 0.023106168430645002, 'norepinephrine_half_gain': 0.12991996177915002, 'norepinephrine_x2_gain': 0.09763358083373878, 'norepinephrine_rms_per_gain': 0.20308335493552762}"}
+=== FIT / STEERING VARIABLES ===
+['_gain103', 'avg_gain112', 'candidate_gain132', 'candidate_gain135', 'fit116', 'fit117', 'fit118', 'fit119', 'fit123', 'fit128', 'gain112', 'gain128', 'gain_raw128', 'gains', 'gains112', 'install_numeric_amplification', 'prelude_E111', 'prelude_attended111', 'prelude_cf_E111', 'prelude_cf_hidden111', 'prelude_features111', 'prelude_fits112', 'prelude_hidden111', 'prelude_reports112']
+
+```

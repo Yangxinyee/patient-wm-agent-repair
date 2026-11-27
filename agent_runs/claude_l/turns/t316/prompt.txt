@@ -1,0 +1,22 @@
+OUTPUT of Python run 288 of at most 300:
+```
+def bself(W,x,L):
+    a=bln(W,x,L+'.norm1'); x=x+bmha(W,a,a,L+'.attn')
+    return x+bmlp(W,bln(W,x,L+'.norm3'),L+'.ffn')
+def bstep(W,out,h,dt,e,u,Mt,ages):
+    # out (B,192) h (B,4,192) e,u (B,192) Mt (B,n,192) ages (n,) seconds
+    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+    g=bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+    ctx=out+bln(W,hf.mean(1),'core.out_norm')+g
+CAP 777 tuple CAPT 798 dict
+CAP0 (array([-0.88310586,  1.80151085, -0.94766087, -0.32981639, -0.66485458,
+        0.26266188, -1.28645186,  0.24004991,  0.1040709 ,  0.64188111,
+        0.01695841, -0.35053746,  1.12001282, -0.22060558, -0.18947149,
+        0.63839127, -0.72194105,  0.01519489, -1.42002133, -1.27088909,
+        0.5
+CAPT0 {'hf': ('Tensor', (4, 192)), 'e': ('Tensor', (192,)), 'u': ('Tensor', (192,)), 'ctx': ('Tensor', (192,)), 'info': ('dict', ())}
+info c: {'di': 0.0, 'hi': 0.0, 'dn': 0.61, 'hn': 1.0} | CAP0 info: None | CAP5 info: None
+keygrads -> tuple (2, [torch.Size([4, 4, 6]), torch.Size([16, 192])])
+fail RuntimeError('expected m1 and m2 to have the same dtype, but got: float != double')
+
+```

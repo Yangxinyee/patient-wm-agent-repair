@@ -1,0 +1,179 @@
+OUTPUT of Python run 82 of at most 300:
+```
+=== VOCAB INPUT CONVENTIONS ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom_kinds {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+sample records:
+   stay_id    hour              event  value  rate  rate_unit  dose dose_unit  end_hour
+1010000000 -2.0000 hospital_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000 -1.0000     glucose_finger  165.0   NaN        NaN   NaN       NaN       NaN
+1010000000 -1.0000       map_arterial   73.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000     glucose_finger  168.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000      icu_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000  0.0000       map_arterial   67.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000           map_cuff   70.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0833            insulin    NaN   1.0 units/hour   1.0     units    1.0833
+
+=== LAG-EFFECT EVIDENCE ===
+ changed. Insulin ~-2 and post-startup NE ~+3 remain provisional record-based estimates.
+
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.090980
+  map_arterial        1 146556            3.288830                0.091241
+  map_arterial        2 140386            2.619413                0.108577
+  map_arterial        3 134227            1.746272                0.119747
+  map_arterial        4 128040            0.978531                0.129902
+  map_arterial        5 121841            0.413443                0.143354
+  map_arterial        6 115642            0.262312                0.152404
+  map_arterial        7 109414            0.015095                0.165928
+  map_arterial        8 103125            0.023246                0.179389
+
+## Local head reconstruction ? Python 9; forward 4
+- Captured original states and factual predictions for 100 training stays (original NLL 1.63805).
+age_unit      layout  status  type_index  gap_scale  mean_abs_difference  rms_difference
+   hours interleaved       0           1        0.1             3.061518        5.090333
+ seconds interleaved       0           1        0.1             3.371605        5.700936
+   hours     grouped       0           1        0.1             5.040884        8.075172
+ seconds     grouped       0           1        0.1             5.345762        8.810462
+   hours interleaved       0           0        0.1             6.580535        8.956929
+ seconds interleaved       0           0        0.1             6.880753        9.013090
+   hours     grouped       0           0        0.1             7.313674       10.35
+
+=== HEAD-RECONSTRUCTION EVIDENCE ===
+ ? Python 24; forward 4
+- No weights changed. Local head reconstruction is approximate and cannot certify factual loss.
+- Inspecting full architecture and tensor shapes to design a reversible dose-sensitive edit.
+- Record-based impulse estimates remain provisional; factual certification will use the forward tool.
+
+## Python 25; forward 4
+- Architecture places dose information in a shared recurrent state.
+- Prefer testing a small value-head correctio
+## Python 25; forward 4
+- Architecture places dose information in a shared recurrent state.
+- Prefer testing a small value-head correction before risking shared transition weights.
+- Next test: whether state-derived dose innovations explain original factual prediction errors.
+
+## Python 27; forward 4
+- No weights changed. Tested original reading errors against dose innovations and split-stay decoding from head features.
+        sensor   n  missing_e
+## Python 27; forward 4
+- No weights changed. Tested original reading errors against dose innovations and split-stay decoding from head features.
+        sensor   n  missing_effect_slope  stay_cluster_se
+glucose_finger 678             -1.711465         1.125185
+   glucose_lab 130             -1.694045         3.047887
+  map_arterial 437              4.028994         2.145740
+      map_cuff 359              3.016211         2.367138
+
+## Python 28; fo
+## Python 28; forward 4
+- Head-feature dose-innovation decoder failed on 50 held-out training stays; not safe to edit from it alone.
+- Checked event timing and compared raw-state dose decodability.
+          drug    features          target   alpha  heldout_R2  correlation
+       insulin head_hidden     actual_rate   100.0      0.4185       0.6534
+       insulin head_hidden dose_innovation 10000.0      0.0050       0.0707
+       insulin         out 
+
+=== CORE TENSORS ===
+core.a_in (192,)
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.b_in.weight (192, 192)
+core.blocks.0.0.attn.kv.weight (384, 192)
+core.blocks.0.0.attn.out.weight (192, 192)
+core.blocks.0.0.attn.q.weight (192, 192)
+core.blocks.0.0.cross.kv.weight (384, 192)
+core.blocks.0.0.cross.out.weight (192, 192)
+core.blocks.0.0.cross.q.weight (192, 192)
+core.blocks.0.0.ffn.0.bias (768,)
+core.blocks.0.0.ffn.0.weight (768, 192)
+core.blocks.0.0.ffn.2.bias (192,)
+core.blocks.0.0.ffn.2.weight (192, 768)
+core.blocks.0.0.norm1.bias (192,)
+core.blocks.0.0.norm1.weight (192,)
+core.blocks.0.0.norm2.bias (192,)
+core.blocks.0.0.norm2.weight (192,)
+core.blocks.0.0.norm3.bias (192,)
+core.blocks.0.0.norm3.weight (192,)
+core.blocks.0.1.attn.kv.weight (384, 192)
+core.blocks.0.1.attn.out.weight (192, 192)
+core.blocks.0.1.attn.q.weight (192, 192)
+core.blocks.0.1.cross.kv.weight (384, 192)
+core.blocks.0.1.cross.out.weight (192, 192)
+core.blocks.0.1.cross.q.weight (192, 192)
+core.blocks.0.1.ffn.0.bias (768,)
+core.blocks.0.1.ffn.0.weight (768, 192)
+core.blocks.0.1.ffn.2.bias (192,)
+core.blocks.0.1.ffn.2.weight (192, 768)
+core.blocks.0.1.norm1.bias (192,)
+core.blocks.0.1.norm1.weight (192,)
+core.blocks.0.1.norm2.bias (192,)
+core.blocks.0.1.norm2.weight (192,)
+core.blocks.0.1.norm3.bias (192,)
+core.blocks.0.1.norm3.weight (192,)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+core.slots (4, 192)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+
+=== RETAINED DATAFRAMES ===
+H (780000, 30) ['t', 't2', 'glucose_finger_last', 'glucose_finger_age', 'glucose_finger_observed', 'glucose_finger_lag1', 'glucose_finger_lag2', 'glucose_finger_baseline', 'glucose_lab_last', 'glucose_lab_age', 'glucose_lab_observed', 'glucose_lab_lag1']
+HC (780000, 48) ['t', 't2', 'glucose_finger_last', 'glucose_finger_age', 'glucose_finger_observed', 'glucose_finger_lag1', 'glucose_finger_lag2', 'glucose_finger_baseline', 'glucose_lab_last', 'glucose_lab_age', 'glucose_lab_observed', 'glucose_lab_lag1']
+baseline_readouts23 (4, 3) ['mean', 'std', 'count']
+check20 (4510, 8) ['event', 'hour', 'last_value', 'predicted_mean', 'nll', 'has_last', 'error', 'squared_error']
+check_table65 (4, 5) ['empty_e', 'empty_u', 'mean_RMS', 'median_RMS', 'p95_RMS']
+decode_table28 (20, 6) ['drug', 'features', 'target', 'alpha', 'heldout_R2', 'correlation']
+df (26251, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+diagnostics27 (4, 4) ['sensor', 'n', 'missing_effect_slope', 'stay_cluster_se']
+dml_table (24, 5) ['sensor', 'subset', 'n', 'beta', 'cluster_se']
+dose_base (2216, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+dose_file28 (2216, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+dose_original22 (2216, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+dose_original23 (2216, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+exposed22 (1398, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+exposed23 (1398, 7) ['stay_id', 'hour', 'edit', 'shift',
+[output cut at 10,000 characters]
+```

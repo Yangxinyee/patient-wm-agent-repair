@@ -1,0 +1,1 @@
+This diagnostic leaves the current edits unchanged.

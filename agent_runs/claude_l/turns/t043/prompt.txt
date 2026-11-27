@@ -1,0 +1,53 @@
+OUTPUT of Python run 40 of at most 300:
+```
+/work/batches.json 1212
+/work/fwd_1/dose_edit_original.csv 152687
+/work/fwd_1/summary.json 1023
+/work/fwd_2/states_original.npz 18465464
+/work/fwd_2/summary.json 523
+/work/notes.md 2513
+lucose given finger -> no hidden-info confounding in teacher forcing.
+- NE policy R2=0.93 resid sd .09 (.137 on NE); negative control fine.
+- One-hour effects via iid dose residual: insulin -2.06 mg/dL per U/h on next finger glucose; NE +3.30 mmHg per mcg/kg/min on next art MAP.
+- Insulin open-loop impulse response (local projection + feedback removal), per 1 U/h for 1h at lag k=1..12:
+  -2.06 -2.45 -2.18 -1.77 -1.29 -1.02 -0.76 -0.61 -0.42 -0.24 -0.22 -0.12  (sum ~ -13). Transient: glucose mean-reverts to a baseline insulin doesn't move.
+- Insulin effect scales ~ proportional to glucose level (about -0.0097*G per U/h, 3h avg). Looks like minimal model X*G.
+- Finger vs lab: no bias, diff sd 9 (each noise ~6). Cuff = arterial + 3, diff sd 6.7.
+## Forward 1: dose_edit original, tuning batch1 (100 stays in /work/batches.json)
+- ins x2 -3.25 (669 stay-hrs, 75 stays), ins x1/2 +1.77, NE x2 +0.62 (549, 50 stays), NE x1/2 -0.82.
+
+- Readout def: rows only at hours 13-24 with a RECORDED reading of the outcome code; reached = a drug record started >=12 and before that hour; mean pooled over reached rows.
+- My 'truth' (linear open-loop IRF applied to recorded doses): batch1 ins x2 ~ -14.2 (G-scaled -13.2), x1/2 ~ +7; model -3.25/+1.77 -> model ~4x too weak.
+- NE open-loop IRF per (mcg/kg/min * 1h): 3.30 2.65 1.86 .93 .54 .31 ~0 (sum 9.8). NE policy titrates from prev rate (D1=.73).
+  batch1 NE x2 est +4.9, x1/2 -2.5; model +0.62/-0.82. Caveat: NE x2 exceeds observed max rate 1.0 (cap).
+
+/work/fwd_2/summary.json
+{
+ "ok": true,
+ "type": "states",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "file": "states_original.npz",
+   "rows": 4932,
+   "layout": "x[:, 0:192] = out, x[:, 192 + 192*s : 384 + 192*s] = slot s of h (s = 0..3), x[:, 960:992] = z posterior mean; one row per bundle, after the bundle",
+   "other_arrays": [
+    "stay_id",
+    "hour",
+    "has_insulin",
+    "has_norepinephrine",
+    "n_atoms"
+   ]
+  }
+ },
+ "edited_tensors": null,
+ "edit_hash": "none",
+ "seconds": 2.9,
+ "gpu_peak_mib": 274
+}
+
+/work/fwd_2/states_original.npz {'x': (4932, 992), 'stay_id': (4932,), 'hour': (4932,), 'has_insulin': (4932,), 'has_norepinephrine': (4932,), 'n_atoms': (4932,)}
+dict_keys(['batch1'])
+
+```

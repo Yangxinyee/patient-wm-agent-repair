@@ -1,0 +1,56 @@
+OUTPUT of Python run 208 of at most 300:
+```
+10092
+# Notebook
+## Setup facts (runs 1-6)
+- Stays ~24h. Readings at integer hours (-1..24); infusion records start at h+0.0833, run 1h. Policy picks hourly rates.
+- insulin rate in 0.5 steps (0.5..14, mostly 0.5-3), dose=rate. NE rate 0.01..1.0 (capped at 1.0; 13.5% at cap), dose=4.8*rate (weight 80kg for all).
+- 61% stays get insulin, 43% NE. stay_id sequential, no structure.
+- Dose pathway in model: embed.numeric cols z_dose/z_rate (cols 2..5), embed.bins.dose/rate -> encode_action -> u_k -> prelude tokens + z_post input.
+
+## Insulin policy (runs 9-12)
+- Deterministic sliding scale on latest glucose (fresh gf, else fresh gl): none if <150; band base rates ~1 [150,180), ~2 [180,220), ~3 [220,250), ~3.7 [250,300) (has inner step), ~6.5 >=300.
+- Within band, rate noise (0.5 steps) is independent of all observed covariates (R2~1e-4) => randomized experiment. No hidden confounding apparent.
+- gf measured every hour while last glucose >150.
+
+## NE policy (runs 13-14)
+- Uses map_arterial if present else cuff. Start (~0.05) when MAP<65. Titration: log(rate_t/rate_{t-1}) = adj + N(0,~0.3); adj ~ +0.1 (<65), 0 (65-74), -0.25 (>=75, sometimes stop). Cap 1.0.
+- So NE rate = accumulated random walk => lots of exogenous variation.
+- Insulin rate ~ base(band)*exp(N(0,0.3)) rounded to 0.5 (fits band-1 shares).
+
+## Insulin effect estimate (runs 15-18) -- randomization within band, deconvolved for policy feedback
+- 1h effect -2.0 mg/dL per U/h, same in all bands (linear, no glucose dependence). gf and gl same glucose (no offset, diff sd 9).
+- Structural impulse K(k), k=1..10 (fixed other doses): -2.0 -2.5 -2.2 -1.8 -1.4 -1.15 -0.94 -0.75 -0.50 -0.42 (sum -13.7).
+- Insulin does not move NE or MAP materially.
+
+## NE effect estimate (runs 19-20)
+- NE noise (rate - E[rate|prev rate, MAP band]) unpredictable (R2 0.001). Stops only from rate<=0.06 & MAP>=75.
+- Structural K_N(k) on MAP per (mcg/kg/min * 1h): +3.6 +2.7 +1.7 +1.1 +0.4 +0.45 ~0 ... (sum ~10.4). Same on ma and mc. mc reads ~3 mmHg above ma (sd 6.7).
+- NE first stage persists (0.73,0.56,0.44,...) due to random-walk titrat
+-----FILES-----
+cf.py 2296
+core_test.py 2346
+dec.py 884
+evalh.py 849
+fwd_1 dir
+fwd_2 dir
+fwd_3 dir
+fwd_4 dir
+head.py 1428
+impl.py 8862
+notes.md 10092
+oracle.py 3382
+policy.py 2558
+rollout.py 10348
+rollout_h.py 8159
+rollout_h2.py 8381
+sel1.json 1200
+selT.json 1200
+states_ins.py 979
+tf.py 778
+tf2k_orig.parquet 1674361
+transfer_T.npy 147584
+wI_chan.npy 896
+wI_head2.npy 512
+
+```

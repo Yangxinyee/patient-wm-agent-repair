@@ -1,0 +1,29 @@
+OUTPUT of Python run 284 of at most 300:
+```
+92 12
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+none).
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+2. **Latent z_k (32-dimensional).**
+- Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+- Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+- The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+- It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+- The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+- `u = blocks(h + E)`.
+- `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+`a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+with_code = q + embed.code[code]
++ last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
++ embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+```

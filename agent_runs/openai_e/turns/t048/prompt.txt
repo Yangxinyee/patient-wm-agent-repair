@@ -1,0 +1,122 @@
+OUTPUT of Python run 43 of at most 300:
+```
+=== HELPERS ===
+make_panel (data)
+ols_cluster (X, y, ids)
+rd_estimate (running, outcome, drug, cutoff, window, adjust=False, order=1)
+pooled_rd (horizon, window=12, order=1)
+rd_dynamic_residual (par)
+nuisance_features (s, nlags=4)
+schedule_readout (beta, phi, drug, outcome, source_panel=event     stay_id   t  ...  glucose_any_f8  insulin_f8
+0      2020000000  -1  ...           173.0         1.5
+1      2020000000   0  ...           141.0         0.0
+2      2020000000   1  ...             NaN         0.0
+3      2020000000   2  ...           155.0         1.0
+4      2020000000   3  ...           142.0         0.0
+...           ...  ..  ...             ...         ...
+10395  2020000399  20  ...             NaN         NaN
+10396  2020000399  21  ...             NaN         NaN
+10397  2020000399  22  ...             NaN         NaN
+10398  2020000399  23  ...             NaN         NaN
+10399  2020000399  24  ...             NaN         NaN
+
+[10400 rows x 76 columns])
+linear0 (x, prefix)
+norm0 (x, prefix)
+activation0 (x, kind='gelu')
+mlp0 (x, prefix, kind='gelu')
+decoder_query (kind='gelu', gap_style='log1p', type_id=1)
+head_calc (input0, idx=None, kind='gelu')
+dose_covariates (frame)
+fn (frame)
+recon_lin (x, p)
+recon_mlp (x, p, act='gelu')
+recon_norm (x, p)
+recon_ctx (indices, act='gelu', gap_style='log1p')
+recon_single_set (atoms, prefix='encode_action')
+recon_atom (drug, records, unit_id=0, rate_unit_id=0, kq_id=None)
+recon_record_atom (row, kind=0, end_numeric='absent', end_units='none')
+recon_sets (atom_lists, prefix='encode', empty_zero=False)
+single_encode_batch (atoms, prefix='encode')
+_fn30 (atoms, prefix='encode_action')
+_post33 (indices, e, u)
+fun (indices, e, u)
+core_lin (x, p)
+core_norm (x, p)
+core_ffn (x, p)
+core_attn (x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+core_layer (x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+make_core_memory (include_current=False)
+core_update_local (z, config, h_flow=None, e=None, u=None, memory_data=None)
+=== RELEVANT NOTES ===
+## Run 10: states and target scale
+Loaded original 4356 bundle states for tuning stays 2020000000..99 and all original tensors. Computed provisional fixed-dose schedule responses over several persistence values; these are statistical targets, not hidden truth. No weights edited.
+Python runs: 10. Forward requests: 3.
+
+## Run 11: local reading decoder reconstruction
+Enumerated register layouts and activation types. Best: gelu, (6, 3, (0,)); decoder RMSE 1.5651. Provisional insulin x2 target on recorded reached hours: -13.586; half target +6.793, assuming beta=-2.2778 and persistence=.8574.
+Python runs: 11. Forward requests: 3.
+
+## Run 12: policy residual probes
+Fitted training-record dose-policy nuisance models (260000 sampled intervals). Cross-stay ridge probes test residual dose and raw-dose recovery from reading-head features; separately quantified prior-sampling noise. Probe results: [(0.1, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0309, 'raw_dose_R2': 0.7405, 'other_event_leakage_RMS': 0.0716}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0588, 'raw_dose_R2': 0.5973, 'other_event_leakage_RMS': 0.0171}]), (1.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.03, 'raw_dose_R2': 0.7384, 'other_event_leakage_RMS': 0.067}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0447, 'raw_dose_R2': 0.6053, 'other_event_leakage_RMS': 0.0166}]), (10.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.028, 'raw_dose_R2': 0.7306, 'other_event_leakage_RMS': 0.0539}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0171, 'raw_dose_R2': 0.6227, 'other_event_leakage_RMS': 0.0132}]), (100.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0198, 'raw_dose_R2': 0.7251, 'other_event_leakage_RMS': 0.0339}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': 0.0015, 'raw_dose_R2': 0.6356, 'other_event_leakage_RMS': 0.0079}]), (1000.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0094, 'raw_dose_R2': 0.7131, 'other_event_leakage_RMS': 0.0186}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': 0.0017, 'raw_dose_R2': 0.6434, 'other_event_leakage_RMS': 0.0037}])]
+Python runs: 12. Forward requests: 3.
+
+## Run 13: test earlier representations
+Initial event-gated head probes failed held-out residual-dose recovery. Testing ungated probes across query, hidden head, full state, and posterior to locate the bottleneck; inspected atom encoder tables.
+Ungated results: [{'representation': 'query', 'alpha': 1.0, 'residual_R2': [-0.10
+=== CAUSAL FITS ===
+dynamic parameters: [-2.27779884  0.85743104]
+ cutoff  window  history_adj     n  dose_jump  dose_SE  outcome_jump    effect  effect_SE  observation_jump
+    150       4        False 20829   0.801368 0.009335     -1.670998 -2.085181   0.464987      3.320437e-01
+    150       4         True 20829   0.801647 0.009337     -1.672334 -2.086122   0.423045      3.320437e-01
+    150       8        False 43160   0.932604 0.005533     -2.047126 -2.195064   0.275374      4.381636e-01
+    150       8         True 43160   0.932792 0.005534     -2.110622 -2.262692   0.251525      4.381636e-01
+    150      12        False 65812   0.971841 0.004127     -1.766372 -1.817552   0.213846      4.848653e-01
+    150      12         True 65812   0.971969 0.004128     -1.759320 -1.810057   0.194558      4.848653e-01
+    180       4        False 31206   0.583162 0.013310     -1.300138 -2.229461   0.542834     -1.452401e-16
+    180       4         True 31206   0.583174 0.013304     -1.367275 -2.344541   0.488917     -1.452401e-16
+    180       8        False 61682   0.786407 0.009273     -1.652128 -2.100855   0.279689      1.750810e-16
+    180       8         True 61682   0.786398 0.009270     -1.767134 -2.247125   0.252011      1.750810e-16
+    180      12        False 91492   0.862031 0.007570     -1.687271 -1.957320   0.209812      2.052026e-16
+    180      12         True 91492   0.861908 0.007571     -1.810359 -2.100410   0.188435      2.052026e-16
+    220       4        False 10851   0.584702 0.032664     -1.934401 -3.308353   1.041402     -3.291604e-16
+    220       4         True 10851   0.586277 0.032662     -2.018906 -3.443605   0.925664     -3.291604e-16
+    220       8        False 21817   0.815216 0.023183     -1.984772 -2.434657   0.521229      1.586909e-16
+    220       8         True 21817   0.815013 0.023166     -1.976239 -2.424794   0.466372      1.586909e-16
+    220      12        False 33101   0.863781 0.018797     -1.953129 -2.261138   0.395196      2.324693e-16
+    220      12         True 33101   0.864303 0.018782     -2.016979 -2.333648   0.356420      2.324693e-16
+=== COUNTERFACTUAL FEATURE FITS ===
+(1.0, 1.0) ndarray (193, 2)
+(1.0, 10.0) ndarray (193, 2)
+(5.0, 1.0) ndarray (193, 2)
+(5.0, 10.0) ndarray (193, 2)
+(20.0, 1.0) ndarray (193, 2)
+(20.0, 10.0) ndarray (193, 2)
+=== RELEVANT TENSORS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.a_in (192,)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+embed_transition.value_bin.weight (221, 17)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+=== UNITS AND KINDS ===
+{'glucose_finger': 2, 'glucose_lab': 2, 'map_arterial': 5, 'map_cuff': 5, 'insulin': 3, 'norepinephrine': 4, 'hospital_admission': 0, 'icu_admission': 0} {'insulin': 2, 'norepinephrine': 3} {'map_cuff': 1, 'glucose_finger': 1, 'map_arterial': 1, 'insulin': 2, 'norepinephrine': 2, 'glucose_lab': 1, 'hospital_admission': 3, 'icu_admission': 4} {'end_numeric': 'absent', 'end_units': 'code', 'rmse': 0.04775621369481087}
+=== FORWARD FILES ===
+fwd_1 ['summary.json', 'dose_edit_original.csv']
+fwd_2 ['summary.json', 'factual_original.csv']
+fwd_3 ['summary.json', 'states_original.npz']
+
+```

@@ -1,0 +1,296 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 215 replies happened before. Forward passes used: 23 of 50; Python runs used: 185 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+[-5,+8] matrix as fallback_recurrent139. Reconstruction checked against installed weights. Installed corrected Wdose134/V128 edit at gains [-10,+12], prioritizing insulin. Require exact factual NLL test before accepting or rolling out.
+
+## Forward 15 / run 140: stronger gains rejected on first cohort
+Gains [-10,+12] factual NLL 1.58059 vs 1.57474 (+0.00585); exceeds budget. Restored exact fallback_recurrent139 [-5,+8]. Inspecting alternative decoder efficiency and factual shifts before choosing a revised candidate. No rollout spent on failed candidate.
+
+## Runs 142–144: factual-cost attribution
+Canonical E decoder Wdose134 and steering V128 recovered; fallback [-5,+8] remains installed. Stronger [-10,+12] costs glucose_finger +0.00815 and map_arterial +0.00815 per sensor. Fallback changes the first glucose reading at hour -1 from 143.99 to 154.79, and stronger to 168.85, despite no previous drug exposure. Investigating omitted initial-bundle zero-dose constraints before accepting a simple stronger gain compromise. Record-based target uncertainty retained.
+
+## Runs 148–150: initial-safe stronger candidate
+Recovered the architecture, effect evidence, and constrained decoders. Original fallback [-5,+8] was verified against its canonical construction and saved as initial_safe_fallback150. Installed only core.b_in.weight using constraint_candidates147[(0.3,0.0001)] and gains [-10,+12]. This decoder constrains the initial four slot features to zero dose signal. Require paired factual NLL increase <=0.005 and no initial-reading distortion before rollout. Record-supported accumulation remains uncertain; the previous validated fallback remains available.
+
+## Forward 16–17 / run 151: initial-safe stronger edit validated locally
+Candidate key (0.3,0.0001), gains [-10,+12], only core.b_in.weight. 99-stay paired factual NLL 1.57771 vs 1.57474, +0.00297, passes. Paired exact rollouts: insulin x2 -14.181, half +6.780; NE x2 +4.316, half -2.067. Insulin is near the earlier record-supported accumulation estimate; NE remains weaker. Saved exact weights as validated_B151 and decoder/gains as validated_W151/validated_gains151. Need independent-cohort factual validation, target/persistence audit, and possibly a more efficient NE correction before final acceptance.
+
+## Runs 151–152: factual attribution and target audit
+Initial/pre-ICU mean shifts <=0.0001, NLL changes zero. Current +0.002976 factual NLL has stay-cluster SE 0.001566 on 99 stays. Sensor costs: finger +0.002123, lab -0.004625, arterial +0.008312, cuff +0.001800. Need new-cohort validation. Earlier latent Gaussian diagnostic gave rho 0.9641 insulin and 0.8445 NE at fixed effects -1.8/+3.6; targets on the first cohort -14.796/+7.398 and +7.143/-3.572. Those estimates rely on the statistical state-model assumptions and must not be treated as known truth.
+
+## Forward 18 / run 153: independent factual validation
+Same initial-safe candidate (decoder key (0.3,0.0001), gains [-10,+12], only core.b_in.weight; hash 749033ff8e) on 100 previously untested tuning stays: original NLL 1.63543, edited 1.63777, increase +0.00234 on 4637 readings. Passes +0.005 budget independently. Preserve current weights while auditing record-supported persistence and intervention targets; these are estimates, not truth.
+
+## Run 154: pooled factual validation
+Initial-safe [-10,+12] candidate across 199 tuning stays and 9446 readings: paired NLL increase 0.002665, stay-cluster SE 0.001046. Reviewing earlier causal identification and persistence evidence before further changes.
+
+## Runs 157–158: extended record-only persistence fits
+NE fixed b=3.6: rho 0.847170 after 48 additional iterations; near numerical convergence. Insulin fixed b=-1.8: rho 0.969626 after 96 additional iterations. These are assumption-dependent record-only estimates. Run157's error was only a reporting lookup of 'hour' instead of 't'. World-model weights unchanged.
+
+## Restart recovery, runs 167–169
+Verified that only core.b_in.weight is edited and it exactly matches validated_B151, initial-safe decoder with gains [-10,+12]. Exact reached-hour comparison from run166: per-stay insulin x2/half -12.1599/+5.4133 versus assumption-dependent record targets -12.8893/+6.4447; NE x2/half +4.2690/-2.0001 versus +7.0881/-3.5440. Pooled-hour averages differ from per-stay averages; use the evaluation's per-stay aggregation for final interpretation. No weight changes during recovery. Inspecting decoder efficiency before any stronger NE candidate.
+
+## Runs 170–173: minimum-disturbance NE decoder
+Reconstructed factual/probe designs exactly. Zero-factual-target ridge regression, retaining initial-state zero constraints, reduces matched NE RMS from 0.03311 to about 0.02217 in 5-fold stay CV (key 0.03,1e-6). Metadata alignment verified against both drug flags. Installed provisional core.b_in candidate173: insulin unchanged, NE decoder scaled to twice validated doubled-dose probe sensitivity; gains remain [-10,+12]. Exact validated_B151 is the fallback. Require paired factual increase <=0.005 before rollout; record-based persistence targets remain assumption-dependent.
+
+## Run 174: provisional NE enhancement rejected
+Forward19 candidate173 factual NLL increase is 0.00621 on the first 99 tuning stays, exceeding the 0.005 budget. Restored validated_B151 exactly. Recovering decoder construction before considering a weaker NE enhancement; no rollout spent on the failed candidate.
+
+## Run 175: reduced minimum-disturbance NE trial
+Reconstructed candidate173 exactly within float32 tolerance. Insulin decoder and gains are unchanged. Installed the new NE decoder at 0.75 of candidate173, i.e. 1.5 times validated doubled-dose probe sensitivity, with gains [-10,+12]. Require factual budget before rollout. validated_B151 remains the exact fallback.
+
+## Forward20–21 / run176: reduced NE enhancement passes locally
+Only core.b_in.weight edited, hash 4a7d16d8f6. Factual NLL increase +0.00373 on 99 tuning stays. Pooled reached-hour rollout shifts: insulin x2/half -14.134/+6.816; NE x2/half +5.428/-2.333. Saved exact weights as validated_B176 and decoder as validated_W176. Insulin response is stable; NE response increases. Require independent factual validation and record-based target audit before final selection.
+
+## Forward22 / run177: independent and pooled validation
+Current candidate factual increase +0.00309 on the independent 100-stay cohort. Across 199 stays/9446 readings, paired increase 0.003422, stay-cluster SE 0.001159. Weights unchanged. Auditing record-based persistence and accumulated-effect identification before any further strengthening.
+
+## Run178: record-effect audit, no weight changes
+Reviewing threshold-IV and stay-crossfitted effect estimates together with the fitted latent persistence models. The 199-stay factual budget passes on its point estimate but sampling uncertainty remains; target estimates are not truth.
+
+## Restart / run180: evidence recovery
+Weights unchanged. Recovering architecture and record-identification evidence before considering any further NE gain or final acceptance of validated_B176.
+
+## Runs181–183: causal evidence recovered
+Independent sensor/history-adjusted record analyses support insulin around -1.8 to -2.0 per rate unit and NE around +3.6. Clean insulin lab threshold estimate is smaller and less precise; finger observation discontinuities warn against using naive RD. Persistence 0.9696/0.8472 comes from an assumption-dependent latent model, not known simulator truth. Current installed edit exactly equals validated_B176. Auditing per-stay readouts and expanding independent factual coverage before refinement.
+
+## Forward23 / run184: factual margin narrows
+Current validated_B176 on 100 untouched tuning stays raises factual NLL by +0.00617, exceeding the budget on this cohort. Pooled 299-stay delta 0.004328, cluster SE 0.000924. Do not strengthen current gains without improving generalization or demonstrating a safer candidate. Weights unchanged during audit.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 185 of at most 300:
+```
+FEATURE-PIPELINE FUNCTIONS
+
+ previous_context_repair (indices)
+locals: ('indices', 'ii', 'dt', 'old', 'hf', 'ctx')
+globals: ('np', 'asarray', 'int64', 'torch', 'tensor', 'sm_repair', 'iloc', 'to_numpy', 'float32', 'sx_repair', 'reshape', 'exp', 'Wrepair', 'rnorm', 'mean', 'rmlp', 'log1p')
+
+ _f100 (indices)
+locals: ('indices', 'ii', 'dt', 'old', 'hf', 'ctx')
+globals: ('np', 'asarray', 'int64', 'torch', 'tensor', 'sm_repair', 'iloc', 'to_numpy', 'float32', 'sx_repair', 'reshape', 'exp', 'Wrepair', 'rnorm', 'mean', 'rmlp', 'log1p')
+
+ prelude_features111 (h, e, u, z)
+locals: ('h', 'e', 'u', 'z', 'prefix111', 'tokens111', 'normed111', 'attended111', 'before_ff111', 'hidden111', 'after_ff111', 'E111')
+globals: ('torch', 'cat', 'Wrepair', 'lin104', 'norm104', 'attention104', 'F104', 'gelu')
+
+ embed_record_atom_v2 (row, kind=0, end_mode='same')
+locals: ('row', 'kind', 'end_mode', 'atom')
+globals: ('embed_record_atom', 'rate_unit_ids_repair', 'Wrepair')
+
+ encode_variable_sets_repair (atom_sets, prefix, zero_empty=False)
+locals: ('atom_sets', 'prefix', 'zero_empty', 'output', 'a', 'counts', 'n', 'ii', 'i', 'aa')
+globals: ('torch', 'zeros', 'len', 'float32', 'np', 'array', 'unique', 'flatnonzero', 'encode_atom_set', 'stack', 'batched_set_repair')
+
+ fold_decoder147 (B)
+locals: ('B', 'raw', 'intercept', 'gamma', 'beta')
+globals: ('sd147', 'mu147', 'np', 'asarray', 'load_original', 'float64', 'outer', 'sum')
+
+ report_decoder147 (w)
+locals: ('w', 'fact', 'report', 'key', 'drug', 'mult', 'channel', 'dose_delta', 'pred_delta')
+globals: ('np', 'einsum', 'F147', 'sqrt', 'mean', 'max', 'abs', 'C146', 'prelude_cf_E111', 'asarray', 'residual_targets102', 'float64', 'sum')
+
+ fit_zero_fact171 (Hf, Hp, Gp, probe_weight, ridge)
+locals: ('Hf', 'Hp', 'Gp', 'probe_weight', 'ridge', 'H', 'both', 'B', 'HC')
+globals: ('penalty171', 'solve', 'np', 'column_stack', 'C147', 'T', 'linalg', 'pinv')
+
+FEATURE-PIPELINE DATA
+B134 ndarray (193, 2) 
+B147 ndarray (193, 2) 
+Bcv172 ndarray (193, 2) 
+C147 ndarray (4, 193) 
+D147 ndarray (13416, 193) 
+Dparts147 list [array([[ 0.00000000e+00,  8.21323223e-04, -1.32722542e-02, ...,
+        -2.49613541e-03,  2.6124517
+Dtr172 ndarray (11200, 193) 
+E119 Tensor torch.Size([32, 4, 192]) 
+Efull134 ndarray (4250, 4, 192) 
+F147 ndarray (4250, 4, 192) 
+H147 ndarray (193, 193) 
+HC147 ndarray (193, 4) 
+Hfact147 ndarray (193, 193) 
+Hprobe147 ndarray (193, 193) 
+S npz ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+Wdose134 ndarray (192, 2) 
+Wrepair dict ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+X147 ndarray (17000, 193) 
+Xcheck171 ndarray (17000, 193) 
+Xtr172 ndarray (13704, 193) 
+Y147 ndarray (13416, 2) 
+Yparts147 list [array([[-0.5 ,  0.  ],
+       [-0.5 ,  0.  ],
+       [-0.5 ,  0.  ],
+       ...,
+       [-1.25,  0.
+action_cases_repair list [(3, [{'stay_id': 1010001344, 'hour': 0.0833, 'event': 'insulin', 'value': nan, 'rate': 1.0, 'rate_u
+action_records_repair list [[], [], [{'stay_id': 1010001344, 'hour': 0.0833, 'event': 'insulin', 'value': nan, 'rate': 1.0, 'ra
+active147 ndarray (4250,) 
+actual172 ndarray (4250,) 
+affine_b134 ndarray (2,) 
+bundle_stays172 ndarray (4250,) 
+bundle_test_rows_repair ndarray (240,) 
+constrained147 ndarray (193, 2) 
+constraint_candidates147 dict [(0.0, 1e-06), (0.0, 0.0001), (0.0, 0.01), (0.03, 1e-06), (0.03, 0.0001), (0.03, 0.01), (0.3, 1e-06), (0.3, 0.0001), (0.3, 0.01), (3.0, 1e-06), (3.0, 0.0001), (3.0, 0.01)]
+current_probe172 ndarray (13416,) 
+cv_keys172 list [(0.01, 1e-06), (0.03, 1e-06), (0.1, 1e-06), (0.01, 0.0001)]
+cv_predictions172 dict [(0.01, 1e-06), (0.03, 1e-06), (0.1, 1e-06), (0.01, 0.0001)]
+cv_results172 list [{'probe_weight': 0.01, 'ridge': 1e-06, 'cv_ne_rms': 0.006289516722277266, 'half_gain': 0.0366412385
+delta147 ndarray (4250, 4, 192) 
+dose_actual_repair ndarray (4250, 2) 
+drug172 str norepinephrine
+dt147 ndarray (4250, 2) 
+empty_e_repair Tensor torch.Size([1, 192]) 
+end_checks_repair list [{'end_mode': 'same', 'n': 226, 'z_rmse': 0.1785617619752884, 'count_mismatch': np.int64(0)}, {'end_
+end_lookup_repair dict [(1010000431, 10.0833), (1010000431, 11.0833), (1010000431, 19.0833), (1010000431, 20.0833), (1010000431, 25.0833), (1010000682, 1.0833), (1010000682, 2.0833), (1010000682, 3.0833), (1010000682, 4.0833), (1010000682, 5.0833), (1010000682, 6.0833), (1010000682, 7.0833)]
+end_route_results_repair list [('same', 0, 0, 'action', 0.17122894525527954), ('same', 0, 0, 'observation', 0.0081480136141181), (
+end_route_table_repair DataFrame (108, 5) ['mode', 'kind', 'kq', 'route', 'rmse']
+end_search_repair list [('recorded', 'recorded', False, False, False, 0.1715831756591797), ('recorded', 'recorded', False, 
+end_search_table_repair DataFrame (72, 6) ['dose', 'rate', 'unit_zero', 'rate_unit_zero', 'ekind_zero', 'rmse']
+expected172 ndarray (4250,) 
+fact_folds172 ndarray (17000,) 
+fact_stays172 ndarray (17000,) 
+first172 ndarray (4350,) 
+fold_gains172 list [0.020949416697914766, 0.0172642969409756, 0.01859364947398772, 0.020076088870962027, 0.022347446480
+fold_lookup172 dict [1010005551, 1010018322, 1010025179, 1010018070, 1010022805, 1010006618, 1010022570, 1010008744, 1010012484, 1010026994, 1010003937, 1010023984]
+insmask172 ndarray (13416,) 
+insy172 ndarray (7248,) 
+keep172 ndarray (4350,) 
+key147 tuple (3.0, 0.01)
+label172 str x2
+last172 ndarray (4350,) 
+m172 ndarray (13416,) 
+matches172 list [array([False,  True,  True, ...,  True,  True,  True], shape=(4350,))]
+meta Series (5,) 
+metrics172 dict ['half_gain', 'x2_gain']
+mismatch172 dict ['insulin', 'norepinephrine']
+mu134 ndarray (192,) 
+mu147 ndarray (192,) 
+obs_checks_repair list [array([ 0.01760556,  0.1044715 ,  0.01927713, -0.07367857, -0.08606865,
+       -0.06782296,  0.0292
+obs_sets_repair list [[tensor([ 4.3458e-01, -4.7422e-02,  4.8324e-03, -4.2387e-01, -1.0762e-01,
+        -4.1168e-01,  2.8
+pf172 ndarray (17000,) 
+posterior_cf_phi_repair dict [('insulin', 0.5), ('insulin', 2.0), ('norepinephrine', 0.5), ('norepinephrine', 2.0)]
+posterior_cf_targets_repair dict [('insulin', 0.5), ('insulin', 2.0), ('norepinephrine', 0.5), ('norepinephrine', 2.0)]
+posterior_ctx_repair Tensor torch.Size([4250, 192]) 
+posterior_e_repair Tensor torch.Size([4250, 192]) 
+posterior_error_repair ndarray (4250,) 
+posterior_hflow_repair Tensor torch.Size([4250, 4, 192]) 
+posterior_phi_repair Tensor torch.Size([4250, 192]) 
+posterior_rows_repair ndarray (4250,) 
+posterior_u_repair Tensor torch.Size([4250, 192]) 
+posterior_z_repair Tensor torch.Size([4250, 32]) 
+pp172 ndarray (13416,) 
+pred134 ndarray (4250, 4, 2) 
+probe_folds172 ndarray (13416,) 
+probe_labels172 ndarray (13416,) 
+probe_stays172 ndarray (13416,) 
+rate_unit_ids_repair dict ['insulin', 'norepinephrine']
+raw_coef134 ndarray (192, 2) 
+reference_records_repair DataFrame (6537, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+reg147 ndarray (193, 193) 
+reports147 list [{'candidate': 'baseline', 'ins_rms': np.float64(0.10747221784676654), 'ne_rms': np.float64(0.033036
+sd134 ndarray (192,) 
+sd147 ndarray (192,) 
+shuffled172 ndarray (100,) 
+sid172 ndarray (4350,) 
+sm_repair DataFrame (4350, 5) ['stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+standardized134 ndarray (4250, 4, 192) 
+start_lookup_repair dict [(1010000431, -2.0), (1010000431, -1.0), (1010000431, 0.0), (1010000431, 1.0), (1010000431, 2.0), (1010000431, 3.0), (1010000431, 4.0), (1010000431, 5.0), (1010000431, 6.0), (1010000431, 7.0), (1010000431, 8.0), (1010000431, 9.0)]
+sx_repair Tensor torch.Size([4350, 992]) 
+tf172 ndarray (17000,) 
+tp172 ndarray (13416,) 
+unique172 ndarray (100,) 
+unit_ids_repair dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine', 'hospital_admission', 'icu_admission']
+w147 ndarray (192, 2) 
+world_lookup_repair dict [(1010000431, -7200), (1010000431, -3600), (1010000431, 0), (1010000431, 3600), (1010000431, 7200), (1010000431, 10800), (1010000431, 14400), (1010000431, 18000), (1010000431, 21600), (1010000431, 25200), (1010000431, 28800), (1010000431, 32400)]
+y172 ndarray (3084,) 
+
+AVAILABLE STATE FILES
+/work/fwd_3/states_original.npz ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+
+NEW INDEPENDENT TRAINING-STATE COHORT [1010000517, 1010000719, 1010000739, 1010000848, 1010000900, 1010001180, 1010001479, 1010001981, 1010002192, 1010002905, 1010002969, 1010003399, 1010004363, 1010005372, 1010005425, 1010005432, 1010005562, 1010005862, 1010006228, 1010006365, 1010006560, 1010006855, 1010006858, 1010007045, 1010007200, 1010007590, 1010007767, 1010007909, 1010008328, 1010008475, 1010008895, 1010009109, 1010009400, 1010009577, 1010009648, 1010009780, 1010010750, 1010010788, 1010011496, 1010011641, 1010011771, 1010012930, 1010013240, 1010013246, 1010013584, 1010014491, 1010014831, 1010014990, 1010015064, 1010015312, 1010015323, 1010016045, 1010016110, 1010016793, 1010017358, 1010017557, 1010017663, 1010018262, 1010018693, 1010018776, 1010018832, 1010018849, 1010018923, 1010019230, 1010019546, 1010019702, 1010020350, 1010020790, 1010021106, 1010021123, 1010021309, 1010021310, 1010021471, 1010022321, 1010022465, 1010022583, 1010022790, 1010023191, 1010023478, 1010025316, 1010025468, 1010025921, 1010026451, 1010026549, 1010026705, 1010026712, 1010026895, 1010026955, 1010027126, 1010027128, 1010027375, 1010027860, 1010027903, 1010028122, 1010028697, 1010028854, 1010029041, 1010029205, 1010029580, 1010029834]
+
+```

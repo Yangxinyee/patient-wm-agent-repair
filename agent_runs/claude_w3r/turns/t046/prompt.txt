@@ -1,0 +1,42 @@
+OUTPUT of Python run 42 of at most 300:
+```
+embed.code.weight [13, 192] row norms [1.84 1.87 1.87 1.84 1.86 2.21 2.   2.39]
+embed.kind.weight [3, 192] row norms [0.64 0.27 0.6 ]
+embed.ekind.weight [5, 192] row norms [0.   0.62 0.52 0.7  0.95]
+embed.kq.weight [4, 192] row norms [0.67 0.28 0.28 0.28]
+embed.text.weight [2, 192] row norms [0.   0.28]
+embed.bins.value.weight [17, 192] row norms [0.   3.04 1.68 1.25 1.06 1.19 1.38 1.25]
+embed.bins.dose.weight [17, 192] row norms [0.   1.86 0.87 0.94 0.67 0.82 0.5  0.39]
+embed.bins.rate.weight [17, 192] row norms [0.   3.18 2.24 1.96 1.66 1.85 1.92 1.96]
+embed.categorical.action.weight [2, 192] row norms [0.   0.28]
+embed.categorical.discharged_to.weight [2, 192] row norms [0.   0.28]
+embed.categorical.rate_unit.weight [4, 192] row norms [0.   0.28 0.68 1.03]
+embed.categorical.route.weight [2, 192] row norms [0.   0.27]
+embed.categorical.status.weight [2, 192] row norms [0.   0.26]
+embed.categorical.unit.weight [6, 192] row norms [0.   0.28 1.4  0.68 0.99 1.44]
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+{'config': {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}, 'event_kinds': {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}, 'atom_kinds': {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}, 'numeric_note': 'z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.', 'value_bin_note': "The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1]."}
+[{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+
+```

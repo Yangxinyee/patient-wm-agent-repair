@@ -1,0 +1,118 @@
+OUTPUT of Python run 119 of at most 300:
+```
+=== NOTEBOOK SECTIONS ===
+## Initial plan
+## Inspection
+## Hourly panel and preliminary associations
+## Baseline rollout and flexible residualisation
+## Factual baseline and latent dynamics
+## Causal identification checks
+## Dose-innovation local projections
+## Sensor-proxy dynamic check
+## Fixed-dose response-kernel estimates
+## Head reconstruction setup
+## Reconstruction diagnostics
+## Restart diagnostics
+## Runs 34?36: restart recovery
+## Run 37: dose-feature feasibility
+## Run 38: readout vs state information
+## Run 39: first reversible weight probe
+## Forward 6 and run 40
+## Forward 7 and run 42: rejected input-gain probe
+## Restart recovery, runs 47?48
+## Run 49: reversible dose-bin gain probe
+## Forward passes 8?9; run 50: rejected bin gain
+## Run 53: restart recovery
+## Run 57: posterior counterfactual features
+## Runs 58?59: posterior dose-contrast feasibility
+## Run 64: reversible posterior-only probe
+## Forward 10?11; run 65: rejected posterior probe
+## Restart after run 65
+## Run 73: restart recovery
+## Run 78: completed local dose/readout probe
+## Run 79: cross-stay value-head contrast feasibility
+## Run 80: reversible value-head contrast candidate
+## Forward 12: rejected value-head candidate
+## Run 88: reconstruction audit resumed
+## Runs 90?93: head equivalence audit
+## Restart after run 95
+## Runs 96?102: restart audit
+## Runs 103?107: reconstruction recovery
+## Runs 107?109: register breakthrough
+## Run 115: corrected local contrast reconstruction
+## Run 117: anchored paired-action contrasts
+
+=== FIXED-DOSE EVIDENCE AND BASELINE ===
+## Fixed-dose response-kernel estimates
+- Fit geometric kernels to instrument/outcome moments, including subsequent recorded doses.
+- Insulin instrument: paired-sensor noise difference with past-only controls.
+- NE instrument: cross-fitted policy innovation with measured-history controls; stronger sequential-unconfoundedness assumption.
+- insulin: rho=0.82939, beta=-2.30803
+- norepinephrine: rho=0.63511, beta=3.55456
+          drug  factor   first100     all400
+       insulin     0.0  10.528802  11.082850
+       insulin     0.5   5.264401   5.541425
+       insulin     1.5  -5.264401  -5.541425
+       insulin     2.0 -10.528802 -11.082850
+       insulin     3.0 -21.057603 -22.165700
+norepinephrine     0.0  -3.808429  -3.969327
+norepinephrine     0.5  -1.904215  -1.984664
+norepinephrine     1.5   1.904215   1.984664
+norepinephrine     2.0   3.808429   3.969327
+norepinephrine     3.0   7.616858   7.938655
+- Python runs: 12. Forward passes: 3. No edits yet.
+
+## Head reconstruction setup
+- Original factual training first 100: value NLL 1.64546 (4,510 readings).
+- Saved states matched to preceding bundles; testing numerical head conventions before any edit.
+- Insulin long-horizon kernel remains weakly identified; NE evidence is more stable.
+- Python runs: 16. Forward passes: 4. No edits.
+
+## Reconstruction diagnostics
+- Best initial conventions: GELU, type 1, interleaved last numeric, status 0, seconds/10.
+- Reconstruction scaled mean RMSE ~0.115; expected four-prior-draw noise ~0.0475.
+- Bin boundary, centre-value, and latent averaging checks did not explain the remaining error.
+- Performing a bounded query/context convention check; no edits.
+- Python runs: 19. Forward passes: 4.
+
+## Restart diagnostics
+- Runs 20?22: recovering head helpers and checking saved-state chronology and register dimensions. No weight edits; four forward passes used.
+
+- Run 23: saved out equals layer-normalized mean h to 7.3e-8 RMSE. Current helpers use seconds-based flow, log1p(seconds)/10, interleaved last-number fields and measurement query type 1. These still give scaled-mean RMSE 0.114; no edits.
+
+- Run 24 and forward 5: chronology is exact; absent-bin and status embeddings add zero here. Tested separate prior/world contexts and latent packing without resolving reconstruction error. Repeated original factual pass on 25 reordered training stays to quantify noise. No edits.
+
+- Run 25: repeated factual predictions differ by scaled mean RMSE 0.07198 and NLL RMSE 0.24980, implying single-pass sampling noise ~0.051. Reconstruction has larger systematic positive bias. All matched state IDs are correct. Insulin kernel bootstrap is very weak (rho often reaches bounds); NE kernel is substantially more stable. Treat long-horizon insulin targets as uncertain. No edits; five forward passes.
+
+- Run 26: fresh reconstruction exactly reproduced existing inputs. Documented flow still gives scaled mean RMSE 0.114 and bias 0.054; doubled flow improves RMSE to 0.097 but is not yet justified. No edits. Re-reading architecture and recovering kernel context before proceeding.
+
+- Runs 27?32: fresh prior scales are ordinary; latent averaging does not explain head bias. World-view coefficient checks still favor documented terms, though double flow reduces error. Exhaustively checking the undocumented extra last_numeric fields before any edit. No edits; five forward passes.
+
+- Run 32: moving the last-value input to another column lowers mean RMSE but worsens NLL RMSE to 0.51; rejected as an unjustified convention. Returning to direct original factual residuals and dose innovations for evidence-based repair targets. No edits.
+
+## Runs 34?36: restart recovery
+- Re-read architecture and record schema. Original first-100 tuning rollouts: insulin x2 -3.680, half +2.018; NE x2 +0.465, half -0.871.
+- Proposed repair: value-head exponential tilt driven by decoded dose-policy innovations, with sensor gating and held-out checks.
+- Insulin long-horizon causal target remains uncertain. No edits; 5 forward passes used.
+
+## Run 37: dose-feature feasibility
+- Reconstructed deterministic hidd
+
+=== TARGET TABLE ===
+          drug  factor   first100     all400
+       insulin     0.0  10.528802  11.082850
+       insulin     0.5   5.264401   5.541425
+       insulin     1.5  -5.264401  -5.541425
+       insulin     2.0 -10.528802 -11.082850
+       insulin     3.0 -21.057603 -22.165700
+norepinephrine     0.0  -3.808429  -3.969327
+norepinephrine     0.5  -1.904215  -1.984664
+norepinephrine     1.5   1.904215   1.984664
+norepinephrine     2.0   3.808429   3.969327
+norepinephrine     3.0   7.616858   7.938655
+
+=== CACHED ARRAYS / TABLES ===
+VOCAB:dict(8)  value:(17,)  sample:(24, 9)  train:(1997441, 7)  tuning:(26251, 7)  HOURS:(26,)  train_ids:(30000,)  panel:(780000, 6)  tuning_panel:(10400, 6)  Y:(30000, 26, 4)  A:(192, 192)  diff:(30000, 26)  ff:(780000, 4)  med:(4,)  seen:(30000, 26, 4)  last_t:(30000, 26, 4)  age:(30000, 26, 4)  prev1:(30000, 24, 4)  prev2:(30000, 24, 4)  controls:(720000, 34)  C_mean:(34,)  C_sd:(34,)  C:(720000, 34)  dose:(720000, 2)  presence:(720000, 2)  stay_row:(720000,)  next_y:(720000, 4)  current_y:(720000, 4)  mask:(720000,)  control_subset:(720000, 34)  X:(333382, 3)  se:(3,)  row:dict(9)  r:(720000,)  E:(720000, 36)  fold:(720000,)  dose_resid:(720000, 2)  outcome_resid:(720000, 4)  fitting:(720000,)  testing:(720000,)  fit_mask:(4035,)  test_mask:(4035,)  pred:(220388,)  extra_mask:(720000,)  candidate:(720000, 2)  dose_file:(2500, 7)  factual_file:(4751, 6)  fit_indices:(5000,)  kalman_fits:dict(2)  readings:(5000, 26, 2)  rates:(5000, 26)  theta0:(14,)  fit:dict(10)  theta:(14,)  TA:(400, 26, 2)  change:(400,)  reached:(2500,)  values:(6,)  idx:(4510,)  example:(50, 9)  pids:(30000,)  phours:(26,)  PO:(30000, 26, 4)  PA:(30000, 26, 2)  PF:(30000, 26, 4)  pmed:(4,)  vals:(4510,)  pair:(30000, 26)  delta:(30000, 26)  ts:(20,)  yy:(30000, 20)  valid:(4510,)  si:(82050,)  ti:(82050,)  tt:(82050,)  aa:(320,)  past:(82050, 4)  trend:(24588, 4)  C_iv:(24588, 16)  bb:(320,)  iv_table:(16, 9)  C0:(93508, 2)  dy_next:(222850,)  dy_cur:(222850,)  da:(222850,)  Xg:(222850, 3)  Zg:(222850, 8)  bg:(3,)  sg:(3,)  eg:(222850,)  gmm_table:(6, 7)  scales:(4,)  seen_now:(30000, 26, 4)  HX:(30000, 26, 39)  HF:(30000,)  innov:(30000, 26, 2)  trmask:(30000, 26)  temask:(30000, 26)  er:(233088,)  resid_y:(233088,)  fold_obs:(233088,)  Xlp:(233088, 39)  ylp:(233088,)  trm:(93413,)  tem:(93413,)  hm:(4510, 14)  gs:(30000,)  lp_table:(8, 5)  HPAST:(30000, 26, 31)  eiv_cache:dict(2)  feats:(93413, 31)  targets:(93413, 4)  residuals:(93413, 4)  r1:(93413,)  r2:(93413,)  ra:(93413,)  ry:(93413,)  dd:(453,)  xobs:(93413,)  proxy:(93413,)  Xe:(93413, 2)  Ze:(93413, 2)  be:(2,)  se_e:(2,)  er_e:(93413,)  eiv_table:(4, 7)  Clead:(82050, 10)  dr:(3745,)  ar:(82050,)  response_kernels:dict(2)  TPA:(400, 26, 2)  rk:dict(5)  target_table:(10, 4)  frame:(10, 4)  SX:(4035, 992)  SSID:(4035,)  STIME:(4035,)  head_factual:(4510, 6)  code_ids:dict(13)  numeric_specs:dict(8)  state_groups:dict(100)  record_groups:dict(632)  rec:(18, 7)  head_meta:(4510, 14)  test_rows:(320,)  target_mu:(320,)  scale_mu:(320,)  mu:(192,)  nll:(4510,)  reconstruction_table:(72, 8)  W_original:dict(134)  integration_table:(24, 7)  last_raw:(320,)  boundary:(320,)  zvalues:(320,)  nl:(320,)  baseline_mu:(320,)  mu4:(16, 320)  nl4:(16, 320)  mm:(320,)  result:dict(12)  variant_features:dict(102)  variant_table:(48, 4)  best_inputs:(320, 192)  sel:(320,)  state_times:(320,)  dt_from_archive:(320,)  register_candidates:dict(4)  summaries:dict(5)  check_table:(54, 4)  repeat_factual:(1121, 6)  repeat_compare:(1121, 11)  group:dict(2)  mapped_ids:(4510,)  mc_means:(4510,)  mc_expected_means:(320,)  err:(4510,)  boot:(100, 2)  fresh_head:dict(12)  old:(749,)  options:dict(1)  output:dict(12)  mu_local:(320,)  nll_local:(320,)  x:(1631, 6)  predicted:(320,)  predicted_nll:(320,)  error:(4035,)  table:(10, 4) 
+Functions: load, load_original, save_edit, drop_edit, edited, make_panel, cluster_ols, nuisance_model, kalman_nll, iv_ratio, iv_2sls, estimate_response_kernel, kernel_readout, wt, ln, activation, mlp, score_head_variant, tensor_rmse, reconstruct_reading_head, func, score_view_local, ols_cluster_small, o, fn0, helper, latent_context_at, encode_single_debug, helper_obj, fun, repair_atom_vectors, repair_set_encode, fit_post_contrast, function_obj, repair_self_attention, r
+[output cut at 10,000 characters]
+```

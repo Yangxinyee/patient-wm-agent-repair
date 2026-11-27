@@ -1,0 +1,165 @@
+OUTPUT of Python run 216 of at most 300:
+```
+=== ORIGINAL IDENTIFICATION NOTES ===
+# Weight-repair notebook
+
+## Run 1: initial inspection
+- Read architecture, data schema, tensor shapes, vocabulary, and a record sample.
+- No drug-effect conclusion or weight edit yet.
+- All causal conclusions will come from the supplied records.
+- Python runs: 1; forward passes: 0.
+
+## Run 2: records and vocabulary
+- Architecture has a dedicated action encoder; this is a candidate edit boundary, not evidence of drug effects.
+- Loaded all training and tuning records and inspected event timing and dose distributions.
+- Python runs: 2; forward passes: 0.
+
+## Run 3: hourly panel and preliminary associations
+- Doses occur at hour + 0.0833, after same-hour measurements; next-hour outcomes are post-treatment.
+- Constructed complete hourly histories, with zero rates for absent infusion records.
+- Computed raw and flexible history-adjusted one-hour slopes; these remain provisional because treatment and observation selection may confound them.
+- Preliminary estimates: {'glucose_finger': {'n': 298450, 'beta': array([-1.9552787 , -0.00447367]), 'se': array([0.04175153, 0.27588974]), 'residual_dose_sd': array([0.62089111, 0.08481478])}, 'glucose_lab': {'n': 28483, 'beta': array([-1.61143064,  0.23353193]), 'se': array([0.10999966, 0.47828202]), 'residual_dose_sd': array([0.44313316, 0.08471139])}, 'map_arterial': {'n': 312563, 'beta': array([-0.01420961,  2.50709245]), 'se': array([0.01662592, 0.08518661]), 'residual_dose_sd': array([0.46802037, 0.10263334])}, 'map_cuff': {'n': 333382, 'beta': array([0.00668627, 0.46524658]), 'se': array([0.028022  , 0.21911062]), 'residual_dose_sd': array([0.46792872, 0.06450492])}}
+- Python runs: 3; forward passes: 0.
+
+## Run 4 / forwards 1?2: baseline and dose-policy models
+- Original tuning-100 rollout: insulin x2 -2.016; insulin half +1.051; NE x2 +0.309; NE half -0.070.
+- Original factual value NLL: 1.63155 over 4,751 readings.
+- Fit two-fold, stay-held-out flexible dose-policy models using only pre-dose histories.
+- These models are for identification diagnostics, not weight training.
+- Python runs: 4; forward passes: 2.
+
+## Run 5: cross-fitted next-hour effects
+- Dose-policy out-of-stay R2: insulin 0.8660, NE 0.9351; residual SD 0.3678 and 0.07559 respectively.
+- Used two-fold, stay-held-out nonlinear outcome models and clustered residual-on-residual regressions.
+- Checked sensor, positive-dose, and early/late subgroups; estimates still require confounding and dynamics checks.
+- DML results: {'glucose_finger': {'beta': array([-1.93474217,  0.33946561]), 'se': array([0.04454258, 0.26229829]), 'n': 400154}, 'glucose_lab': {'beta': array([-2.01483673, -0.33459203]), 'se': array([0.0747496 , 0.35865811]), 'n': 143791}, 'map_arterial': {'beta': array([0.01574776, 3.05259229]), 'se': array([0.02054298, 0.0887042 ]), 'n': 328940}, 'map_cuff': {'beta': array([-0.03133786,  2.52816442]), 'se': array([0.02915835, 0.17344546]), 'n': 439865}}
+- Python runs: 5; forward passes: 2.
+
+## Run 6: dynamic identification
+- Cross-fitted immediate effects: glucose finger -1.9347 (SE .0445), lab -2.0148 (.0747); arterial MAP +3.0526 (.0887), cuff +2.5282 (.1734).
+- Estimated treatment impulse responses using dose innovations and removed their induced future-dose changes by moment deconvolution.
+- Used independent/randomly sampled glucose_lab for glucose dynamics and arterial MAP for pressure dynamics, with stay-cluster bootstrap.
+- Impulse estimates: {'glucose_lab': array([-2.07283356, -2.23466817, -2.14515517, -1.43875875, -1.28052947,
+       -0.90473374]), 'map_arterial': array([2.95159917, 2.49611187, 1.62799136, 1.02869814, 0.34279884,
+       0.21392442])}
+- Interpretation depends on residual treatment variation being conditionally exogenous; dose-regime checks assess linearity within observed support.
+- Python runs: 6; forward passes: 2.
+
+## Run 7: restart inspection
+- Re-read architecture and schema and inventoried retained analysis objects before choosing an edit.
+- No new causal conclusion or weight edit in this run.
+- Python runs: 7; forward passes: 2.
+
+## Run 8: edit-boundary inspection
+- Dedicated action encoding changes a shared state, so broad edits may damage non-value outputs.
+- Inspecting value-head and state layouts for a conditionally centered, targeted correction.
+- Python runs: 8; forward passes: 2.
+
+## Run 9 / forward 3: original training states
+- Obtained 4,035 post-bundle states from 100 training stays.
+- Checked whether linear state readouts retain conditionally centered dose innovations.
+- Recovery diagnostics: {('out', 'actual rate'): [0.7464798056041226, 0.5793095632860579], ('out', 'dose innovation'): [0.014224321981154309, -0.010256190838008106], ('out+h+z', 'actual rate'): [0.8209381610756414, 0.5761447082503632], ('out+h+z', 'dose innovation'): [0.14643522829061584, -0.10865335500972084]}
+- No weights edited.
+- Python runs: 9; forward passes: 3.
+
+=== ROUTING CANDIDATES ===
+targets158
+(2, 4) norm 4.848992610476405 [[-1.93474217, -2.01483673, 0.0, 0.0], [0.0, 0.0, 3.05259229, 2.52816442]]
+event_scale158
+(4,) norm 5.0990195135927845 [2.0, 2.0, 3.0, 3.0]
+D_best158
+(192, 2) norm 124.98045702061295 
+dall158
+(192, 2) norm 1.9094241656522821 
+scores158
+[(0.42663002554106205, 1e-06), (0.4402759962755966, 3e-06), (0.4513605952695591, 1e-05), (0.45959211636377667, 3e-05), (0.46902912373439914, 0.0001), (0.47701981793599973, 0.0003), (0.48549273349356115, 0.001), (0.4959410483362422, 0.003), (0.5172192764117232, 0.01)]
+nonlinear158
+1e-06 {'rate_response': array([[-0.78195739, -0.69740384,  0.08850851,  0.09001951],
+       [-0.50060687, -0.44564934,  0.06760801,  0.06331702],
+       [-0.7850021 , -0.67214309,  0.06381572,  0.07188399],
+       ...,
+       [ 0.37303766,  0.1965503 ,  0.21809739,  0.22703788],
+       [ 0.07825816,  0.16725363,  0.02542989,  0.04044032],
+       [ 0.12027976,  0.20929449,  0.01523115,  0.03640161]],
+      shape=(320, 4)), 'factual_shift': array([[ 5.51799411e-06,  1.31447791e-05, -1.16681552e-05,
+        -2.31457852e-05],
+       [-1.98786161e-03, -1.
+3e-06 {'rate_response': array([[-0.78211116, -0.69737282,  0.08868729,  0.09018042],
+       [-0.50210036, -0.44605312,  0.06865269,  0.06442908],
+       [-0.88293494, -0.79070848,  0.02686516,  0.02397997],
+       ...,
+       [ 0.018458  ,  0.0148502 ,  0.31257769,  0.48057121],
+       [ 0.07055259,  0.16700797,  0.03312309,  0.05447233],
+       [ 0.15651619,  0.26024042,  0.04555618,  0.0840259 ]],
+      shape=(320, 4)), 'factual_shift': array([[ 6.30960647e-06,  8.75416349e-06, -1.20399762e-05,
+        -2.20723246e-05],
+       [-1.02544042e-03, -9.
+1e-05 {'rate_response': array([[-0.7821164 , -0.69729886,  0.08873131,  0.09020972],
+       [-0.50296729, -0.44632507,  0.06922555,  0.06503403],
+       [-1.07325355, -1.04078115, -0.06121741, -0.0999611 ],
+       ...,
+       [-0.31728691, -0.04764174,  0.54298446,  1.01014822],
+       [ 0.04000494,  0.15333484,  0.05178188,  0.08826632],
+       [ 0.23057919,  0.36424165,  0.10895567,  0.18281226]],
+      shape=(320, 4)), 'factual_shift': array([[ 6.31532432e-06,  1.00101277e-05, -1.97780091e-06,
+        -4.33984370e-06],
+       [-2.49280666e-06, -7.
+best188
+label ridge_1e-05
+dirs (192, 2) norm 5.41206 small values 
+kl 0.00042278443367740784
+rms {'glucose_finger': np.float64(0.2697626139125298), 'glucose_lab': np.float64(0.2701111808990397), 'map_arterial': np.float64(0.18902725564208214), 'map_cuff': np.float64(0.2502358226235345)}
+slopes {'glucose_finger': -0.19590929766060625, 'glucose_lab': -0.16433030540049706, 'map_arterial': 0.9332077099836112, 'map_cuff': 1.251882103801596}
+cross {'glucose_finger': 0.2896998061828172, 'glucose_lab': 1.1037621180799433, 'map_arterial': 0.024963782716179744, 'map_cuff': 0.027810183630891726}
+score 0.15968022214739647
+candidate158
+z_post.0.weight (192, 576) norm 4871.57373
+z_post.0.bias (192,) norm 25.74736
+z_post.2.weight (64, 192) norm 30.17086
+z_post.2.bias (64,) norm 1.27439
+z_in.weight (192, 32) norm 125.1004
+z_in.bias (192,) norm 1.61347
+zero_weights154
+z_post.0.weight (192, 576) norm 4871.57373
+z_post.0.bias (192,) norm 25.74736
+z_post.2.weight (64, 192) norm 30.17086
+z_post.2.bias (64,) norm 1.27439
+z_in.weight (192, 32) norm 5.47723
+z_in.bias (192,) norm 1.61347
+candidate139
+z_post.0.weight (192, 576) norm 4871.57373
+z_post.0.bias (192,) norm 25.74736
+z_post.2.weight (64, 192) norm 30.17086
+z_post.2.bias (64,) norm 1.27439
+z_in.weight (192, 32) norm 27.24744
+z_in.bias (192,) norm 1.61347
+candidate193
+z_post.0.weight (192, 576) norm 4871.57373
+z_post.0.bias (192,) norm 25.74736
+z_post.2.weight (64, 192) norm 30.17086
+z_post.2.bias (64,) norm 1.27439
+z_in.weight (192, 32) norm 7.70003
+z_in.bias (192,) norm 1.61347
+
+=== CURRENT VS ORIGINAL WEIGHTS ===
+z_in.bias (192,) difference norm 0.44445735216140747
+z_in.weight (192, 32) difference norm 15.234688758850098
+z_post.0.bias (192,) difference norm 25.71721839904785
+z_post.0.weight (192, 576) difference norm 4871.53369140625
+z_post.2.bias (64,) difference norm 0.6329965591430664
+z_post.2.weight (64, 192) difference norm 30.920000076293945
+current added routing norms [7.638143539428711, 7.6694488525390625]
+zero base z_post.0.weight difference from original 4871.53369140625
+zero base z_post.0.bias difference from original 25.71721839904785
+zero base z_post.2.weight difference from original 30.920001983642578
+zero base z_post.2.bias difference from original 0.6329965591430664
+zero base z_in.weight difference from original 10.880828857421875
+zero base z_in.bias difference from original 0.44445735216140747
+
+=== RECORD OBJECTS ===
+df (1997441, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+tune (26251, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+sub (241638, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+P (780000, 6) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepin
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,43 @@
+OUTPUT of Python run 119 of at most 300:
+```
+{'x': ((4932, 992), dtype('float32')), 'stay_id': ((4932,), dtype('int64')), 'hour': ((4932,), dtype('float64')), 'has_insulin': ((4932,), dtype('bool')), 'has_norepinephrine': ((4932,), dtype('bool')), 'n_atoms': ((4932,), dtype('int64'))}
+{'ok': True, 'type': 'states', 'split': 'tuning', 'n_stays': 100, 'results': {'original': {'file': 'states_original.npz', 'rows': 4932, 'layout': 'x[:, 0:192] = out, x[:, 192 + 192*s : 384 + 192*s] = slot s of h (s = 0..3), x[:, 960:992] = z posterior mean; one row per bundle, after the bundle', 'other_arrays': ['stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']}}, 'edited_tensors': None, 'edit_hash': 'none', 'seconds': 2.9, 'gpu_peak_mib': 274}
+def cross_mem(W, x, L, Mt, ages, age_unit, age_mode):
+    if Mt is None or Mt.shape[0]==0: return torch.zeros_like(x)
+    a = ages/3600.0 if age_unit=='h' else ages
+    ae = mlp(W, torch.log1p(a)[:,None], 'core.age')
+    xq = lnorm(W, x, L+'.norm2')
+    if age_mode=='key':
+        return mha(W, xq, Mt, L+'.cross', kadd=ae)
+    else:
+        return mha(W, xq, Mt+ae, L+'.cross')
+def core_step(W, out, h, dt, e, u, z_override=None, Mt=None, ages=None, opt=None):
+    o = opt or {}
+    hf = h * torch.exp(-dt * torch.exp(W['core.flow.a']))
+    g = mlp(W, torch.tensor([math.log(dt)/10], dtype=T), 'gap')
+    ctx = out + lnorm(W, hf.mean(0), 'core.out_norm') + g
+    zp = mlp(W, torch.cat([ctx, e, u]), 'z_post'); z = zp[:32] if z_override is None else z_override
+    tok = torch.cat([hf + W['core.slots'], e[None], u[None], lin(W, z, 'z_in')[None]], 0)
+    mask = o.get('pmask')
+    tok = self_layer(W, tok, 'core.prelude.0', mask=mask)
+    E = lnorm(W, tok[:4], 'core.prelude_norm')
+    x = hf + E
+    for L in ['core.blocks.0.0','core.blocks.0.1']:
+        a_ = lnorm(W, x, L+'.norm1'); x = x + mha(W, a_, a_, L+'.attn')
+        x = x + cross_mem(W, x, L, Mt, ages, o.get('age_unit','s'), o.get('age_mode','key'))
+        x = x + mlp(W, lnorm(W, x, L+'.norm3'), L+'.ffn')
+    sp = F.softplus(W['core.delta_in']); abar = torch.exp(-sp*torch.exp(W['core.a_in']))
+    h2 = abar*hf + sp*(E @ W['core.b_in.weight'].T) + (x - (hf + E))
+    y = self_layer(W, h2 @ W['core.c_out.weight'].T, 'core.coda.0')
+    return lnorm(W, y.mean(0), 'core.out_norm'), y, z, dict(E=E, hf=hf, ctx=ctx)
+
+ACTMAP = {}
+_ACTS = {'silu':F.silu,'gelu':F.gelu,'gelu_tanh':(lambda x: F.gelu(x,approximate='tanh')),'relu':F.relu}
+def act_for(n):
+    for p,a in ACTMAP.items():
+        if n.startswith(p): return _ACTS[a]
+    return F.silu
+def mlp(W, x, n): return lin(W, act_for(n)(lin(W, x, n+'.0')), n+'.2')
+
+
+```

@@ -1,0 +1,18 @@
+The second check also passes. On 100 other tuning stays (sel2), edited value NLL is 1.62797 against the original's 1.62820 (−0.0002, essentially neutral). By event:
+
+| Event | NLL change on sel2 |
+|---|---|
+| glucose_finger | −0.0036 |
+| glucose_lab | +0.0005 |
+| map_arterial | +0.0045 |
+| map_cuff | −0.0011 |
+
+Pooled over both sets (about 9,800 readings), the edit improves the fit by roughly 0.0012 nats per reading. The two sets differ by about 0.002, so on the unseen evaluation stays I expect a change of about −0.001 ± 0.002. That is far from the +0.005 limit, so the factual fit should hold.
+
+I still need the tool to measure the dose effects on stays I did not use to choose the scale factors. The local scan picked (3,10) on sel1, which risks over-fitting to those stays. This pass runs dose_edit on sel2 for both models, with the same random numbers.
+- **Confirms:** the edited model's NE ×2 is roughly 3 and its NE ×½ roughly −2.2. Both should clearly exceed the original's (about +1, −0.5), and insulin should be near the original's (about −2 / +1.5).
+- **Refutes:** the NE gains largely vanish on sel2, which would mean the scan fitted noise in sel1.
+
+```forward
+{"type": "dose_edit", "model": "both", "split": "tuning", "stays": [2020000001, 2020000005, 2020000020, 2020000021, 2020000027, 2020000030, 2020000031, 2020000032, 2020000033, 2020000037, 2020000040, 2020000043, 2020000044, 2020000047, 2020000048, 2020000050, 2020000051, 2020000054, 2020000057, 2020000058, 2020000059, 2020000060, 2020000062, 2020000063, 2020000064, 2020000065, 2020000068, 2020000069, 2020000070, 2020000071, 2020000073, 2020000074, 2020000075, 2020000077, 2020000078, 2020000079, 2020000080, 2020000081, 2020000082, 2020000083, 2020000084, 2020000085, 2020000086, 2020000087, 2020000088, 2020000089, 2020000090, 2020000092, 2020000094, 2020000095, 2020000096, 2020000098, 2020000099, 2020000100, 2020000101, 2020000103, 2020000104, 2020000107, 2020000108, 2020000110, 2020000111, 2020000113, 2020000114, 2020000116, 2020000118, 2020000119, 2020000120, 2020000121, 2020000122, 2020000123, 2020000124, 2020000125, 2020000126, 2020000127, 2020000128, 2020000129, 2020000130, 2020000131, 2020000132, 2020000133, 2020000134, 2020000135, 2020000136, 2020000137, 2020000138, 2020000140, 2020000141, 2020000142, 2020000143, 2020000144, 2020000145, 2020000147, 2020000148, 2020000149, 2020000150, 2020000151, 2020000152, 2020000153, 2020000154, 2020000155]}
+```

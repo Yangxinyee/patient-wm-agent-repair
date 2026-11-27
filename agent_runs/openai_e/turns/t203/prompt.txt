@@ -1,0 +1,66 @@
+OUTPUT of Python run 173 of at most 300:
+```
+INPUT COMPARISONS
+base162 {'rms': 0.4448084831237793, 'minus_static': 2.4509793306037864e-08, 'minus_projection': 0.27793657779693604, 'plus_projection': 0.7420281767845154}
+d169 {'rms': 0.3406943678855896, 'minus_static': 0.27793657779693604, 'minus_projection': 2.29329817358348e-08, 'plus_projection': 0.6813887357711792}
+resid169 {'rms': 2.4256942448271698e-08, 'minus_static': 0.44480848303594284, 'minus_projection': 0.3406943791241225, 'plus_projection': 0.3406943791241191}
+
+STATIC OBJECT NAMES
+base_logits143 (4751, 17)
+build_static167 function
+gap0 (4751, 192)
+head_static (4751, 192)
+local_logits (4751, 17)
+logits_all121 (4751, 17)
+logits_all122 (4751, 17)
+logits_base136 (4751, 17)
+mlp0 function
+q0 (4751, 192)
+static167 (4751, 192)
+static168 (4751, 192)
+static45 (31, 192)
+static_all122 (4751, 192)
+train_static168 (4510, 192)
+zp0 (4751, 64)
+
+HELPER IMPLEMENTATIONS
+head_calc args ('input0', 'idx', 'kind')
+74: RESUME
+75: LOAD_FAST idx | POP_JUMP_IF_NOT_NONE to 32
+76: LOAD_GLOBAL head_transition | LOAD_GLOBAL head_centres | STORE_FAST ctr0 | STORE_FAST trans0 | JUMP_FORWARD to 68
+78: LOAD_GLOBAL head_transition | LOAD_FAST idx | BINARY_SUBSCR | LOAD_GLOBAL head_centres | LOAD_FAST idx | BINARY_SUBSCR | STORE_FAST ctr0 | STORE_FAST trans0
+79: LOAD_GLOBAL NULL + activation0 | LOAD_GLOBAL NULL + linear0 | LOAD_FAST input0 | LOAD_CONST 'attr_heads.value_bin.0' | CALL | LOAD_FAST kind | CALL | STORE_FAST hidden0
+80: LOAD_GLOBAL NULL + linear0 | LOAD_FAST hidden0 | LOAD_CONST 'attr_heads.value_bin.2' | CALL | LOAD_FAST trans0 | BINARY_OP + | STORE_FAST logits0
+81: LOAD_FAST logits0 | LOAD_ATTR NULL|self + softmax | LOAD_CONST -1 | CALL | STORE_FAST prob0
+82: LOAD_FAST prob0 | LOAD_FAST ctr0 | BINARY_OP * | LOAD_ATTR NULL|self + sum | LOAD_CONST -1 | CALL | LOAD_FAST hidden0 | LOAD_FAST logits0 | BUILD_TUPLE | RETURN_VALUE
+readout125 args ('h', 'out', 'src', 'dt', 'static', 'transition', 'centres')
+3: RESUME
+5: LOAD_GLOBAL readout121 | LOAD_ATTR __defaults__ | STORE_FAST defaults125
+6: LOAD_FAST src | POP_JUMP_IF_NOT_NONE to 48 | LOAD_FAST defaults125 | LOAD_CONST 0 | BINARY_SUBSCR | JUMP_FORWARD to 50 | LOAD_FAST src | STORE_FAST src
+7: LOAD_FAST dt | POP_JUMP_IF_NOT_NONE to 66 | LOAD_FAST defaults125 | LOAD_CONST 1 | BINARY_SUBSCR | JUMP_FORWARD to 68 | LOAD_FAST dt | STORE_FAST dt
+8: LOAD_FAST static | POP_JUMP_IF_NOT_NONE to 86 | LOAD_GLOBAL static_all122 | JUMP_FORWARD to 88 | LOAD_FAST static | STORE_FAST static
+9: LOAD_FAST transition | POP_JUMP_IF_NOT_NONE to 104 | LOAD_FAST defaults125 | LOAD_CONST 3 | BINARY_SUBSCR | JUMP_FORWARD to 106 | LOAD_FAST transition | STORE_FAST transition
+10: LOAD_FAST centres | POP_JUMP_IF_NOT_NONE to 122 | LOAD_FAST defaults125 | LOAD_CONST 4 | BINARY_SUBSCR | JUMP_FORWARD to 124 | LOAD_FAST centres | STORE_FAST centres
+11: LOAD_FAST h | LOAD_FAST src | BINARY_SUBSCR | LOAD_GLOBAL NULL + torch | LOAD_ATTR exp
+12: LOAD_FAST dt | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | BUILD_TUPLE | BINARY_SUBSCR | UNARY_NEGATIVE | LOAD_GLOBAL NULL + torch | LOAD_ATTR exp | LOAD_GLOBAL W0 | LOAD_CONST 'core.flow.a' | BINARY_SUBSCR | CALL | LOAD_CONST None | LOAD_CONST None | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | BINARY_OP *
+11: CALL | BINARY_OP * | STORE_FAST flowed
+13: LOAD_FAST out | LOAD_FAST src | BINARY_SUBSCR | LOAD_GLOBAL NULL + norm0 | LOAD_FAST flowed | LOAD_ATTR NULL|self + mean | LOAD_CONST 1 | KW_NAMES ('dim',) | CALL | LOAD_CONST 'core.out_norm' | CALL | BINARY_OP +
+14: LOAD_GLOBAL NULL + mlp0 | LOAD_GLOBAL NULL + torch | LOAD_ATTR log | LOAD_FAST dt | LOAD_ATTR NULL|self + clamp_min | LOAD_CONST 1e-06 | CALL | CALL | LOAD_CONST 10.0 | BINARY_OP / | LOAD_CONST 'gap' | CALL
+13: BINARY_OP + | STORE_FAST ctx
+15: LOAD_GLOBAL NULL + mlp0 | LOAD_FAST ctx | LOAD_CONST 'z_prior' | CALL | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | LOAD_CONST 32 | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | STORE_FAST zmean
+16: LOAD_GLOBAL NULL + norm0 | LOAD_FAST ctx | LOAD_GLOBAL NULL + linear0 | LOAD_FAST zmean | LOAD_CONST 'z_head' | CALL | BINARY_OP +
+17: LOAD_GLOBAL W0 | LOAD_CONST 'type_emb.weight' | BINARY_SUBSCR | LOAD_CONST 1 | BINARY_SUBSCR
+16: BINARY_OP +
+17: LOAD_CONST 'query_norm'
+16: CALL | STORE_FAST q
+18: LOAD_GLOBAL torch | LOAD_ATTR nn | LOAD_ATTR functional | LOAD_ATTR NULL|self + gelu
+19: LOAD_GLOBAL NULL + linear0 | LOAD_FAST q | LOAD_FAST static | BINARY_OP + | LOAD_CONST 'attr_heads.value_bin.0' | CALL
+18: CALL | STORE_FAST hidden
+20: LOAD_GLOBAL NULL + linear0 | LOAD_FAST hidden | LOAD_CONST 'attr_heads.value_bin.2' | CALL | LOAD_FAST transition | BINARY_OP + | STORE_FAST logits
+21: LOAD_FAST logits | LOAD_ATTR NULL|self + softmax | LOAD_CONST -1 | CALL | STORE_FAST prob
+22: LOAD_FAST prob | LOAD_FAST centres | BINARY_OP * | LOAD_ATTR NULL|self + sum | LOAD_CONST -1 | CALL | LOAD_FAST logits | LOAD_FAST prob | LOAD_FAST hidden | BUILD_TUPLE | RETURN_VALUE
+
+GPU COLUMNS ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+RECENT NLL 1.6677666902542114 GPU 1.6346149652704693
+
+```

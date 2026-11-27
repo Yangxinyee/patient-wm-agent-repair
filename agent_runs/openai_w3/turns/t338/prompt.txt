@@ -1,0 +1,120 @@
+OUTPUT of Python run 292 of at most 300:
+```
+Installed alpha=0.01; tensors: ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.2.bias', 'core.prelude.0.ffn.2.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+
+=== FACTUAL PASS 29 ===
+{
+ "ok": true,
+ "type": "factual",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.63982,
+   "n_values": 4694,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1330,
+     "nll": 1.4567,
+     "mean_abs_error": 10.705
+    },
+    "glucose_lab": {
+     "n": 530,
+     "nll": 1.2759,
+     "mean_abs_error": 7.798
+    },
+    "map_arterial": {
+     "n": 1283,
+     "nll": 1.5565,
+     "mean_abs_error": 3.852
+    },
+    "map_cuff": {
+     "n": 1551,
+     "nll": 1.9901,
+     "mean_abs_error": 5.681
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.64173,
+   "n_values": 4694,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1330,
+     "nll": 1.4616,
+     "mean_abs_error": 10.752
+    },
+    "glucose_lab": {
+     "n": 530,
+     "nll": 1.2823,
+     "mean_abs_error": 7.849
+    },
+    "map_arterial": {
+     "n": 1283,
+     "nll": 1.5565,
+     "mean_abs_error": 3.852
+    },
+    "map_cuff": {
+     "n": 1551,
+     "nll": 1.9895,
+     "mean_abs_error": 5.679
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "edited_tensors": [
+  "core.prelude.0.attn.kv.weight",
+  "core.prelude.0.attn.out.weight",
+  "core.prelude.0.attn.q.weight",
+  "core.prelude.0.ffn.2.bias",
+  "core.prelude.0.ffn.2.weight",
+  "z_in.bias",
+  "z_in.weight",
+  "z_post.0.bias",
+  "z_post.0.weight",
+  "z_post.2.bias",
+  "z_post.2.weight"
+ ],
+ "edit_hash": "35993d9fb6",
+ "seconds": 2.8,
+ "gpu_peak_mib": 232
+}
+
+
+=== CARRIER IMPLEMENTATION NOTES ===
+Python run 154; forwards 10. Constructed, but did not install, four-neuron gated physical-dose innovations with fresh whole-stay-held-out context policies, compensated posterior outputs, and two explicit orthogonal latent carrier directions. Candidate dictionaries post154/zin154/zb154 retained. Transport and physiological output calibration still required; current five zero-payload edits unchanged.
+Python run 187; forwards 10. Four-sensor calibration is nonlinear/ill-conditioned for NE; prioritize glucose_finger and map_arterial, retain alternate-sensor diagnostics. Refit full normalized-latent linear carriers on paired physical-dose contrasts at 0/.5/1.5/2/3 with factual covariance penalties and whole-stay holdout. No new edits yet.
+Python run 193; forwards 12. Pilot hash 3161239253 factual NLL 1.64438 vs 1.63982 (+.00456). Actual rollout shifts: insulin x2 -15.255, half +1.669; NE x2 +2.075, half -1.991. First meaningful transport success, but dose asymmetry and alternate-sensor errors need correction. Saved checkpoint193; investigating primary-preserving multi-sensor directions and temporal rollout shape. Current pilot unchanged.
+
+=== RELEVANT FUNCTION SIGNATURES / DEPENDENCIES ===
+repair_action_vectors (end_mode, multipliers) names: ('np', 'zeros', 'len', 'r41_action_idx', 'int64', 'enumerate', 'r40_info', 'event', 'r41_drug_names', 'index', '_replace', 'float', 'rate', 'dose', 'append', 'make_atom', 'torch', 'stack', 'mlp', 'index_add_', 'tensor', 'float32', 'clamp_min', 'layer_norm', 'sqrt', 'linear', 'log1p', 'numpy')
+posterior153 (ctx, e, u, weights) names: ('torch', 'cat', 'tensor153', 'F', 'gelu', 'linear')
+posterior261 (ctx, e, u) names: ('torch', 'cat', 'as_tensor', 'float32', 'affine261', 'F', 'gelu')
+hidden192 (after) names: ('F', 'gelu', 'linear', 'layer_norm')
+hidden220 (after) names: ('F', 'gelu', 'linear', 'layer_norm', 'w0_220', 'b0_220')
+readout134 (view) names: ('layer_norm', 'W', 'mlp', 'attr_static105', 'torch', 'as_tensor', 'transition97', 'softmax', 'centres105', 'sum')
+means105 (view) names: ('layer_norm', 'W', 'mlp', 'attr_static105', 'torch', 'as_tensor', 'transition97', 'softmax', 'centres105', 'sum')
+parts254 (tokens, original=False) names: ('load_original', 'load', 'torch', 'as_tensor', 'float32', 'reshape', 'transpose', 'chunk', 'softmax', 'np', 'sqrt', 'F', 'gelu')
+state_update82 (h, E, memory, mask, age, age_mode=0) names: ('layer82', 'torch', 'nn', 'functional', 'softplus', 'W', 'exp', 'linear', 'layer_norm', 'mean')
+
+=== DOSE-CHANNEL / READOUT VARIABLES ===
+carrier154: (192, 2)
+carrier_rows249: (2, 192)
+carrier_scale154: 0.02
+current_hidden220: (4213, 4, 768)
+directions187: (192, 2)
+hidden192: <function hidden192 at 0x735f66228fe0>
+hidden220: <function hidden220 at 0x735f66229120>
+orig_hidden220: (4213, 4, 768)
+posterior153: <function posterior153 at 0x735f7446b1a0>
+posterior261: <function posterior261 at 0x735f84db3d80>
+raw_hidden228: <function raw_hidden228 at 0x735f66228180>
+z_original153: (11, 1054, 32)
+z_pilot153: (11, 1054, 32)
+
+=== HEAD SHAPES ===
+{'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.2.bias': (17,), 'attr_heads.value_bin.2.weight': (17, 192), 'z_in.bias': (192,), 'z_in.weight': (192, 32), 'z_post.2.bias': (64,), 'z_post.2.weight': (64, 192)}
+
+```

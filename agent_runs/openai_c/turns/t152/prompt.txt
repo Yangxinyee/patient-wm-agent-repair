@@ -1,0 +1,204 @@
+OUTPUT of Python run 107 of at most 300:
+```
+=== EARLIER HEAD EXPERIMENTS ===
+## Python run 71: alignment audit
+- Numeric gain 4 retained. Comparing conditional drug-state directions under original and gain-4 weights.
+- Earlier selective corrections used original-state directions; checking whether this mismatch explains failure.
+- No new forward pass; passes used: 27.
+
+
+## Python run 72: gain-4 direction recalibration
+- Gain 4 changes the NE out direction markedly (old/new cosine -0.070 in run 71).
+- Checking stay-split stability and minimum-factual-variance sensors using gain-4 states.
+- No new edits or forward passes; passes used: 27.
+
+
+## Python run 73: recalibrated head pilot
+- Gain-4 dose directions are stable across stay halves: cosine 0.890 insulin, 0.948 NE.
+- New factual sensor SD: insulin 1.096, NE 0.222 rate units at ridge 1e-4.
+- Installed numeric gain 4 plus 20%-strength input shear on attr_heads.value_bin.0.weight.
+- Surrogate increments: insulin/glucose -0.270, NE/MAP +0.588 per rate unit.
+- Factorization verified; factual and rollout behavior remain untested. Forward passes: 27.
+
+
+## Python run 74: restart recovery
+- Re-reading architecture and recovering tuning IDs and pilot variables.
+- Current recalibrated head pilot remains installed; no edits changed.
+- Factual safety and rollout usefulness are still untested. Forward passes: 27.
+
+
+## Forward 28 / Python run 75: recalibrated pilot too strong
+- Strength 0.20: factual NLL 1.64358 vs 1.63461, increase +0.00897.
+- Saved its operation vectors and effective head transform in kernel variables.
+- Removed the head correction; numeric gain 4 alone is restored.
+- Inspecting the transform for a weaker, factual-safe pilot. Forwards used: 28.
+
+
+
+=== RECORD TARGET / SAFE BASELINE NOTES ===
+## Run 16 / forwards 9?10: candidate C results
+- Numeric dose/rate gain 4: factual NLL 1.63584 versus 1.63461 (+0.00123).
+- Probe rollouts: insulin x2 -2.503, half +1.691; NE x2 +0.127, half -0.003.
+- Modest insulin improvement, no adequate NE response. Retained while investigating targeted directions.
+- Python runs: 16; forward passes: 10.
+
+
+## Run 18: numeric gain 16
+- Latent-posterior action erasure had negligible factual and rollout effects (forwards 6?7).
+- Replaced numeric gain 4 with gain 16; no other edits.
+- Test whether stronger numeric signal remains factual-safe and avoids dose-response saturation.
+- Python runs: 18; forward passes: 10.
+
+
+## Python run 24: candidate D, selective slot shear
+- Applied numeric gain 4 plus a 15%-strength, rank-two left transformation of core.c_out.weight, factored exactly into allowed rank-one operations.
+- Based on dose-innovation state coefficients and reading surrogates; the output directions are orthogonal to the dose sensors (nilpotent correction).
+- Full-strength sensor noise was too high; this is a small empirical pilot, not a validated causal repair.
+- Next test factual NLL. Python runs: 24; forward passes: 13.
+
+
+## Forward 14 / Python run 25: reduce candidate D
+- Slot shear 0.15 plus numeric gain 4: factual NLL 1.64052 versus 1.63461, +0.00591, exceeding the limit; rejected at that strength.
+- Reduced shear to 0.08. Next inspect dose rollouts before further tuning.
+- repair_candidates now stores copied vector arrays; replay_ops restores candidates. pilot_basis and pilot_design define the shear.
+- Python runs: 25; forward passes: 14.
+
+
+## Forward 15 / restart
+- Numeric gain 4 + slot shear 0.08: insulin x2 -2.644, half +1.736; NE x2 +0.103, half -0.037.
+- The shear adds little beyond numeric gain 4; factual safety at 0.08 is untested.
+- Recovering identification evidence and architecture before further edits.
+- Python runs: 26; forward passes: 15.
+
+
+## Python run 28
+- Recovered record-based sensor-masked probe targets: insulin -12.036/+6.018; NE +4.732/-2.366. These are estimates, not counterfactual truth.
+- Restored factual-safe numeric gain 4 alone; slot shear gave too little benefit.
+- Inspecting direct reading-head corrections. Forward passes: 15.
+
+
+## Python run 34: numeric-value mixing pilot
+- Head NE pilot factual NLL 1.636318 vs original 1.634615 (+0.001703), but rollout benefit negligible; removed.
+- Retained numeric gain 4 and added a drug-dose/rate-to-numeric-value input shear with coefficient -2.
+- Measurement numeric inputs are unchanged; signs and factual safety require forward validation.
+- Candidate saved as numeric_value_mix_m2. Python runs: 34; forward passes: 17.
+
+
+## Python run 40: latent-input gain pilot
+- Installed numeric gain 4 plus gain 21 on the low-factual-variance latent dose-sensor subspace of z_in.weight.
+- Direct z_head and observation inputs unchanged. This tests posterior-latent participation in recurrent dose effects.
+- Factual safety and rollout direction remain untested. Forward passes: 19.
+
+
+## Python runs 42-47: architecture recovery and centered diagonal pilot
+- Recovered independent threshold and cross-fitted causal evidence: insulin immediate effect about -2, NE about +3, both persistent.
+- The 1e-4-penalty diagonal design has lowest surrogate factual variance among saved designs.
+- Installed numeric gain 4 plus 10%-strength out_norm gamma change and compensating beta change.
+- Inferred gamma/beta reconstruct observed h-to-out mapping nearly exactly; no weight values were read.
+- Linear immediate response increments: insulin/glucose -0.15, NE/MAP +0.25 per rate unit.
+- Run 46 applied both edits but failed only while saving; run 47 saved the installed candidate.
+- Factual safety and rollout effects untested. Forward passes used: 21.
+
+
+## Forward 22 / Python run 48: diagonal pilot rejected
+- out_norm diagonal 0.10 factual NLL 1.70378 vs 1.63461, increase +0.06917; rejected without a rollout pass.
+- Restored numeric gain 4. Observational readout coefficients are not reliable intervention gradients.
+- Auditing factored input/output shears before selecting the next pathway.
+- Forward passes used: 22.
+
+
+## Python run 52: stronger drug-numeric gain
+- Installed gain 16 on the joint dose/rate numeric direction; measurement numeric inputs unchanged.
+- Numeric gain 4 remains saved for rollback.
+- Hypothesis: larger drug-numeric signal strengthens causal rollout responses. Must check factual safety and saturation.
+- Forward passes used: 22.
+
+
+## Python run 53: query-state amplification pilot
+- Recovered existing gain-16 results: factual +0.00246, insulin -2.231/+1.531, NE +0.157/+0.085. No new forward pass spent; restored numeric gain 4.
+- Installed query_norm.weight scale 1.5, leaving its bias and reading registers unchanged.
+- Hypothesis: stronger state contribution at the reading head increases dose sensitivity. Factual safety is untested.
+- Forward passes used: 22.
+
+
+## Forward 23 / Python run 54: uniform query gain rejected
+- Query gamma x1.5 plus numeric gain 4: factual NLL 1.72639 vs 1.63461, +0.09178.
+- Restored numeric gain 4. The paired query-only changes relative to forward 9 can be used as an empirical head-sensitivity probe, not as an accepted repair.
+- Next assess whether a selective head correction can be predicted and made factual-safe.
+- Forward passes used: 23.
+
+
+## Python runs 60-61: time-flow pilot installed
+- Run 60 applied numeric gain 4 plus core.flow.a x1.15, then failed only during candidate saving.
+- Run 61 saved the existing candidate without repeating the edits.
+- Controlled head regressions fit their own perturbations but fail cross-perturbation transfer.
+- Testing whether between-bundle decay suppresses drug information; factual NLL is untested.
+- Forward passes used: 24.
+
+
+## Forward 25 / Python run 63: flow edit rejected
+- core.flow.a x1.15 factual NLL 1.73963 vs 1.63461, increase +0.10502.
+- Removed flow scaling; restored numeric gain 4 alone.
+- Recovering early causal evidence and selective action/readout designs.
+- Forward passes used: 25.
+
+
+## Forward 28 / Python run 75: recalibrated pilot too strong
+- Strength 0.20: factual NLL 1.64358 vs 1.63461, increase +0.00897.
+- Saved its operation vectors and effective head transform in kernel variables.
+- Removed the head correction; numeric gain 4 alone is restored.
+- Inspecting the transform for a weaker, factual-safe pilot. Forwards used: 28.
+
+
+## Forwards 29?30 / Python run 77: head pilot rejected; identity pilot
+- Head strength 0.10 factual increase +0.00303 passed the probe constraint.
+- Rollouts: insulin -2.561/+1.697; NE +0.100/+0.016. Negligible benefit.
+- Removed head shear; retained numeric gain 4.
+- New exploratory test zeros only insulin and NE rows of embed.code.weight.
+- Numeric doses/rates, fine bins, kinds and units remain available.
+- Hypothesis: fixed treatment-identity components mask useful dose variation.
+- Factual safety and rollout benefit remain untested. Forward passes: 30.
+
+
+## Restart / Python run 78
+- Forward 31 identity ablation increased factual NLL by +0.00658; rejected.
+- Removed both drug-code row ablations; restored numeric gain 4 alone.
+- Recovering architecture, early causal evidence, and saved helpers before another selective edit.
+- Forward passes used: 31; 19 remain.
+
+
+
+=== RETAINED HEAD VARIABLES ===
+A72 ndarray (192, 7)
+B72 ndarray (7, 2)
+D72 ndarray (2, 192)
+O72 ndarray (4510, 192)
+P72 ndarray (192, 192)
+R72 ndarray (192, 2)
+S72 ndarray (192, 192)
+T72 ndarray (192, 2)
+W72 ndarray (2, 192)
+a72 ndarray (192,)
+b72 ndarray (192,)
+ca72 ndarray (192, 7)
+conditional_transition_slopes72 function (rows, Y)
+cov72 ndarray (192, 192)
+desired72 ndarray (2, 2)
+dose_gain4_72 ndarray (2, 992)
+drug72 str 'norepinephrine'
+error73 float64 ()
+ev72 str 'map_cuff'
+events72 ndarray (4510,)
+evmask72 ndarray (4510,)
+factor73 ndarray (192, 192)
+fold_coeff72 length 2 sample [array([[-4.59202737e-03,  6.13406996e-04,  3.60038406e-05, ...,
+        -6.68082194e-04,  2.50878486e-03,  1.94966893e-03],
+       [ 2.77356350e-02, -3.63135143e-03, -6.53713505e-03, ...,
+         1.53590782e-02,  1.868
+gain4_transition72 ndarray (4035, 992)
+head_basis73 ndarray (192, 4)
+head_basis_goal ndarray (192, 192)
+head_name73 str 'attr_heads.value_bin.0.weight'
+he
+[output cut at 10,000 characters]
+```

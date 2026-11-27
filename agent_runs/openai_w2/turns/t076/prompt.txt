@@ -1,0 +1,101 @@
+OUTPUT of Python run 61 of at most 300:
+```
+--- RELEVANT EARLIER DIAGNOSTICS ---
+## Run 22: consolidated evidence and alignment audit
+Insulin clean lab threshold estimates approximately -1.55/rate unit; history-adjusted lab estimates approximately -1.97. NE rich-history estimates approximately +3.5 to +3.9/rate unit. Positive persistence is supported, but accumulated rollout targets remain uncertain. No edits; inspecting state/head alignment and exact features.
+
+## Run 24: register and activation audit
+MAP discrepancies can be explained by four-draw latent sampling. Searching glucose register flags and boundary conventions. Best config: {'activation': 'gelu', 'gap_mode': 'seconds_div10', 'type_id': 1, 'status_id': 0, 'age_mode': 'seconds_div10', 'zcol': 6, 'acol': 3, 'flags': (0,), 'mean_rmse': 3.579830679304847, 'nll_rmse': 0.40590378333394833, 'score': 4.797542029306692, 'gap_activation': 'gelu', 'prior_activation': 'gelu', 'value_activation': 'gelu'}; bin_side=left
+                    bias       mse  expected_sampling_mse
+event                                                    
+glucose_finger  0.075964  3.536782               3.391510
+glucose_lab    -0.232425  3.000851               3.494703
+map_arterial   -0.008901  0.559775               0.686899
+map_cuff        0.122907  1.171264               1.218299
+
+## Runs 25?26: successful head reconstruction and diagnostic dose probe
+All 4660 reading means reconstructed without meaningful channel bias (glucose_finger -0.040, lab -0.091, MAP arterial -0.0002, cuff +0.003).
+Head config: GELU for gap/prior/value; query type 1; status 0; last flags (0,), age column 3, value-z column 6; age log1p(seconds)/10; bin side left. Original states: S_reference; baseline head features: head_original_features, 64 prior draws, seed 917.
+Run 25 stopped before saving because load_original returns torch.Tensor; run 26 fixed with clone(). Temporary edit ONLY embed.numeric.weight: presence columns 3/5 receive 0.5 times numeric dose/rate columns 2/4. Equivalent rate increments: {'insulin': 0.5, 'norepinephrine': 0.30000000000000004}.
+Restore embed.numeric.weight after obtaining probe states. Bins are unchanged; the final correction must be tested with exact dose_edit.
+F includes current drug exposures: exclude the target drug's current exposure when estimating its assignment from pre-dose history.
+
+## Run 27: probe collected, original embedding restored
+Forward 5 returned 4350 bundle states for the same 100 training stays. Saved as S_probe; removed temporary embed.numeric.weight edit. Recovering architecture and kernel analysis before constructing a lasting correction.
+
+## Run 30: matched head-dose probe
+Probe rows align exactly. RMS state differences: out 0.01181, h 0.7450, posterior z 0.04997. Original embedding remains restored. Used validated head_cfg and matched state globals to compute head_probe_features with the same 64 prior draws (seed 917); head_probe_delta_hidden records the controlled hidden-feature changes.
+
+## Run 31: configuration aliasing fixed
+Run 30 used a mutable head_cfg that did NOT match the validated reconstruction; its reported probe differences must not be used. Frozen repair_head_cfg explicitly: all GELU, type 1, status 0, flags (0,), age col 3, value-z col 6, log1p(seconds)/10, bin side left. Recomputed repair_original_features and repair_probe_features with matched 64 prior draws (seed 917). Use repair_delta_hidden, not head_probe_delta_hidden, for fitting.
+
+## Run 32: multi-draw, held-out dose-direction diagnostic
+Frozen head reconstruction exactly matches saved original features. Collected 8 matched single-prior draws (1701..1708) in probe_draw_store. 70/30 stay split, standardized hidden features plus intercept. Fitted small linear dose-residual decoders using factual-zero and probe-response constraints; no weight edits installed.
+[{"probe_weight":0.5,"insulin_factual_rms":0.0046042331,"insulin_probe_gain":0.0003725883,"insulin_probe_rmse":0.2467015587,"norepinephrine_factual_rms":0.0051738076,"norepinephrine_probe_gain":0.003181226,"norepinephrine_probe_rmse":0.1175140045},{"probe_weight":2.0,"insulin_factual_rms":0.017939561,"insulin_probe_gain":0.0014598419,"insulin_probe_rmse":0.246445556,"norepinephrine_factual_rms":0.0177448216,"norepinephrine_probe_gain":0.0108292365,"norepinephrine_probe_rmse":0.1167052642},{"probe_weight":8.0,"insulin_factual_rms":0.066543762,"insulin_probe_gain":0.005473004,"insulin_probe_rmse":0.245568404,"norepinephrine_factual_rms":0.0553342212,"norepinephrine_probe_gain":0.0318937368,"norepinephrine_probe_rmse":0.1147169264},{"probe_weight":32.0,"insulin_factual_rms":0.2205939176,"insulin_probe_gain":0.0184436834,"insulin_probe_rmse":0.243132231,"norepinephrine_factual_rms":0.1650639249,"norepinephrine_probe_gain":0.0839051769,"norepinephrine_probe_rmse":0.1107185954},{"probe_weight":128.0,"insulin_factual_rms":0.6057959684,"insulin_probe_gain":0.0509720594,"insulin_probe_rmse":0.2386374954,"norepinephrine_factual_rms":0.4220075654,"norepinephrine_probe_gain":0.1775896231,"norepinephrine_probe_rmse":0.1056616833},{"probe_weight":512.0,"insulin_factual_rms":1.42675965,"insulin_probe_gain":0.1118989948,"insulin_probe_rmse":0.2356042328,"norepinephrine_factual_rms":0.8728858751,"norepinephrine_probe_gain":0.2797521816,"norepinephrine_probe_rmse":0.1040786225}]
+
+
+
+--- FUNCTION SIGNATURES ---
+act_fn ('x', 'activation')
+clean_insulin_rd ('outcome', 'label', 'bandwidth', 'adjusted')
+clustered_last_coef ('X', 'y', 'clusters')
+compact ('x',)
+drop_edit ('name',)
+edited ()
+eigh ()
+fit_dml ('drug', 'outcome', 'label', 'extra_mask', 'max_rows')
+fit_latent_record_model ('data', 'sensors', 'drug', 'fixed_b', 'iterations', 'initial_parameters')
+fn ('data_panel', 'stays', 'b_insulin', 'rho_insulin', 'b_ne', 'rho_ne')
+head_mlp ('x', 'prefix', 'activation')
+head_norm ('x', 'prefix')
+hw ('name',)
+install_numeric_amplification ('scale',)
+insulin_rd ('outcome', 'label', 'bandwidth', 'adjusted')
+linear_rollout_targets ('data_panel', 'drug', 'b', 'a')
+load ('name',)
+load_original ('name',)
+local_iv ('data', 'running', 'outcome', 'cutoff', 'bw', 'adjust')
+local_value_head ('data', 'cfg', 'bin_side', 'zmode', 'nsamples', 'return_features', 'seed')
+logsumexp ('a', 'axis', 'b', 'keepdims', 'return_sign')
+make_panel ('df',)
+record_impulse_targets ('data_panel', 'stays', 'b_insulin', 'rho_insulin', 'b_ne', 'rho_ne')
+rich_dml ('drug', 'outcome', 'label', 'extra', 'max_rows')
+save_edit ('name', 'tensor')
+sensor_iv_persistence ('gold', 'proxy', 'drug', 'drug_effect')
+softmax ('x', 'axis')
+solve ('a', 'b', 'lower', 'overwrite_a', 'overwrite_b', 'check_finite', 'assume_a', 'transposed')
+
+--- PRELUDE AND VALUE-HEAD SHAPES ---
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+
+--- FORWARD FILES ---
+1 ['summary.json', 'dose_edit_original.csv']
+2 ['summary.json', 'factual_original.csv']
+3 ['summary.json', 'states_original.npz']
+4 ['summary.json', 'factual_original.csv']
+5 ['summary.json', 'states_edited.npz']
+6 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+7 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+8 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+9 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+10 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+11 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+12 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+
+```

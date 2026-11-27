@@ -1,0 +1,52 @@
+OUTPUT of Python run 180 of at most 300:
+```
+[('attr_heads.rate_bin.0.bias', (192,)), ('attr_heads.rate_bin.0.weight', (192, 192)), ('attr_heads.rate_bin.2.bias', (17,)), ('attr_heads.rate_bin.2.weight', (17, 192)), ('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192)), ('embed.bins.dose.weight', (17, 192)), ('embed.bins.rate.weight', (17, 192)), ('embed.bins.value.weight', (17, 192)), ('embed.categorical.action.weight', (2, 192)), ('embed.categorical.discharged_to.weight', (2, 192)), ('embed.categorical.rate_unit.weight', (4, 192)), ('embed.categorical.route.weight', (2, 192)), ('embed.categorical.status.weight', (2, 192)), ('embed.categorical.unit.weight', (6, 192)), ('embed.code.weight', (13, 192)), ('embed.ekind.weight', (5, 192)), ('embed.kind.weight', (3, 192)), ('embed.kq.weight', (4, 192)), ('embed.numeric.bias', (192,)), ('embed.numeric.weight', (192, 6)), ('embed.text.weight', (2, 192)), ('embed_transition.rate_bin.weight', (221, 17)), ('embed_transition.value_bin.weight', (221, 17))]
+92 [4, 10, 13, 16, 20, 21, 23, 25, 27, 62, 68, 69, 72, 73, 74, 75, 85]
+3 likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+4 Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+5 `vocab.json["config"]`.
+9 A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+10 **atom**. An atom has:
+11 - a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+12   hospital_admission, icu_admission;
+13 - an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+14 - its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+15 
+16 **Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+17 - code: `embed.code[code]`;
+19 - unit: the `embed.categorical.*` tables;
+20 - fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+21 - numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+22 
+23 Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+24 
+25 **Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+26 - Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+27 - Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+28   none).
+61 - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+62 - **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+63   (Poisson).
+67       with_code = q + embed.code[code]
+68                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+69                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+70 
+71   The "last" fields are a register: the most recent earlier value of the same code in this stay.
+72   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+73     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+74     (`vocab.json["value_bin_centres"]`).
+75   - **rate:** `rate_bin` works the same way for drug rates.
+76   - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+84    back in.
+85 3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+86    embedding. All other events are as recorded.
+Traceback (most recent call last):
+  File "<run>", line 12, in <module>
+  File "<run>", line 4, in eval_edit
+  File "<run>", line 13, in head_run
+  File "<string>", line 8, in q_from_rows
+  File "<string>", line 18, in ctx_from_state
+  File "<string>", line 14, in mlp2
+TypeError: <lambda>() takes 1 positional argument but 2 were given
+
+```

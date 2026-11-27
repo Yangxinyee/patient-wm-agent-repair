@@ -1,0 +1,190 @@
+OUTPUT of Python run 104 of at most 300:
+```
+=== VOCAB CONFIGURATION ===
+keys ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+=== ACTION-ENCODER HELPER DEPENDENCIES ===
+action_atom_exact arguments ('event', 'rates', 'doses', 'kind', 'bin_mode')
+uses ('np', 'asarray', 'float64', 'reshape', 'round', 'len', 'torch', 'zeros', 'W0', 'code_id', 'expand', 'clone', 'norm_meta', 'as_tensor', 'clip', 'float32', 'searchsorted', 'astype', 'lin0')
+  7           0 RESUME                   0
+
+  8           2 LOAD_GLOBAL              0 (np)
+             12 LOAD_ATTR                3 (NULL|self + asarray)
+             32 LOAD_FAST                1 (rates)
+             34 LOAD_GLOBAL              0 (np)
+             44 LOAD_ATTR                4 (float64)
+             64 KW_NAMES                 1 (('dtype',))
+             66 CALL                     2
+             74 LOAD_ATTR                7 (NULL|self + reshape)
+             94 LOAD_CONST               2 (-1)
+             96 CALL                     1
+            104 STORE_FAST               5 (raw_rates)
+
+ 10         106 LOAD_FAST                2 (doses)
+            108 POP_JUMP_IF_NOT_NONE    32 (to 174)
+
+  9         110 LOAD_GLOBAL              0 (np)
+            120 LOAD_ATTR                9 (NULL|self + round)
+            140 LOAD_FAST                5 (raw_rates)
+            142 LOAD_FAST                0 (event)
+            144 LOAD_CONST               3 ('insulin')
+            146 COMPARE_OP              40 (==)
+            150 POP_JUMP_IF_FALSE        2 (to 156)
+            152 LOAD_CONST               4 (1)
+            154 JUMP_FORWARD             1 (to 158)
+        >>  156 LOAD_CONST               5 (4.8)
+        >>  158 BINARY_OP                5 (*)
+            162 LOAD_CONST               6 (8)
+            164 CALL                     2
+            172 JUM
+set_encode_single_local arguments ('atoms', 'prefix')
+uses ('mlp0', 'torch', 'full', 'len', 'np', 'log', 'float32', 'norm0', 'lin0')
+ 30           0 RESUME                   0
+
+ 31           2 LOAD_GLOBAL              1 (NULL + mlp0)
+             12 LOAD_FAST                0 (atoms)
+             14 LOAD_FAST                1 (prefix)
+             16 LOAD_CONST               1 ('.mlp1')
+             18 BINARY_OP                0 (+)
+             22 LOAD_CONST               2 ('gelu')
+             24 CALL                     3
+             32 STORE_FAST               2 (encoded)
+
+ 32          34 LOAD_GLOBAL              2 (torch)
+             44 LOAD_ATTR                5 (NULL|self + full)
+             64 LOAD_GLOBAL              7 (NULL + len)
+             74 LOAD_FAST                0 (atoms)
+             76 CALL                     1
+             84 LOAD_CONST               3 (1)
+             86 BUILD_TUPLE              2
+             88 LOAD_GLOBAL              8 (np)
+             98 LOAD_ATTR               11 (NULL|self + log)
+            118 LOAD_CONST               4 (2)
+            120 CALL                     1
+            128 LOAD_GLOBAL              2 (torch)
+            138 LOAD_ATTR               12 (float32)
+            158 KW_NAMES                 5 (('dtype',))
+            160 CALL                     3
+            168 STORE_FAST               3 (size)
+
+ 33         170 LOAD_GLOBAL             15 (NULL + norm0)
+            180 LOAD_GLOBAL              1 (NULL + mlp0)
+            190 LOAD_FAST 
+wm_set arguments ('atoms', 'prefix')
+uses ('len', 'wm_mlp', 'sum', 'np', 'sqrt', 'max', 'torch', 'tensor', 'log1p', 'float32', 'wm_norm', 'wm_lin')
+ 12           0 RESUME                   0
+
+ 13           2 LOAD_GLOBAL              1 (NULL + len)
+             12 LOAD_FAST                0 (atoms)
+             14 CALL                     1
+             22 STORE_FAST               2 (n)
+
+ 14          24 LOAD_GLOBAL              3 (NULL + wm_mlp)
+             34 LOAD_FAST                0 (atoms)
+             36 LOAD_FAST                1 (prefix)
+             38 LOAD_CONST               1 ('.mlp1')
+             40 BINARY_OP                0 (+)
+             44 CALL                     2
+             52 LOAD_ATTR                5 (NULL|self + sum)
+             72 LOAD_CONST               2 (0)
+             74 LOAD_CONST               3 (True)
+             76 KW_NAMES                 4 (('keepdim',))
+             78 CALL                     2
+             86 LOAD_GLOBAL              6 (np)
+             96 LOAD_ATTR                9 (NULL|self + sqrt)
+            116 LOAD_GLOBAL             11 (NULL + max)
+            126 LOAD_FAST                2 (n)
+            128 LOAD_CONST               5 (1)
+            130 CALL                     2
+            138 CALL                     1
+            146 BINARY_OP               11 (/)
+            150 STORE_FAST               3 (agg)
+
+ 15         152 LOAD_GLOBAL             12 (torch)
+            162 LOAD_ATTR               15 (NULL|self + tensor)
+            182 LOAD_GLOBAL         
+action_vectors4 arguments ('drug', 'multiplier')
+uses ('torch', 'zeros', 'n4', 'acttable4', 'event', 'action_atom_exact', 'rate', 'to_numpy', 'dose', 'mlp0', 'index_add_', 'as_tensor', 'j', 'long', 'from_numpy', 'np', 'sqrt', 'maximum', 'counts_start4', 'log1p', 'norm0', 'lin0')
+ 18           0 RESUME                   0
+
+ 19           2 LOAD_GLOBAL              0 (torch)
+             12 LOAD_ATTR                3 (NULL|self + zeros)
+             32 LOAD_GLOBAL              4 (n4)
+             42 LOAD_CONST               1 (192)
+             44 CALL                     2
+             52 STORE_FAST               2 (aggregate)
+
+ 20          54 LOAD_CONST               2 (('insulin', 'norepinephrine'))
+             56 GET_ITER
+        >>   58 FOR_ITER               195 (to 452)
+             62 STORE_FAST               3 (event)
+
+ 21          64 LOAD_GLOBAL              6 (acttable4)
+             74 LOAD_GLOBAL              6 (acttable4)
+             84 LOAD_ATTR                8 (event)
+            104 LOAD_FAST                3 (event)
+            106 COMPARE_OP              40 (==)
+            110 BINARY_SUBSCR
+            114 STORE_FAST               4 (tab)
+
+ 22         116 LOAD_FAST                3 (event)
+            118 LOAD_FAST                0 (drug)
+            120 COMPARE_OP              40 (==)
+            124 POP_JUMP_IF_FALSE        2 (to 130)
+            126 LOAD_FAST                1 (multiplier)
+            128 JUMP_FORWARD             1 (to 132)
+        >>  130 LOAD_CONST               3 (1.0)
+        >>  132 STORE_FAST               5 (mult)
+
+ 23         134 LOAD_GLOBAL             11 (NULL + action_atom_exact)
+            144 LOAD_FA
+=== RATE BOOKKEEPING ===
+acttable4 columns ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour', 'minute', 'j']
+   stay_id   hour   event  value  rate  rate_unit  dose dose_unit  end_hour  minute  j
+1010000000 0.0833 insulin    NaN   1.0 units/hour   1.0     units    1.0833       5  3
+1010000000 2.0833 insulin    NaN   1.0 units/hour   1.0     units    3.0833     125  7
+1010000000 3.0833 insulin    NaN   1.0 units/hour   1.0     units    4.0833     185  9
+1010000000 5.0833 insulin    NaN   1.5 units/hour   1.5     units    6.0833     305 13
+records4 DataFrame (6549, 10)
+rows4 ndarray (4214,)
+sample [1 2 3 4 5 6]
+R4 ndarray (4214, 2)
+sample [[ 0.          0.        ]
+ [ 0.          0.        ]
+ [-0.05090618  0.        ]
+ [ 0.          0.        ]
+ [ 0.          0.        ]
+ [ 0.          0.        ]]
+means/max [0.00113284 0.00142053] [5.28663044 0.89415763]
+rate55 ndarray (4214, 2)
+sample [[0. 0.]
+ [0. 0.]
+ [1. 0.]
+ [0. 0.]
+ [0. 0.]
+ [0. 0.]]
+means/max [0.41694352 0.07403892] [8.5 1. ]
+dose_actual4 ndarray (4314, 2)
+sample [[0. 0.]
+ [0. 0.]
+ [0. 0.]
+ [1. 0.]
+ [0. 0.]
+ [0. 0.]]
+means/max [0.40727863 0.07232267] [8.5 1. ]
+active83 ndarray (4214, 2)
+sample [[False False]
+ [False False]
+ [ True False]
+ [False False]
+ [False False]
+ [False False]]
+means/max [0.23493118 0.14451827] [ True  True]
+startmask4 ndarray (4214,)
+sample [False False  True False False False]
+=== SINGLE-ACTION ENCODER CHECK ===
+insulin atom shape (7, 192) encoded shape (7, 192) finite True
+norepinephrine atom shape (7, 192) encoded shape (7, 192) finite True
+EDITS ['core.c_out.weight', 'core.coda.0.attn.out.weight', 'core.coda.0.ffn.2.bias', 'core.coda.0.ffn.2.weight']
+
+```

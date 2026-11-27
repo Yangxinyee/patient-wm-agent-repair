@@ -1,0 +1,233 @@
+OUTPUT of Python run 138 of at most 300:
+```
+=== REPLAY VARIABLES ===
+rx_C131: (192, 192)
+rx_E126: (48, 4, 192)
+rx_E131: (48, 4, 192)
+rx_U131: (48, 4, 192)
+rx_W: dict 181 ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weig
+rx_a_est131: (192,)
+rx_abar126: (192,)
+rx_age127: (48, 54)
+rx_ages: (48, 54)
+rx_arch: # The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the b
+=== DATA / CAUSAL OBJECTS ===
+rr_train (2002095, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+ss (475557, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+sub (242830, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+train (2002095, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+local projection keys: [('glucose_finger', 'insulin'), ('map_arterial', 'norepinephrine')]
+('glucose_finger', 'insulin') {'mask': array([ True,  True,  True, ..., False,  True,  True], shape=(480000,)), 'rd': array([ 0.55232358, -0.08961114, -0.6086102 , ...,         nan,
+       -0.04463369,  0.44220653], shape=(480000,)), 'propensity': array([2.94767642, 2.08961114, 2.1086102 , ...,        nan, 1.04463369,
+       2.05779347], shape=(480000,)), 'y_response': [(-1.850340141162819, 0.05921533919140744), (-2.1762604567431203, 0.06489918613459421), (-1.7410683131830231, 0.06761284716241134), (-1.2531025010849781, 0.06920144163811291), (-0.6551003687865006, 0.07183981699949399), (-0.3467783443919157, 0.07189773446145925)], 'dose_response': [(1.0, 0.0), (-0.043158439043129916, 0.00367638110517134), (-0.0563139519079
+('map_arterial', 'norepinephrine') {'mask': array([False, False, False, ..., False, False, False], shape=(480000,)), 'rd': array([nan, nan, nan, ..., nan, nan, nan], shape=(480000,)), 'propensity': array([nan, nan, nan, ..., nan, nan, nan], shape=(480000,)), 'y_response': [(3.3505774844819856, 0.11296414420802602), (5.0683432874472025, 0.1299952890881905), (5.506229788027758, 0.1425291933163007), (5.131865472690208, 0.1518675987200649), (4.4902343523316315, 0.15979000044670347), (3.944962670038462, 0.16692614695654193)], 'dose_response': [(1.0, 0.0), (0.7304205725783163, 0.004233601628482961), (0.5594909967595264, 0.0052650548567893035), (0.43833097967373025, 0.005683985328155739), (0.3576708447723065, 0.005847420576034897), 
+=== KERNEL NOTE EXCERPTS ===
+dits.
+Two-fold stay-separated HGB adjustment using pre-dose history, current main reading observed. Deconvolution separates later policy-dose changes from an estimated fixed-dose response. Requires conditional exogeneity; not established merely by this regression.
+('glucose_finger', 'insulin') y_response=[(-1.850340141162819, 0.05921533919140744), (-2.1762604567431203, 0.06489918613459421), (-1.7410683131830231, 0.06761284716241134), (-1.2531025010849781, 0.06920144163811291), (-0.6551003687865006, 0.07183981699949399), (-0.3467783443919157, 0.07189773446145925)] dose_response=[(1.0, 0.0), (-0.043158439043129916, 0.00367638110517134), (-0.056
+asses.
+
+## Run 61
+Recovered conditional one-hour effects (-1.9202 insulin, +3.3339 NE) and six-hour deconvolved kernels. Inspecting expected-dose fits and observation helper before a residual-based posterior edit. No edits. Counts: 61 Python runs, 6 forward passes.
+
+## Runs 63-64
+Run 63 stopped on NumPy/Torch type mismatch. Run 64 converts cached arrays before checking alignment and fit layout. No weights changed. Counts: 64 Python runs, 6 forward passes.
+
+## Run 65
+Testing atom-vector agreement, encoder implementation and posterior reconstruction. Checking bounded expected-dose errors on held-out stays. No edits. Counts: 65 Python runs, 6 fo
+sses.
+
+## Run 101
+Fresh training/tuning records and state exports loaded separately. Prior six-hour deconvolved kernels support dynamic?not constant-offset?repair. Inspecting corrected helper interfaces and previous latent candidates; none will be reused without alignment and extrapolation checks. No edits.
+Counts: 101 Python runs, 6 forward passes.
+
+## Run 102
+Fresh atom/bundle reconstruction with verified unit IDs. Export4 atom-count disagreements: 0 / 5215. Rejected obsolete innovation decoders because their dose extrapolation was distorted. No model weights edited.
+Counts: 102 Python runs, 6 forward passes.
+
+## Run 103
+Posterior reconstru
+oad reconstruction searches. No edits. Counts: 115 Python runs, 6 forward passes.
+
+## Run 116
+Prior deconvolved kernels imply multi-hour, decaying responses. Prioritizing a value-head-only algebraic edit to preserve other teacher-forced outputs. Checking atom construction and validated cache dependencies; no weights edited. Counts: 116 Python runs, 6 forward passes.
+
+## Run 117
+Comparing fresh and validated components only after alignment by exported posterior vectors. This isolates reconstruction errors from cache-order errors. No edits. Counts: 117 Python runs, 6 forward passes.
+
+## Run 118
+Aligned fresh context, observation, and action inp
+weights edited. Counts: 120 Python runs, 6 forward passes.
+
+
+## Run 121
+Recovered six-hour adjusted/deconvolved response kernels: insulin [-1.850,-2.256,-1.943,-1.561,-1.022,-0.690], NE [3.351,2.621,1.717,0.943,0.494,0.409]. These are record-based estimates under conditional exogeneity, not known simulator truth. Inspecting compact replay/head interfaces to construct a localized algebraic repair. No edits. Counts: 121 Python runs, 6 forward passes.
+
+
+## Run 122
+Value head has a 192-unit hidden layer and a 17-class linear output. Exact posterior inputs and exported full recurrent slots are available. Inspecting existing head reconstruction and
+=== LAYER IMPLEMENTATION ===
+0: RESUME 
+2: LOAD_FAST x
+4: LOAD_GLOBAL NULL + rx_attn
+14: LOAD_GLOBAL NULL + rx_norm
+24: LOAD_FAST x
+26: LOAD_FAST p
+28: LOAD_CONST '.norm1'
+30: BINARY_OP +
+34: CALL 
+42: LOAD_FAST p
+44: LOAD_CONST '.attn'
+46: BINARY_OP +
+50: CALL 
+58: BINARY_OP +
+62: STORE_FAST x
+64: LOAD_FAST memory
+66: POP_JUMP_IF_NONE to 142
+68: LOAD_FAST x
+70: LOAD_GLOBAL NULL + rx_cross
+80: LOAD_GLOBAL NULL + rx_norm
+90: LOAD_FAST x
+92: LOAD_FAST p
+94: LOAD_CONST '.norm2'
+96: BINARY_OP +
+100: CALL 
+108: LOAD_FAST memory
+110: LOAD_FAST age
+112: LOAD_FAST valid
+114: LOAD_FAST p
+116: LOAD_CONST '.cross'
+118: BINARY_OP +
+122: LOAD_FAST mode
+124: LOAD_FAST age_scale
+126: LOAD_FAST age_act
+128: CALL 
+136: BINARY_OP +
+140: STORE_FAST x
+142: LOAD_FAST x
+144: LOAD_GLOBAL NULL + rx_mlp
+154: LOAD_GLOBAL NULL + rx_norm
+164: LOAD_FAST x
+166: LOAD_FAST p
+168: LOAD_CONST '.norm3'
+170: BINARY_OP +
+174: CALL 
+182: LOAD_FAST p
+184: LOAD_CONST '.ffn'
+186: BINARY_OP +
+190: LOAD_FAST ff_act
+192: CALL 
+200: BINARY_OP +
+204: RETURN_VALUE 
+=== ATTENTION IMPLEMENTATION ===
+0: RESUME 
+2: LOAD_GLOBAL NULL + rx_linear
+12: LOAD_FAST x
+14: LOAD_FAST p
+16: LOAD_CONST '.q'
+18: BINARY_OP +
+22: CALL 
+30: STORE_FAST q
+32: LOAD_GLOBAL NULL + rx_linear
+42: LOAD_FAST x
+44: LOAD_FAST p
+46: LOAD_CONST '.kv'
+48: BINARY_OP +
+52: CALL 
+60: STORE_FAST kv
+62: LOAD_FAST q
+64: LOAD_ATTR shape
+84: UNPACK_SEQUENCE 
+88: STORE_FAST B
+90: STORE_FAST L
+92: STORE_FAST D
+94: LOAD_FAST q
+96: LOAD_ATTR NULL|self + reshape
+116: LOAD_FAST B
+118: LOAD_FAST L
+120: LOAD_CONST 4
+122: LOAD_CONST 48
+124: CALL 
+132: LOAD_ATTR NULL|self + transpose
+152: LOAD_CONST 1
+154: LOAD_CONST 2
+156: CALL 
+164: STORE_FAST q
+166: LOAD_GLOBAL rx_layout
+176: LOAD_CONST 'split'
+178: COMPARE_OP ==
+182: POP_JUMP_IF_FALSE to 372
+184: LOAD_FAST kv
+186: LOAD_ATTR NULL|self + chunk
+206: LOAD_CONST 2
+208: LOAD_CONST -1
+210: CALL 
+218: UNPACK_SEQUENCE 
+222: STORE_FAST k
+224: STORE_FAST v
+226: LOAD_FAST k
+228: LOAD_ATTR NULL|self + reshape
+248: LOAD_FAST B
+250: LOAD_FAST L
+252: LOAD_CONST 4
+254: LOAD_CONST 48
+256: CALL 
+264: LOAD_ATTR NULL|self + transpose
+284: LOAD_CONST 1
+286: LOAD_CONST 2
+288: CALL 
+296: STORE_FAST k
+298: LOAD_FAST v
+300: LOAD_ATTR NULL|self + reshape
+320: LOAD_FAST B
+322: LOAD_FAST L
+324: LOAD_CONST 4
+326: LOAD_CONST 48
+328: CALL 
+336: LOAD_ATTR NULL|self + transpose
+356: LOAD_CONST 1
+358: LOAD_CONST 2
+360: CALL 
+368: STORE_FAST v
+370: JUMP_FORWARD to 538
+372: LOAD_FAST kv
+374: LOAD_ATTR NULL|self + reshape
+394: LOAD_FAST B
+396: LOAD_FAST L
+398: LOAD_CONST 4
+400: LOAD_CONST 2
+402: LOAD_CONST 48
+404: CALL 
+412: STORE_FAST kv
+414: LOAD_FAST kv
+416: LOAD_CONST None
+418: LOAD_CONST Non
+[output cut at 10,000 characters]
+```

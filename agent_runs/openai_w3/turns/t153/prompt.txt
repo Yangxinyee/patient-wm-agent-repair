@@ -1,0 +1,137 @@
+OUTPUT of Python run 138 of at most 300:
+```
+EARLY NOTES
+ # World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights without gradients while preserving factual value NLL within +0.005 nats.
+No medical-effect assumptions. No edits made yet.
+First step: read architecture, data schema, vocabulary, and tensor shapes.
+
+Python runs: 3; forward requests: 0. Loaded 1,998,495 training rows (30,000 stays), 400 tuning stays. Measurements are hourly; drug records start at hour+0.0833, last one hour. Insulin rates in 0.5 increments; norepinephrine rates in 0.01 increments, capped at 1.0. Run 2 tensor summary failed because load returns torch tensors; fixed with as_numpy. Constructed hourly arrays A/AT, times -1..24.
+
+Python runs: 4; forward requests: 1. Original rollout on tuning IDs 2020000000..99: insulin x2=-0.422, half=+0.213 glucose units; NE x2=-0.742, half=-0.238 MAP units. Created Xhist (recorded pre-dose history), stay-separated twofold histogram-regression residual estimates of immediate dose effects. Results: {"('insulin', 'glucose_finger')": {'beta': -1.9117976582589598, 'se': 0.04643702514945556}, "('norepinephrine', 'map_arterial')": {'beta': 3.2284108103034193, 'se': 0.09160659418894486}}
+
+Python runs: 5; forwards: 1. Stronger 350-iteration, twofold history-adjusted estimates on all four sensors; also residualized dose-squared to check nonlinearity. {"('insulin', 'glucose_finger')": {'beta': -1.93686465753238, 'se': 0.045618852592945285, 'quadratic': [-1.9721614199729816, 0.006519443110720444], 'quadratic_se': [0.10001575970918698, 0.01835970138120731]}, "('insulin', 'glucose_lab')": {'beta': -1.9077086863023527, 'se': 0.07546108816200746, 'quadratic': [-2.1349505733834957, 0.043098195029487404], 'quadratic_se': [0.178045837967501, 0.035021676061520214]}, "('norepinephrine', 'map_arterial')": {'beta': 3.1919950557110304, 'se': 0.09112374089621184, 'quadratic': [1.6021787887032015, 1.2276868502178129], 'quadratic_se': [0.30275496930303175, 0.22235442673524064]}, "('norepinephrine', 'map_cuff')": {'beta': 2.6932493742117205, 'se': 0.17140609404668736, 'quadratic': [-1.6426030664176126, 3.4223180731807608], 'quadratic_se': [0.572236102544827, 0.4254051172466354]}}
+
+Python runs: 6; forward requests: 1. Robust immediate estimates: insulin finger -1.9369, lab -1.9077; little quadratic evidence. NE arterial +3.192, paired pre-dose sensors +3.329, high expected rates +3.407; cuff +2.693 with confounding near treatment onset. Estimated controlled impulse kernels by sequentially removing later dose contributions, using cross-fitted baseline treatment innovations. Kernels: {"('insulin', 'glucose_finger')": [-1.917764, -2.287755, -1.986765, -1.581741, -1.23612, -0.906992, -0.6303, -0.489408, -0.329701, -0.199948, -0.288551, -0.267519], "('insulin', 'glucose_lab')": [-1.972058, -2.386697, -2.017123, -1.797053, -1.249801, -0.946148, -0.647348, -0.623698, -0.385423, -0.467155, -0.216104, 0.05464], "('norepinephrine', 'map_arterial')": [3.195033, 2.710725, 1.587524, 1.030973, 0.377504, 0.218539, 0.359975, -0.138514, 0.138292, -0.039861, 0.393475, -0.090408]}
+
+Python runs: 9; forwards: 2. Recovered architecture and variables. Original factual value NLL on first 100 tuning stays is 1.63982. No weights edited. Preparing record-derived rollout targets.
+
+Python runs: 10; forwards: 3. Original training states acquired (100 stays, 4313 bundles). Record-derived reference shifts matched to original rollout reading rows: {"insulin_x2": -12.95553151488211, "insulin_half": 6.477765757441055, "ne_x2": 4.279678475624698, "ne_half": -2.139839237812349}.
+
+Python runs: 12; forwards: 3. Matched single-start z posterior locally to ~1e-10 MSE. Action units: insulin unit=3/rate_unit=2; NE unit=4/rate_unit=3. MLP activation GELU; observation empty bundle is encoded (not zero). Full posterior END reconstruction: [(0.02114708721637726, 'preserve'), (0.010521634481847286, 'clear_numeric'), (0.012452274560928345, 'clear_all')]. No edits yet.
+
+Python runs: 13; forwards: 3. Restart recovery: inspecting architecture and live variables. No weights edited; full-stream posterior reconstruction is not yet exact.
+
+Python runs: 17; forwards: 3. Isolated drug starts match posterior to ~1e-10 MSE. Testing measurement units/kinds and END observation-vs-action routing. Results: {'glucose_finger': [(0.013916670344769955, (1, 4, 1)), (0.014012562111020088, (1, 4, 0)), (0.01431475579738617, (0, 4, 1))], 'glucose_lab': [(0.01767573133111, (5, 4, 1)), (0.018761184066534042, (5, 4, 0)), (0.022612350061535835, (5, 4, 2))], 'map_arterial': [(0.00836174376308918, (2, 3, 0)), (0.00865178368985653, (2, 1, 2)), (0.008657408878207207, (2, 3, 2))], 'map_cuff': [(0.004897202365100384, (2, 4, 2)), (0.00496144313365221, (2, 4, 0)), (0.004988657310605049, (2, 3, 2))], 'insulin END': [(0.006666292902082205, ('clear_all', 4, 4, 3, 'action')), (0.006666292902082205, ('clear_numeric', 4, 4, 3, 'action')), (0.006941919680684805, ('clear_numeric', 3, 4, 3, 'action')), (0.006941921543329954, ('clear_all', 3, 4, 3, 'action'))], 'norepinephrine END': [(0.007430164143443108, ('clear_all', 1, 2, 3, 'observation')), (0.007430167403072119, ('clear_numeric', 1, 2, 3, 'observation')), (0.0074330768547952175, ('clear_all', 2, 4, 3, 'observation')), (0.007433077786117792, ('clear_numeric', 2, 4, 3, 'observation'))]}
+
+Python run 21; forwards 3. Restart recovery: no edits. Prior measurement/END posterior reconstructions remain inaccurate. Reading full architecture, schema, tensor list and live helpers before further encoding tests or weight edits.
+
+Python run 22; forwards 3. Architecture recovered; previous output truncated before live helpers. Inspecting compact metadata and helpers. No edits.
+
+Python run 25; forwards 3. Clean context checks and measurement metadata enumeration (unit, kq, bin equality, optional categorical fields); no edits.
+
+Python run 26; forwards 3. Metadata-only explanation rejected. Testing flow/input scaling and END conventions; no weights changed.
+
+Python run 27; forwards 3. No exact match from metadata, flow/input scale or END searches. Verifying cached weights, state layout and numeric ordering before choosing an edit mechanism. No submitted edits.
+
+Python runs 29-30; forwards 3. Numeric bins use strict edges below x. Run 29 metadata printed; global inspection failed on a module's shape function. Safely recovering live arrays/helpers. No edits.
+
+Python run 31; forwards 3. Cached original states and causal reference
+
+PRELUDE TENSORS
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+
+REPLAY AND READOUT HELPERS
+_fun108 (h, E, memory, mask, age, age_mode=0)
+_fun110 (view)
+action_vectors87 (factors=(1.0, 1.0))
+add_feature (name, values)
+affine_check73 (local, observed)
+as_numpy (x)
+atom80 (row, is_end=False, end_mode='preserve')
+atom_base (drug, rates, doses)
+attention82 (x, prefix, memory=None, mask=None, age=None, age_mode=0)
+brief_tree (obj, depth=0)
+clean_single_encode (atoms, prefix)
+cluster_estimate (rd, ry, ids)
+compact_array (x)
+compact_bytecode (func)
+context_with_flow (indices, factor)
+diagnostic_array (x)
+direct_posterior_diagnostic (inputs, weights)
+drop_edit (name)
+edited ()
+encode_bundles (end_mode='preserve', action_scale=1.0)
+encode_groups80 (groups, prefix)
+encode_one_set (atom_tensor, prefix)
+encode_single_atom (atom, activation)
+f124 (i, event)
+f125 (indices, include_current)
+f96 (context, e, u)
+fn (context, e, u)
+fn131 (h, out)
+fn76 (end_mode, multipliers)
+fn77 (indices, factor)
+func (atom, activation)
+function (t, prefix)
+isolated_record (i, event)
+layer82 (x, prefix, memory=None, mask=None, age=None, age_mode=0)
+layer_norm (t, prefix)
+linear (t, prefix)
+load (name)
+load_original (name)
+make_arrays (df)
+make_atom (r, is_end=False, end_mode='preserve')
+means104 (view)
+means105 (view)
+memory82 (indices, include_current)
+mlp (t, prefix, activation='gelu')
+next_view105 (h, out)
+parts105 (h, e, u, z)
+pooled89 (h, e, u, z)
+posterior_mean (context, e, u)
+prelude81 (h, e, u, z)
+prelude_cache88 (h, e, u, z)
+r66_linear (t, prefix)
+r66_norm (t, prefix)
+r66_prelude (h, e, u, z, return_details=False)
+r66_weight (name)
+readout134 (view)
+repair_action_vectors (end_mode, multipliers)
+save_edit (name, tensor)
+shape132 (x)
+state_context (indices, gap_mode='log1p')
+state_update82 (h, E, memory, mask, age, age_mode=0)
+summary100 (v, depth=0)
+
+PILOT SUMMARY
+B136 (768, 2) norm 68.34245195514804 first [-1.99321823  0.10496361  1.21669189  1.02734692  1.82885739  1.30635403
+ -0.42135451 -0.74869991  7.70393414 -2.05924474]
+directions136 (192, 2) norm 2156.2759530233398 first [  17.37874946  -39.58972448   -0.41061947    6.63664337   30.41583523
+ -165.63969305  -14.36605157  -18.65460324   16.45158848 -222.58094896]
+mu136 (768,) norm 12.630164577453943 first [ 1.49641874 -0.01397427 -0.08996833  0.22443701 -0.03041366  0.54058688
+ -0.04294415  0.49560254  0.53380268  0.01765422]
+T136 (4, 2) norm 5.292182914450332 first [ 0.    3.2  -1.94  0.    0.    3.2  -1.94  0.  ]
+K136 (4, 192) norm 0.029866713971491005 first [ 4.14072923e-05 -1.68868956e-04  8.91846644e-05  1.57381834e-04
+ -2.98063759e-04  6.99287111e-05  3.55448171e-05  6.95644651e-05
+  2.17148890e-04  3.33783126e-04]
+G136 (4, 192) norm 49.28244661077397 first [ 3.65192413e-01  5.72204590e-05 -3.33995819e-01 -1.40636444e-01
+ -2.27161407e-01  7.72781372e-02 -1.73397064e-01  6.44950867e-02
+  4.02084351e-01  8.66851807e-02]
+scales136 (2,) norm 0.6470291670195317 first [0.50078724 0.40970585]
+b135 (768, 2) norm 33.35914991729063 first [-0.99817826  0.0430042   0.60930377  0.42091004 
+[output cut at 10,000 characters]
+```

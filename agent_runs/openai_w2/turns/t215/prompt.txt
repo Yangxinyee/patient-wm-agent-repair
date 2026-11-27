@@ -1,0 +1,126 @@
+OUTPUT of Python run 184 of at most 300:
+```
+POOLED FACTUAL {'stays': 299, 'readings': 14110, 'delta_nll': np.float64(0.004327583274273566), 'cluster_se': np.float64(0.000923673240148445)}
+
+BY COHORT AND SENSOR
+                           mean  count
+cohort event                          
+20     glucose_finger  0.002204   1480
+       glucose_lab    -0.004586    537
+       map_arterial    0.010731   1325
+       map_cuff        0.002013   1467
+22     glucose_finger  0.000336   1317
+       glucose_lab     0.007459    525
+       map_arterial    0.003606   1232
+       map_cuff        0.003550   1563
+23     glucose_finger  0.004877   1439
+       glucose_lab     0.003116    529
+       map_arterial    0.005873    967
+       map_cuff        0.008326   1729
+
+STAY-LEVEL CHANGE QUANTILES
+0.00   -0.055828
+0.10   -0.013759
+0.25   -0.002801
+0.50    0.003110
+0.75    0.012390
+0.90    0.022970
+1.00    0.067166
+
+DECODER CONSTRUCTION NOTES
+## Runs 113?120: direct recurrent-input route
+No edits. Recovered prelude fits; intercept is FIRST. Affine E residuals can be implemented linearly using the layer-norm invariant (conversion max error 2.4e-5). Exact recurrent convention: 4 heads, memory includes current observation, age in keys and values. Run 119 stopped on read-only npz assignment; run 120 uses a temporary dict. Testing core.b_in injection via finite differences, not gradients.
+
+
+## Runs 128?132: direct recurrent steering candidate
+Recovered finite-difference h-pre-coda steering V128 with near-unit glucose/MAP responses and negligible cross-response. E dose residual is folded into Wdose128 using the layer-normalization invariant (max conversion error about 2.5e-5). Installed only core.b_in.weight:
+delta_B = diag(1/softplus(delta_in)) @ V128 @ diag([-5,8]) @ Wdose128.T.
+This is a conservative diagnostic, not an accepted final repair. Record-supported immediate effects remain insulin roughly -1.55 to -1.97/rate and NE +3.5 to +3.9/rate; statistical accumulation targets on 100 tuning stays roughly -14.8/+7.4 and +7.1/-3.6, with persistence uncertainty. Next require exac
+## Run 135: corrected recurrent candidate installed
+Resolved the cached-name swap: Wdose128 was RAW slopes, whereas Edecoder128 was already FOLDED. Canonical construction is raw_coef134=B[1:]/sd, affine_b134=B[0]-mu@raw_coef134, Wdose134=raw_coef134+outer(1/gamma,affine_b134/sum(beta/gamma)).
+Matches standardized factual predictions exactly and folded predictions within 2.5e-5. Factual residual RMS 0.10747 insulin, 0.03304 NE.
+Installed only core.b_in.weight using gains [-5,+8] and V128/softplus(delta_in). Large matrix norm reflects the intercept folded through the layer-normalization invariant; actual factual injection is small. Await exact paired factual test, then rollout if budget holds.
+## Runs 148?150: initial-safe stronger candidate
+Recovered the architecture, effect evidence, and constrained decoders. Original fallback [-5,+8] was verified against its canonical construction and saved as initial_safe_fallback150. Installed only core.b_in.weight using constraint_candidates147[(0.3,0.0001)] and gains [-10,+12]. This decoder constrains the initial four slot features to zero dose signal. Require paired factual NLL increase <=0.005 and no initial-reading distortion before rollout. Record-supported accumulation remains uncertain; the previous validated fallback remains available.
+
+
+## Runs 170?173: minimum-disturbance NE decoder
+Reconstructed factual/probe designs exactly. Zero-factual-target ridge regression, retaining initial-state zero constraints, reduces matched NE RMS from 0.03311 to about 0.02217 in 5-fold stay CV (key 0.03,1e-6). Metadata alignment verified against both drug flags. Installed provisional core.b_in candidate173: insulin unchanged, NE decoder scaled to twice validated doubled-dose probe sensitivity; gains remain [-10,+12]. Exact validated_B151 is the fallback. Require paired factual increase <=0.005 before rollout; record-based persistence targets remain assumption-dependent.
+
+
+
+AVAILABLE LOCAL MODEL/FEATURE FUNCTIONS
+_f100 (indices)
+_f99 (atoms)
+act_fn (x, activation)
+action_encode_atoms (x)
+action_encode_variant (x, activation='gelu', return_hidden=False)
+as_np150 (x)
+as_numpy132 (x)
+asnumpy182 (x)
+attention104 (q_input, source, prefix, heads, mask=None, age=None, age_mode='both')
+batched_set_repair (atoms, prefix)
+clean_insulin_rd (outcome, label, bandwidth, adjusted=True)
+clustered_last_coef (X, y, clusters)
+collect_parameters157 (obj, label, depth=0)
+compact (x)
+describe115 (x, depth=0)
+drop_edit (name)
+edited ()
+embed_end_repair (row)
+embed_record_atom (row1, kind1=0, end_mode1='same')
+embed_record_atom_v2 (row, kind=0, end_mode='same')
+encode_atom_set (atoms1, prefix1)
+encode_flat86 (atoms)
+encode_variable_sets_repair (atom_sets, prefix, zero_empty=False)
+eval_hpre128 (hp, return_states=False)
+f145 (atoms)
+fit_dml (drug, outcome, label, extra_mask, max_rows=240000)
+fit_latent_record_model (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+fit_zero_fact171 (Hf, Hp, Gp, probe_weight, ridge)
+fn (h, e, u, z)
+fn115 (h, e, u, z, memory, heads=6, age_mode='both')
+fn116 (x, prefix, heads, memory=None, memory_mask=None, memory_age=None, age_mode='both')
+fn153 (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+fn156 (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+fn169 (B)
+fn179 (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+fold_decoder147 (B)
+func (atoms1, prefix1)
+head_mlp (x, prefix, activation)
+head_norm (x, prefix)
+hw (name)
+install_numeric_amplification (scale)
+insulin_rd (outcome, label, bandwidth, adjusted=True)
+layer104 (x, prefix, heads, memory=None, memory_mask=None, memory_age=None, age_mode='both')
+lin104 (x, prefix)
+linear_rollout_targets (data_panel, drug, b, a)
+load (name)
+load_original (name)
+local_iv (data, running, outcome, cutoff=65, bw=8, adjust=True)
+local_value_head (data, cfg, bin_side='left', zmode='prior_mean', nsamples=32, return_features=False, seed=917)
+make_panel (df)
+memory104 (include_current=False)
+norm104 (x, prefix)
+numeric_atoms87 (z, bins, flag=1)
+obj153 (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+obj156 (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+obj157 (obj, label, depth=0)
+obj163 (data_panel, drug, b, a)
+posterior_error86 (atoms)
+prelude_features111 (h, e, u, z)
+previous_context_repair (indices)
+read_hpre120 (hp120, return_states=False)
+record_impulse_targets (data_panel, stays, b_insulin, rho_insulin, b_ne, rho_ne)
+recurrent_matrix139 (gains139)
+report_decoder147 (w)
+rich_dml (drug, outcome, label, extra=None, max_rows=250000)
+rlinear (x, prefix)
+rmlp (x, prefix)
+rmlp_act (x, prefix, activation='gelu')
+rnorm (x, prefix)
+save_edit (name, tensor)
+sensor_iv_persistence (gold, proxy, drug, drug_effect)
+step104 (h, e, u, z, memory, heads=6, age_mode='both')
+
+```

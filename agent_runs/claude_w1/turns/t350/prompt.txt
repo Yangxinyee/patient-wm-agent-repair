@@ -1,0 +1,135 @@
+OUTPUT of Python run 292 of at most 300:
+```
+notes chars 15782
+# Notebook
+
+## Run 1-2: orientation
+- Read ARCHITECTURE.md and README. Dose enters via encode_action (u_k), embed.numeric (z_dose,z_rate), embed.bins.dose/rate.
+
+## Runs 3-10: data structure & dosing policy (train.csv)
+- All stays 25.17h. Readings at integer hours (-1..24); infusions at h+0.0833, each 1h. Insulin dose==rate; NE dose=4.8*rate.
+- Glucose finger/lab intermittent; map_arterial hourly in ~48% stays (art line); map_cuff ~60% hours.
+- INSULIN POLICY (uses the reading taken that hour, finger; lab if no finger): ON if G>160 (always); 140-160 depends on prev on (0.68 vs 0.23); <140 ~off.
+  Base rate steps on recorded finger value: ~1.05 (<180), ~2.08 (180-220), ~3.15 (220-260?), higher above; sharp jump AT the recorded value
+  (at exactly 180 mean 1.56 -> threshold on unrounded reading). Multiplicative noise, rounded to 0.5 (sd ~0.37 at base1, ~0.65 at base2).
+- NE POLICY: start if MAP<65 (art if available else cuff); titrate: MAP<65 up (log ratio +0.07..0.15), 65-75 hold, >75 down (-0.2..-0.28);
+  log-ratio noise sd ~0.29; cap 1.0. Thresholds sharp at 65/75.
+- IDEA: dose noise given recorded reading = natural experiment; thresholds (180,220; 65,75) allow regression discontinuity (RD) check vs hidden confounding.
+
+## Runs 11-23: causal effect estimates (train.csv), using exogenous dose noise
+- Insulin noise log(rate/base) iid: corr with prev noise 0.000, with G/MAP/NE/h ~0.01. NE innovation (log ratio resid) corr prev -0.014, MAP -0.04.
+- Measurement: finger vs lab same hour: no bias, sd diff ~5.5% of G (multiplicative). cuff - arterial = +3.0 mmHg, sd 6.7.
+- No cross effects: NE->glucose ~0, insulin->MAP ~0.
+- Insulin -> glucose: local projection total effect per +1 u/h shock: k=1..6: -2.08,-2.29,-1.87,-1.37,-0.76,-0.45 (->0 by 12).
+  Linear in dose (shock^2 ~0). Mildly larger at high G: -1.83 (G~164), -2.07 (196), -2.21 (234), -2.43 (272) at k=1.
+  Feedback on later doses small: -0.06 u/h. Deconvolved fixed-dose impulse response h_ins(k):
+  -2.08,-2.41,-2.16,-1.79,-1.26,-0.95,-0.77,-0.63,-0.55,-0.43,-0.33,-0.30 (cum -13.7 at 12h)  [tail uncertain]
+- NE -> MAP_arterial: total per +1 mcg/kg/min innovation: 3.4,5.1,5.4,5.1,4.4,3.8,...; dose persistence 0.73,0.56,0.44,...
+  Deconvolved h_ne(k): 3.40,2.60,1.62,0.94,0.41,0.33,0.0,... (cum ~9.3). Linear in rate (k=1 effect 3.3-3.6 across rate levels).
+- Model-side caution: NE rate>1.0 / dose>4.8 -> bins 13-16 never seen in training (x2 edit hits them).
+
+## Run 24-29 + fwd 1 (dose_edit original, tuning setA = /work/setA.json, 100 stays)
+- RD at insulin thresholds 180/220 agrees with noise-based estimates (-1.9..-2.6 per u/h at k=1) -> no hidden confounding.
+- dose_edit rows = stay-hours 13-24 where the record HAS the outcome reading (finger glucose / map_arterial); reached = hour > first dose hour>=12.
+  mean_shift = POOLED mean over reached stay-hours.
+- ORIGINAL model on setA: ins x2 -1.448, ins x1/2 +0.824, ne x2 +0.152, ne x1/2 -0.411.
+- My estimated TRUTH on same rows (deconvolved h): ins x2 -14.17, ins x1/2 +7.09, ne x2 +4.82, ne x1/2 -2.41.
+  => model's effects ~10x (insulin) and ~30x (NE) too small.
+
+## Runs 30-41 (after restart)
+- fwd_2 = factual ORIGINAL on tuning setA: value NLL/reading 1.51903 (finger 1.531, lab 1.261, art 1.349, cuff 1.746). Baseline for +0.005 limit.
+- fwd_3 = states ORIGINAL on tuning setA (5075 bundle rows; layout out|h0..h3|zpost).
+- Runs 30-37 tried to reimplement core locally: not matching yet (best err 1.79 on z after bundle0). Parked.
+- Value head = MLP 192->192->17 (+ embed_transition[code*17+lastbin]); shared by all 4 value codes.
+- PLAN: readout edit. Decode a dose-innovation feature (dose minus policy-expected dose given reading, lagged) from head input
+  computed from states; repurpose one hidden unit of attr_heads.value_bin per drug to add a logit tilt (gated to glucose / MAP codes);
+  calibrate gain with dose_edit on setA vs my truth (-14.17/+7.09/+4.82/-2.41). Check factual with 'both'.
+
+## Runs 42-69: replicas
+- Dose innovation decodability (tuning states): insulin nu1 R2 ~0.24 from head query q (slope 0.29); NE innovation R2 0.09 (slope 0.10).
+  => pure readout edit too noisy (esp. NE). Need upstream signal.
+- Original model rollout insulin x2 per hour: -0.53 (h13) .. -2.28 (h24); truth -3.2 .. -18.8. Model persistence ~0.78/h.
+- HEAD replica (from states): view=out+LN_out(mean_slots(h*exp(-dt*exp(flow.a))))+gap(log(dt_s)/10)+z_head(z_prior mean); q=LN_query(view+type_emb[1]);
+  with_code=q+code+last_numeric([has,log1p(age_min)/10,zlast,has,has,0,0,0])+bins.value[lastbin]; GELU; MAE 2.4 vs tool (noise floor ~1.2).
+- ENCODER/z_post replica EXACT (rel err 0.008 on drug bundles): GELU everywhere; empty set -> LN(mlp2(size(0))) (not zero);
+  units: mg/dL->3, mmHg->2, mg->4, units->5; rate_unit: mcg/kg/min->3, units/hour->2; drug END atoms go to e (measurement encoder), not u.
+  atom = code+kind+ekind+kq[0]+unit+rate_unit+bins+numeric@[zv,hv,zd,hd,zr,hr]+bias. z_post([ctx,e,u]) ctx=out+LN_out(mean h decayed)+gap(log dt/10).
+- Runs 70-74: z_post replica EXACT on all bundle types. Units: mmHg->2, units(insulin dose)->3, mg(NE dose)->4, glucose_lab mg/dL->5, glucose_finger NO unit. Bins side='left'. Use atom_e_full(4,3).
+
+## Runs 76-83 (after restart 2): EXACT replicas rebuilt (clean code in kernel: Wo, avec, encset, bundles_of_stay, zpost_of, ctx_of, core_step)
+- Bundles: group atoms by round(hour*60). Drug START atoms -> action set u; drug END atoms (no attributes) + measurements + admissions(+END at end_hour) -> e.
+- Atom = code+kind+ekind+kq[0]+unit+rate_unit+bins(value,dose,rate)+numeric@[zv,hv,zd,hd,zr,hr]+bias. unit: map 2, glucose_lab 5, finger 0, insulin dose 3, NE dose 4.
+  rate_unit: units/hour->2, mcg/kg/min->3 (global rumap in kernel is WRONG/stale). bins: 1+searchsorted(edges,x,'left'). z clipped [-10,10].
+- Set enc: LN(mlp2(sum mlp1(a)/sqrt(n) + size(log1p n))); EMPTY set (e or u) -> LN(mlp2(size(0))) (NOT zero). GELU(erf) everywhere.
+- z_post exact. CORE STEP EXACT (relerr 0.0000): h'=h*exp(-dt*exp(flow.a)); ctx; z; prelude over [h'+slots, e, u, z_in(z)] (pre-norm: norm1->attn, norm3->ffn), E=prelude_norm(slots);
+  blocks 0.0,0.1 on x=h'+E: x+=attn(norm1 x); x+=cross(norm2 x, M+age) where kv=Wkv(M_e + core.age(log1p(age_seconds))) [age added BEFORE kv, both k and v], M includes CURRENT e_k, last 128;
+  x+=ffn(norm3 x). hm = abar*h' + softplus(delta_in)*b_in(E) + (x-(h'+E)), abar=exp(-softplus(delta_in)*exp(a_in)); y=c_out(hm); coda: y+=attn(norm1 y); y+=ffn(norm3 y). out=out_norm(mean_slots y).
+  MHA: 4 heads x48, no biases, kv rows [0:192]=K,[192:384]=V, scale 1/sqrt(48).
+- Dose info enters state ONLY via u_k / z_k tokens in prelude (memory M holds e only; END atoms carry no dose).
+
+- Run 84-91: HEAD replica approx (type_emb[1], gap(log dt_s/10), last_numeric=[has,log1p(age_min)/10,zlast,has,has,0,0,0], GELU, last_status row0 = 0): MAE ~2 vs tool (not fully exact; accept).
+- FREE-RUN replica EXACT from zero init (h=0,out=0, dt0=1 s): run_stay(B) in kernel, 0.07
+=====SETA
+list 100 [2020000006, 2020000023, 2020000026, 2020000030, 2020000031, 2020000033, 2020000043, 2020000056, 2020000060, 2020000063, 2020000065, 2020000067, 2020000073, 2020000075, 2020000086, 2020000090, 2020000092, 2020000099, 2020000110, 2020000121, 2020000126, 2020000133, 2020000134, 2020000145, 2020000148, 2020000150, 2020000157, 2020000162, 2020000166, 2020000170, 2020000171, 2020000173, 2020000174, 2020000179, 2020000185, 2020000187, 2020000199, 2020000200, 2020000203, 2020000206, 2020000207, 2020000215, 2020000218, 2020000224, 2020000233, 2020000239, 2020000243, 2020000245, 2020000247, 2020000250, 2020000256, 2020000261, 2020000271, 2020000273, 2020000282, 2020000287, 2020000292, 2020000296, 2020000303, 2020000304, 2020000314, 2020000316, 2020000318, 2020000324, 2020000325, 2020000327, 2020000332, 2020000337, 2020000348, 2020000349, 2020000357, 2020000365, 2020000367, 2020000375, 2020000378, 2020000383, 2020000384, 2020000387, 2020000388, 2020000234, 2020000280, 2020000183, 2020000147, 2020000083, 2020000009, 2020000001, 2020000087, 2020000061, 2020000014, 2020000340, 2020000002, 2020000176, 2020000329, 2020000260, 2020000288, 2020000017, 2020000356, 2020000364, 2020000130, 2020000338]
+=====FWD
+/work/fwd_1 ['dose_edit_original.csv', 'summary.json']
+   dose_edit_original.csv
+    cols ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached'] n 2956
+    filtered on reached n 2562
+    by edit
+              shift  shift_se  factual  reached
+edit                                           
+insulin_half  0.824     0.393  178.830      1.0
+insulin_x2   -1.448     0.493  178.830      1.0
+ne_half      -0.411     0.184   58.805      1.0
+ne_x2         0.152     0.200   58.805      1.0
+   summary.json {
+ "ok": true,
+ "type": "dose_edit",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -1.448,
+     "n_stay_hours": 763,
+     "n_stays": 89
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.824,
+     "n_stay_hours": 763,
+     "n_stays": 89
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.152,
+     "n_stay_hours": 518,
+     "n_stays": 47
+    },
+    "ne_half": {
+     "what": "norepinephrine x1
+/work/fwd_2 ['factual_original.csv', 'summary.json']
+   factual_original.csv
+    cols ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll'] n 5177
+    by event
+                observed  predicted_mean    nll
+event                                          
+glucose_finger   175.337         174.214  1.531
+glucose_lab      163.745         162.170  1.260
+map_arterial      62.944          63.818  1.349
+map_cuff          68.423          69.463  1.746
+   summary.json {
+ "ok": true,
+ "type": "factual",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.51903,
+   "n_values": 5177,
+  
+[output cut at 10,000 characters]
+```

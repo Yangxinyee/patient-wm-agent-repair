@@ -1,0 +1,132 @@
+OUTPUT of Python run 38 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+=====NOTES=====
+# Notebook
+
+## Run 1-2: read ARCHITECTURE.md, README. Doses enter via action atoms -> encode_action -> u_k -> z_post and prelude token.
+
+## Runs 2-13: data structure
+- All stays 25.17h; readings on the hour (-1..24), drug records at h+5min (0..24), each runs 1h.
+- Norepi dose = 4.8*rate (fixed weight), rate capped at 1.0. Insulin dose = rate. Rates in 0.5 steps.
+- INSULIN POLICY (sliding scale on recorded glucose at same hour, finger else lab): g<150 none; 150-180 base 1; 180-220 base 2;
+  220-260 base 3; 260-300 base 4; >300 ~6. rate = round0.5(base*exp(eps)), eps sd~0.31.
+  Thresholds sharp at recorded value (180 exactly = 50/50) -> policy uses measured value, not latent.
+- eps is exogenous: corr with eps_prev, past dg, lab-finger, MAP, norepi, hour all ~0; no stay-level component.
+  => within-band dose variation is randomised; regression of future glucose on rate | g_now identifies causal effect.
+- finger vs lab: no bias, sd diff 9.1. cuff = art + 3 (sd 6.7). hourly finger diff sd 14.3, lag1 autocorr of diffs -0.41.
+
+## Runs 15-17: insulin effect (g-estimation, linear SNMM, instrument = rate residual given integer glucose)
+- per-unit (1 u/h for 1h) effect on finger glucose at lag j (later doses fixed):
+  [-1.96,-2.36,-2.22,-1.69,-1.33,-1.02,-0.63,-0.44,-0.47,-0.29,-0.21,-0.09], cum -12.7 over 12 lags.
+- Same at lags 1-4 across glucose bands (150-180, 180-220, >220) -> additive, ~linear, not prop. to G.
+- Total effect incl. policy feedback (OLS with g fixed effects) peaks lag 2 at -2.25, decays faster.
+
+## Runs 18-23: norepinephrine
+- NE POLICY: rate_t = clip((rate_{t-1} + D(MAP_t)) * exp(eta), 0.01, 1.0); eta sd~0.3 multiplicative.
+  D: MAP<55 +0.08; 55-65 +0.04; 65-75 0; >75 -0.04/-0.05. Arterial used if present, else cuff.
+- residual (rate - cell mean given prev rate x MAP cat) exogenous: all corr ~0.
+- g-estimation NE -> MAP art per 1 mcg/kg/min: [3.18,2.81,1.58,0.80,0.57,0.03,0.14,...~0], cum +8.6 (cuff +8.1).
+
+## Fwd 1 (dose_edit, original, tuning 100 stays in /work/sel_tuning_A.json): rows = recorded glucose_finger / map_arterial hours 13-24;
+  reached = after first edited dose record (>=12). Readout = pooled mean over reached rows.
+  original model: ins_x2 -0.545, ins_half +0.003, ne_x2 +0.193, ne_half -0.173.
+  g-est truth on same rows (linear superposition of recorded doses from 12): ins_x2 -14.3, ins_half +7.15, ne_x2 +4.11, ne_half -2.05.
+  => model nearly ignores doses. Need to inject causal dose effect.
+
+fwd_1 ['summary.json', 'dose_edit_original.csv']
+fwd_2 ['summary.json', 'states_original.npz']
+['NAMES', 'SHAPES', 'VOCAB', 'load', 'load_original', 'save_edit', 'drop_edit', 'edited', 'os', 'json', 'pd', 'np', 'f', 'tr', 'tu', 'V', 'item', 'vbc', 'g', 'cnt', 'adm', 's', 'build_panel', 'P', 'PT', 'grp', 'c', 'ins', 'first', 'sub', 't', 'both', 'd', 'bm', 'dm', 'gf', 'dg', 'x', 'y', 'm', 'b', 'col', 'bb', 'base_ins', 'cut', 'gv', 'lab_only', 'near', 'cols', 'st', 'gs', 'k', 'ols', 'base_mask', 'gfe', 'X', 'se', 'to_grid', 'sid', 'H', 'grid', 'F', 'L', 'R', 'Gn', 'ins_given', 'gi', 'mean_by_g', 'Mg', 'Rres', 'nS', 'nH', 'maxlag', 'gam', 'l', 'lhs', 'coefs', 's_', 'r', 'yc', 'j', 'gest', 'use_all', 'gam_all', 'bands', 'k_', 'msk', 'g_', 'ne', 'src', 'mb', 'mid', 'med', 'nn', 'out', 'A_', 'C_', 'N_', 'Mn', 'ne_cat', 'cat', 'Np', 'given', 'key', 'vals', 'cellmean', 'cellcount', 'Nres', 'Nuse', 'corr_check', 'Res_prev', 'dmap', 'gest2', 'Rn', 'Mprev', 'cm_grid', 'gam_ne', 'A_ne', 'b_ne', 'gam_ne_c', 'tu_ins12', 'tu_ne12', 'tstays', 'tu_art', 'both_ids', 'ins_only', 'ne_only', 'sel', 'k1', 'de', 'true_shift_rows', 'gam_ins', 'res', 'ed', 'drug', 'gm', 'fac', 'tj', 'n', 'others', 'target_readout', 'nm', 'outc', 'm2', 'n2', 'ns', 'v2', 'sids', 'rng', 'sims', 'rep', 'ss', 'tr_ins12', 'tr_ne12', 'tr_art', 'both_tr', 'selB', 'Z', 'st_sid', 'st_hr', 'st_ins', 'st_ne', 'st_na', 'RidgeCV', 'GroupKFold', 'sv', 'Pi', 'insmean_by_g', 'ins_res', 'rows', 'sid_', 'grp_', 'hrs', 'rr', 'T', 'prev', 'feat', 'lag', 'D', 'Xs', 'groups', 'StandardScaler', 'cv_r2', 'tgt', 'c_out', 'a_in', 'd_in', 'fa', 'ev', 'sp', 'abar', 'tau', 'hm', 'Wn', 'bn', 'B', 'Ec', 'A1', 'M1', 'nmj', 'make_bundles', 's0', 'B0', 'bundles_B', 'mism', 'Bs', 'na', 'hi', 'hn', 'ok', 'pickle', 'p']
+
+```

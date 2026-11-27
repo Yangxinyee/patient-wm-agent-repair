@@ -1,0 +1,195 @@
+OUTPUT of Python run 47 of at most 300:
+```
+=== EARLY NOTEBOOK ===
+# World-model weight repair
+
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+  180.5   5  38087     0.5698       -0.7370          -1.2935      0.5515
+  180.5  10  75667     0.7794       -1.1972          -1.5359      0.2877
+  180.5  15 112580     0.8600       -1.4093          -1.6386      0.2149
+  180.5  20 148824     0.9038       -1.5463          -1.7108      0.1791
+  220.5   5  13465     0.6094       -1.9360          -3.1771      1.0528
+  220.5  10  27007     0.8056       -1.8092          -2.2459      0.5494
+  220.5  15  41128     0.8857       -1.9515          -2.2034      0.4082
+  220.5  20  55451     0.9242       -2.0053          -2.1697      0.3407
+  260.5   5   2121     0.4853       -1.7844          -3.6771      3.6196
+  260.5  10   4328     0.7606       -2.5573          -3.3620      1.6647
+  260.5  15   6845     0.8875       -2.7845          -3.1374      1.1748
+  260.5  20   9743     0.9343       -2.9469          -3.1542      0.9651
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440       -1.8588          -1.7805      0.1641
+  220.0   5  10878     1.0678       -3.1426          -2.9430      0.7643
+  220.0  10  24707     1.0534       -2.2490          -2.1350      0.4629
+  220.0  15  39001     1.0530       -2.2109          -2.0996      0.3641
+  220.0  20  53461     1.0493       -2.1822          -2.0797      0.3138
+  260.0   5   1722     0.9170       -4.7440          -5.1732      2.5458
+  260.0  10   3976     1.0306       -3.9808          -3.8625      1.3933
+  260.0  15   6526     1.0794       -3.8052          -3.5254      1.0430
+  260.0  20   9462     1.0751       -3.7279          -3.4675      0.8812
+Two-fold, stay-separated history-adjusted dose/outcome residual regressions:
+          drug         target      n     beta  cluster_se  dose_R2  dose_residual_SD  outcome_residual_SD
+       insulin glucose_finger 391466 -2.04924     0.04571  0.80748           0.48910             12.20504
+norepinephrine   map_arterial 330203  3.17146     0.08848  0.92657           0.09261              4.31153
+These estimates require dose innovations to be unconfounded conditional on
+recorded history; threshold agreement and placebo tests are used as checks.
+No weights edited.
+
+## Run 6
+Previous forward request failed because of duplicate stay IDs; it was not counted.
+Re-read architecture/schema and inspected retained kernel objects and tensor shapes.
+Constructed a verified list of 100 unique tuning stay IDs.
+Drug-effect estimates remain provisional; no weights edited.
+
+## Run 7
+Architecture inspection: drugs enter posterior and recurrent prelude; value heads also have a same-code last-reading register.
+Considering targeted readout repair, conditional on states retaining dose information.
+Run 6 output was truncated; obtained compact remaining tensor/vocab/object summaries.
+No weights edited.
+
+## Run 8; forward passes used: 3
+Original states obtained on first 100 tuning st
+
+=== DATAFRAME INVENTORY ===
+HX (780000, 39)
+action_fixture_repair (133, 13)
+alignment_probe (12, 13)
+base_roll (2676, 7)
+baseline_fact (4903, 6)
+check_detail_repair (4903, 8)
+core_trial_table_repair (240, 9)
+d (720000, 3)
+df (27609, 7)
+dml_results (2, 8)
+fact_probe (4903, 6)
+fixture (133, 13)
+full_check_repair (4903, 8)
+fx (133, 13)
+group (23, 7)
+head_candidate_table_repair (24, 6)
+head_train_data_repair (4699, 12)
+head_tuning_data_repair (4903, 12)
+joint_table_repair (81, 7)
+last (780000, 4)
+layout_table_repair (2352, 6)
+map_policy_summary (719825, 4)
+map_policy_table (107, 5)
+next_obs (780000, 4)
+packing_table_repair (2352, 6)
+pair (107336, 2)
+paired (107336, 2)
+pan (780000, 6)
+posterior_search_repair (480, 6)
+probe_table (24, 7)
+q (2676, 7)
+r44_rec (36, 13)
+r44_table (6, 11)
+r45_fixture (100, 12)
+r45_measure_fixture (834, 12)
+r45_records (6357, 8)
+r45_state_frame (4159, 6)
+rd_refined (16, 7)
+rd_results (16, 7)
+rec (36, 13)
+sample (24, 9)
+sample_check (512, 8)
+selected_records (7150, 7)
+source_drugs_repair (1458, 8)
+state_panel (4531, 6)
+status_table_repair (30, 5)
+tHX_repair (10400, 39)
+tab (301, 5)
+tab_imp (6, 11)
+table (240, 6)
+tlast (10400, 4)
+tpan (10400, 6)
+train (1999040, 7)
+train_id_preview (10000, 1)
+tuning (27609, 7)
+tuning_records_repair (27609, 9)
+type_table_repair (15, 4)
+
+=== FUNCTIONS ===
+act_repair, atom_embedding_repair, build_head_dataset_fixed, build_history_features, compact, drop_edit, edited, ffill_stay, fn, fun, head_features_fixed, head_linear_fixed, head_mlp_fixed, head_norm_fixed, insulin_labels_fixed, linear_repair, load, load_original, local_rd, make_panel, mlp_repair, norm_repair, note, persistence_loss, pre_context_repair, predicate, r41_obj, reading_bin_fixed, rp_action_encoder, rp_linear, rp_mlp, rp_norm, sample_metrics_repair, save_edit, singleton_action_repair
+
+=== RETAINED DICTIONARIES ===
+action_atom_vectors_repair 2 ['insulin', 'norepinephrine']
+atom_recipe_repair 2 ['insulin', 'norepinephrine']
+bank 6 ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+bases 2 ['left', 'right']
+bins 2 ['dose', 'rate']
+code_ids_repair 13 ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff', 'glucose_finger', 'map_arterial']
+code_lookup_repair 13 ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff', 'glucose_finger', 'map_arterial']
+coefficients 4 [1e-05, 0.001, 0.1, 10.0]
+container 4 ['finger_first', 'lab_first', 'minimum', 'maximum']
+controlled_action_repair 2 ['insulin', 'norepinephrine']
+core_trial_cache_repair 240 [('silu', 1.0, 'mean', 3, 'zero', 'silu'), ('silu', 1.0, 'mean', 3, 'zero', 'gelu'), ('silu', 1.0, 'mean', 3, 'seen', 'silu'), ('silu', 1.0, 'mean', 3, 'seen', 'gelu'), ('silu', 1.
+decoder_candidates_repair 4 [10, 100, 1000, 10000]
+dml_models 2 ['insulin', 'norepinephrine']
+dml_residuals 2 ['insulin', 'norepinephrine']
+empty_encodings_repair 3 ['zero', 'mlp2_zero', 'mlp2_size_bias']
+entry 5 ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+feature_sets 3 ['out', 'z', 'full']
+g_candidates 4 ['finger_first', 'lab_first', 'minimum', 'maximum']
+head_W_repair 181 ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight
+head_cfg_repair 8 ['gap_activation', 'prior_activation', 'head_gap_factor', 'head_activation', 'type', 'zcol', 'agecol', 'flags']
+head_innovation_probes 6 [('insulin', 1), ('insulin', 10), ('insulin', 100), ('norepinephrine', 1), ('norepinephrine', 10), ('norepinephrine', 100)]
+head_predictions_repair 24 [('gelu', 0, 'has_age_numeric'), ('gelu', 0, 'numeric_has_age'), ('gelu', 0, 'four_then_zero'), ('gelu', 0, 'has_age_zrate_zdose_flags'), ('gelu', 1, 'has_age_numeric'), ('gelu', 1
+impulse_tables_repair 2 ['insulin', 'norepinephrine']
+info 5 ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+insulin_decoder_repair 7 ['coef', 'prediction', 'r2', 'covariance_fraction', 'map_sd', 'group_means', 'alpha']
+item 5 ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+joint_best 5 ['context', 'prior', 'q', 'with_code', 'prob']
+joint_cache_repair 81 [('relu', 'relu', 0.1, 'relu'), ('relu', 'relu', 0.1, 'silu'), ('relu', 'relu', 0.1, 'gelu'), ('relu', 'relu', 1.0, 'relu')
+[output cut at 10,000 characters]
+```

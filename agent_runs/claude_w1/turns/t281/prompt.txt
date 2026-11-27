@@ -1,0 +1,47 @@
+OUTPUT of Python run 249 of at most 300:
+```
+notes chars 13070
+n sel 18
+> ## Runs 11-23: causal effect estimates (train.csv), using exogenous dose noise
+> - Model-side caution: NE rate>1.0 / dose>4.8 -> bins 13-16 never seen in training (x2 edit hits them).
+> ## Run 24-29 + fwd 1 (dose_edit original, tuning setA = /work/setA.json, 100 stays)
+> - RD at insulin thresholds 180/220 agrees with noise-based estimates (-1.9..-2.6 per u/h at k=1) -> no hidden confounding.
+> - dose_edit rows = stay-hours 13-24 where the record HAS the outcome reading (finger glucose / map_arterial); reached = hour > first dose hour>=12.
+> - ORIGINAL model on setA: ins x2 -1.448, ins x1/2 +0.824, ne x2 +0.152, ne x1/2 -0.411.
+> - My estimated TRUTH on same rows (deconvolved h): ins x2 -14.17, ins x1/2 +7.09, ne x2 +4.82, ne x1/2 -2.41.
+> - fwd_2 = factual ORIGINAL on tuning setA: value NLL/reading 1.51903 (finger 1.531, lab 1.261, art 1.349, cuff 1.746). Baseline for +0.005 limit.
+> - fwd_3 = states ORIGINAL on tuning setA (5075 bundle rows; layout out|h0..h3|zpost).
+> - PLAN: readout edit. Decode a dose-innovation feature (dose minus policy-expected dose given reading, lagged) from head input
+>   calibrate gain with dose_edit on setA vs my truth (-14.17/+7.09/+4.82/-2.41). Check factual with 'both'.
+>   => pure readout edit too noisy (esp. NE). Need upstream signal.
+> - Original model rollout insulin x2 per hour: -0.53 (h13) .. -2.28 (h24); truth -3.2 .. -18.8. Model persistence ~0.78/h.
+> - ARCH: z drawn from prior 4x, probabilities averaged (tool factual means are noisy); readout = predicted MEAN per hour, edited-minus-factual,
+>   calibrate gain with dose_edit on setA vs truth (-14.17/+7.09/+4.82/-2.41); check factual with 'both'.
+> - Correction must respond to dose LEVEL (sustained x2) with compensation depending on READINGS only (not past doses), else NE x2 cancels.
+>   calibrate gains with dose_edit on setA vs truth (-14.17/+7.09/+4.82/-2.41); check factual with 'both'.
+> - diag: vI noise 15.4/7.4, own response 1.0, leak NEx2 -0.31; vN noise 3.3/0.94, own 1.0, leak ~0. Units being checked.
+vI ndarray (192,)
+vN ndarray (192,)
+EDR dict 4
+Xf ndarray (70738, 192)
+Rf ndarray (70738, 192)
+cf ndarray (70738,)
+lbf ndarray (70738,)
+DQf ndarray (70738, 2, 192)
+W1 ndarray (192, 192)
+b1 ndarray (192,)
+W2 ndarray (17, 192)
+b2 ndarray (17,)
+TR ndarray (221, 17)
+setA list 100
+F2 DataFrame (5177, 6)
+solve_unit function 
+head_mean function 
+run_stay function 
+gen_samples function 
+G3 dict 1500
+H100 list 100
+DEC dict 2
+RU0 dict 2
+
+```

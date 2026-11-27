@@ -1,0 +1,267 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 243 replies happened before. Forward passes used: 18 of 50; Python runs used: 217 of 300. Your kernel is still running with its variables. Tensors currently edited: ['z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['candidate186.npz', 'edited', 'fallback188.npz', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_9', 'neutral203.npz', 'neutral204.npz', 'neutral209.npz', 'notes.md', 'response_candidates216.npz', 'token_directions215.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ecovering alpha-1 regression and helper contracts for an actual GPU test; proxy fit alone is not certification.
+
+## Python 186 — install alpha-1 direct-head candidate
+- Verified cached features exactly reconstruct final-layer logits.
+- Installed rank-one ordinal corrections to value_bin.2 weight and bias only; saved candidate186.npz.
+- Approximate held dNLL +.00387 is not certification. Next: matched GPU factual and rollout tests.
+
+## Python 187; forward 14 — reduce direct-head edit
+- Actual tuning factual NLL: 1.63155 original, 1.63850 edited; +.00695 fails the .005 safeguard.
+- Reduced candidate186 to gain .6. Full-strength candidate is rejected.
+- Next: actual matched rollout response and reduced-candidate factual validation.
+
+## Python 188; forwards 15–16 — establish fallback, inspect stronger pathway
+- Gain .6 head edit: tuning dNLL +.00277; insulin x2 -2.250, half +1.301; NE x2 +.383, half -.039.
+- This is safe on the first 100 tuning stays but too weak to constitute a sufficient repair.
+- Saved fallback188.npz and restored original weights to isolate further experiments.
+
+## Python 189 — revisit the controllable action pathway
+- No active edits; gain-.6 direct-head fallback is safe locally but insufficient.
+- Recovering architecture and original record evidence before another pathway test.
+
+## Python 190 — inspect an upstream residual correction
+- Record estimates differ sharply from unadjusted associations; no medical assumptions used.
+- Investigating a dose-minus-policy correction in the recurrent update, rather than another final-head-only edit.
+
+## Python 191 — expose recurrent-input features
+- Capturing the prelude E that feeds core.b_in, without changing weights or using gradients.
+- Will test dose-innovation decoding and downstream response before any installation.
+
+## Python 192 — validate independent prelude features
+- Comparing captured E with a standalone prelude computation and checking full-data input alignment.
+- No weight changes; rate-decoder neutrality and held-stay dose response will decide viability.
+
+## Python 193 — recurrent dose contrasts
+- Built anchored prelude features across zero, half, 1.5x, doubled and tripled doses.
+- Validating physical-rate targets against the existing drug probes before fitting a decoder.
+- No weights changed; these features are approximate pathway measurements, not causal labels.
+
+## Python 194 — held-stay recurrent dose decoders
+- Fitted closed-form linear decoders of rate minus pre-dose policy prediction.
+- Augmented fitting with paired dose contrasts; stay-separated held checks include inactive-bundle leakage.
+- No weights changed; a decoder alone is not a repair or causal validation.
+
+## Python 196 — private innovation channel preparation
+- Gated features have zero inactive leakage and near-unit dose-contrast slopes across x0–x3.
+- Measuring latent and attention-head redundancy before constructing a dedicated transport channel.
+- Python 195 ended on a NumPy/Torch conversion error after the useful diagnostics; no edits were installed.
+
+## Python 197–198 — private-channel recovery
+- Architecture re-read; no active edits.
+- Two latent coordinates reconstruct their original token contribution with held RMS .00091 versus token RMS .20016.
+- Removing the best attention head still has RMS .242: it is not dispensable without further compensation and actual factual validation.
+
+## Python 201–202 — neutral private-channel calibration
+- The gated innovations have exact linear reconstruction from modified posterior hidden features (RMS below 1e-13).
+- Matched all 3,935 prelude-token rows to official state rows.
+- Corrected tuple-return handling in the attention helper and tested held attention-output reconstruction with a reserved donor head.
+- No edits installed; reconstruction is not factual certification.
+
+## Python 203–204 — correct private routing geometry
+- Run 203 installed a zero-effect candidate but failed on an output-file lookup. The innovation readout exposed a unit-vector scaling error.
+- Removed that candidate, corrected anchor/key/value scaling, and numerically checked innovation transport before reinstalling.
+- Neutral204 is saved; drug-response columns are still zero. Next decision requires actual factual NLL on 100 tuning stays.
+
+## Forward 17; Python 205 — reject neutral204
+- Neutral private-channel candidate changed tuning factual NLL from 1.63155 to 1.64896 (+.01741), failing the .005 safeguard before drug-response weights were added.
+- Restored all original tensors. Accurate innovation transport did not imply factual preservation.
+- Inspecting retained calculations and architecture before attempting a less disruptive transport edit.
+
+## Python 208–209 — rebuild neutral token from actual posterior
+- Cached all_z201 was not the recomputed private posterior; zin_bias_base201 contained the large routing anchor.
+- Actual innovation coordinates are insulin 16 and NE 12. Recomputed original/private posteriors directly from input196.
+- Attention-preserving neutral held token RMS: 0.00989672.
+- Neutral candidate has zero response columns and leaves all attention weights original; GPU factual validation is still required.
+
+## Forward 18; Python 210 — attention-preserving neutral passes local safeguard
+- Original and neutral209 tuning factual NLL both 1.63155 on 100 stays; per-event scores unchanged at displayed precision.
+- Six latent-path tensors edited, no attention changes, zero innovation-response columns.
+- Next: controlled latent-token response measurements, closed-form calibration, then GPU checks.
+
+## Python 211 — recover neutral-channel calibration context
+- Neutral209 passed the first 100-stay factual check at near-identical precision.
+- Recovering architecture, record evidence and private-channel helper contracts.
+- No response weights added; causal rollout performance remains unvalidated.
+
+## Python 212 — compact recovery after truncated output
+- Earlier record estimates support approximately -2 insulin and +3 NE per rate unit, not medical priors.
+- Retrieving private-coordinate and replay contracts before numerical response calibration.
+- No additional weight changes.
+
+## Python 213 — verify scaling and multi-hour calibration requirements
+- Neutral private columns remain zero.
+- Recovering innovation units and replay inputs before finite-difference response measurements.
+- One-hour calibration will require separate rollout/persistence validation.
+
+## Python 214 — anchored token-response helper
+- Built forward-only latent-token perturbation and anchored readout helpers using original cached weights.
+- Installed six neutral209 tensors unchanged; no response columns added.
+- Checking baseline agreement and finite-difference stability before closed-form direction fitting.
+
+## Python 215 — forward-only token-response regression
+- Measured sensor-mean finite differences for every latent-token coordinate on 258 anchored action contexts.
+- Fitted ridge response directions against record-derived proximal effects, subtracting native dose response.
+- Stay-held checks and explicit x0–x3 innovation scaling are diagnostics, not rollout certification.
+- Saved token_directions215.npz; installed neutral weights unchanged.
+
+## Python 216 — finite-dose private-token calibration checks
+- Local rowwise regression underdelivered because many original states ignore the latent token.
+- Compared rowwise and minimum-norm mean-response directions with actual x0, half, x2 and x3 action encodings.
+- Testing saturation, cross-sensor leakage and factual proxy shifts before installation.
+- Neutral209 remains the only installed edit.
+
+## Python 217 — reject saturated latent-token directions
+- Finite x2/x3 checks showed severe saturation and inadequate insulin response; neither direction candidate installed.
+- Investigating explicit attention transport with forward-only feed-forward compensation for neutral factual preservation.
+- Neutral209 remains installed pending a separately validated routing candidate.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 217 of at most 300:
+```
+PRELUDE TENSOR NAMES AND SHAPES
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+
+ROUTING CACHE CONTRACTS
+old_tokens196 Tensor torch.Size([3935, 7, 192])
+old_attention_features196 Tensor torch.Size([3935, 4, 192])
+Xatt196 ndarray (15740, 192)
+Yatt196 ndarray (15740, 192)
+private_basis196 ndarray (192, 3)
+anchor196 ndarray (192,)
+anchor_scale196 float None
+value 100.0
+axis_ins196 ndarray (192,)
+axis_ne196 ndarray (192,)
+private_head196 int None
+value 1
+train196 ndarray (4035,)
+keep_att201 ndarray (144,)
+target_att201 ndarray (15740, 192)
+original_out201 ndarray (192, 192)
+source201 ndarray (3935,)
+z_lookup201 dict None
+H201 ndarray (4035, 192)
+HF201 ndarray (4035, 193)
+
+SAVED ROUTING CANDIDATE
+keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias', 'core.prelude.0.attn.q.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']
+z_post.0.weight (192, 576) RMS versus original 7.0247087478637695
+z_post.0.bias (192,) RMS versus original 2.4164879322052
+z_post.2.weight (64, 192) RMS versus original 0.026277000084519386
+z_post.2.bias (64,) RMS versus original 0.0003267117135692388
+z_in.weight (192, 32) RMS versus original 0.25303104519844055
+z_in.bias (192,) RMS versus original 100.00000762939453
+core.prelude.0.attn.q.weight (192, 192) RMS versus original 1.347687005996704
+core.prelude.0.attn.kv.weight (384, 192) RMS versus original 0.1512608379125595
+core.prelude.0.attn.out.weight (192, 192) RMS versus original 0.8578709959983826
+routing innovation-column norms [13.856406 13.856406]
+routing bias norm 1385.6415
+
+TRANSFORMER HELPER CONTRACTS
+block136 (x, prefix, memory=None, ages=None, age_mode='key', mask=None) locals ('x', 'prefix', 'memory', 'ages', 'age_mode', 'mask', 'xn', 'age_embedding', 'mem', 'key_add') globals ('norm136', 'attention136', 'shape', 'mlp136', 'torch', 'log1p', 'unsqueeze', 'linear136', 'F', 'gelu') constants (None, '.norm1', '.attn', 1, -1, 'core.age', 'input', 'key', '.norm2', '.cross', '.norm3', '.ffn.0', '.ffn.2')
+LOAD_GLOBAL:NULL + norm136 | LOAD_FAST:x | LOAD_FAST:prefix | LOAD_CONST:'.norm1' | BINARY_OP:+ | CALL: | STORE_FAST:xn | LOAD_FAST:x | LOAD_GLOBAL:NULL + attention136 | LOAD_FAST:xn | LOAD_FAST:xn | LOAD_FAST:prefix | LOAD_CONST:'.attn' | BINARY_OP:+ | CALL: | BINARY_OP:+ | STORE_FAST:x | LOAD_FAST:memory | POP_JUMP_IF_NONE:to 306 | LOAD_FAST:memory | LOAD_ATTR:shape | LOAD_CONST:1 | BINARY_SUBSCR: | POP_JUMP_IF_FALSE:to 306 | LOAD_GLOBAL:NULL + mlp136 | LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + log1p | LOAD_FAST:ages | CALL: | LOAD_ATTR:NULL|self + unsqueeze | LOAD_CONST:-1 | CALL: | LOAD_CONST:'core.age' | CALL: | STORE_FAST:age_embedding | LOAD_FAST:age_mode | LOAD_CONST:'input' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 216 | LOAD_FAST:memory | LOAD_FAST:age_embedding | BINARY_OP:+ | JUMP_FORWARD:to 218 | LOAD_FAST:memory | STORE_FAST:mem | LOAD_FAST:age_mode | LOAD_CONST:'key' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 234 | LOAD_FAST:age_embedding | JUMP_FORWARD:to 236 | LOAD_CONST:None | STORE_FAST:key_add | LOAD_FAST:x | LOAD_GLOBAL:NULL + attention136 | LOAD_GLOBAL:NULL + norm136 | LOAD_FAST:x | LOAD_FAST:prefix | LOAD_CONST:'.norm2' | BINARY_OP:+ | CALL: | LOAD_FAST:mem | LOAD_FAST:prefix | LOAD_CONST:'.cross' | BINARY_OP:+ | LOAD_FAST:key_add | LOAD_FAST:mask | CALL: | BINARY_OP:+ | STORE_FAST:x | LOAD_FAST:x | LOAD_GLOBAL:NULL + linear136 | LOAD_GLOBAL:F | LOAD_ATTR:NULL|self + gelu | LOAD_GLOBAL:NULL + linear136 | LOAD_GLOBAL:NULL + norm136 | LOAD_FAST:x | LOAD_FAST:prefix | LOAD_CONST:'.norm3' | BINARY_OP:+ | CALL: | LOAD_FAST:prefix | LOAD_CONST:'.ffn.0' | BINARY_OP:+ | CALL: | CALL: | LOAD_FAST:prefix | LOAD_CONST:'.ffn.2' | BINARY_OP:+ | CALL: | BINARY_OP:+ | STORE_FAST:x | LOAD_FAST:x | RETURN_VALUE:
+attention136 (x, memory, prefix, key_add=None, mask=None) locals ('x', 'memory', 'prefix', 'key_add', 'mask', 'batch', 'nq', 'nm', 'q', 'kv', 'k', 'v', 'logits', 'result') globals ('shape', 'torch', 'zeros_like', 'linear136', 'reshape', 'transpose', 'split', 'np', 'sqrt', 'masked_fill', 'softmax') constants (None, 2, 1, 0, '.q', 4, 48, '.kv', 192, -1, ('dim',), -2, 48.0, -1000000000.0, '.out')
+attention_features196 (tokens, qweight, kvweight) locals ('tokens', 'qweight', 'kvweight', 'xn', 'b', 'n', '_', 'q', 'k', 'v', 'weights', 'features') globals ('norm136', 'shape', 'F', 'linear', 'reshape', 'transpose', 'split', 'np', 'sqrt', 'softmax') constants (None, 'core.prelude.0.norm1', 4, 48, 1, 2, 192, -1, ('dim',), -2)
+
+CURRENT EDITS ['z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+
+```

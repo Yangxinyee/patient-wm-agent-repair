@@ -1,0 +1,137 @@
+OUTPUT of Python run 52 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RECENT NOTES ===
+: {'mean_feature_change': [0.0005914452485740185, 0.00012170652917120606], 'mean_rate_change': 0.21708217270194988, 'own_feature_slope': 0.0009654526247335035, 'own_delta_quantiles': [-0.0005291061010211706, 5.771522410213947e-05, 0.001099053071811795]}, 2.0: {'mean_feature_change': [0.0044122664257884026, 0.0007710559875704348], 'mean_rate_change': 0.43416434540389975, 'own_feature_slope': 0.0025260932755774034, 'own_delta_quantiles': [-0.0005615878850221634, 0.00012414529919624329, 0.005414054635912179]}, 3.0: {'mean_feature_change': [0.023111050948500633, 0.002157476730644703], 'mean_rate_change': 0.8683286908077995, 'own_feature_slope': 0.0031339260917329103, 'own_delta_quantiles': [-0.0007757513783872127, 0.0002228235825896263, 0.010614319751039146]}}}
+- Python runs: 35; forward passes: 4; no weights edited.
+
+## Run 36: recovery after conversation restart
+- Factor-one action reconstruction is exact, but posterior dose features saturate for insulin and are nearly dose-insensitive for norepinephrine.
+- Recovering architecture and record-derived identification before selecting an edit pathway.
+- Python runs: 36; forward passes: 4; no weights edited.
+
+## Run 37: recover dynamic identification
+- Earlier cross-fitted one-hour estimates are about -2 for insulin/glucose and +3 for norepinephrine/MAP, with sensor agreement.
+- Recovering impulse-response estimates and existing helpers; no edit yet.
+- Python runs: 37; forward passes: 4.
+
+## Run 38: prepare a dose-centered posterior correction
+- Record-derived insulin impulses persist for several hours; MAP impulses decay faster.
+- Inspecting validated local update helpers and saved posterior inputs before implementing a correction.
+- Python runs: 38; forward passes: 4; no weights edited.
+
+## Runs 39?40: direct action-dose decoding and policy centering
+- Run 39 stopped on a named-tuple diagnostic-print error before fitting; fixed in run 40.
+- Multiplier action-readout held-out RMSE: [(1e-06, [0.11796039661149307, 0.028787601049422212, 0.05181061032989907, 0.04790709477529297]), (0.0001, [0.12256598536032551, 0.03786559299994172, 0.05190349729761165, 0.04801767963061905]), (0.01, [0.24398175298729258, 0.07679840512199322, 0.052575374169505536, 0.049377883287424505]), (1.0, [0.6085731199577677, 0.21816193296959493, 0.06170188105652034, 0.06500822495085234])]
+- Active-dose context prediction RMSE: {'insulin': [(0.1, 0.5782961461526772), (1.0, 0.5547947512352039), (10.0, 0.5362032981303506), (100.0, 0.530997116998796), (1000.0, 0.603127566315318)], 'norepinephrine': [(0.1, 0.288115039159916), (1.0, 0.2806670976643769), (10.0, 0.2692955370780582), (100.0, 0.26784869582792753), (1000.0, 0.27970046471935706)]}
+- No model tensors edited.
+- Python runs: 40; forward passes: 4.
+
+## Run 41: nonlinear, dose-invariant policy centering
+- Linear context centering is inadequate, especially for norepinephrine; testing existing nonlinear posterior features with counterfactual invariance constraints.
+- Diagnostics: [{'invariance_penalty': 0.0, 'active_innovation_RMSE': [0.3778736561416944, 0.24010843202892565], 'absent_drug_RMS': [0.08725812270437652, 0.040178090648147265], 'dose_response_slopes': [0.8816287384288601, 1.0216930443729768]}, {'invariance_penalty': 0.01, 'active_innovation_RMSE': [0.3732257249913067, 0.2400360115967246], 'absent_drug_RMS': [0.08778011265441323, 0.040214673639178355], 'dose_response_slopes': [0.8963582577044326, 1.0214905880392395]}, {'invariance_penalty': 0.1, 'active_innovation_RMSE': [0.3802566197991127, 0.2397184636192632], 'absent_drug_RMS': [0.09343580761226314, 0.04047269946316477], 'dose_response_slopes': [0.9554710857409977, 1.019711098502509]}, {'invariance_penalty': 1.0, 'active_innovation_RMSE': [0.44432894443626, 0.24052347671780142], 'absent_drug_RMS': [0.11182384014263769, 0.04148954711891165], 'dose_response_slopes': [1.0069218395049708, 1.0107793697628735]}, {'invariance_penalty': 10.0, 'active_innovation_RMSE': [0.5278516617037933, 0.24659584392926945], 'absent_drug_RMS': [0.13925258569282126, 0.046415878578412555], 'dose_response_slopes': [1.0138826837763941, 1.0033943348260026]}]
+- No tensors edited. Python runs: 41; forward passes: 4.
+
+## Run 42: target-alignment and prediction-readout audit
+- Dose-invariant centering retains intervention slopes, but norepinephrine centering error remains large.
+- Checking innovation alignment and head/register layout before committing an edit.
+- Python runs: 42; forward passes: 4; no tensors edited.
+
+## Run 43: value-head reconstruction assay
+- Innovation alignment exactly matches the retained targets.
+- Best value-head conventions (prior mean approximation): [(0.1450220802807591, 1, 3, False, 6.047452705431512), (0.1450220802
+[output cut at 10,000 characters]
+```

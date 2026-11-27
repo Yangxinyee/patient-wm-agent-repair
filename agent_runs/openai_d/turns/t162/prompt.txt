@@ -1,0 +1,187 @@
+OUTPUT of Python run 141 of at most 300:
+```
+
+## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+
+
+## Run 11
+Matched 4510 factual reading rows to their preceding saved states. Initial local head reconstruction identifies measurement type index 1 but mean RMSE is about 3.76, too large to assume exact reconstruction. Checking bin boundaries, register layout, status and latent details before editing.
+
+
+
+## Forward 10?11: first validated insulin candidate
+Four value-head tensors, hash 70c11c43ec. Paired tuning factual NLL:
+original 1.63461, edited 1.63592, delta +0.00131 (4751 readings).
+Dose shifts on the same 100 stays:
+original insulin -1.847/+0.777; edited -5.908/+2.782.
+Original NE -0.498/-0.600; edited -0.517/-0.615.
+Insulin intervention transmission improved substantially, but remains below
+provisional record-derived targets -13.599/+6.800. NE is not repaired.
+Backed up this factual-budget-compliant candidate in memory and
+/work/insulin_candidate_v1.npz before any further changes.
+
+
+
+## Runs 108?110: causal and construction recovery
+Immediate residual-dose effects are stable across hour/dose strata:
+insulin approximately -1.99 per rate unit; NE approximately +3.29.
+Cumulative targets use controlled impulse kernels and remain provisional.
+Recovered exact local amplitude evaluator and existing gated construction;
+testing scaling analytically before another weight installation.
+
+
+
+## Restart / Runs 113?115 and Forward 12?13
+Strength-2 insulin candidate (hash 43d7176a64): paired factual NLL on tuning stays 2020000100..199 is 1.62310 vs 1.62044, delta +0.00266. On tuning stays 2020000000..99 its dose shifts are insulin x2 -10.248, half +5.053; NE x2 -0.513, half -0.604. Provisional record-derived targets for those rollout hours remain -13.599/+6.800 and +4.746/-2.373. Saved current strength-2 tensors in r115_strength2. Further amplification requires factual-budget validation; NE remains unrepaired.
+
+
+
+## Run 116: insulin strength-2.6 trial
+Installed strength 2.6 by scaling only value-head output columns 107/109 of the saved strength-1 construction. Gate, decoder, and removed-neuron mean compensation are unchanged. Strength-2 fallback remains in r115_strength2. This trial is not accepted pending a fresh paired factual check.
+
+
+
+## Forward 14 / Run 117: strength 2.6 rejected provisionally
+On fresh tuning stays 2020000200..299, NLL is 1.62614 edited vs 1.61959 original, delta +0.00655. Restored strength-2 insulin fallback. Exploring controlled action-embedding state contrasts for a lower-factual-impact NE correction, rather than amplifying the weak observational NE innovation decoder.
+
+
+
+=== RELEVANT CACHED VARIABLES ===
+r115_strength2 dict keys: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+r137_G ndarray (32, 4510)
+r137_Hbase Tensor (32, 4510, 192)
+r137_Lbase Tensor (32, 4510, 17)
+r137_Pbase Tensor (32, 4510, 17)
+r137_V Tensor (17, 192)
+r137_W dict keys: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+r137_Xnp ndarray (32, 4510, 192)
+r137_bins Tensor (4510,)
+r137_centres ndarray (4510, 17)
+r137_fit ndarray (4510,)
+r137_fit_ids ndarray (75,)
+r137_hmean Tensor (192,)
+r137_neuron_cost ndarray (192,)
+r137_neuron_rank ndarray (192,)
+r137_nllbase Tensor (4510,)
+r137_np function <function r137_np at 0x760e88b4fba0>
+r137_original_nll Tensor (4510,)
+r137_probe_features dict keys: [1e-07, 1e-06, 1e-05, 0.0001, 0.001, 0.01]
+r137_val ndarray (4510,)
+r137_varV Tensor (32, 4510, 192)
+r138_G ndarray (32, 4510)
+r138_Gprobe ndarray (32, 4510)
+r138_L0 ndarray (32, 4510, 17)
+r138_active_fit ndarray (4510,)
+r138_active_val ndarray (4510,)
+r138_alpha float 0.2
+r138_base_loss ndarray (4510,)
+r138_features dict keys: [1e-07, 1e-06, 1e-05, 0.0001, 0.001, 0.01]
+r138_loss0 ndarray (4510,)
+r138_map_centres ndarray (17,)
+r138_mu ndarray (32, 4510)
+r138_nll function <function r138_nll at 0x760e88b4f420>
+r138_original_loss ndarray (4510,)
+r138_p ndarray (32, 4510, 17)
+r138_pair function <function r138_pair at 0x760e88b4e840>
+r138_removed ndarray (32, 4510, 17)
+r138_results list [{'ridge': 1e-07, 'probe_shift': 0.1, 'scale': np.float64(0.09992041359156133), 'all': 0.002654307054567892, 'fit': 0.0015125010412416371, 'validation': 0.0060898744813317795, 'inc
+r138_slots ndarray (2,)
+r138_tau float64 ()
+r138_tilt ndarray (17,)
+r138_var ndarray (32, 4510)
+r138_y ndarray (4510,)
+r139_actual_L Tensor (32, 4510, 17)
+r139_b float -163.79997012927467
+r139_candidate dict keys: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+r139_error float64 ()
+r139_expected_L ndarray (32, 4510, 17)
+r139_fallback dict keys: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+r139_feature dict keys: ['v', 'b', 'pair', 'probe_derivative']
+r139_gv Tensor (192,)
+r139_hash str bacb0c2adfe8
+r139_jminus int 171
+r139_jplus int 48
+r139_loss ndarray (4510,)
+r139_ridge float 1e-05
+r139_scale float 0.32857802934129005
+r139_target float 0.329011
+r139_tilt Tensor (17,)
+r139_v Tensor (192,)
+
+=== USER-DEFINED FUNCTIONS ===
+_fn, act96, actfn, as_t, brief, cpu_tensor, crossfit_predict, drop_edit, edited, f117, fn, fn64, fun, func, function, lin96, load, load_original, local104, make_plain_panel, mlp96, norm96, obj136, partial_linear, r124_context, r124_lin, r124_mlp, r124_norm, r126_desc, r129_queries, r131_numpy, r137_np, r138_nll, r138_pair, r85_age_feature, r85_bins, r85_linear, r85_mlp, r85_norm, r89_v, r91_lin, r91_mlp, r91_norm, rc_act, rc_lin, rc_mlp, rc_norm, rep_linear, rep_mlp, rep_norm, residual_effect, response_arrays, rh_eval, rh_register, save_edit, summary102, trial_gelu_np, wlin, wmlp, wnorm
+
+```

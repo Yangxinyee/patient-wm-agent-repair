@@ -1,0 +1,135 @@
+OUTPUT of Python run 231 of at most 300:
+```
+DATA README
+ # Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+RECOVERED EFFECT OBJECTS
+eh_kernels {'insulin': array([-1.85 , -2.256, -1.943, -1.561, -1.022, -0.69 ]), 'norepinephrine': array([3.351, 2.621, 1.717, 0.943, 0.494, 0.409])}
+he_kernels {('glucose_finger', 'insulin'): array([-1.85034014, -2.25611825, -1.94263882, -1.56111897, -1.02224091,
+       -0.69018551]), ('map_arterial', 'norepinephrine'): array([3.35057748, 2.62101256, 1.71717035, 0.94251408, 0.49378644,
+       0.40891321])}
+kernel_recovery {'insulin': array([-1.85034014, -2.25611825, -1.94263882, -1.56111897, -1.02224091,
+       -0.69018551]), 'norepinephrine': array([3.35057748, 2.62101256, 1.71717035, 0.94251408, 0.49378644,
+       0.40891321])}
+
+EARLIER EVIDENCE
+## Run 108
+Located fresh objects under rr_*. Original record evidence supports insulin-negative and NE-positive adjusted effects, subject to identification assumptions. Comparing fresh versus validated set encoders; no edits. Counts: 108 Python runs, 6 forward passes.
+## Run 113
+Recovered architecture, identification notes, and helper inventory after restart. Run 112 ruled out rate-unit alternatives; reading reconstruction remains unvalidated. No weights edited. Counts: 113 Python runs, 6 forward passes.
+## Run 114
+Recovered early identification evidence and tensor layouts. No causal magnitudes inferred from signs alone; no weights edited. Counts: 114 Python runs, 6 forward passes.
+## Run 138
+Held-out innovation decoding is weak, particularly through value-head hidden features and alternate channels. Not treating this as a validated head-only repair. Inspecting replay implementation and dynamic causal estimates. No edits. Counts: 138 Python runs, 7 forwards.
+## Run 157
+Original weights restored. Recovering record-derived causal estimates, posterior decoder validation, baseline rollouts, and exact editable pathways before choosing a candidate. Counts: 157 Python runs, 8 forward passes.
+## Run 189
+Matched original/5x states and value-head inputs are aligned. Recovering exact architecture, usable helpers, and early identification evidence before choosing a direct, factual-preserving dose pathway. No weights changed.
+## Run 203
+Recovered architecture and prior numeric-dose/identification summaries to choose a direct, testable transmission pathway. All weights remain original. Counts: 203 Python runs, 18 forwards.
+## Run 216
+Restart recovery: marker dose contrasts are promising, but factual carrier leakage and NE x3 instability remain unresolved. Reading architecture, identification evidence, and saved implementation objects before selecting a transmission edit. No weights changed. Counts: 216 Python runs, 20 forwards.
+## Run 217
+Architecture recovery complete; prior output truncated before implementation inventory. Retrieving compact identification, numeric-amplification results, and latest marker/relay objects. No weights changed. Counts: 217 Python runs, 20 forwards.
+## Run 230
+Forward 21 rejected: factual delta +0.19319 exceeds .005. Preserved candidate in rejected230 and restored all originals. Recovering architecture and cached identification before selecting a new route. Counts: 230 Python runs, 21 forwards.
+
+COMPACT EVIDENCE INVENTORY
+association_results list(4)
+causal_estimates list(12)
+causal_residuals dict(4), keys=[('glucose_finger', 'insulin'), ('glucose_lab', 'insulin'), ('map_arterial', 'norepinephrine'), ('map_cuff', 'norepinephrine')
+ce_decoder_results list(6)
+ce_fitmask ndarray shape=(10054,)
+ce_target ndarray shape=(10054, 2)
+decode_results list(18)
+eh_fit ndarray shape=(5364,)
+eh_fits dict(9), keys=[0.03, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0, 300.0]
+eh_target ndarray shape=(5364,)
+fit Ridge: Ridge(alpha=100.0)
+fit207 dict(6), keys=['other', 'coef', 'left', 'singular', 'right', 'metrics']
+fitmask ndarray shape=(5215,)
+grid_results list(576)
+identity ndarray shape=(2,)
+mc_results list(16)
+r164_fitkeys list(26)
+r167_results list(12)
+r33_result tuple(10)
+r33_results list(3888)
+r33_target Tensor shape=(160, 32)
+r34_results list(20736)
+r35_result tuple(2)
+r35_results list(128)
+r36_latent_target Tensor shape=(8443, 32)
+r36_targets dict(0), keys=[]
+r79_results list(108)
+r79_target Tensor shape=(8443, 32)
+r86_residual Tensor shape=(18253,)
+r86_result tuple(3)
+r86_results list(36)
+r86_target Tensor shape=(384, 32)
+r87_result tuple(5)
+r87_results list(144)
+r88_context_results list(4)
+r89_residual Tensor shape=(4256,)
+r89_result tuple(3)
+r89_results list(49)
+r89_target Tensor shape=(512, 32)
+repair_crossfit callable
+repair_post_results list(12)
+repair_post_targets ndarray shape=(8443, 2)
+result tuple(8)
+rp_fits dict(6), keys=[0.1, 1.0, 3.0, 10.0, 30.0, 100.0]
+rp_gate_fits dict(2), keys=['insulin', 'norepinephrine']
+rp_linear_fits dict(8), keys=[('insulin', 0.1), ('insulin', 1.0), ('insulin', 3.0), ('insulin', 10.0), ('norepinephrine', 0.1), ('norepinephrine', 1.0), ('
+rr49_gate_coefs dict(2), keys=['insulin', 'norepinephrine']
+rr50_fit_H ndarray shape=(31589, 768)
+rr50_fit_Y ndarray shape=(31589, 4)
+rr50_fit_pre ndarray shape=(31589, 192)
+rr50_targets dict(11), keys=[('base', 1.0), (0, 0.0), (0, 0.5), (0, 1.5), (0, 2.0), (0, 3.0), (1, 0.0), (1, 0.5), (1, 1.5), (1, 2.0), (1, 3.0)]
+rr58_fitF ndarray shape=(69289, 4)
+rr58_fitT ndarray shape=(69289, 4)
+rr58_targets dict(11), keys=[('base', 1.0), (0, 0.0), (0, 0.5), (0, 1.5), (0, 2.0), (0, 3.0), (1, 0.0), (1, 0.5), (1, 1.5), (1, 2.0), (1, 3.0)]
+rr_results112 list(4)
+rx_fit131 Tensor shape=(6,)
+rx_targeth Tensor shape=(48, 4, 192)
+rx_targetout Tensor shape=(48, 192)
+summary69 callable
+target_d ndarray shape=(480000,)
+targetout221 ndarray shape=(48, 192)
+targets221 ndarray shape=(4, 2)
+
+CANDIDATE COMPONENT DIFFERENCES
+core.prelude.0.attn.kv.weight delta-original 80.7499 delta-relay 14.2592
+core.prelude.0.attn.out.weight delta-original 963.966 delta-relay 962.8546
+core.prelude.0.attn.q.weight delta-original 4.2327 delta-relay 0.0
+z_in.bias delta-original 0.0162 delta-relay 0.0162
+z_in.weight delta-original 2.3472 delta-relay 2.3472
+z_post.0.bias delta-original 442.3076 delta-relay 442.3076
+z_post.0.weight delta-original 8979.5205 delta-relay 8979.5205
+z_post.2.bias delta-original 0.0077 delta-relay 0.0077
+z_post.2.weight delta-original 2.3956 delta-relay 2.3956
+Marker gains: [-2.   3.3]
+Dedicated directions norms: [163.57962 625.12085]
+Saved output arrays: [('candidate228_out0', (192, 192), 41.02307891845703), ('candidate228_out', (192, 192), 647.4696044921875), ('candidate229_out', (192, 192), 963.6793823242188)]
+
+```

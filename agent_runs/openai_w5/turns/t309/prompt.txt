@@ -1,0 +1,57 @@
+OUTPUT of Python run 268 of at most 300:
+```
+=== RECOVERED OBJECT INVENTORY ===
+('sensor_neurons', 'dict', ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'])
+('head_rows', 'DataFrame', '(4750, 14)')
+('head_prev', 'ndarray', '(4750,)')
+('make_head_inputs212', 'function', '')
+('head_wc', 'Tensor', 'torch.Size([4750, 192])')
+('head_q', 'Tensor', 'torch.Size([4750, 192])')
+('head_ln', 'Tensor', 'torch.Size([4750, 8])')
+('head_vb', 'ndarray', '(4750,)')
+('head_zp', 'Tensor', 'torch.Size([4750, 64])')
+('head_audit', 'dict', ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'])
+('head225', 'function', '')
+('sensor', 'str', '')
+('r246_sensor', 'str', '')
+('r249_sensor_controls', 'dict', ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'])
+('r249_sensor', 'str', '')
+=== SENSOR HEAD CONSTRUCTION NOTES ===
+## Runs 147?149: sensor-specific causal-head candidate
+- Run 147's zero insulin tilt was a constrained-fit sign bug, corrected in run 148; it is not evidence of an absent insulin effect.
+- Freed eight low-energy value-head neurons by frozen-feature ridge distillation; no model gradients.
+- Separate, clean sensor gates; smooth monotone logit tilts calibrated to record-derived one-step effects.
+- Centered decoded exposure using independent-stay-validated ordinary-feature regressions.
+- Installed insulin strength 1 and NE strength .5 to reserve factual-loss budget.
+- Float32 local holdout NLL increment 0.001359 above clean transport; GPU factual and finite-dose tests still required.
+
+## Forward 16?17: sensor-specific candidate GPU validation
+- Tuning A factual value NLL: original 1.63933, edited 1.63946, delta +0.00013.
+- Paired finite rollouts: insulin x2 -5.591, half +0.901; NE x2 +4.083, half -1.052.
+- Record-derived tuning-A estimates: -11.893, +5.9465, +4.4973, -2.2487.
+- Correct directions, but strong doubling/halving asymmetry. Increasing strengths alone is not yet justified.
+- Investigating exposure transport, centering, nonlinear head response, and hourly feedback.
+
+## Runs 153?155: asymmetry diagnosis
+- Intended sensor control gates are approximately 8: GELU gate clipping is ruled out on saved factual features.
+- Fixed-dose perturbations affect only the intended reserved neuron; ordinary hidden neurons are unchanged.
+- Held-out dose recovery RMSE: finger .144, lab .135, arterial .116, cuff .072.
+- Testing finite softmax response separately from transport and recurrent feedback; no new weights edited.
+
+## Runs 156?161: restart / finite-transport audit
+- Fixed-history ideal-dose decoder response is approximately linear and symmetric.
+- GPU hourly asymmetry is alrea
+=== HEAD DIFF STRUCTURE ===
+attr_heads.value_bin.0.weight (192, 192) [(74, 2768.095947265625), (107, 2768.02197265625), (109, 591.35302734375), (64, 591.1640014648438), (171, 14.35099983215332), (124, 12.845000267028809), (10, 11.814000129699707), (7, 11.652000427246094), (146, 0.30000001192092896), (114, 0.20999999344348907), (119, 0.20200000703334808), (185, 0.1940000057220459)]
+attr_heads.value_bin.2.weight (17, 192) [(107, 41.801998138427734), (7, 41.65700149536133), (74, 28.56399917602539), (171, 28.507999420166016), (124, 23.8700008392334), (64, 23.847000122070312), (10, 12.092000007629395), (109, 12.020000457763672), (0, 0.054999999701976776), (2, 0.05000000074505806), (72, 0.026000000536441803), (76, 0.017000000923871994)]
+=== BASELINE ROLLOUTS ===
+18 original {'insulin_x2': -0.454, 'insulin_half': 0.098, 'ne_x2': 0.15, 'ne_half': -0.232}
+18 edited {'insulin_x2': -5.591, 'insulin_half': 0.901, 'ne_x2': 4.083, 'ne_half': -1.052}
+22 original {'insulin_x2': -0.454, 'insulin_half': 0.098, 'ne_x2': 0.15, 'ne_half': -0.232}
+22 edited {'insulin_x2': -6.027, 'insulin_half': 1.135, 'ne_x2': 5.102, 'ne_half': -1.247}
+24 original {'insulin_x2': -0.454, 'insulin_half': 0.098, 'ne_x2': 0.15, 'ne_half': -0.232}
+24 edited {'insulin_x2': -4.152, 'insulin_half': 1.09, 'ne_x2': 4.538, 'ne_half': -1.092}
+=== OTHER CONSTRUCTION VARIABLE NAMES ===
+private_pairs, sensor_neurons, _pair_for_control, BASE217, basewc231, Cbase238, neurons, neuron, r248_private, _pairs262, BASE264, TRIAL264
+
+```

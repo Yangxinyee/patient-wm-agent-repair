@@ -1,0 +1,24 @@
+OUTPUT of Python run 239 of at most 300:
+```
+ARCH len 5234
+['# The world model', '## Input', '## State and one step per bundle (`core.*`)', '## Heads: predicting bundle k+1 from what is known before it', '## How a dose edit is read']
+{"beta_ins": [0.0, -1.985068482857801, -2.3845549828542207, -2.1123661286892204, -1.7089435653954739, -1.2110953160104658, -0.919877729659017, -0.6436198076453897, -0.46601910228817056, -0.20272164864357198, -0.1247470435606626, -0.08235415677878039, -0.00715471344431906], "gam_ne": [0.0, 3.1584567202669955, 2.62575533831758, 1.7797089473015861, 0.9468385132227669, 0.460053509013859, 0.32894223024132074, -0.019291470533905147, 0.06974378166661103, 0.06489178751108433, -0.1432829555942648, 0.11184024447575602, -0.01186601637521824], "gam_ne_clean": [0.0, 3.2759198922534223, 2.732212308957464, 2.021545600908195, 1.2146878559936085, 0.4313778871242605, 0.06844269984477121, -0.16398337160388882, 0.2291011051431436]}
+NOTES len 12851
+  > - G-estimation (IV = multiplier residual, IPW) insulin impulse response beta_k (mg/dL per u/h at lag k): 
+  >   [-1.99,-2.39,-2.11,-1.71,-1.21,-0.92,-0.64,-0.47,-0.20,-0.13,-0.08,-0.01] (se .05-.16). Saved /work/beta_ins.json
+  >   Implied TRUE on same stay-hours (linear SNMM): ins_x2 -14.5, ins_half +7.26. Model underestimates insulin effect ~8x.
+  > - effects.json: beta_ins (lags0..12) and gam_ne (NE->MAP per unit rate, lags 0..12): [0,3.16,2.63,1.78,0.95,0.46,0.33,-0.02,0.07,0.06,-0.14,0.11,-0.01]
+  > - Run 44: insulin lag-1 effect per u/h constant across base levels (-1.9..-2.3), Z^2 small -> insulin effect LINEAR additive. ins x2:x1/2 ~ -2:1.
+  > - Run 46/50: NE effect per unit rate falls with rate (10.8,7.3,5.7,4.6 by quartile) but per log-rate ~constant (2.7-3.5 lag1) -> NE ~ LOG-linear (or Emax).
+  >   WARNING: EPSN is not clean at capped rates (encodes MAP band; capping selects high noise) -> gam_ne in effects.json is BIASED. Need interior-stratum instrument.
+  >   p=1 (LINEAR) best J=21 (df16); log rejected (J=582). gam_ne_clean (lags1-8) = [3.28, 2.73, 2.02, 1.21, 0.43, 0.07, -0.16, 0.23] ~ same as old gam_ne. NE linear additive.
+  > - Targets on sel1 reached hours (linear SNMM): {'insulin_x2': np.float64(-13.99), 'insulin_half': np.float64(6.99), 'ne_x2': np.float64(4.85), 'ne_half': np.float64(-2.43)}
+  > - beta_ins indexed lag0..12 with lag0=0, lag1=-1.99 (dose at h affects reading at h+1).
+  > - Run 85-95: TIME ALIGN BUG fixed (float32 hours: use minutes). eps_ins (rate-1.04*base) linearly decodable (standardized ridge a=3):
+  > - Run142 lin_sep on WC: glucose vs map separable (r2 1.0); ins-present among glucose r2 .996; joint gate not linear (.78); NE among map .98.
+  > - Fwd8 = dose_edit both, sel1, E2: original {'insulin_x2': -1.726, 'insulin_half': 0.909, 'ne_x2': -0.075, 'ne_half': -0.484}; edited {'insulin_x2': -7.171, 'insulin_half': 1.473, 'ne_x2': 0.459, 'ne_half': -1.918}. Targ
+  > - Fwd10 = dose_edit both sel1 with E3-ins (C=-3.32): ins_x2 -16.55 (tgt -13.83), ins_half +7.86 (tgt +6.92), NE unchanged. Factual-arm bias h13 +0.8 (bf16 fix works). Profile: early & late overshoot, mid ok; model persis
+  > - Runs 216-223 (NE): NE info at MAP_a rows weak (D_ne_1 R2 full .32, wc .18; prev-bundle-NE no better). Decoder must be fit with zero targets on off-gate rows (om=.1) else extrapolates (dAll +.37!). cvR2 .22 k .194.
+FNS ['LD', 'LN', 'LNf', 'LNo', 'L_', 'Lin', 'Lo', 'MLPo', 'T', 'Wo', 'add_lags', 'arrU', 'atom_vec', 'aug_wc', 'avec', 'avec2', 'avec3', 'bfr', 'bfr_', 'build', 'build2', 'build_ins', 'build_ins2', 'build_ins3', 'build_ne', 'build_ne2', 'bundles_of', 'catsE', 'ctrl_ins', 'ctrl_ne', 'ctx_of', 'cv_ridge', 'cvdec', 'cvdec_aug', 'cvdec_aug2', 'cvr2', 'cvr2_', 'cvr2_blk', 'dec_r2', 'dose_panel', 'drop_edit', 'edited', 'evalR', 'eval_E', 'eval_edit', 'exp_tilt', 'exp_tilt2', 'f_', 'f_ne', 'fb_', 'fbin', 'fbin_', 'first_err', 'fit', 'fit_dec', 'fit_tilt', 'fitdec', 'gapf', 'gel', 'gelu', 'gelu_', 'gelu_np', 'gest_sub', 'head', 'head_inputs', 'head_mean', 'head_mean2', 'head_probs', 'headv', 'hourly_panel', 'hrs_since', 'irf', 'items_of', 'iv2', 'iv_fit', 'lagD', 'lin', 'lin_', 'lin_gate', 'lin_sep', 'ln', 'ln_', 'load', 'load_original', 'load_states', 'mean_from_A', 'mlp', 'nent', 'nll_avg', 'nll_of', 'ols', 'ols2', 'ols_', 'panel', 'predict', 'predict2', 'predict_reg', 'predict_view', 'prep', 'prev_dose', 'q_of', 'r2_from', 'r2cv', 'r2k', 'reg', 'regm', 'rep', 'ridge_fit', 'ridge_fit_w', 'ridge_gate', 'save_edit', 'score', 'score_view', 'set_enc', 'show', 'slope', 'solve_u', 'stay_panel', 'step_of', 'tab', 'test_u', 'tgt_rows', 'true_sh', 'true_shift', 'true_shift_ins', 'true_shift_ne', 'uenc', 'variant', 'vbin', 'wc_from', 'zerr', 'zerr_e', 'zpo', 'zpr', 'zridge', 'zs_', 'zsc', 'zsc_']
+
+```

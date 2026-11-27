@@ -1,0 +1,163 @@
+OUTPUT of Python run 130 of at most 300:
+```
+=== NOTEBOOK SIZE AND EARLY CONCLUSIONS ===
+Characters: 44194
+## Initial plan
+Read architecture and schema; examine treatment assignment and temporal variation; estimate effects with falsification checks; construct a targeted weight edit; validate factual fit and the exact rollout.
+## Run 2
+Architecture has separate observation and action encoders, with actions entering the latent posterior and recurrent prelude. Attribute heads also use last-value registers. This offers targeted editing routes, but no drug-effect conclusion has been drawn. Loaded both record files and inspected schema, vocabulary, distributions, and event timing.
+## Run 3
+Constructed complete hourly panels (-1 through 24), aligning infusions at hour+0.0833 to that hour's pre-dose measurements. Missing infusion records mean zero exposure. Auditing paired measurement channels, dose-assignment rules, and next-hour associations before estimating causal effects. No edits yet.
+## Run 10: NE threshold audit (mask fixed)
+      sensor                outcome  bw  adjusted      n  dose_jump  outcome_jump    effect  cluster_se
+map_arterial          map_cuff_next   4      True  14427    0.03949       0.10173   2.57572     7.34530
+map_arterial      map_arterial_next   4      True  45668    0.04012       0.16659   4.15265     2.69603
+map_arterial          map_cuff_next   8      True  29723    0.03873       0.08150   2.10442     4.77478
+map_arterial      map_arterial_next   8      True  93919    0.03999      -0.02023  -0.50596
+## Run 11: rich pre-dose history, stay-crossfitted estimates
+                    label      n   effect  cluster_se  dose_residual_sd  outcome_residual_sd  seconds
+     NE_cuff_both_current  28031  3.51113     0.46432           0.09161              6.82217      1.5
+ NE_arterial_both_current  89388  3.91356     0.16693           0.09039              4.27770      2.1
+    NE_cuff_all_histories 250000  3.61924     0.23487           0.06341              7.05825      3.6
+insulin_lab_all_histories 137825 -1.96674     0.07393           0.37319          
+## Run 12: persistence and rollout target sensitivity
+          drug     n  assumed_effect  persistence  cluster_se  cross_sensor_residual_cov
+       insulin 15266           -1.55      0.99773     0.00781                  108.17329
+       insulin 15266           -1.80      1.00763     0.00782                  108.17329
+       insulin 15266           -2.00      1.01556     0.00784                  108.17329
+norepinephrine 28031            3.00      0.89761     0.02096                   10.64188
+norepinephrine 28031            3.60      0.89803  
+## Restart, run 13: recovering architecture and kernel state
+No edits yet. Drug-effect evidence is promising, but glucose persistence near one requires further checks before fixing rollout targets. Inspecting architecture to identify a constrained, factual-preserving edit.
+## Run 19: restart audit
+No edits. Best provisional head reconstruction still has mean RMSE 1.87 and NLL RMSE 0.24; recovering the exact architecture and previous evidence before deriving any factual-preserving weight edit.
+## Run 22: consolidated evidence and alignment audit
+Insulin clean lab threshold estimates approximately -1.55/rate unit; history-adjusted lab estimates approximately -1.97. NE rich-history estimates approximately +3.5 to +3.9/rate unit. Positive persistence is supported, but accumulated rollout targets remain uncertain. No edits; inspecting state/head alignment and exact features.
+## Run 24: register and activation audit
+MAP discrepancies can be explained by four-draw latent sampling. Searching glucose register flags and boundary conventions. Best config: {'activation': 'gelu', 'gap_mode': 'seconds_div10', 'type_id': 1, 'status_id': 0, 'age_mode': 'seconds_div10', 'zcol': 6, 'acol': 3, 'flags': (0,), 'mean_rmse': 3.579830679304847, 'nll_rmse': 0.40590378333394833, 'score': 4.797542029306692, 'gap_activation': 'gelu', 'prior_activation': 'gelu', 'value_activation': 'gelu'}; bin_side=left
+                    bias       mse
+## Runs 25?26: successful head reconstruction and diagnostic dose probe
+All 4660 reading means reconstructed without meaningful channel bias (glucose_finger -0.040, lab -0.091, MAP arterial -0.0002, cuff +0.003).
+Head config: GELU for gap/prior/value; query type 1; status 0; last flags (0,), age column 3, value-z column 6; age log1p(seconds)/10; bin side left. Original states: S_reference; baseline head features: head_original_features, 64 prior draws, seed 917.
+Run 25 stopped before saving because load_original returns torch.Tensor; run 26 fix
+## Run 27: probe collected, original embedding restored
+Forward 5 returned 4350 bundle states for the same 100 training stays. Saved as S_probe; removed temporary embed.numeric.weight edit. Recovering architecture and kernel analysis before constructing a lasting correction.
+## Run 30: matched head-dose probe
+Probe rows align exactly. RMS state differences: out 0.01181, h 0.7450, posterior z 0.04997. Original embedding remains restored. Used validated head_cfg and matched state globals to compute head_probe_features with the same 64 prior draws (seed 917); head_probe_delta_hidden records the controlled hidden-feature changes.
+## Run 31: configuration aliasing fixed
+Run 30 used a mutable head_cfg that did NOT match the validated reconstruction; its reported probe differences must not be used. Frozen repair_head_cfg explicitly: all GELU, type 1, status 0, flags (0,), age col 3, value-z col 6, log1p(seconds)/10, bin side left. Recomputed repair_original_features and repair_probe_features with matched 64 prior draws (seed 917). Use repair_delta_hidden, not head_probe_delta_hidden, for fitting.
+## Runs 34?37: recovered context
+Architecture reread. Clean insulin lab RD about -1.55/unit, rich-history estimate -1.97; NE estimates +3.5 to +3.9/unit. Original 100-stay rollout -3.226/+1.825/+1.373/-0.846. No edits. Persistence must separate stable stay heterogeneity from dynamic propagation; plan a small latent-state fit.
+## Run 38: latent-state persistence diagnostic
+Fitted own two-sensor Gaussian state models, with stable random stay baselines, measurement noise, missing readings and known hourly drugs. Drug coefficients fixed to record-supported -1.8 and +3.6. This is a statistical diagnostic, not world-model training. Results:
+insulin: {'rho': 0.9297708867835622, 'b': -1.8, 'drift': array([0.71915881, 0.89788434]), 'Q': 29.547189040390034, 'R': array([73.44903309,  9.77865272]), 'bias': array([ 0.        , -0.03495557]), 'initial_mean': array([145.30419481, 
+## Run 39: converged persistence and first action candidate
+insulin: {'rho': 0.9641085379393141, 'b': -1.8, 'drift': array([0.98483209, 0.78975363]), 'Q': 23.593656044205655, 'R': array([76.75776955, 12.33854852]), 'bias': array([ 0.        , -0.02751273]), 'initial_mean': array([145.0370579 , 153.09561383]), 'initial_cov': array([[1164.91170681, 2119.69166412],
+       [2119.69166412, 8135.17530494]])}
+norepinephrine: {'rho': 0.8445405942374236, 'b': 3.6, 'drift': array([-0.16167194, -0.27209607]), 'Q': 4.739124223305644, 'R': array([ 9.4458189
+
+=== RECENT KERNEL OBJECTS ===
+A126 ndarray (2, 192) 
+A128 ndarray (2, 192) 
+B112 ndarray (193, 2) 
+B118 ndarray (769, 2) 
+Cf112 ndarray (193, 193) 
+Cp112 ndarray (193, 193) 
+E119 Tensor torch.Size([32, 4, 192]) 
+E_linear_dose117 ndarray (192, 2) 
+E_linear_dose119 ndarray (192, 2) 
+Edecoder128 ndarray (192, 2) 
+J120 ndarray (42, 192) 
+J125 ndarray (42, 192) 
+J126 ndarray (42, 192) 
+J128 ndarray (42, 192) 
+Rp112 ndarray (193, 2) 
+S_before119 ndarray (4350, 992) 
+S_object120 NpzFile None 
+Slocal128 dict None ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+V128 ndarray (192, 2) 
+Wdose128 ndarray (192, 2) 
+_target102 ndarray (4250, 2) 
+a127 ndarray (42,) 
+a128 ndarray (42,) 
+aa111 Tensor torch.Size([26, 4, 192]) 
+abar119 Tensor torch.Size([192]) 
+active112 ndarray (1225,) 
+affine117 ndarray (4250, 4, 2) 
+age119 str None 
+aligned_targets DataFrame (2620, 9) 
+archive110 NpzFile None 
+arr118 ndarray (4250, 4, 768) 
+avg_gain112 float None 
+b117 ndarray (2,) 
+b119 ndarray (2,) 
+b127 ndarray (42,) 
+b128 ndarray (42,) 
+base119 Tensor torch.Size([32, 4, 192]) 
+base_head110 dict None ['mean', 'nll', 'prob', 'prior_logsd', 'sampling_mean_sd']
+base_mean126 ndarray (42,) 
+base_mean128 ndarray (42,) 
+bdose128 ndarray (2,) 
+benchmark_stays list None 
+best_core119 dict None ['heads', 'include_current', 'age_mode', 'h_rmse', 'out_rmse']
+beta128 ndarray (192,) 
+bias117 ndarray (192,) 
+cc128 float32 () 
+cf112 ndarray (4250, 4, 192) 
+constant117 float64 () 
+constant_vec117 ndarray (192,) 
+counter112 dict None [('insulin', 0.5), ('insulin', 2.0), ('norepinephrine', 0.5), ('norepinephrine', 2.0)]
+cv128 ndarray (192,) 
+d120 int None 
+d125 int None 
+d126 int None 
+d127 int None 
+d128 int None 
+decoder_target_rows ndarray (4660, 2) 
+decoder_targets ndarray (37280, 2) 
+delta119 Tensor torch.Size([192]) 
+delta_target ndarray (4250, 2) 
+describe115 function None 
+design_slice111 slice None 
+dim110 int None 
+dq128 ndarray (4250,) 
+drug112 str None 
+drug128 str None 
+drugnum112 int None 
+dx112 ndarray (4250, 4, 193) 
+dx128 ndarray (4250,) 
+dxt112 ndarray (11440, 193) 
+e119 Tensor torch.Size([32, 192]) 
+ecf128 ndarray (4250, 4, 192) 
+ee111 Tensor torch.Size([26, 4, 192]) 
+end124 int None 
+eps110 float None 
+eps120 float None 
+eps125 float None 
+eps126 float None 
+eps127 float None 
+eps128 float None 
+err_h120 float None 
+err_out120 float None 
+ev110 str None 
+eval_hpre128 function None 
+event120 str None 
+events126 ndarray (42,) 
+events128 ndarray (42,) 
+f112 ndarray (1225, 4, 2) 
+factor112 float None 
+factor128 float None 
+factual112 ndarray (4250, 4, 192) 
+fam118 str None 
+fam119 str None 
+fam123 str None 
+fam124 str None 
+family112 str None 
+family116 str None 
+family117 str None 
+family_fits112 dict None [0.03, 0.3, 3.0, 30.0]
+fit116 dict None ['B', 'mu', 'sd', 'report']
+fit117 dict None ['B', 'mu', 'sd', 'report']
+fit118 dic
+[output cut at 10,000 characters]
+```

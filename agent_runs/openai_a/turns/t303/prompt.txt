@@ -1,0 +1,118 @@
+OUTPUT of Python run 259 of at most 300:
+```
+=== GPU FACTUAL AUDIT, ALL 400 ===
+                   n  delta_nll  original_bias  edited_bias
+event                                                      
+glucose_finger  5594    0.01363        0.57838      0.22545
+glucose_lab     2003   -0.00001        0.79435      0.79466
+map_arterial    4665   -0.00000        0.11197      0.11170
+map_cuff        6392   -0.00008        0.11045      0.10988
+
+=== FINGER: ACTIVITY AND BATCH ===
+                        n  delta_nll  original_bias  edited_bias  mean_dose
+batch insulin_active                                                       
+27    False           557   -0.00001        1.08840      1.08940    0.00000
+      True            981    0.02369        0.11746     -0.46700    1.65341
+28    False           542    0.00002        1.53567      1.53667    0.00000
+      True            822    0.02460        0.11217     -0.57093    1.67762
+30    False           602    0.00000        1.28178      1.28328    0.00000
+      True            701    0.01529        0.34534     -0.07179    1.83666
+31    False           539   -0.00000        1.96877      1.96971    0.00000
+      True            850    0.02594       -0.57106     -1.21757    1.65294
+
+=== NE DML CACHE STRUCTURE ===
+lags 1
+  dose_residual (299517,)
+  outcome_residual (299517,)
+  groups (299517,)
+lags 4
+  dose_residual (260475,)
+  outcome_residual (260475,)
+  groups (260475,)
+lags 8
+  dose_residual (208459,)
+  outcome_residual (208459,)
+  groups (208459,)
+
+=== NOTEBOOK SECTIONS ABOUT IDENTIFICATION ===
+Notebook characters: 69177 sections: 89
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first
+## Factual baseline and dynamic identification; Python 5, forward 2
+- Original factual value NLL = 1.63461 on first 100 tuning stays, 4751 readings.
+- NE sensor-difference first stage is weak; do not use its point estimates.
+- Tested replicate-sensor corrections and lag-instrumented first differences; each relies on explicit measurement-noise/innovation assumptions.
+{
+  "('map_arterial', 'norepinephrine', 'basic')": {
+    "persistence": 0.9982457546092935,
+    "effect": 0.25976722831925286,
+    "se_persistence": 0.0018481345452363164,
+    "se_effect": 0.07259737043369274,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history')": 
+## More efficient dynamic checks; Python 6, forward 2
+- Replicate-sensor NE estimates are positive but rely on dose/error independence.
+- Insulin replicate-sensor level estimates are invalid if dosing uses finger noise; the negative sensor-difference IV is more defensible for insulin.
+- Enlarged first-difference samples using own-sensor instruments at lags >=2, which avoid overlapping current measurement errors.
+{
+  "('map_arterial', 'admission')": {
+    "coefficients": [
+      0.9825267853113245,
+      0.5165933079110422,
+      0.029677058825007888
+    ],
+    "se": [
+      0.006061144800747398,
+      0.1349655273885699,
+      0.0069651499853
+## Dynamic identification; Python 10, forward 2
+- Prior-controlled sensor IV supports a modest negative immediate insulin effect; NE sensor instrument is weak.
+- Prior-controlled placebo lags 1/2 were tautologies; added earlier placebos.
+- Estimated persistence conditional on candidate effects and insulin impulse moments including later doses.
+{
+  "fixed_b_dynamics": {
+    "('insulin', -1.8)": [
+      [
+        -2.693714988473109,
+        0.3743989046404466,
+        224413
+      ],
+      [
+        -7.381247201106025,
+        2.1851839577620606,
+        209202
+      ],
+      [
+        9.064263420439419,
+        3.25877373442609,
+        197161
+## Contrast-strength trial; Python 183, forwards 13/50
+- Recovered strong insulin RD evidence: beta=-1.928709, rho=0.831840; training x2 target -11.136, first-100 tuning target -10.708, half +5.354.
+- NE flexible estimates approximately +3.3 remain observational; do not treat their agreement as identification.
+- Preserved GPU13 scale=1 checkpoint. Installed scale=2 trial through the same four value-head tensors; NOT accepted pending GPU factual/rollout checks.
+- Cached scale checks: {1.0: {'first': 0.0035964250564575195, 'extra': -7.808208465576172e-05, 'tuning': 0.0026171207427978516}, 1.5: {'first': 0.009099960327148438, 'extra': 0.00282204
+## Restart recovery and repaired screening; Python 211, forwards 21/50
+- Confirmed current four tensors exactly match stronger6_checkpoint.
+- Python 206 failed because cache_losses returns a per-reading vector; screening now explicitly averages losses.
+- Recovered insulin fuzzy-RD beta=-1.928709 and persistence=0.831840; fixed-record targets train -11.136, first-100 tuning -10.708, half +5.354.
+- NE flexible estimates around +3.3 remain observational.
+- CPU candidate screens are design evidence only; no weights changed.
+
+
+
+```

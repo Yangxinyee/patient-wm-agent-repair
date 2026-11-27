@@ -1,0 +1,120 @@
+OUTPUT of Python run 201 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+RECENT CONSTRUCTORS / EVALUATORS
+as_np184 {'signature': '(x)', 'globals': ['isinstance', 'torch', 'Tensor', 'detach', 'cpu', 'numpy', 'np', 'asarray']}
+collect_channel186 {'signature': '()', 'globals': ['range', 'len', 'indices102', 'capture_transition102', 'append', 'as_np184', 'np', 'concatenate']}
+collect_selected187 {'signature': '(ix, actions=None)', 'globals': ['range', 'len', 'torch', 'from_numpy', 'np', 'asarray', 'float32', 'copy', 'capture_transition102', 'append', 'as_np184', 'concatenate']}
+compact195 {'signature': '(value, depth=0)', 'globals': ['isinstance', 'dict', 'list', 'items', 'str', 'compact195', 'np', 'ndarray', 'torch', 'Tensor', 'as_np184', 'size', 'round', 'tolist', 'shape', 'tuple', 'len', 'generic', 'item', 'int', 'float', 'bool', 'type', 'repr']}
+cpu_factual129 {'signature': '(state_array, weights, draws=4)', 'globals': ['rW', 'dict', 'reference_bank125', 'np', 'asarray', 'float32', 'head_features_fixed', 'head_train_data_repair', 'to_numpy', 'int', 'log', 'maximum', 'arange', 'len']}
+describe198 {'signature': '(x)', 'globals': ['isinstance', 'dict', 'list', 'items', 'describe198', 'tuple', 'len', 'hasattr', 'detach', 'cpu', 'numpy', 'np', 'asarray', 'size', 'tolist', 'shape', 'float', 'linalg', 'norm', 'str', 'int', 'bool', 'number', 'type', '__name__']}
+dose_metrics192 {'signature': '(coef)', 'globals': ['gated_ne185', 'raw_base192', 'test192', 'active192', 'raw_cf192', 'rate192', 'np', 'dot', 'sqrt', 'mean', 'extend', 'float']}
+f200 {'signature': '(indices, action_override=None)', 'globals': ['sys', 'getprofile', 'setprofile', 'transition73']}
+factual_eval194 {'signature': '(weights)', 'globals': ['replay_factual125', 'cpu_factual129', 'np', 'asarray', 'isfinite', 'all']}
+gated_ne185 {'signature': '(raw, coef, scale=40.0)', 'globals': ['as_np184', 'gate_fits180', 'decision_function', 'expit']}
+r2_185 {'signature': '(y, p)', 'globals': ['np', 'isfinite', 'asarray', 'sum', 'max', 'mean']}
+replay_factual125 {'signature': '(weights=None, capture_decoder=True)', 'globals': ['repair_bank', 'rW', 'rp_linear', 'dict', 'reference_bank125', 'reference_x125', 'copy', 'np', 'full', 'len', 'nan', 'float32', 'replay_levels125', 'transition73', 'detach', 'cpu', 'numpy']}
+rp_action_encoder {'signature': '(atoms)', 'globals': ['rp_mlp', 'rp_linear', 'torch', 'full', 'len', 'np', 'log', 'float32', 'rp_norm']}
+show_source190 {'signature': '(name, limit=4500)', 'globals': ['globals', 'get', 'print', 'inspect', 'signature', 'getsource', 'OSError', 'TypeError', 'io', 'StringIO', 'dis', 'getvalue']}
+singleton_action_repair {'signature': '(atom_vectors)', 'globals': ['torch', 'full', 'shape', 'float', 'np', 'log', 'float32', 'rp_mlp', 'rp_linear', 'rp_norm']}
+summary189 {'signature': '(v)', 'globals': ['torch', 'is_tensor', 'tuple', 'shape', 'isinstance', 'np', 'ndarray', 'dict', 'repr', 'list', 'keys', 'type', '__name__', 'len', 'callable', 'hasattr', 'str', 'inspect', 'signature', 'Exception', '__code__', 'co_names']}
+
+TARGETS AND CURRENT CANDIDATE
+readout_estimates137 {'insulin': {'row_mean': [-15.958712677073809, {'shape': [2], 'norm': 22.8044189956187}], 'equal_stay_mean': [-13.200754314749359, {'shape': [2], 'norm': 18.849493607708006}]}, 'norepinephrine': {'row_mean': [3.850968842405168, {'shape': [2], 'norm': 5.540613829167585}], 'equal_stay_mean': [3.6087357747707864, {'shape': [2], 'norm': 5.1917727334070465}]}}
+kernels137 {'insulin': {'shape': [12], 'norm': 4.750699238530375}, 'norepinephrine': {'shape': [12], 'norm': 4.442077968176568}}
+results194 {'0.0': {'losses': {'shape': [4699], 'norm': 125.07115173339844}, 'mean_nll': 1.63779616355896, 'delta_original': 0.0022596917115151882, 'delta_submitted': 0.00022960804926697165, 'event_deltas': {'keys': ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'], 'size': 4}}, '0.5': {'losses': {'shape': [4699], 'norm': 125.10749053955078}, 'mean_nll': 1.637816071510315, 'delta_original': 0.0022795849945396185, 'delta_submitted': 0.0002495014341548085, 'event_deltas': {'keys': ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'], 'size': 4}}, '1.0': {'losses': {'shape': [4699], 'norm': 125.31867980957031}, 'mean_nll': 1.6396358013153076, 'delta_original': 0.0040993778966367245, 'delta_submitted': 0.0020692937541753054, 'event_deltas': {'keys': ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'], 'size': 4}}, '1.5': {'losses': {'shape': [4699], 'norm': 125.94644927978516}, 'mean_nll': 1.6453633308410645, 'delta_original': 0.009826790541410446, 'delta_submitted': 0.007796707097440958, 'event_deltas': {'keys': ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'], 'size': 4}}, '2.0': {'losses': {'shape': [4699], 'norm': 133.00509643554688}, 'mean_nll': 1.6876825094223022, 'd
+[output cut at 10,000 characters]
+```

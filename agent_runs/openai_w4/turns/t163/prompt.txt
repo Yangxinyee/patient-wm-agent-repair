@@ -1,0 +1,282 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 162 replies happened before. Forward passes used: 10 of 50; Python runs used: 143 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_2', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+eld-out insulin R2 only ~0.05–0.10), rejecting the simple B_in shortcut. Captured exact attention inputs and tested whether a redundant head can be compensated before creating an explicit gated-innovation channel. No edits.
+
+## Run 104
+Constructed an unsaved explicit innovation-reading attention head (head 1), with compensated original attention output and gated posterior innovation in a dedicated latent direction. Tested token isolation, scalar transfer, and held-out baseline compensation. No edits saved.
+
+## Runs 105–108
+Recovered candidate architecture and interfaces after restart. Head 1 is the most compensable attention head (held-out output RMS about 0.095); candidate remains unsaved pending reading-level and GPU factual tests. Immediate record estimates remain insulin -2.049/rate and NE +3.171/rate; sustained rollout targets are not inferred from these alone.
+
+## Runs 109–115 recovery
+Run-112 controlled channel decodes q roughly monotonically, but has factual/non-action leakage 0.18–0.24 RMS. No weights saved. Runs 113–115 recover retained candidate interfaces; six-lag targets remain provisional and must not be equated with sustained truth.
+
+## Run 117: first saved candidate
+Saved amplitude-80 explicit insulin-innovation channel (9 tensors): z_post hidden/output, z_in, and prelude attention q/kv/out weights. No B_in response connection yet. This isolates factual cost of rewiring; forward factual validation is next. Original first-100 tuning NLL was 1.59524; allowed increase 0.005.
+
+## Forward 5 / Run 118
+Channel-only factual validation, first 100 tuning stays: original 1.59524, edited 1.59518 (delta -0.00006). Now testing B_in response directions against record-based insulin immediate coefficient -2.04924, with MAP target zero. Finite perturbations are design checks, not causal evidence.
+
+## Run 119
+Run-118 response directions are approximately linear and glucose-selective. Recovering exact retained wiring and earlier record evidence before connecting the response; finite differences are not sustained causal validation. No additional weights edited.
+
+## Run 123: provisional insulin response connection
+Recovered exact interfaces: rW is the CPU tensor dictionary; transition73 is the verified one-bundle transition; transition_with_b110 injects an additive core.b_in output; probe_means95 evaluates the next reading. chosen_channel116['decoder'] has shape (192,), decoding prelude E per slot. directions118[0.01] is the smaller glucose-selective response direction (norm 23.695), calibrated to immediate record estimate -2.04924/rate. Saved core.b_in.weight = original + outer(direction, decoder), scale 1.0, in addition to the nine channel edits. This remains provisional pending independent GPU factual and rollout tests; sustained kernels are not yet treated as established ground truth.
+
+## Forward 6 / Run 124: reject rank-one connection
+Full factual first-100 tuning NLL: original 1.59524, connected edit 1.92945, delta +0.33421. All four reading types worsened. Dropped core.b_in.weight; nine channel-only edits remain. Immediate finite-difference calibration did not control recurrent persistence/feedback. Next: reconstruct complete factual trajectories and design a dynamically constrained, reading-selective connection.
+
+## Run 125
+Implemented replay_factual125 using stay-separated sequential updates of repair_bank['x']; original full-state RMSE=1.01486e-05. Retained weights_channel125, weights_rejected125 and replay states/q captures for dynamic diagnosis. No additional saved edits.
+
+## Run 126
+The rejected connection has large recurrent amplification, while the channel-only replay remains near the original. Recovering exact architecture, fixtures and causal evidence before designing a dynamically bounded repair. No additional weights edited.
+
+## Run 127
+Architecture confirms that the repair enters a recurrent pathway. Recovering compact replay interfaces and initial causal evidence; the previous diagnostic output was truncated. No additional weights edited.
+
+## Run 128
+Tested scaled versions of the rejected rank-one response with complete factual replay. Results retained in scale_results128; no additional tensors saved. Recovering record evidence and reading interfaces for dynamic calibration.
+
+## Run 129
+Measured complete-replay factual NLL for response scales 0.1–0.9 on 100 training stays, with common prior draws. Results in nll_scales129; no additional tensors saved. Stability and factual likelihood must both hold before GPU validation.
+
+## Run 130
+Saved provisional core.b_in.weight response at scale 0.4. Complete training replay dNLL=-0.000229 and out RMSE=0.00561; scale 0.6 is unstable. This is not yet rollout validation or proof of sustained causal accuracy. Ten tensors now edited.
+
+## Forward 7–8 / Run 131
+Scale-0.4 edit tuning rollouts: insulin x2 -1.712, half +2.202; NE x2 +0.095, half -0.299. Asymmetry remains unexplained. Independent tuning stays 100–199 factual NLL: original 1.59931, edited 1.59848 (delta -0.00083). Recovering lag estimates and rollout detail; these predictions are not truth.
+
+
+## Run 132
+Recovered architecture, retained replay/repair interfaces and earlier identification evidence. Current GPU rollouts remain predictions, not truth; immediate DML coefficients alone do not establish sustained intervention effects. No weights changed.
+
+
+## Run 133
+Run-132 output was truncated. Compact recovery of causal evidence, function dependencies and edit magnitudes; no weights changed.
+
+
+## Run 134
+Recovered dynamic-identification notes and compared retained-kernel convolutions with the latest rollout on matching stay-hours. These convolutions are provisional record-based targets, not supplied truth. No weights changed.
+
+
+## Run 135
+Corrected the NE provisional-target label mismatch (the tool uses ne_x2/ne_half). Recovered innovation-model, impulse-moment and feedback fixtures for independent causal and dynamic validation. No weights changed.
+
+
+## Run 136
+Independently re-estimated six longitudinal dose-innovation moments with new stay-separated outcome nuisance regressions. Retained cluster moment arrays and direct deconvolution in lp_new136. This checks nuisance sensitivity; linear, time-invariant direct effects and innovation exogeneity remain identifying assumptions. No weights changed.
+
+
+## Run 137
+Extended independently fitted innovation local projections through 12 lags; computed 300 stay-cluster multiplier-bootstrap direct-kernel and matched-readout intervals. Tested a quadratic immediate dose term with cross-fitted dose-squared nuisance estimates. These estimates still depend on sequential exogeneity, sufficient history and an additive transferable impulse response. No weights changed.
+
+## Run 138
+Twelve-lag record estimates support sustained insulin and NE responses far larger than the current rollout edit. Quadratic immediate terms raise extrapolation concerns. Recovering architecture and retained interfaces to design a bounded dynamic repair; no weights changed.
+
+## Run 139
+Inspecting existing stability/NLL scale tests and exact transition/replay interfaces before selecting a bounded response repair. No weights changed.
+
+## Run 140
+Extracted numerical scale stability/NLL summaries and compact transition bytecode. No weights changed.
+
+## Run 141
+Scale 0.5 training replay is stable enough to test: mean NLL 1.6355845, original 1.6355364. Saved B_in response scale 0.5; scale 0.4 backed up in backup_b141. Awaiting independent GPU factual and rollout validation; no causal claim from replay alone.
+
+## Run 142
+GPU scale-0.5 factual first-100 tuning dNLL=+0.00037. Rollouts: insulin x2=-2.252, half=+2.748; NE x2=+0.090, half=-0.290. Scaling alone remains inadequate. Investigating input dose compression versus response dynamics before another edit. Scale 0.5 remains saved.
+
+## Run 143
+Recovering exact action construction and dose/state alignment to test whether the innovation channel compresses doubled doses. No saved weights changed.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 143 of at most 300:
+```
+=== RECORD SCHEMA ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== RELEVANT DATA FRAMES ===
+sample (24, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+train (1999040, 7) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+tuning (27609, 7) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+df (27609, 7) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+d (720000, 3) ['score', 'dose', 'band']
+pan (780000, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+tpan (10400, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+last (780000, 4) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+tlast (10400, 4) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+next_obs (780000, 4) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+paired (107336, 2) ['map_cuff', 'map_arterial']
+table (6, 11) ['horizon', 'n', 'closed_loop_response', 'cluster_se', 'dose_cov_0', 'dose_cov_1', 'dose_cov_2', 'dose_cov_3', 'dose_cov_4', 'dose_cov_5', 'AR_predicted_response']
+base_roll (2676, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+tab (301, 5) ['n', 'rate', 'next_glucose', 'change', 'next_observed']
+rd_results (16, 7) ['cutoff', 'bw', 'n', 'dose_jump', 'outcome_jump', 'effect_per_rate', 'cluster_se']
+baseline_fact (4903, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+rd_refined (16, 7) ['cutoff', 'bw', 'n', 'dose_jump', 'outcome_jump', 'effect_per_rate', 'cluster_se']
+HX (780000, 39) ['hour', 'last_glucose_finger', 'last_glucose_lab', 'last_map_arterial', 'last_map_cuff', 'seen_now_glucose_finger', 'seen_now_glucose_lab', 'seen_now_map_arterial', 'seen_now_map_cuff', 'last_lag1_glucose_finger', 'last_lag1_glucose_lab', 'last_lag1_map_arterial']
+dml_results (2, 8) ['drug', 'target', 'n', 'beta', 'cluster_se', 'dose_R2', 'dose_residual_SD', 'outcome_residual_SD']
+tuning_records_repair (27609, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+train_id_preview (10000, 1) ['stay_id']
+state_panel (4531, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+active (1802, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+tHX_repair (10400, 39) ['hour', 'last_glucose_finger', 'last_glucose_lab', 'last_map_arterial', 'last_map_cuff', 'seen_now_glucose_finger', 'seen_now_glucose_lab', 'seen_now_map_arterial', 'seen_now_map_cuff', 'last_lag1_glucose_finger', 'last_lag1_glucose_lab', 'last_lag1_map_arterial']
+probe_table (24, 7) ['drug', 'features', 'alpha', 'rate_R2', 'innovation_R2', 'innovation_RMSE', 'innovation_SD']
+map_policy_summary (719825, 4) ['score', 'dose', 'next_map', 'fresh_arterial']
+map_policy_table (107, 5) ['n', 'treated', 'mean_rate', 'sd_rate', 'next_map']
+selected_records (7150, 7) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+group (23, 7) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+head_candidate_table_repair (24, 6) ['activation', 'type', 'last_pattern', 'mean_RMSE', 'nll_RMSE', 'mean_nll']
+core_trial_table_repair (240, 9) ['core_act', 'gap_factor', 'latent', 'value_flag_col', 'status', 'head_act', 'mean_RMSE', 'nll_RMSE', 'mean_nll']
+check_detail_repair (4903, 8) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'reconstructed', 'mean_error']
+layout_table_repair (2352, 6) ['zcol', 'agecol', 'flags', 'head_act', 'mean_RMSE', 'nll_RMSE']
+fact_probe (4903, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+alignment_probe (12, 13) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'prev_state_index', 'dt', 'has_last', 'age', 'last_z', 'last_bin']
+sample_check (512, 8) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'mean_error', 'nll_error']
+status_table_repair (30, 5) ['status_delta', 'activation', 'mean_RMSE', 'nll_RMSE', 'mean_nll']
+joint_table_repair (81, 7) ['gap_activation', 'prior_activation', 'head_gap_factor', 'head_activation', 'mean_RMSE', 'nll_RMSE', 'mean_nll']
+type_table_repair (15, 4) ['type', 'mean_RMSE', 'nll_RMSE', 'mean_nll']
+packing_table_repair (2352, 6) ['zcol', 'agecol', 'flags', 'mean_RMSE', 'nll_RMSE', 'mean_nll']
+full_check_repair (4903, 8) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'mean_error', 'nll_error']
+rr (680, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index']
+pair (107336, 2) ['map_arterial', 'map_cuff']
+tab_imp (6, 11) ['horizon', 'n', 'closed_loop_response', 'cluster_se', 'dose_cov_0', 'dose_cov_1', 'dose_cov_2', 'dose_cov_3', 'dose_cov_4', 'dose_cov_5', 'AR_predicted_response']
+_df (2676, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_valid (1802, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_o (353, 3) ['stay_id', 'hour', 'effect']
+_d (2676, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_v (48, 6) ['memory', 'age_div', 'age_mode', 'norm_memory', 'h_rmse', 'out_rmse']
+_rr (353, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_targets (353, 3) ['stay_id', 'hour', 'effect']
+_bf (4903, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+_tcheck (4903, 12) ['stay_id', 'hour', 'event', 'observed', 'prev', 'dt', 'last_z', 'age', 'has', 'last_bin', 'code', 'observed_bin']
+head_train_data_repair (4699, 12) ['stay_id', 'hour', 'event', 'observed', 'prev', 'dt', 'last_z', 'age', 'has', 'last_bin', 'code', 'observed_bin']
+head_tuning_data_repair (4903, 12) ['stay_id', 'hour', 'event', 'observed', 'prev', 'dt', 'last_z', 'age', 'has', 'last_bin', 'code', 'observed_bin']
+action_fixture_repair (133, 13) ['state_index', 'stay_id', 'hour_state', 'n_atoms', 'has_insulin', 'has_norepinephrine', 'minute', 'hour_record', 'event', 'value', 'rate', 'dose']
+source_drugs_repair (1458, 8) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute']
+fixture (133, 13) ['state_index', 'stay_id', 'hour_state', 'n_atoms', 'has_insulin', 'has_norepinephrine', 'minute', 'hour_record', 'event', 'value', 'rate', 'dose']
+posterior_search_repair (480, 6) ['drug', 'unit', 'rate_unit', 'kq', 'bin_side', 'z_RMSE']
+fx (133, 13) ['state_index', 'stay_id', 'hour_state', 'n_atoms', 'has_insulin', 'has_norepinephrine', 'minute', 'hour_record', 'event', 'value', 'rate', 'dose']
+rec (36, 13) ['state_index', 'stay_id', 'hour_state', 'n_atoms', 'has_insulin', 'has_norepinephrine', 'minute', 'hour_record', 'event', 'value', 'rate', 'dose']
+r44_rec (36, 13) ['state_index', 'stay_id', 'hour_state', 'n_atoms', 'has_insulin', 'has_norepinephrine', 'minute', 'hour_record', 'event', 'value', 'rate', 'dose']
+r44_table (6, 11) ['horizon', 'n', 'closed_loop_response', 'cluster_se', 'dose_cov_0', 'dose_cov_1', 'dose_cov_2', 'dose_cov_3', 'dose_cov_4', 'dose_cov_5', 'AR_predicted_response']
+r45_fixture (100, 12) ['state_index', 'stay_id', 'minute', 'n_atoms', 'has_insulin', 'has_norepinephrine', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+r45_records (6357, 8) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute']
+r45_state_frame (4159, 6) ['state_index', 'stay_id', 'minute', 'n_atoms', 'has_insulin', 'has_norepinephrine']
+r45_measure_fixture (834, 12) ['state_index', 'stay_id', 'minute', 'n_atoms', 'has_insulin', 'has_norepinephrine', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+frame (2676, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+r52_table (144, 6) ['event', 'n', 'RMSE', 'unit', 'side', 'empty_action']
+repair_records (6357, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index']
+tab_imp55 (6, 11) ['horizon', 'n', 'closed_loop_response', 'cluster_se', 'dose_cov_0', 'dose_cov_1', 'dose_cov_2', 'dose_cov_3', 'dose_cov_4', 'dose_cov_5', 'AR_predicted_response']
+rows58 (680, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index']
+same59 (1, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index']
+ending59 (1, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index']
+end_records60 (1458, 10) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index', 'end_bundle']
+problem_records63 (1999040, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+rows65 (680, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index']
+visit_ends65 (200, 10) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour', 'minute', 'bundle_index', 'end_bundle']
+all_ends65 (1658, 10) ['stay_id', 'hour', 'eve
+[output cut at 10,000 characters]
+```

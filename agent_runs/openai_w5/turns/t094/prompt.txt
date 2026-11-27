@@ -1,0 +1,88 @@
+OUTPUT of Python run 81 of at most 300:
+```
+=== DIRECT-PATH HELPERS ===
+action_vectors4 (drug=None, multiplier=1.0) globals: ('torch', 'zeros', 'n4', 'acttable4', 'event', 'action_atom_exact', 'rate', 'to_numpy', 'dose', 'mlp0', 'index_add_', 'as_tensor', 'j', 'long', 'from_numpy', 'np', 'sqrt', 'maximum', 'counts_start4', 'log1p', 'norm0', 'lin0')
+action_atom_exact (event, rates, doses=None, kind=0, bin_mode='raw64') globals: ('np', 'asarray', 'float64', 'reshape', 'round', 'len', 'torch', 'zeros', 'W0', 'code_id', 'expand', 'clone', 'norm_meta', 'as_tensor', 'clip', 'float32', 'searchsorted', 'astype', 'lin0')
+wm_attention (x, prefix, memory=None, agevec=None, age_mode='input', weights=None) globals: ('wm_lin', 'rsplit', 'wm_memory_mode', 'wm_norm', 'F', 'layer_norm', 'shape', 'wm_kv_layout', 'chunk', 'reshape', 'transpose', 'torch', 'softmax', 'np', 'sqrt')
+wm_layer (x, prefix, memory=None, agevec=None, age_mode='input', weights=None) globals: ('wm_attention', 'wm_norm', 'shape', 'wm_mlp')
+wm_lin (x, prefix, weights=None) globals: ('W0', 'F', 'linear', 'get')
+
+FUNCTION action_vectors4 (drug=None, multiplier=1.0)
+CONSTANTS: (None, 192, ('insulin', 'norepinephrine'), 1.0, 'encode_action.mlp1', 'gelu', 0, ('dtype',), 1, 'encode_action.size', 'encode_action.mlp2', 'encode_action.norm')
+19 G:torch A:zeros G:n4 C:192 call: S:aggregate
+20 C:('insulin', 'norepinephrine') GET_ITER: FOR_ITER:to 452 S:event END_FOR:
+21 G:acttable4 G:acttable4 A:event L:event COMPARE_OP:== []: S:tab
+22 L:event L:drug COMPARE_OP:== POP_JUMP_IF_FALSE:to 130 L:multiplier JUMP_FORWARD:to 132 C:1.0 S:mult
+23 G:action_atom_exact L:event L:tab A:rate A:to_numpy call: L:mult OP:* call: S:atoms
+24 L:tab A:dose A:to_numpy call: L:mult OP:*
+25 G:mlp0 L:atoms C:'encode_action.mlp1' C:'gelu' call: S:atom_hidden
+26 L:aggregate A:index_add_ C:0 G:torch A:as_tensor L:tab A:j A:to_numpy call: G:torch A:long kw:('dtype',) call: call: POP_TOP: JUMP_BACKWARD:to 58
+27 L:atom_hidden
+28 L:aggregate G:torch A:from_numpy G:np A:sqrt G:np A:maximum G:counts_start4 C:1 call: call: call: C:None C:None BUILD_SLICE: C:None BUILD_TUPLE: []: OP:/= S:aggregate
+29 G:torch A:from_numpy G:np A:log1p G:counts_start4 call: call: C:None C:None BUILD_SLICE: C:None BUILD_TUPLE: []: S:size
+30 G:norm0 G:mlp0 L:aggregate G:lin0 L:size C:'encode_action.size' call: OP:+ call: call: return:
+31 C:'encode_action.mlp2' C:'gelu' C:'encode_action.norm'
+
+FUNCTION wm_attention (x, prefix, memory=None, agevec=None, age_mode='input', weights=None)
+CONSTANTS: (None, '.q', '.', 1, 0, '.norm2', 'norm_then_age', 'input', 'age_then_norm', 'age_then_plainnorm', (192,), '.kv', 'global', 2, -1, 4, 48, 'key', -2, 192, '.out')
+36 L:memory POP_JUMP_IF_NOT_NONE:to 10 L:x JUMP_FORWARD:to 12 L:memory S:source
+37 G:wm_lin L:x L:prefix C:'.q' OP:+ L:weights call: S:q
+38 L:memory POP_JUMP_IF_NONE:to 274
+39 L:prefix A:rsplit C:'.' C:1 call: C:0 []: C:'.norm2' OP:+ S:norm_prefix
+40 G:wm_memory_mode C:'norm_then_age' COMPARE_OP:== POP_JUMP_IF_FALSE:to 142
+41 G:wm_norm L:source L:norm_prefix L:weights call: S:source
+42 L:agevec POP_JUMP_IF_NONE:to 166 L:age_mode C:'input' COMPARE_OP:== POP_JUMP_IF_FALSE:to 166
+43 L:source L:agevec OP:+ S:source
+44 G:wm_memory_mode C:'age_then_norm' COMPARE_OP:== POP_JUMP_IF_FALSE:to 212
+45 G:wm_norm L:source L:norm_prefix L:weights call: S:source JUMP_FORWARD:to 274
+46 G:wm_memory_mode C:'age_then_plainnorm' COMPARE_OP:== POP_JUMP_IF_FALSE:to 274
+47 G:F A:layer_norm L:source C:(192,) call: S:source
+48 L:q A:shape UNPACK_SEQUENCE: S:batch S:nt S:_
+49 L:source A:shape C:1 []: S:ns
+50 G:wm_lin L:source L:prefix C:'.kv' OP:+ L:weights call: S:kv
+51 G:wm_kv_layout C:'global' COMPARE_OP:== POP_JUMP_IF_FALSE:to 574
+52 L:kv A:chunk C:2 C:-1 call: UNPACK_SEQUENCE: S:k S:v
+53 L:k A:reshape L:batch L:ns C:4 C:48 call: A:transpose C:1 C:2 call: S:k
+54 L:v A:reshape L:batch L:ns C:4 C:48 call: A:transpose C:1 C:2 call: S:v JUMP_FORWARD:to 752
+56 L:kv A:reshape L:batch L:ns C:4 C:2 C:48 call: S:kv
+57 L:kv C:None C:None BUILD_SLICE: C:None C:None BUILD_SLICE: C:None C:None BUILD_SLICE: C:0 C:None C:None BUILD_SLICE: BUILD_TUPLE: []: A:transpose C:1 C:2 call: L:kv C:None C:None BUILD_SLICE: C:None C:None BUILD_SLICE: C:None C:None BUILD_SLICE: C:1 C:None C:None BUILD_SLICE: BUILD_TUPLE: []: A:transpose C:1 C:2 call: S:v S:k
+58 L:agevec POP_JUMP_IF_NONE:to 844 L:age_mode C:'key' COMPARE_OP:== POP_JUMP_IF_FALSE:to 844
+59 L:k L:agevec A:reshape L:batch L:ns C:4 C:48 call: A:transpose C:1 C:2 call: OP:+ S:k
+60 L:q A:reshape L:batch L:nt C:4 C:48 call: A:transpose C:1 C:2 call: S:q
+61 G:torch A:softmax L:q L:k A:transpose C:-2 C:-1 call: OP:@ G:np A:sqrt C:48 call: OP:/ C:-1 call: S:prob
+62 L:prob L:v OP:@ A:transpose C:1 C:2 call: A:reshape L:batch L:nt C:192 call: S:result
+63 G:wm_lin L:result L:prefix C:'.out' OP:+ L:weights call: return:
+
+=== CORE SCALES ===
+core.delta_in (192,) RMS 0.5419655442237854 range (0.3859328031539917, 0.6783351898193359)
+core.a_in (192,) RMS 0.05547664314508438 range (-0.1805894523859024, 0.19394733011722565)
+core.prelude_norm.weight (192,) RMS 1.002753496170044 range (0.8629623651504517, 1.1629397869110107)
+core.b_in.weight (192, 192) RMS 0.05572303384542465 range (-0.27451035380363464, 0.24246323108673096)
+core.c_out.weight (192, 192) RMS 0.051876720041036606 range (-0.20094776153564453, 0.21220192313194275)
+z_in.weight (192, 32) RMS 0.09453277289867401 range (-0.2245471328496933, 0.23886370658874512)
+softplus(delta) quantiles: [0.90461719 0.96015881 0.99994478 1.03481109 1.08876204]
+
+=== STATE / ACTION OBJECTS ===
+rows4 ndarray (4214,)
+fit4 ndarray (4214,)
+H4 ndarray (4214, 192)
+U4 Tensor (4314, 192)
+ctx4 Tensor (4214, 192)
+e4_used Tensor (4214, 192)
+wm_e4 Tensor (4314, 192)
+innovation55 ndarray (4214, 2)
+target ndarray (4214, 2)
+s4 first bundles:    stay_id    hour  has_insulin  has_norepinephrine  n_atoms
+1010000000 -2.0000        False               False        1
+1010000000 -1.0000        False               False        1
+1010000000  0.0000        False               False        3
+1010000000  0.0833         True               False        1
+1010000000  1.0000        False               False        2
+1010000000  1.0833        False               False        1
+1010000000  2.0000        False               False        2
+1010000000  2.0833         True               False        1
+train data objects: [('train', (1996002, 9), ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit'])]
+Baseline diagnostic bundle: 49 events: ['glucose_finger'] means: [[162.1853]]
+Current edits: []
+
+```

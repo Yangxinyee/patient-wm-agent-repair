@@ -1,0 +1,122 @@
+OUTPUT of Python run 90 of at most 300:
+```
+=== IDENTIFICATION NOTES ===
+## Causal identification checks
+- Paired-sensor IV suggests insulin lowers next glucose, approximately 2 per rate unit.
+- Norepinephrine sensor-difference instrument is weak; do not use its IV ratios.
+- Earlier zero placebos were mechanical because controls contained the placebo outcome; corrected here.
+          drug     n       beta        se  dose_slope  past_outcome_slope
+       insulin 59658  -0.104668  0.609526    0.025015           -0.002618
+norepinephrine 93508 -20.380205 14.355973   -0.000347            0.007077
+          drug  maxlag      n       rho   rho_se      beta  beta_se
+       insulin       2 224413 -2.849041 0.509204 18.162388 3.203651
+       insulin       3 202551  0.397434 0.149430 -2.194095 0.960694
+       insulin       4 184978  0.918568 0.109879 -5.462461 0.726760
+norepinephrine       2 270360  0.529543 0.037465  2.555445 0.294576
+norepinephrine       3 245698  0.539414 0.026764  2.774850 0.272898
+norepinephrine       4 222850  0.513011 0.025379  2.627387 0.291069
+- Python runs: 9. Forward passes: 3. No edits yet.
+
+## Dose-innovation local projections
+- Cross-fitted policy uses current/past sensor information and past doses; no future features.
+- These responses include subsequent clinician-policy feedback, unlike fixed-dose evaluation.
+          drug  horizon      n  response       se
+       insulin        1 400154 -1.917161 0.045098
+       insulin        2 384677 -2.199973 0.051051
+       insulin        4 353362 -1.274455 0.059664
+       insulin        8 290018 -0.117182 0.078432
+norepinephrine        1 328940  3.038176 0.089059
+norepinephrine        2 315253  4.739887 0.106138
+norepinephrine        4 287837  5.065232 0.130097
+norepinephrine        8 233088  2.784013 0.173857
+- Dynamic-panel insulin estimates unstable; not suitable as repair targets.
+- Python runs: 10. Forward passes: 3. No edits yet.
+
+## Fixed-dose response-kernel estimates
+- Fit geometric kernels to instrument/outcome moments, including subsequent recorded doses.
+- Insulin instrument: paired-sensor noise difference with past-only controls.
+- NE instrument: cross-fitted policy innovation with measured-history controls; stronger sequential-unconfoundedness assumption.
+- insulin: rho=0.82939, beta=-2.30803
+- norepinephrine: rho=0.63511, beta=3.55456
+          drug  factor   first100     all400
+       insulin     0.0  10.528802  11.082850
+       insulin     0.5   5.264401   5.541425
+       insulin     1.5  -5.264401  -5.541425
+       insulin     2.0 -10.528802 -11.082850
+       insulin     3.0 -21.057603 -22.165700
+norepinephrine     0.0  -3.808429  -3.969327
+norepinephrine     0.5  -1.904215  -1.984664
+norepinephrine     1.5   1.904215   1.984664
+norepinephrine     2.0   3.808429   3.969327
+norepinephrine     3.0   7.616858   7.938655
+- Python runs: 12. Forward passes: 3. No edits yet.
+
+
+=== STORED WEIGHT-CORRECTION AUDIT ===
+H mean/SD ranges: [-0.09039334  0.14274988  1.90509043] [1.50905247e-03 4.56981673e-01 1.71878381e+00]
+stored coefficient norm/intercept: 1.449791753918683 0.2357918976834072
+saved correction norm/intercept: 1.4497917582669346 0.2357918898264567
+saved coefficient distance to c and c/sd: 4.2025672025485795e-08 45.17390549950187
+H@c+b mean/SD/RMS: 3.2888203124150976e-17 0.07426318040062994 0.07426318040062993
+standardized_H@c+b mean/SD/RMS: 0.23579189768340728 1.3039183390417006 1.3250663583015039
+saved_weight_tilt mean/SD/RMS: -6.786406891877856e-09 0.07426318048608138 0.07426318048608169
+H@decoder87+b mean/SD/RMS: 7.898798924614835e-10 0.0742631806932787 0.0742631806932787
+max saved rank-one error: 2.2252400766475944e-07 8.74201455669521e-08
+
+=== OTHER COEFFICIENT-SIZED VARIABLES ===
+c norm 1.449791753918683 first [ 0.00980804 -0.02356049 -0.58277012]
+coef norm 0.1631552022599054 first [ 0.00631159 -0.00247613 -0.01647825]
+coef_d norm 6.483122274182711 first [ 0.7250847  -0.34029719  0.03221303]
+decoder87 norm 1.449791751671133 first [ 0.00980804 -0.02356049 -0.58277012]
+intercept 0.01414909422763215
+intercept87 0.2357918971163385
+intercept_d -0.12813654579968564
+mean_h norm 7.9597180086632555 first [ 0.09914915  0.03432219 -0.01012439]
+mu norm 7.927300148579754 first [ 0.08884189  0.04705833 -0.01272732]
+repair_head_coef norm 1.449791753918683 first [ 0.00980804 -0.02356049 -0.58277012]
+repair_head_intercept 0.2357918976834072
+repair_head_mean norm 7.927300148579754 first [ 0.08884189  0.04705833 -0.01272732]
+repair_head_sd norm 8.791273358474449 first [0.4538648  0.30371971 0.04412883]
+rhs norm 100.92657547037804 first [-13.45223597   1.00556341 -32.45092953]
+saved_c norm 1.4497917582669346 first [ 0.00980804 -0.02356049 -0.58277009]
+sd norm 8.791273358474449 first [0.4538648  0.30371971 0.04412883]
+sd_h norm 8.885957104709275 first [0.50749261 0.27051861 0.04765247]
+
+=== RECONSTRUCTION HELPER ===
+reconstruct_reading_head (meta, state_array=array([[-3.1031222 ,  2.4628353 , -3.1275604 , ...,  1.5799756 ,
+         1.2654448 ,  0.91540396],
+       [-2.9218984 ,  2.4659085 , -2.9161408 , ..., -0.1078293 ,
+         0.03942061,  0.0623443 ],
+       [-3.3016415 ,  2.7476857 , -2.9719825 , ...,  0.08902255,
+         0.24196434,  0.02744032],
+       ...,
+       [-3.2405238 ,  2.5461254 , -3.163888  , ...,  0.07773641,
+         0.25894296,  0.0514848 ],
+       [-3.2277315 ,  2.6187406 , -3.086891  , ...,  0.1073805 ,
+         0.29092997,  0.03112966],
+       [-3.2234786 ,  2.608361  , -2.9977047 , ...,  0.59644383,
+         1.3295591 ,  0.00493577]], shape=(4035, 992), dtype=float32), flow_factor=1.0, age_before_bundle=False, norm_mode='query', head_activation='gelu')
+locals: ('meta', 'state_array', 'flow_factor', 'age_before_bundle', 'norm_mode', 'head_activation', 'ix', 'state', 'out_local', 'h_local', 'dt_local', 'flow_local', 'gap_local', 'context', 'prior_local', 'view_local', 'code_local', 'bin_local', 'numbers', 'ages', 'register_local', 'query_input', 'inputs', 'features', 'logits_local')
+string constants: ['core.flow.a', 'gap', 'gelu', 'core.out_norm', 'z_prior', 'z_head.weight', 'z_head.bias', 'embed.code.weight', 'last_numeric.weight', 'last_numeric.bias', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'type_emb.weight', 'query', 'query_norm', 'combined', 'none', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias', 'embed_transition.value_bin.weight']
+repair_tilt (P, tau)
+locals: ('P', 'tau', 'lp')
+string constants: []
+score_head_variant (label, query_input, reg=tensor([[ 6.7328e-01,  3.7667e-01,  7.0553e-02,  ...,  7.8308e-01,
+         -1.2106e-01, -5.5778e-02],
+        [ 4.9467e-01, -3.5991e-01,  1.3226e-01,  ...,  5.2632e-01,
+          8.5851e-03,  9.9943e-01],
+        [ 6.8977e-01,  3.6976e-01,  1.9964e-01,  ...,  6.9390e-01,
+         -1.0291e-01, -1.2156e-01],
+        ...,
+        [ 6.5764e-01, -3.3699e-01,  1.6929e-01,  ...,  6.2040e-01,
+         -1.3343e-01,  8.7914e-01],
+        [ 6.5539e-01,  3.0464e-01,  2.4743e-01,  ...,  7.9342e-01,
+          1.2713e-01,  6.9661e-02],
+        [ 5.6891e-01, -5.1747e-01,  1.1977e-01,  ...,  7.9028e-01,
+          4.1950e-04,  5.3998e-01]]), normalize=True)
+locals: ('label', 'query_input', 'reg', 'normalize', 'query', 'inputs', 'hidden', 'lp', 'pp', 'means', 'nll')
+string constants: ['query_norm', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+
+ACTIVE EDITS: []
+
+```

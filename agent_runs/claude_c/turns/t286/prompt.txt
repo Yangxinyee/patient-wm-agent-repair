@@ -1,0 +1,23 @@
+OUTPUT of Python run 223 of at most 300:
+```
+92
+33: - h: 4 slots x 192;
+39: 1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+41:    - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+44: 3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+45:    - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+46:    - The 4 slot outputs, through `core.prelude_norm`, give E.
+48:    slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+50:    - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+51:      `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+52: 5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+56: **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+57: - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+58: - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+64: - **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+68:                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+72:   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+87: 4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+88:    paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+```

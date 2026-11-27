@@ -1,0 +1,198 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 309 replies happened before. Forward passes used: 9 of 50; Python runs used: 282 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.ffn.0.bias', 'core.prelude.0.ffn.0.weight', 'core.prelude.0.ffn.2.weight']. Files in /work: ['bundles_B.pkl', 'edit_parts.pkl', 'edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md', 'sel_train_B.json', 'sel_tuning_A.json'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+*centre[b].
+- dose edit: edited drug atoms get rate&dose scaled (z-scores and bins change). readout = mean over 20 paths (common RNG), hours after drug ran.
+- inspect.getsource fails for kernel functions -> use signatures/tests.
+
+## Runs 119-121: FRESH local implementation (float64) verified teacher-forced: rel err median 1e-7 (out,h), 3e-7 (z), max 6e-3.
+- kernel fns: avec(atom), senc(vecs,name), enc2(atoms)->(e,u), cstep(out,h,dt_s,e,u,Mv,Mage)->(out,y,z,E,hf), tf_check(sid).
+- memory = e of last <=128 bundles incl current, ages in seconds; z-score clip +-10; fine bin = 1 + #edges < x.
+- states npz keys: x, stay_id, hour, has_insulin, has_norepinephrine, n_atoms.
+
+## Runs 122-128 (after restart 2)
+- Run 122: initial state = zeros (h, out) with first dt = 1 s reproduces first state row (err 9e-8). Local core exact.
+- ARCHITECTURE: a_bar fixed per dim (params only); new h = y = coda(c_out(h_new)); readout = head predicted MEAN (sum p(b)*centre), edited - factual, 20 paths.
+- Shapes: value head = Linear192-GELU-Linear17; z_post 576->192->64 (only mean 32 used in core); FFNs 768; b_in, c_out 192x192 no bias; last_numeric (192,8) (8 inputs, layout unknown); type_emb 15 rows; last_status 2 rows.
+- fwd_3 = factual original on the 100 train stays of fwd_2 (selB): NLL/value 1.4364 (gf 1.538, gl 1.304, map_art 1.331, cuff 1.597). Columns: stay_id,hour,event,observed,predicted_mean,nll.
+- Kernel vars: bundles_B (100 stays), X_ (fwd_2 states), SIDS, W64 (float64 weights), cstep, enc2, tf_check (loop template).
+- PLAN: verify head locally vs fwd_3 predicted means; then build edit = residualized dose -> glucose/MAP belief shift at drug bundles,
+  calibrated so rollout effect matches g-est (ins x2 ~ -14.3, x1/2 +7.15, ne x2 +4.11, x1/2 -2.05 on tuning sel A).
+
+## Runs 137-154 (after restart 3)
+- Prelude attention at drug bundles: slots attend ~100% to u token (heads 1,2 =1.0; heads 0,3 ~0.96). At reading bundles: head0->e 0.99, heads1,3->u(empty) 0.95, head2->slots.
+- |y| ~1792 (huge), abar=exp(-sp(delta_in)*exp(a_in)) ~0.36, sp(delta_in)~1, flow decay/h median 0.98.
+- ins x2 at one bundle: u cos 0.97, attn_out change ~122 (|attn_out| 530), E rel change 7.5%, but y rel 0.5%, out rel 0.3%.
+- HEAD VERIFIED: type_emb index 1 for readings, last_status row 0, last_numeric cols: 0=has_last, 3=log1p(age_s)/10, 6=z_last_value (others 0).
+  view = out_prev + out_norm(mean(y_prev*exp(-dt*exp(flow.a)))) + gap(log(dt)/10) + z_head(z); z = mu + exp(s)*eps from z_prior(view0) (2nd half = LOG-STD).
+  4-draw local NLL 1.434-1.439 vs fwd3 1.4364; rmse vs fwd3 = rmse local-vs-local (~1.8). Kernel: H (5673 rows), V0, fixed, TRr, cen, probs_from_v0().
+
+## Restart 4 (run 157)
+- PLAN: belief-injection edit. At drug bundles add to core state kappa*(rate-c_hat)*v, v = state change per unit change of last reading (finite diff, local core). Calibrate kappa with dose_edit 'both' on tuning sel A vs g-est truth; check factual NLL.
+- Runs 162-178: cstep_h (hooked core, exact). Bundles: readings h:00, drugs h:05 (separate). Gate tests: dose not decodable from blocks-FFN hidden/E (R2<0.6); rates decodable from u token (R2 0.98/0.97); c_hat (E[rate|state], ridge on [out0,mean h0], R2 val .78 ins/.53 NE) decodable from prelude n3 (R2 .995/.97). Drug vs non-drug linearly separable (margin .84).
+- DESIGN: stage1 = rank-1 value edit in prelude attn head1 (reads rate from n1(u), zero on u0) writes tiny signal d into slots; stage2 = 3 repurposed smallest prelude-FFN units, GELU-gated by discriminant (twin cancels offset), compute G*(rate_signal - c_hat) at drug bundles; write w_out so that dh_new = kappa*v (v = mean belief direction: dh_new per 1 mg/dL lower glucose / 1 mmHg higher MAP). Head response: inj of v moves next mean -0.30/unit (glc), +0.22/unit (MAP).
+
+## Runs 186-212 (after restart 5): NEW DESIGN BUILT AND SAVED (edits: prelude ffn.0.weight/bias, ffn.2.weight, b_in.weight)
+- mystep(d, R, dP, dhn): transparent exact core (0 err vs cstep_h); returns (out,y,z,E,hf,h_new). WCUR switch: WCUR=WE uses edited dict.
+- steps_all[sid] = run_tf(bundles_B[sid], keep=True) step dicts (out0,h0,dt,e,u,Mv,Ma,res); u_empty = empty-action u.
+- Slots ~identical. Prelude LN scales vary (CV .22-.31). E lives in low-dim manifold: 42 eig<1e-6 -> QUIET directions q_I,q_N (sd(qE)~4e-4 also under x2/x1/2).
+- Edit: prelude FFN units 502(A_I),131(A_N),140(O) (contrib ~0): pre = 25*s + 0.5*x (s=gate ridge on n3: drug>=.87, non<=-.78; x = ridge decoders of
+  (rate - c_hat) from n3 fit on factual+x2+x1/2, R2 .90 I/.81 N); output carriers c=q/gamma (mean-removed) scaled so q.E = 0.1*x.
+  b_in += sum_k (t_k/0.1/softplus(delta_in) - b_in q_k) q_k^T, t = kappa*vbar (vbar = mean dh_new per +1 mg/dL glucose_finger / +1 mmHg map_art).
+  c_hat = ridge(rate | [out0, mean h0]) lam 100 on drug bundles (R2 .77 I, .49 N). Parts in /work/edit_parts.pkl.
+- Current kappa_I=-4.6, kappa_N=+6.1 -> factual next-reading shift: glucose -1.27 per u/h resid, MAP +1.48 per mcg/kg/min resid; cross ~0.1.
+- LOCAL NLL MUST USE obs-value fine bin + lv='logstd' (matches tool: 1.434 vs 1.436, corr .96). ('target' field is NOT the bin value.)
+- Edited factual dNLL (local, 100 train stays) = -0.0030 (improves!). Orig model errors regress on decoded resid: glc -1.6/u/h, MAP +2.2 -> dose signal real & ignored.
+- NEXT: fwd dose_edit both on tuning sel A -> rollout gains; scale kappas to targets (ins x2 -14.3, x1/2 +7.15, ne x2 +4.11, x1/2 -2.05).
+
+## Restart 6 (run 250+): RECONSTRUCTED (runs 213-249 were not logged!)
+- fwd_4 = dose_edit both, tuning selA (100 stays): ORIGINAL ins x2 -0.545, x1/2 +0.003, ne x2 +0.193, ne x1/2 -0.173;
+  EDITED (current edit, kappa_I=-4.6,kappa_N=6.1): ins x2 +0.367 (!), x1/2 -0.244, ne x2 +0.054, ne x1/2 -0.008. => EDIT FAILED IN ROLLOUT.
+  Edited factual rollout does move (stay 2020000016 h13 factual 182.8 vs 178.8 orig) but x2 shift at h13 only +0.06.
+- fwd_5 = states both, 13 tuning stays (factual). Runs ~230-249 compared local edited states vs tool: mismatch ~1e-3 rel (vs 1e-7 for original);
+  bin side (left/right) for rate/dose does not explain it; SOLU3 (192-vec correction to u?) reduces err to 4.6e-4. Unresolved.
+- No IPython history available (In=None). LOG EVERY FINDING HERE.
+
+- RUN 258-260 ROOT CAUSE: local WE/WCUR contained an UNSAVED rank-2 edit of core.prelude.0.attn.kv.weight (rows 240-287 = v of head 1,
+  sv 29462/12075, max 1928) = stage 1 (rate signal from u into slots). Decoders were fit WITH it. Tool ran without it -> factual injection
+  +3..+7.7 reading-units at every insulin bundle (drift +12 by h24) and no dose response. With kv (WE): factual inj mean ~0, x2 mean -4.9
+  (expected -4.2), x1/2 +0.8 (exp +2.1), noisy per bundle. Run 261: SAVED kv edit -> 5 tensors edited. Next: dose_edit both on selA.
+
+## Runs 262-283 (restart 6)
+- fwd_6 (dose_edit both selA, FULL edit incl kv, hash ee4374ba4c): ins x2 -9.43, x1/2 -1.63, ne x2 +3.21, x1/2 -0.40 (orig -0.55, 0.00, 0.19, -0.17).
+  Per hour ins x2 -3.1 (h13) -> -14.1 (h24); factual path drift edited-orig: glucose +0.7 -> +4.6, MAP -1.4 -> -6.8.
+- fwd_7 states both (13 tuning stays): tool edited == local WE (rel err 2e-6). W64 had the kv edit too (in-place bug) -> FIXED (W64 = true original now).
+- Local single-bundle responses linear & symmetric (slopes ~0.9 x2/x1/2). Local h13 (teacher forced to 12:05): ins x2 -2.66, x1/2 +1.28; tool -3.08/+0.09.
+  Tool h13 factual of EDITED model differs from local by median 2.1 mg/dL (orig 0.37) -> dose_edit rollout encodes something differently
+  (not u=0, not z sampling, not END/dose drop; right-side bins for h12 atoms reproduce tool x2 at h13 exactly (-3.10) but not x1/2). UNRESOLVED.
+- Without stage 1 (kv), (rate-c_hat) poorly decodable from n3 (R2 .72 I / .38 N) -> keep stage 1.
+- fwd_8 factual both train selB: orig 1.43643, edited 1.43319 (-0.0032) -> constraint OK.
+- Run 283: kappa scaling via b_in columns along q_I,q_N: c_I=1.5, c_N=1.3 (B_IN_c1 = c=1 version kept in kernel). Next: dose_edit selA + factual check.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 9 of 50 done (dose_edit); files in /work/fwd_9/. Summary:
+```
+{
+ "type": "dose_edit",
+ "model": "edited",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -14.601,
+     "n_stay_hours": 703,
+     "n_stays": 73
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": -2.992,
+     "n_stay_hours": 703,
+     "n_stays": 73
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 3.959,
+     "n_stay_hours": 822,
+     "n_stays": 74
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.419,
+     "n_stay_hours": 822,
+     "n_stays": 74
+    }
+   },
+   "file": "dose_edit_edited.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  }
+ },
+ "seconds": 36.0
+}
+```
+Forward passes left: 41.
+Edits used in this pass: core.b_in.weight, core.prelude.0.attn.kv.weight, core.prelude.0.ffn.0.bias, core.prelude.0.ffn.0.weight, core.prelude.0.ffn.2.weight (edit hash a56a7f6079).

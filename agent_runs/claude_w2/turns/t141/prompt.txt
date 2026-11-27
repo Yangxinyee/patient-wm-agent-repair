@@ -1,0 +1,122 @@
+OUTPUT of Python run 135 of at most 300:
+```
+')
+        bins[attr]=bb
+    return num,bins['value'],bins['dose'],bins['rate']
+
+def embed(A,feats,W):
+    num,vb,db,rb=feats
+    T=lambda a: torch.as_tensor(np.asarray(a),dtype=torch.long)
+    c=A.code.values
+    x=(W['embed.code.weight'][T(c)]+W['embed.kind.weight'][T(A.kind.values)]+W['embed.ekind.weight'][T(A.ekind.values)]
+       +W['embed.categorical.unit.weight'][T(UROW[c])]+W['embed.categorical.rate_unit.weight'][T(RROW[c])]+W['embed.kq.weight'][0]
+       +W['embed.bins.value.weight'][T(vb)]+W['embed.bins.dose.weight'][T(db)]+W['embed.bins.rate.weight'][T(rb)]
+       +torch.as_tensor(num)@W['embed.numeric.weight'].T+W['embed.numeric.bias'])
+    return x
+
+ACTF={'gelu':F.gelu,'silu':F.silu}
+def mlp(x,W,pre,act='gelu'): return F.linear(ACTF[act](F.linear(x,W[pre+'.0.weight'],W[pre+'.0.bias'])),W[pre+'.2.weight'],W[pre+'.2.bias'])
+def LN(x,W,pre,eps=1e-5): return F.layer_norm(x,(x.shape[-1],),W[pre+'.weight'],W[pre+'.bias'],eps)
+
+def set_encode(xa,gidx,ng,W,pre):
+    gidx=torch.as_tensor(np.asarray(gidx),dtype=torch.long)
+    h=mlp(xa,W,pre+'.mlp1')
+    s=torch.zeros(ng,xa.shape[1]).index_add_(0,gidx,h)
+    cnt=torch.zeros(ng).index_add_(0,gidx,torch.ones(len(gidx)))
+    pooled=s/torch.sqrt(cnt.clamp(min=1))[:,None]+F.linear(torch.log1p(cnt)[:,None],W[pre+'.size.weight'],W[pre+'.size.bias'])
+    return LN(mlp(pooled,W,pre+'.mlp2'),W,pre+'.norm'),cnt
+
+def encode_bundles(A,W,u_none='zero'):
+    # returns per-bundle table (stay_id,bidx,minute), E (nb,192), U (nb,192), has_u
+    feats=atom_features(A); xa=embed(A,feats,W)
+    key=A.stay_id.values.astype(np.int64)*100000+A.bidx.values
+    ukey,gid=np.unique(key,return_inverse=True)   # sorted by stay then bidx
+    nb=len(ukey)
+    isact=((A.kind.values==0)&(A.ekind.values==2))
+    E,_=set_encode(xa[torch.as_tensor(~isact)],gid[~isact],nb,W,'encode')
+    U,cu=set_encode(xa[torch.as_tensor(isact)],gid[isact],nb,W,'encode_action')
+    hasu=(cu>0)
+    if u_none=='zero': U=U*hasu[:,None].float()
+    B=pd.DataFrame({'stay_id':ukey//100000,'bidx':ukey%100000})
+    B['minute']=A.groupby(key).minute.first().reindex(ukey).values
+    return B,E,U,hasu.numpy(),xa
+
+def encode_bundles(A,W,end_attr=False):
+    A=A.copy()
+    if not end_attr: A.loc[A.kind==2,['rate','dose']]=np.nan
+    feats=atom_features(A); xa=embed(A,feats,W)
+    key=A.stay_id.values.astype(np.int64)*100000+A.bidx.values
+    ukey,gid=np.unique(key,return_inverse=True)
+    nb=len(ukey)
+    isact=((A.kind.values==0)&(A.ekind.values==2))
+    E,ce=set_encode(xa[torch.as_tensor(~isact)],gid[~isact],nb,W,'encode')
+    U,cu=set_encode(xa[torch.as_tensor(isact)],gid[isact],nb,W,'encode_action')
+    B=pd.DataFrame({'stay_id':ukey//100000,'bidx':ukey%100000})
+    B['minute']=A.groupby(key).minute.first().reindex(ukey).values
+    B['t']=A.groupby(key).t.first().reindex(ukey).values
+    return B,E,U,(cu>0).numpy(),xa
+
+UMAP={'map_cuff':2,'glucose_finger':0,'map_arterial':2,'glucose_lab':5,'insulin':3,'norepinephrine':4}
+RUMAP={'insulin':2,'norepinephrine':3}
+UROW=np.zeros(13,int); RROW=np.zeros(13,int)
+for _k,_v in UMAP.items(): UROW[CODE[_k]]=_v
+for _k,_v in RUMAP.items(): RROW[CODE[_k]]=_v
+def embed(A,feats,W):
+    num,vb,db,rb=feats
+    T=lambda a: torch.as_tensor(np.asarray(a),dtype=torch.long)
+    c=A.code.values; isend=(A.kind.values==2)
+    ur=np.where(isend,0,UROW[c]); rr=np.where(isend,0,RROW[c])
+    x=(W['embed.code.weight'][T(c)]+W['embed.kind.weight'][T(A.kind.values)]+W['embed.ekind.weight'][T(A.ekind.values)]
+       +W['embed.categorical.unit.weight'][T(ur)]+W['embed.categorical.rate_unit.weight'][T(rr)]+W['embed.kq.weight'][0]
+       +W['embed.bins.value.weight'][T(vb)]+W['embed.bins.dose.weight'][T(db)]+W['embed.bins.rate.weight'][T(rb)]
+       +torch.as_tensor(num)@W['embed.numeric.weight'].T+W['embed.numeric.bias'])
+    return x
+
+def attn_(xq,xkv,W,pre,mask=None,kadd=None,inadd=None):
+    q=F.linear(xq,W[pre+'.q.weight'])
+    src=xkv if inadd is None else xkv+inadd
+    kv=F.linear(src,W[pre+'.kv.weight']); k,v=kv[...,:192],kv[...,192:]
+    if kadd is not None: k=k+kadd
+    B,Lq,_=q.shape; Lk=k.shape[1]
+    q=q.reshape(B,Lq,4,48).transpose(1,2); k=k.reshape(B,Lk,4,48).transpose(1,2); v=v.reshape(B,Lk,4,48).transpose(1,2)
+    a=(q@k.transpose(-1,-2))/math.sqrt(48)
+    if mask is not None: a=a.masked_fill(~mask[:,None,None,:],float('-inf'))
+    o=(a.softmax(-1)@v).transpose(1,2).reshape(B,Lq,192)
+    return F.linear(o,W[pre+'.out.weight'])
+def layer_sa(x,W,pre):
+    xn=LN(x,W,pre+'.norm1'); x=x+attn_(xn,xn,W,pre+'.attn')
+    return x+mlp(LN(x,W,pre+'.norm3'),W,pre+'.ffn')
+def layer_blk(x,W,pre,M,mask,agee,age_mode):
+    xn=LN(x,W,pre+'.norm1'); x=x+attn_(xn,xn,W,pre+'.attn')
+    xn=LN(x,W,pre+'.norm2')
+    if age_mode=='kadd': x=x+attn_(xn,M,W,pre+'.cross',mask=mask,kadd=agee)
+    elif age_mode=='inadd': x=x+attn_(xn,M,W,pre+'.cross',mask=mask,inadd=agee)
+    elif age_mode=='kin':
+        q_=None; Wk=W[pre+'.cross.kv.weight']
+        k=F.linear(M+agee,Wk[:192]); v=F.linear(M,Wk[192:])
+        x=x+attn_kv(xn,k,v,W,pre+'.cross',mask)
+    return x+mlp(LN(x,W,pre+'.norm3'),W,pre+'.ffn')
+def attn_kv(xq,k,v,W,pre,mask):
+    q=F.linear(xq,W[pre+'.q.weight']); B,Lq,_=q.shape; Lk=k.shape[1]
+    q=q.reshape(B,Lq,4,48).transpose(1,2); k=k.reshape(B,Lk,4,48).transpose(1,2); v=v.reshape(B,Lk,4,48).transpose(1,2)
+    a=(q@k.transpose(-1,-2))/math.sqrt(48)
+    if mask is not None: a=a.masked_fill(~mask[:,None,None,:],float('-inf'))
+    return F.linear((a.softmax(-1)@v).transpose(1,2).reshape(B,Lq,192),W[pre+'.out.weight'])
+def core_step(h,out,e,u,dt,M,Mmask,Mage,W,age_mode='kadd',age_unit=1.0,age_div=1.0,z=None):
+    hf=h*torch.exp(-dt[:,None,None]*torch.exp(W['core.flow.a']))
+    ctx=out+LN(hf.mean(1),W,'core.out_norm')+mlp(torch.log(dt)[:,None]/10,W,'gap')
+    if z is None: z=mlp(torch.cat([ctx,e,u],-1),W,'z_post')[:,:32]
+    X=torch.cat([hf+W['core.slots'][None],e[:,None],u[:,None],F.linear(z,W['z_in.weight'],W['z_in.bias'])[:,None]],1)
+    X=layer_sa(X,W,'core.prelude.0'); E=LN(X[:,:4],W,'core.prelude_norm')
+    agee=mlp(torch.log1p(Mage/age_unit)[...,None]/age_div,W,'core.age')
+    x=hf+E
+    for l in ['core.blocks.0.0','core.blocks.0.1']: x=layer_blk(x,W,l,M,Mmask,agee,age_mode)
+    sp=F.softplus(W['core.delta_in']); abar=torch.exp(-sp*torch.exp(W['core.a_in']))
+    hn=abar*hf+sp*F.linear(E,W['core.b_in.weight'])+(x-(hf+E))
+    y=layer_sa(F.linear(hn,W['core.c_out.weight']),W,'core.coda.0')
+    return y,LN(y.mean(1),W,'core.out_norm'),z,ctx,hf
+
+=====VARS=====
+NAMES:list181 SHAPES:dict181 VOCAB:dict8 V:dict8 k:str s:tuple2 n:dict5 nm:str tr:DataFrame(1999838, 10) tu:DataFrame(26629, 9) drug:str d:ndarray(5764,) st:int ne:DataFrame(235970, 10) w:DataFrame(670613, 21) notes:str g:Generator gt:DataFrame(10400, 8) gg:DataFrame(780000, 96) c:int x:DataFrame(720000, 20) y:Tensor(800, 4, 192) tab:DataFrame(61, 4) z:DataFrame(7659, 19) b:DataFrame(53899, 20) X:Tensor(5345, 992) lr:LinearRegression t1:DataFrame(115, 3) prevon:bool ww:DataFrame(214260, 21) t2:DataFrame(14, 3) v:str vv:list2 b2:DataFrame(846, 20) bnd:float dd:ndarray(4,) m:DataFrame(5238, 20) bm:Series(5,) both:DataFrame(106469, 96) col:str s2:float64() lr2:LinearRegression gsh:DataFrameGroupBy30000 R:list10 RN:list11 RM:list10 K:list10 val:float64() nb:Series(780000,) on:DataFrame(214260, 100) dn:ndarray(5764,) Fn:list11 Rn_ma:list10 Rn_mc:list10 Rn_gf:list10 Fi:list0 rb:ndarray(14742,) mb:Interval di:DataFrame(259839, 96) bd:float lo:float hi:int ss:DataFrame(221, 96) gt2:DataFrame(10400, 8) ti:DataFrame(400, 2) both_ids:list76 ins_only:list134 nor_only:list79 none_ids:list111 sel1:list100 de:DataFrame(3200, 7) Kins:ndarray(12,) Knor:ndarray(12,) gtt:DataFrame(10400, 6) res:list12 ed:str mult:float Kv:ndarray(12,) r:tuple3 fa:DataFrame(5764, 33) gtt2:DataFrame(10400, 15) gs2:DataFrameGroupBy400 gfm:DataFrame(1297, 21) lr3:LinearRegression mam:DataFrame(1064, 20) fa_:Tensor(192,) t:str nw:ndarray(192, 6) lw:ndarray(192, 8) tti:DataFrame(30000, 2) tr_both:list3891 rng:Generator selT:list100 S:NpzFile6 st_ids:ndarray(5345,) hrs:ndarray(5345,) nat:ndarray(5345,) sid0:int mask:ndarray(5345,) code_id:dict13 ek_id:dict4 trs:DataFrame(1999838, 9) bad:int sid:int A:DataFrame(142, 8) cnt:Series(54,) m_:ndarray(5764,) tool:Series(54,) T:DataFrame(10400, 6) W:dict181 NUM:dict8 ACTS:dict4 names:dict13 cands:list28 idx:ndarray(54,) mins:ndarray(5345,) j:int mn:int64() a:Series(8,) best:list288 act:str unit_row:int side:str gapmode:str half:int errs:list15 ip:int64() ik:int64() dt:float64() ctx:Tensor(5764, 192) e:Tensor(192,) zo:Tensor(5764, 64) zm:Tensor(5245, 32) act_z:Tensor(59, 32) variant:str P:Tensor(5764, 17) err:ndarray(5245,) corr:float64() o:Tensor(5345, 192) hh:Tensor(5345, 4, 192) eps:float pred_o:Tensor(5345, 192) gscale:NoneType perm:list2 blocks:list3 wz:Tensor(192, 576) by:dict72 nm_:str top:str kk:str fn:str hi_:ndarray(5245,) v_:float G:DataFrame(780000, 4) ok:Series(780000,) pf:DataFrame(302, 3) T2:DataFrame(10400, 20) L_:int q_:DataFrame(1297, 14) qq:DataFrame(1297, 14) cols:list3 Z:ndarray(2210, 4) yv:ndarray(2289,) b_:ndarray(5764,) res_:list108 se_:ndarray(4,) xs:ndarray(5345, 992) sidS:ndarray(5345,) hrS:ndarray(5345,) A1:DataFrame(2000, 9) nm2:str sl:slice Xf:ndarray(2289, 192) tgt:ndarray(5764,) pr:ndarray(2289,) A2:DataFrame(2289, 8) ok_:ndarray(2289,) f_:ndarray(5764, 8) co:code Wc:Tensor(192, 192) I_:Tensor(192, 192) notes_add:str fa4:DataFrame(5764, 31) vc_:dict4 t0_:float Wd:dict181 M:Tensor(800, 54, 192) X_:Tensor(5345, 992) OUT:Tensor(5345, 192) HH:Tensor(5345, 4, 192) hS:ndarray(5345,) sS:ndarray(5345,) key:dict5345 num_:dict8 cen:dict4 P_:Tensor(5764,) dt_:Tensor(5245,) dec:Tensor(5764, 192) hfl:Tensor(5764, 4, 192) base0:Tensor(5764, 192) codes_t:Tensor(5764,) lb_t:Tensor(5764,) cenmat:ndarray(5764, 16) gm:str ty:int lay:str au:float pm_:ndarray(5764,) r2_:float64() gc:str gv:Series(2210,) hc:tuple3 pp_:ndarray(5764, 17) la_h:ndarray(5764,) feats:dict8 assign:list8 stat_opts:dict3 best_s:tuple2 sk:str sv:ndarray(5764,) e_:ndarray(5245
+[output cut at 10,000 characters]
+```

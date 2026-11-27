@@ -1,0 +1,207 @@
+OUTPUT of Python run 149 of at most 300:
+```
+=== COMPACT HELPER DEFINITIONS ===
+
+ w63 (name)
+12: LOAD_FAST:name LOAD_GLOBAL:w63_cache CONTAINS_OP POP_JUMP_IF_FALSE:to 124
+13: LOAD_GLOBAL:torch LOAD_ATTR:NULL|self + as_tensor LOAD_GLOBAL:NULL + load_original LOAD_FAST:name CALL LOAD_GLOBAL:torch LOAD_ATTR:float32 KW_NAMES:('dtype',) CALL LOAD_GLOBAL:w63_cache LOAD_FAST:name STORE_SUBSCR
+14: LOAD_GLOBAL:w63_cache LOAD_FAST:name BINARY_SUBSCR RETURN_VALUE
+
+ linear63 (x, prefix)
+17: LOAD_FAST:x LOAD_GLOBAL:NULL + w63 LOAD_FAST:prefix LOAD_CONST:'.weight' BINARY_OP:+ CALL LOAD_ATTR:T BINARY_OP:@ STORE_FAST:y
+18: LOAD_FAST:prefix LOAD_CONST:'.bias' BINARY_OP:+ LOAD_GLOBAL:SHAPES CONTAINS_OP POP_JUMP_IF_FALSE:to 112 LOAD_FAST:y LOAD_GLOBAL:NULL + w63 LOAD_FAST:prefix LOAD_CONST:'.bias' BINARY_OP:+ CALL BINARY_OP:+ RETURN_VALUE LOAD_FAST:y RETURN_VALUE
+
+ context64 (out, h, dt)
+2: LOAD_FAST:h LOAD_GLOBAL:torch LOAD_ATTR:NULL|self + exp LOAD_FAST:dt LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None LOAD_CONST:None BUILD_TUPLE BINARY_SUBSCR UNARY_NEGATIVE LOAD_GLOBAL:NULL + w63 LOAD_CONST:'core.flow.a' CALL LOAD_ATTR:NULL|self + exp CALL BINARY_OP:* CALL BINARY_OP:* STORE_FAST:flowed
+3: LOAD_FAST:out LOAD_GLOBAL:NULL + norm63 LOAD_FAST:flowed LOAD_ATTR:NULL|self + mean LOAD_CONST:1 CALL LOAD_CONST:'core.out_norm' CALL BINARY_OP:+
+4: LOAD_GLOBAL:NULL + mlp63 LOAD_GLOBAL:torch LOAD_ATTR:NULL|self + log1p LOAD_FAST:dt CALL LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None BUILD_TUPLE BINARY_SUBSCR LOAD_CONST:10 BINARY_OP:/ LOAD_CONST:'gap' CALL
+3: BINARY_OP:+ STORE_FAST:ctx
+5: LOAD_FAST:ctx LOAD_FAST:flowed BUILD_TUPLE RETURN_VALUE
+
+ transition64 (hflow, e, u, z, memory, ages, mask)
+8: LOAD_GLOBAL:torch LOAD_ATTR:NULL|self + cat
+9: LOAD_FAST:hflow LOAD_GLOBAL:NULL + w63 LOAD_CONST:'core.slots' CALL LOAD_CONST:None BINARY_SUBSCR BINARY_OP:+ LOAD_FAST:e LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None BUILD_TUPLE BINARY_SUBSCR LOAD_FAST:u LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None BUILD_TUPLE BINARY_SUBSCR
+10: LOAD_GLOBAL:NULL + linear63 LOAD_FAST:z LOAD_CONST:'z_in' CALL LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None BUILD_TUPLE BINARY_SUBSCR
+8: BUILD_LIST
+11: LOAD_CONST:1
+8: CALL STORE_FAST:tokens
+12: LOAD_GLOBAL:NULL + norm63 LOAD_GLOBAL:NULL + layer63 LOAD_FAST:tokens LOAD_CONST:'core.prelude.0' CALL LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None LOAD_CONST:4 BUILD_SLICE BUILD_TUPLE BINARY_SUBSCR LOAD_CONST:'core.prelude_norm' CALL STORE_FAST:E
+13: LOAD_GLOBAL:NULL + mlp63 LOAD_GLOBAL:torch LOAD_ATTR:NULL|self + log1p LOAD_FAST:ages CALL LOAD_CONST:'core.age' CALL STORE_FAST:age_emb
+14: LOAD_FAST:hflow LOAD_FAST:E BINARY_OP:+ STORE_FAST:blocks
+15: LOAD_CONST:(0, 1) GET_ITER FOR_ITER:to 330 STORE_FAST:j
+16: LOAD_GLOBAL:NULL + layer63 LOAD_FAST:blocks LOAD_CONST:'core.blocks.0.' LOAD_FAST:j FORMAT_VALUE BUILD_STRING
+17: LOAD_FAST:memory LOAD_FAST:age_emb LOAD_FAST:mask LOAD_CONST:'both'
+16: CALL STORE_FAST:blocks JUMP_BACKWARD:to 284
+15: END_FOR
+18: LOAD_GLOBAL:F LOAD_ATTR:NULL|self + softplus LOAD_GLOBAL:NULL + w63 LOAD_CONST:'core.delta_in' CALL CALL STORE_FAST:delta
+19: LOAD_GLOBAL:torch LOAD_ATTR:NULL|self + exp LOAD_FAST:delta UNARY_NEGATIVE LOAD_GLOBAL:NULL + w63 LOAD_CONST:'core.a_in' CALL LOAD_ATTR:NULL|self + exp CALL BINARY_OP:* CALL STORE_FAST:abar
+20: LOAD_FAST:abar LOAD_FAST:hflow BINARY_OP:* LOAD_FAST:delta LOAD_GLOBAL:NULL + linear63 LOAD_FAST:E LOAD_CONST:'core.b_in' CALL BINARY_OP:* BINARY_OP:+
+21: LOAD_FAST:blocks
+20: BINARY_OP:+
+21: LOAD_FAST:hflow LOAD_FAST:E BINARY_OP:+
+20: BINARY_OP:- STORE_FAST:hnew
+22: LOAD_GLOBAL:NULL + layer63 LOAD_GLOBAL:NULL + linear63 LOAD_FAST:hnew LOAD_CONST:'core.c_out' CALL LOAD_CONST:'core.coda.0' CALL STORE_FAST:hnew
+23: LOAD_GLOBAL:NULL + norm63 LOAD_FAST:hnew LOAD_ATTR:NULL|self + mean LOAD_CONST:1 CALL LOAD_CONST:'core.out_norm' CALL LOAD_FAST:hnew BUILD_TUPLE RETURN_VALUE
+
+ decode67 (ctx, const, trans, centres, eps, return_features=False)
+71: LOAD_GLOBAL:NULL + mlp63 LOAD_FAST:ctx LOAD_CONST:'z_prior' CALL STORE_FAST:prior
+72: LOAD_FAST:prior LOAD_CONST:None LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None LOAD_CONST:32 BUILD_SLICE BUILD_TUPLE BINARY_SUBSCR LOAD_FAST:eps LOAD_FAST:prior LOAD_CONST:None LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:32 LOAD_CONST:None BUILD_SLICE BUILD_TUPLE BINARY_SUBSCR LOAD_ATTR:NULL|self + exp CALL BINARY_OP:* BINARY_OP:+ STORE_FAST:z
+73: LOAD_FAST:ctx LOAD_CONST:None BINARY_SUBSCR LOAD_GLOBAL:NULL + linear63 LOAD_FAST:z LOAD_CONST:'z_head' CALL BINARY_OP:+ STORE_FAST:view
+74: LOAD_GLOBAL:NULL + norm63 LOAD_FAST:view LOAD_GLOBAL:NULL + w63 LOAD_CONST:'type_emb.weight' CALL LOAD_CONST:1 BINARY_SUBSCR BINARY_OP:+ LOAD_CONST:'query_norm' CALL STORE_FAST:q
+75: LOAD_GLOBAL:F LOAD_ATTR:NULL|self + gelu LOAD_GLOBAL:NULL + li
+
+=== READOUT COMPONENTS ===
+Ustate118 (192, 192) norm 13.8564
+Uscore118 (20, 20) norm 4.4721
+R118 (192, 4) norm 2.0
+Chead118 (192, 192) norm 15.904
+Jselected118 (4, 192) norm 0.0455
+responses118 (100, 4, 4) norm 20.0267
+route122 (192, 4) norm 2.0
+transmit122 [array([[ 9.98764922e-01,  3.68301491e-04,  1.04845994e-04,
+        -3.73663366e-04],
+       [ 9.99007477e-01,  2.41785154e-04, -2.36448561e-05,
+        -1.36982542e-04],
+       [ 
+d122 (100, 192) norm 9.9789
+
+=== STATE / EVALUATION CACHE INVENTORY ===
+B_cf83 ndarray (192, 17)
+D103 ndarray (31120, 192)
+D116 ndarray (9725, 4, 192)
+E_all102 Tensor (4491, 4, 192)
+E_cf102 dict [('insulin', 0.0), ('insulin', 0.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+Ec103 ndarray (17564, 192)
+Ef103 ndarray (17564, 192)
+Emean102 ndarray (192,)
+S_cf83 ndarray (192, 192)
+S_fact83 ndarray (192, 192)
+Sc103 ndarray (192, 192)
+Sf103 ndarray (192, 192)
+Y116 ndarray (9725, 2)
+age103 Tensor (8, 128, 1)
+age73 Tensor (64, 128)
+age74 Tensor (64, 128, 1)
+ages64 Tensor (128, 53, 1)
+bb116 ndarray (193, 2)
+bc103 ndarray (192,)
+bundle_rate116 ndarray (4491,)
+c103 dict ['indices', 'features', 'delta_rate']
+candidate_edits83 dict [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0]
+captured103 dict ['E']
+cf116 ndarray (871, 4, 192)
+cf_features81 dict [('insulin', 1.0), ('insulin', 2.0), ('insulin', 0.5), ('norepinephrine', 2.0), ('norepinephrine', 0.5), ('insulin', 0.0), ('insulin', 1.5), ('insulin', 3.0)]
+cf_inputs96 dict [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5)]
+cf_targets83 dict [('insulin', 2.0), ('insulin', 0.5), ('norepinephrine', 2.0), ('norepinephrine', 0.5)]
+checkidx73 ndarray (64,)
+choose74 ndarray (1945,)
+chosen103 ndarray (1945,)
+const65 Tensor (1000, 192)
+const_feat65 Tensor (1000, 192)
+contrast116 list 10
+counts65 ndarray (4491,)
+cp116 ndarray (9725, 2)
+ctx103 Tensor (8, 192)
+ctx64 Tensor (128, 192)
+ctx73 Tensor (64, 192)
+ctx74 Tensor (64, 192)
+ctx_all102 Tensor (4491, 192)
+ctxread73 Tensor (4828, 192)
+dd103 ndarray (1945,)
+dd116 ndarray (1945,)
+dose_by_bundle102 dict ['insulin', 'norepinephrine']
+doses65 ndarray (1945,)
+drug116 ndarray (1945,)
+drug_names81 ndarray (1945,)
+drugs65 list 1945
+dtread73 Tensor (4828,)
+dx103 ndarray (3484, 192)
+dx116 ndarray (9725, 193)
+emb65 Tensor (1945, 192)
+epsread73 Tensor (8, 4828, 32)
+events74 ndarray (4828,)
+extractors103 dict ['insulin', 'norepinephrine']
+feat64 tuple 4
+features116 ndarray (4391, 4, 192)
+fit_summary103 dict ['insulin', 'norepinephrine']
+fits116 dict [(0, 0.03), (0, 0.3), (0, 3.0), (1, 0.03), (1, 0.3), (1, 3.0), (2, 0.03), (2, 0.3)]
+fp116 ndarray (4391, 2)
+gap65 Tensor (1000, 192)
+groups116 ndarray (9725, 2)
+h64 Tensor (128, 4, 192)
+h74 Tensor (64, 4, 192)
+hf103 Tensor (8, 4, 192)
+hf64 Tensor (128, 4, 192)
+hf73 Tensor (64, 4, 192)
+hf74 Tensor (64, 4, 192)
+hf_all102 Tensor (4491, 4, 192)
+hidden73 Tensor (8, 4828, 192)
+ids102 ndarray (96,)
+ids103 ndarray (871,)
+input_fact96 Tensor (8, 4828, 192)
+invalid_list103 list 100
+jj103 ndarray (7,)
+last_input96 Tensor (8, 1643, 192)
+lastbin65 Tensor (1000,)
+lastnum65 Tensor (1000, 8)
+logits73 Tensor (8, 4828, 17)
+lookup116 ndarray (4491,)
+m74 ndarray (4828,)
+mask116 ndarray (1945,)
+mask64 Tensor (128, 53)
+mask73 Tensor (64, 128)
+mask74 Tensor (64, 128)
+means73 Tensor (8, 4828)
+mem103 Tensor (8, 128, 192)
+mem64 Tensor (128, 53, 192)
+mem73 Tensor (64, 128, 192)
+mem74 Tensor (64, 128, 192)
+mm116 ndarray (9725,)
+out64 Tensor (128, 192)
+out74 Tensor (64, 192)
+owners116 ndarray (1945,)
+owners65 ndarray (1945,)
+pad103 Tensor (8, 128)
+pi73 ndarray (4828,)
+pieces103 list 10
+post64 Tensor (128, 64)
+post73 Tensor (64, 32)
+post74 Tensor (64, 32)
+pp65 Tensor (1000, 64)
+prior_feat65 Tensor (1000, 64)
+prior_input65 Tensor (1000, 192)
+prior_tests65 list 3
+probs73 Tensor (8, 4828, 17)
+rate_state81 dict ['insulin', 'norepinephrine']
+rates65 ndarray (1945,)
+rates_by_state73 dict ['insulin', 'norepinephrine']
+recovered_hidden96 Tensor (8, 4828, 192)
+res_fact83 ndarray (28752, 192)
+result74 tuple 2
+rhs116 ndarray (193, 2)
+ridge116 ndarray (193, 193)
+ridge83 float64 ()
+rr103 ndarray (1945,)
+rr116 ndarray (1945,)
+rr74 ndarray (4491,)
+sc116 ndarray (193, 193)
+selected116 ndarray (871,)
+sf116 ndarray (193, 193)
+slopes116 dict [('insulin', 0.0), ('insulin', 0.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+summary116 dict [(0, 0.03), (0, 0.3), (0, 3.0), (1, 0.03), (1, 0.3), (1, 3.0), (2, 0.03), (2, 0.3)]
+summary96 dict [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5)]
+target103 ndarray (871,)
+targets116 list 10
+trans_feat65 Tensor (1000, 17)
+transition65 Tensor (1000, 17)
+tv65 Tensor (1000,)
+u65 Tensor (4491, 192)
+uc103 Tensor (4491, 192)
+ucf116 Tensor (4491, 192)
+unpacked64 tuple 4
+v103 ndarray (192,)
+v64 dict ['left', 'right']
+v65 Tensor (450, 1)
+valid116 nda
+[output cut at 10,000 characters]
+```

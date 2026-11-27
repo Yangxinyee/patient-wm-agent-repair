@@ -1,0 +1,192 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 36 replies happened before. Forward passes used: 6 of 50; Python runs used: 29 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+_z    1.0        insulin 0.899701   0.411246
+out_and_z    1.0 norepinephrine 0.795638   0.157077
+out_and_z   30.0        insulin 0.890078   0.430523
+out_and_z   30.0 norepinephrine 0.777885   0.163758
+out_and_z  300.0        insulin 0.830641   0.534389
+out_and_z  300.0 norepinephrine 0.732674   0.179653
+all_state    1.0        insulin 0.899256   0.412158
+all_state    1.0 norepinephrine 0.779078   0.163318
+all_state   30.0        insulin 0.892723   0.425312
+all_state   30.0 norepinephrine 0.781131   0.162557
+all_state  300.0        insulin 0.838499   0.521844
+all_state  300.0 norepinephrine 0.748401   0.174288
+Counts: 5 Python runs, 2 forward passes.
+
+## Forward 3 / Run 6
+Original factual NLL on matching 100 training stays: 1.63065 (4745 values). Reconstructing prediction heads from exported states; compared candidate activations, gap encodings, and last-register layouts. No edits yet.
+                                             config  mean_rmse  nll_rmse      nll
+('silu', 'log1p', 'gelu', 'interleaved', 0, 'silu')   4.519133  0.451487 1.712594
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'silu')   4.519134  0.451485 1.712592
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'gelu')   4.559348  0.425870 1.703790
+('silu', 'log1p', 'gelu', 'interleaved', 0, 'gelu')   4.559350  0.425875 1.703792
+  ('gelu', 'log', 'gelu', 'interleaved', 0, 'silu')   4.613220  0.477999 1.724570
+('gelu', 'log1p', 'gelu', 'interleaved', 0, 'silu')   4.613243  0.478005 1.724573
+  ('gelu', 'log', 'silu', 'interleaved', 0, 'silu')   4.701380  0.467703 1.724681
+('gelu', 'log1p', 'silu', 'interleaved', 0, 'silu')   4.701406  0.467708 1.724684
+Counts: 6 Python runs, 3 forward passes.
+
+## Run 7
+Re-reading architecture and inspecting persistent variables before a targeted algebraic edit. Reconstruction remains too inaccurate to use safely; no tensors edited.
+Counts: 7 Python runs, 3 forward passes.
+
+## Run 10
+Direct reconstruction grid over gap scale, activation, latent source, query type, last-register flags and status. Still no edits.
+[(('silu', 0.1, 'gelu', 'prior', 1, 3, 0, 'silu'), 4.607177356790052, 0.4679384991024623, 1.7100245952606201), (('silu', 0.1, 'silu', 'zero', 1, 3, 0, 'silu'), 4.61602379769742, 0.47527918777192124, 1.7125592231750488), (('silu', 0.1, 'gelu', 'zero', 1, 3, 0, 'silu'), 4.61602379769742, 0.47527918777192124, 1.7125592231750488), (('silu', 0.1, 'gelu', 'prior', 1, 3, 0, 'gelu'), 4.666139433119243, 0.4374716970171015, 1.7025305032730103), (('silu', 0.1, 'silu', 'zero', 1, 3, 0, 'gelu'), 4.6671216267476865, 0.4484234491205614, 1.7064038515090942)]
+Counts: 10 Python runs, 3 forward passes.
+
+## Run 11
+Checking latent-probability averaging instead of a deterministic latent mean.
+[(('silu', 'gelu', 'gelu', 1.0), 4.599382696680694, 0.43500487927887543, 1.706592082977295, 0.44631290459442136, 0.06186679615491629), (('silu', 'gelu', 'gelu', 0.5), 4.599914960000067, 0.4363669175661295, 1.7085585594177246, 0.424250216720581, 0.06383318363541365), (('silu', 'gelu', 'silu', 1.0), 4.65668039098584, 0.4705122763196616, 1.7173858880996704, 0.5321874763946532, 0.0726605230089426), (('silu', 'gelu', 'silu', 0.5), 4.6756450136965455, 0.4724108044289337, 1.7201770544052124, 0.5108177330474853, 0.07545164412671328)]
+Counts: 11 Python runs, 3 forward passes.
+
+## Run 13
+Best reconstruction now has mean RMSE 1.633 and NLL RMSE 0.245, still not exact. Re-reading architecture, shapes, and persistent helper inventory before choosing a directly validated algebraic weight edit. No edits yet.
+Counts: 13 Python runs, 3 forward passes.
+
+## Run 15
+Inspected panel indexing, examples, and saved dose-innovation residuals. Next priority is causal dynamics and properly residualized pre-dose placebos, not more uncontrolled head-reconstruction grids.
+Counts: 15 Python runs, 3 forward passes.
+
+## Runs 16–17: six-hour local projections
+Run 16 failed because exposure indices extended one hour too far; corrected in run 17. No edits.
+Two-fold stay-separated HGB adjustment using pre-dose history, current main reading observed. Deconvolution separates later policy-dose changes from an estimated fixed-dose response. Requires conditional exogeneity; not established merely by this regression.
+('glucose_finger', 'insulin') y_response=[(-1.850340141162819, 0.05921533919140744), (-2.1762604567431203, 0.06489918613459421), (-1.7410683131830231, 0.06761284716241134), (-1.2531025010849781, 0.06920144163811291), (-0.6551003687865006, 0.07183981699949399), (-0.3467783443919157, 0.07189773446145925)] dose_response=[(1.0, 0.0), (-0.043158439043129916, 0.00367638110517134), (-0.05631395190790126, 0.0038729998584322244), (-0.05248995784797088, 0.0038764553121176304), (-0.03888142649128522, 0.004054276323950561), (-0.011719974297229152, 0.004260511826010613)] kernel=[-1.85034014 -2.25611825 -1.94263882 -1.56111897 -1.02224091 -0.69018551]
+('map_arterial', 'norepinephrine') y_response=[(3.3505774844819856, 0.11296414420802602), (5.0683432874472025, 0.1299952890881905), (5.506229788027758, 0.1425291933163007), (5.131865472690208, 0.1518675987200649), (4.4902343523316315, 0.15979000044670347), (3.944962670038462, 0.16692614695654193)] dose_response=[(1.0, 0.0), (0.7304205725783163, 0.004233601628482961), (0.5594909967595264, 0.0052650548567893035), (0.43833097967373025, 0.005683985328155739), (0.3576708447723065, 0.005847420576034897), (0.2858912553960495, 0.006022535310425034)] kernel=[3.35057748 2.62101256 1.71717035 0.94251408 0.49378644 0.40891321]
+Counts: 17 Python runs, 3 forward passes.
+
+## Run 18: causal robustness
+Removed early-mean current-dose leakage at exposure hour 3; richer HGB adjustment and held-out simultaneous pre-dose assay diagnostics. A held-out assay association is a confounding diagnostic, not definitive proof, since clinicians may also use that assay.
+('glucose_finger', 'insulin') beta=-1.920236160942765 se=0.057549713623945384 withheld-assay=(0.12194404441190956, 0.07962629954886274)
+('map_arterial', 'norepinephrine') beta=3.3338848273633017 se=0.11219104588336076 withheld-assay=(-0.09941991398673201, 0.28240422270011895)
+Selected 100 representative training stays enriched for both measured drug pathways. No edits.
+Counts: 18 Python runs, 3 forward passes.
+
+## Restart / Run 19
+Forward 4 exported 5,215 original bundle states on representative training stays. No weights edited. Rechecking architecture and persistent analysis objects before a directly validated algebraic correction; treatment conclusions remain conditional on pre-dose-history adjustment.
+Counts: 19 Python runs, 4 forward passes.
+
+## Run 20
+Architecture confirms distinct action encoder and shared numeric/bin embeddings. Retrieving retained analysis objects and original intervention predictions. No edits.
+Counts: 20 Python runs, 4 forward passes.
+
+## Run 21
+Recovered existing hourly panels, cross-fitted effect diagnostics, representative state sample, and original rollout table. Retrieving quantitative baseline and normalization before constructing a reversible edit. No edits.
+Counts: 21 Python runs, 4 forward passes.
+
+## Runs 22–23
+Run 22 had a syntax error and executed nothing. Run 23 checks exposed-readout averaging and event timing and selects an enriched tuning intervention panel. No edits.
+Counts: 23 Python runs, 4 forward passes.
+
+## Forward 5 / Run 24
+Enriched original tuning rollout: insulin x2=-1.773, half=+0.816 (665 exposed hours); NE x2=+0.048, half=-0.481 (571 exposed hours). Exploring innovation-decoding in value-head hidden features to preserve teacher-forced non-value outputs exactly. No edits.
+Counts: 24 Python runs, 5 forward passes.
+
+## Run 25
+Recovered architecture, earlier notebook and retained-object inventory. No edits; approximate head reconstruction is not yet a factual-fit certificate.
+
+## Forward 6 / Run 29
+Original enriched training factual NLL 1.51284. Built value-head calibration features and stay-separated innovation-decoder tests; no edits yet. Combined only stays shared by state and factual exports.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 29 of at most 300:
+```
+Calibration: 199 stays, 10054 readings
+Approximate mean reconstruction RMSE: 1.7062089322450387
+ alpha           drug  heldout_n  heldout_r2  innovation_sd
+   1.0        insulin        829   -0.062667       0.576185
+   1.0 norepinephrine        961   -0.064537       0.100814
+  10.0        insulin        829   -0.012457       0.576185
+  10.0 norepinephrine        961   -0.041367       0.100814
+ 100.0        insulin        829   -0.013461       0.576185
+ 100.0 norepinephrine        961   -0.025111       0.100814
+
+```

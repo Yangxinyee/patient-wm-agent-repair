@@ -1,0 +1,123 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 9 replies happened before. Forward passes used: 1 of 50; Python runs used: 8 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+222, 'se': 0.08872873482315437, 'dose_res_sd': 0.09883522228146768, 'resid_sd': 4.519227806880063}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'FE': False, 'positive': True, 'n': 142122, 'coef': -0.06613786539167706, 'se': 0.0863063728761675, 'dose_res_sd': 0.1426505170953394, 'resid_sd': 4.591794791303734}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'FE': True, 'positive': False, 'n': 299363, 'coef': -0.7725849221129699, 'se': 0.08580774276074685, 'dose_res_sd': 0.09514360504032757, 'resid_sd': 4.028719441881256}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'FE': True, 'positive': True, 'n': 142122, 'coef': -0.36932950328777975, 'se': 0.08400682490204614, 'dose_res_sd': 0.13716056234670113, 'resid_sd': 4.161084829621738}]
+
+## Forward 1: original tuning stays 0–99
+Insulin x2 +0.113, half -0.186; NE x2 +0.050, half +0.013. These are model responses, not true effects.
+
+## Nonlinear cross-fitted and threshold checks
+[{'outcome': 'glucose_finger', 'drug': 'insulin', 'subset': 'all', 'n': 421718, 'coef': 0.046580552327704, 'se': 0.03701878791189854, 'dose_res_sd': 0.6564647878753065}, {'outcome': 'glucose_finger', 'drug': 'insulin', 'subset': 'positive', 'n': 294760, 'coef': 0.04646134466171898, 'se': 0.03701787667874383, 'dose_res_sd': 0.7851724741947089}, {'outcome': 'glucose_finger', 'drug': 'insulin', 'subset': 'current_observed', 'n': 327710, 'coef': 0.031499733748478614, 'se': 0.037024119461286156, 'dose_res_sd': 0.7425130106918741}, {'outcome': 'glucose_finger', 'drug': 'insulin', 'subset': 'positive_unsaturated', 'n': 292876, 'coef': 0.015900672554840522, 'se': 0.03959050670868771, 'dose_res_sd': 0.7290792231205443}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'subset': 'all', 'n': 328933, 'coef': -0.012344425223706398, 'se': 0.08191087068976124, 'dose_res_sd': 0.09590758434856245}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'subset': 'positive', 'n': 155950, 'coef': -0.011768482601147679, 'se': 0.08190853460684161, 'dose_res_sd': 0.1392838606041562}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'subset': 'current_observed', 'n': 312395, 'coef': -0.017303452048893886, 'se': 0.08337953017129889, 'dose_res_sd': 0.09586874862962243}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'subset': 'positive_unsaturated', 'n': 124562, 'coef': 0.013751492878438612, 'se': 0.09683471234859976, 'dose_res_sd': 0.12825513941070582}]
+[{'cutoff': 150, 'n': 49020, 'dose_jump': 1.047047141339122, 'outcome_jump': -0.2860901017759291, 'effect_per_unit': -0.2732351681988586, 'se': 0.2605727678210058}, {'cutoff': 180, 'n': 75962, 'dose_jump': 1.0314201165066181, 'outcome_jump': 0.19066633728897636, 'effect_per_unit': 0.18485807503421225, 'se': 0.19386587966043398}, {'cutoff': 220, 'n': 45430, 'dose_jump': 1.0770798543300497, 'outcome_jump': -0.006962022619774968, 'effect_per_unit': -0.006463794296946895, 'se': 0.2787245758334151}, {'cutoff': 260, 'n': 23848, 'dose_jump': 1.0202105439600928, 'outcome_jump': -0.3697303053836833, 'effect_per_unit': -0.36240588530728407, 'se': 0.4548303368604357}, {'cutoff': 300, 'n': 7133, 'dose_jump': 2.0925099725379988, 'outcome_jump': -0.7441357968121194, 'effect_per_unit': -0.35561875765378526, 'se': 0.4753394758400258}]
+
+## Delayed and alternate-outcome checks
+[{'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 2, 'subset': 'all', 'n': 405570, 'coef': 0.04551, 'se': 0.0418}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 2, 'subset': 'positive', 'n': 270294, 'coef': 0.04549, 'se': 0.04181}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 4, 'subset': 'all', 'n': 372833, 'coef': 0.05001, 'se': 0.05039}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 4, 'subset': 'positive', 'n': 238699, 'coef': 0.04996, 'se': 0.0504}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 8, 'subset': 'all', 'n': 305697, 'coef': 0.06124, 'se': 0.0726}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 8, 'subset': 'positive', 'n': 185542, 'coef': 0.06131, 'se': 0.0726}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 12, 'subset': 'all', 'n': 236369, 'coef': 0.0552, 'se': 0.10731}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 12, 'subset': 'positive', 'n': 135844, 'coef': 0.05559, 'se': 0.10732}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 1, 'subset': 'all', 'n': 144582, 'coef': 0.0929, 'se': 0.061}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 1, 'subset': 'positive', 'n': 59059, 'coef': 0.09272, 'se': 0.06101}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 4, 'subset': 'all', 'n': 126468, 'coef': 0.09476, 'se': 0.08921}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 4, 'subset': 'positive', 'n': 50894, 'coef': 0.09395, 'se': 0.08921}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 2, 'subset': 'all', 'n': 315230, 'coef': -0.08079, 'se': 0.09402}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 2, 'subset': 'positive', 'n': 149583, 'coef': -0.08087, 'se': 0.09402}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 4, 'subset': 'all', 'n': 287792, 'coef': 0.1396, 'se': 0.11518}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 4, 'subset': 'positive', 'n': 136785, 'coef': 0.13949, 'se': 0.11517}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 8, 'subset': 'all', 'n': 232981, 'coef': 0.30622, 'se': 0.16584}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 8, 'subset': 'positive', 'n': 110988, 'coef': 0.30588, 'se': 0.16584}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 12, 'subset': 'all', 'n': 178111, 'coef': 0.83175, 'se': 0.23148}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive', 'n': 84840, 'coef': 0.8309, 'se': 0.23147}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 1, 'subset': 'all', 'n': 440167, 'coef': -0.25985, 'se': 0.16691}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 1, 'subset': 'positive', 'n': 117794, 'coef': -0.26161, 'se': 0.16691}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 4, 'subset': 'all', 'n': 385203, 'coef': 0.05434, 'se': 0.20138}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 4, 'subset': 'positive', 'n': 103181, 'coef': 0.0527, 'se': 0.20139}]
+No edits yet. Nonlinear one-hour effects: insulin +0.0466 (SE 0.0370); NE -0.0123 (SE 0.0819). Insulin threshold checks show strong dose jumps but no significant outcome jumps.
+
+## Run 7 failed / Run 8 recovery
+Run 7 exhausted memory and restarted the kernel; no edits had been made. Rebuilt compact float32 records and targeted history features.
+[{'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive', 'n': 155950, 'coef': 0.029011214778685096, 'se': 0.07966874626395953}, {'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_ge4', 'n': 130138, 'coef': 0.09041826580562107, 'se': 0.08633447782399166}, {'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_lt4', 'n': 25812, 'coef': -0.26252499037732024, 'se': 0.20696688544333378}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive', 'n': 84840, 'coef': 0.847788841227945, 'se': 0.22758190381027768}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 59074, 'coef': 0.1739493898543281, 'se': 0.25300784921029384}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 25766, 'coef': 2.1909689150258878, 'se': 0.45051047443270414}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive', 'n': 63844, 'coef': 0.3921358097717153, 'se': 0.335210329434825}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 44386, 'coef': 0.05362684210829568, 'se': 0.37654176589911237}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 19458, 'coef': 1.0989971324361514, 'se': 0.6651476800953505}]
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 8 of at most 300:
+```
+Predefined objects available: {'NAMES': True, 'SHAPES': True, 'VOCAB': True, 'load': True, 'load_original': True, 'save_edit': True}
+Compact records MB: 24.96
+<run>:49: RuntimeWarning: Mean of empty slice
+Features: 51 matrix MB: 146.9
+Dose fold 0 max RSS: 1363136
+Dose fold 1 max RSS: 1370260
+Dose residual SD: 0.07826667296189592
+{'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive', 'n': 155950, 'coef': 0.029011214778685096, 'se': 0.07966874626395953}
+{'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_ge4', 'n': 130138, 'coef': 0.09041826580562107, 'se': 0.08633447782399166}
+{'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_lt4', 'n': 25812, 'coef': -0.26252499037732024, 'se': 0.20696688544333378}
+{'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive', 'n': 84840, 'coef': 0.847788841227945, 'se': 0.22758190381027768}
+{'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 59074, 'coef': 0.1739493898543281, 'se': 0.25300784921029384}
+{'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 25766, 'coef': 2.1909689150258878, 'se': 0.45051047443270414}
+{'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive', 'n': 63844, 'coef': 0.3921358097717153, 'se': 0.335210329434825}
+{'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 44386, 'coef': 0.05362684210829568, 'se': 0.37654176589911237}
+{'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 19458, 'coef': 1.0989971324361514, 'se': 0.6651476800953505}
+
+```

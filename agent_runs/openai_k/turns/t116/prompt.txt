@@ -1,0 +1,93 @@
+OUTPUT of Python run 108 of at most 300:
+```
+=== READOUT CONSTANTS ===
+variables: ('out', 'h', 'indices', 'hours49', 'dt_np49', 'dt49', 'flowed49', 'ctx49', 'mu49', 'ls49', 'zs49', 'q49', 'readings49', 'j49', 'sensor49', 'spec49', 'lv49', 'lh49', 'has49', 'value49', 'bins49', 'numeric49', 'age49', 'code49', 'wc49', 'logits49')
+constants: (None, ('dtype',), 1e-05, 0.0001, 3600, 'core.flow.a', 1, 'core.out_norm', 10, 'gap', 'z_prior', 2, -1, 'z_head', 'type_emb.weight', 'query_norm', 'value', 'median', 'fine_bin_edges', 'left', ('side',), 0, 8, 'iqr', -8, 3, 'embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'attr_heads.value_bin', 'embed_transition.value_bin.weight', 17)
+
+=== COMPACT READOUT BYTECODE ===
+24 np | NULL|self + asarray | indices | int | indices
+25 r49_hours | indices |  | hours49
+26 np | NULL|self + maximum | np | NULL|self + ceil | hours49 | 1e-05 | OP:+ | hours49 | OP:- | 0.0001 | 3600 | OP:* | dt_np49
+27 torch | NULL|self + tensor | dt_np49 | torch | float32 | dt49
+28 h | torch | NULL|self + exp | dt49 | None | None |  | None | None |  |  | torch | NULL|self + exp | W0 | 'core.flow.a' |  | OP:* | OP:* | flowed49
+29 out | NULL + norm0 | flowed49 | NULL|self + mean | 1 | 'core.out_norm' | OP:+ | ctx49
+30 ctx49 | NULL + mlp0 | torch | NULL|self + log | dt49 | None | None |  | None |  |  | 10 | OP:/ | 'gap' | OP:+= | ctx49
+31 NULL + mlp0 | ctx49 | 'z_prior' | NULL|self + chunk | 2 | -1 | mu49 | ls49
+32 mu49 | None | None |  | None | None | None |  |  |  | torch | NULL|self + exp | ls49 | None | None |  | None | None | None |  |  |  | r49_noise | None |  | OP:* | OP:+ | zs49
+33 NULL + norm0 | ctx49 | None | None |  | None | None | None |  |  |  | NULL + lin0 | zs49 | 'z_head' | OP:+ | OP:+ | q49
+34 W0 | 'type_emb.weight' |  | 1 |  | 'query_norm'
+35  | readings49
+36 NULL + enumerate | r49_sensors | j49 | sensor49
+37 num_spec0 | sensor49 | 'value' |  |  | spec49
+38 r49_register | indices | j49 |  |  | T | lv49 | lh49
+39 np | NULL|self + isfinite | lv49 | has49
+40 np | NULL|self + where | has49 | lv49 | spec49 | 'median' |  | value49
+41 np | NULL|self + where | has49 | 1 | np | NULL|self + searchsorted | OP:+ | bins49
+42 spec49 | 'fine_bin_edges' |  | value49 | 'left' | 0
+43 np | NULL|self + zeros | NULL + len | indices | 8 |  | np | float32 | numeric49
+44 has49 | numeric49 | None | None |  | 0 | 
+45 np | NULL|self + where | has49 | np | NULL|self + maximum | OP:* | age49
+46 hours49 | dt_np49 | 3600 | OP:/ | OP:+ | lh49 | OP:- | 0 | 3600 | 0
+47 np | NULL|self + log1p | age49 | 10 | OP:/ | numeric49 | None | None |  | 1 | 
+48 np | NULL|self + where | has49 | np | NULL|self + clip | numeric49 | None | None |  | 2 | 
+49 value49 | spec49 | 'median' |  | OP:- | spec49 | 'iqr' |  | OP:/ | -8 | 8 | 0
+50 has49 | numeric49 | None | None |  | 3 | 
+51 code_id0 | sensor49 |  | code49
+52 torch | NULL|self + tensor | bins49 | bins49
+53 q49 | W0 | 'embed.code.weight' |  | code49 |  | OP:+ | OP:+ | OP:+ | OP:+ | OP:+ | wc49
+54 NULL + lin0 | torch | NULL|self + tensor | numeric49 | 'last_numeric' | None | None |  | None | None | None |  |  | 
+55 W0 | 'embed.bins.value.weight' |  | bins49 |  | None | None |  | None | None | None |  |  | 
+56 W0 | 'embed.bins.rate.weight' |  | 0 | 
+57 W0 | 'last_status.weight' |  | 0 | 
+58 NULL + mlp0 | wc49 | 'attr_heads.value_bin' | logits49
+59 logits49 | W0 | 'embed_transition.value_bin.weight' |  | code49 | 17 | OP:* | bins49 | OP:+ |  | None | None |  | None | None | None |  |  |  | OP:+= | logits49
+60 readings49 | NULL|self + append | torch | NULL|self + softmax | logits49 | -1 | OP:*
+61 r49_centres | j49 |  | NULL|self + sum | -1 | NULL|self + mean | 1
+62 torch | NULL|self + stack | readings49 | 1
+
+=== REGISTER-TEST INPUTS ===
+has104 [ True  True  True  True  True  True  True  True False  True]
+age105 [0.88819752 0.81889669 0.81889669 0.81889669 0.81889669 0.81889669
+ 0.99804949 0.9287394  0.         0.81889669]
+lastbin104 [ 7  5  7  7 10 13 12  5  0 11]
+codes104 [ 6  7  7  7  6  5 10  6  6  6]
+label104 [ 8  4  7  6  9 12 10  4  5  9]
+dt104 [3600.   3600.   3600.   3600.   3600.   3600.   3300.12 3600.   3600.
+ 3600.  ]
+recent result variables: ['results105']
+
+=== IDENTIFICATION SUMMARY ===
+# Weight-repair notebook
+
+## Run 1: initial inspection
+- Read architecture, data schema, tensor shapes, vocabulary, and a record sample.
+- No drug-effect conclusion or weight edit yet.
+- All causal conclusions will come from the supplied records.
+- Python runs: 1; forward passes: 0.
+
+## Run 2: records and vocabulary
+- Architecture has a dedicated action encoder; this is a candidate edit boundary, not evidence of drug effects.
+- Loaded all training and tuning records and inspected event timing and dose distributions.
+- Python runs: 2; forward passes: 0.
+
+## Run 3: hourly panel and preliminary associations
+- Doses occur at hour + 0.0833, after same-hour measurements; next-hour outcomes are post-treatment.
+- Constructed complete hourly histories, with zero rates for absent infusion records.
+- Computed raw and flexible history-adjusted one-hour slopes; these remain provisional because treatment and observation selection may confound them.
+- Preliminary estimates: {'glucose_finger': {'n': 298450, 'beta': array([-1.9552787 , -0.00447367]), 'se': array([0.04175153, 0.27588974]), 'residual_dose_sd': array([0.62089111, 0.08481478])}, 'glucose_lab': {'n': 28483, 'beta': array([-1.61143064,  0.23353193]), 'se': array([0.10999966, 0.47828202]), 'residual_dose_sd': array([0.44313316, 0.08471139])}, 'map_arterial': {'n': 312563, 'beta': array([-0.01420961,  2.50709245]), 'se': array([0.01662592, 0.08518661]), 'residual_dose_sd': array([0.46802037, 0.10263334])}, 'map_cuff': {'n': 333382, 'beta': array([0.00668627, 0.46524658]), 'se': array([0.028022  , 0.21911062]), 'residual_dose_sd': array([0.46792872, 0.06450492])}}
+- Python runs: 3; forward passes: 0.
+
+## Run 4 / forwards 1?2: baseline and dose-policy models
+- Original tuning-100 rollout: insulin x2 -2.016; insulin half +1.051; NE x2 +0.309; NE half -0.070.
+- Original factual value NLL: 1.63155 over 4,751 readings.
+- Fit two-fold, stay-held-out flexible dose-policy models using only pre-dose histories.
+- These models are for identification diagnostics, not weight training.
+- Python runs: 4; forward passes: 2.
+
+## Run 5: cross-fitted next-hour effects
+- Dose-policy out-of-stay R2: insulin 0.8660, NE 0.9351; residual SD 0.3678 and 0.07559 respectively.
+- Used two-fold, stay-held-out nonlinear outcome models and clustered residual-on-residual regressions.
+- Checked sensor, positive-dose, and early/late subgroups; estimates still require confounding and dynamics checks.
+- DML results: {'glucose_finger': {'beta': array([-1.93474217,  0.33946561]), 'se': array([0.04454258, 0.26229829]), 'n': 400154}, 'glucose_lab': {'beta': array([-2.01483673, -0.33459203]), 'se': array([0.0747496 , 0.35865811]), 'n': 143791}, 'map_arterial': {'beta': array([0.01574776, 3.05259229]), 'se': array([0.02054298, 0.0887042 ]), 'n': 32894
+
+```

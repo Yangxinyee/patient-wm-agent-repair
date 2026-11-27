@@ -1,0 +1,24 @@
+OUTPUT of Python run 270 of at most 300:
+```
+def bview(W,out,h,dt,zs=None,gen=None,nz=4):
+    # returns views (B,nz,192) ; zs: if None draw from prior
+    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+    base=out+bln(W,hf.mean(1),'core.out_norm')+bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+    zp=bmlp(W,base,'z_prior')
+    if zs is None:
+        eps=torch.randn(base.shape[0],nz,32,generator=gen,dtype=T)
+    else: eps=zs
+    z=zp[:,None,:32]+torch.exp(zp[:,None,32:])*eps
+    return base[:,None,:]+blin(W,z,'z_head')
+def bvalue_probs(W,views,code,has,age_s,zlast,vblast):
+    # views (B,nz,192); has,age_s,zlast (B,), vblast (B,) long
+    q=bln(W,views+W['type_emb.weight'][1],'query_norm')
+    B=views.shape[0]; f=torch.zeros(B,8,dtype=T); f[:,0]=has; f[:,3]=torch.log1p(age_s)/10*has; f[:,6]=zlast
+    wc=q+(W['embed.code.weight'][code]+blin(W,f,'last_numeric')+W['embed.bins.value.weight'][vblast]+W['embed.bins.rate.weight'
+{'query_norm.bias': (192,), 'query_norm.weight': (192,), 'z_head.bias': (192,), 'z_head.weight': (192, 32), 'z_prior.0.bias': (192,), 'z_prior.0.weight': (192, 192), 'z_prior.2.bias': (64,), 'z_prior.2.weight': (64, 192)}
+Js row norms median per output [0.112 0.087 0.029 0.035] p90 [0.192 0.143 0.064 0.085] sk[:3] [[1010000154, 7], [1010000154, 41], [1010000154, 47]]
+MEASC {5: 'map_cuff', 6: 'glucose_finger', 7: 'map_arterial', 10: 'glucose_lab'} RA col1 uniq [-1.  0.  1.  2.  3.  4.  5.  6.] col3 uniq [ 1.  2.  3.  4.  5.  6.  7.  8.  9. 10. 11. 12. 13. 14. 15. 16.]
+ins rate pct >5.75: 0.005  >3.83: 0.041  max 11.5
+ne rate pct >0.5: 0.454 >0.75: 0.269 max 1.00
+
+```

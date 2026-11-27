@@ -1,0 +1,164 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 173 replies happened before. Forward passes used: 10 of 50; Python runs used: 156 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.2.bias', 'core.prelude.0.ffn.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+Python run 91; forwards 7. Original weights remain restored. Recovering exact architecture and recent helpers to replace weak existing-feature dose extraction with a direct, factual-residual correction.
+
+Python run 94; forwards 7. No edits. Recovering compact causal summary and state-update interface after diagnostic output/name failures.
+
+Python run 95; forwards 7. Recovered record-derived immediate and impulse effects (insulin ~-1.94/unit, NE ~+3.2/rate); tuning rollout references -12.96/+6.48 and +4.28/-2.14. Preparing mechanistic finite-difference readout calibration, no gradients.
+
+Python run 96; forwards 7. No edits. Matching local readout reconstruction to existing authoritative factual outputs before calibrating core injection.
+
+Python run 97; forwards 7. Brute-force matching readout conventions against authoritative original factual means, using prior mean and known registers. No weights changed.
+
+Python runs 99-100; forwards 7. Original weights remain restored. Architecture re-read; recovering dose-extraction fits, identification evidence, and exact readout conventions before an effective recurrent edit.
+
+Python runs 103-104; forwards 7. Latent-token gate is strongly isolated: ordinary-token SD .00092, changed-action SD .00064 versus latent mean 1. Testing explicit dose decoder and low-variance attention-payload features for a posterior innovation channel. No weights edited yet.
+
+Python run 105; forwards 7. Refined explicit dose decoder and calibrated head-2 value-channel directions with numerical finite differences; exact prelude/core replay checked. No model gradients or weight edits.
+
+Python run 107; forwards 7. Calibration is not yet trusted: local readout and core disagreement require exact replay diagnosis. Original weights remain unchanged; recovering compact helper inventory.
+
+Python run 112; forwards 7. Dose-policy residual noise assessed (insulin .60, NE .25 on active bundles). New readout helper disagrees with earlier reconstruction; checking authoritative recurrent states and memory timing before any weight edit.
+
+Python run 118; forwards 7. Original weights unchanged. Recovered replay helpers; explicitly tested seconds versus hours for memory age against authoritative drug-bundle states.
+
+Python run 122; forwards 7. Context/view replay is close, but readout/register reconstruction remains unvalidated. Recovering architecture and retained helper inventory before calibration. No weights edited.
+
+Python run 128; forwards 7. Correct query type is 1. Prior-mean readout RMSE 1.766, averaged-prior RMSE 1.677, four-draw noise SD 1.156. Local readout is approximate; factual acceptance must use authoritative forwards. Moving to a reversible dose-contrast pilot rather than further exact-readout search.
+
+Python run 130; forwards 7. Restart recovered architecture and early identification evidence. No edits. Original rollout is severely attenuated relative to record-derived insulin and NE kernels; proceeding to a reversible action-path pilot with authoritative factual validation, not further exact-readout reconstruction.
+
+Python run 133; forwards 7. Retained Bdelta88 and payload104 fail direct paired-contrast validation (large error versus near-zero response); neither applied. Refit attention-pooled dose contrasts directly with whole-stay holdout and factual-covariance regularization. Original weights remain unchanged.
+
+Python run 136; forwards 7. Fresh FFN contrast fit has low factual variance and consistent insulin signs but misses NE stopping/halving; unsuitable as final full-dose solution. Constructed finite-difference low-rank injection directions and x2 contrast normalization for a reversible pathway pilot. No weight edits yet.
+
+Python runs 137-141; forwards 7. Recovered architecture and identification evidence. Record-derived immediate effects ~-1.94 insulin/glucose and +3.2 NE/MAP; 12-hour tuning reference shifts -12.96,+6.48,+4.28,-2.14. Candidate FFN hidden decoder has small factual residuals in each slot (insulin SD ~.06, NE ~.034); no cancellation across slots. Installed reversible rank-two correction to core.prelude.0.ffn.2 weight and bias: dW=directions136@B136.T, db=-dW@mu136, gains [1,1]. Directions are numerical finite-difference calibrations, no model gradients. Factual acceptance and actual rollout effects remain untested. NE halving/stopping decoder is known imperfect; this is a pathway pilot, not a final edit.
+
+Python run 142; forwards 9. Rank-two FFN pilot rejected and dropped. At gain [1,1], factual NLL rose 1.63982->1.64743 (+.00761), exceeding budget. Actual rollout shifts were -0.570,+0.194,-0.721,-0.303, versus originals -0.422,+0.213,-0.742,-0.238. Thus local finite-difference calibration did not translate into meaningful rollout repair. All weights restored. Investigating an explicit latent/action dose-innovation transport channel.
+
+Python run 143; forwards 9. Original weights remain restored. Recovering architecture, data schema, and earlier record-only causal evidence after failed FFN pilot; next correction must validate dose transport through actual rollout, not only local readout sensitivity.
+
+Python run 144; forwards 9. Record-derived insulin and NE effects disagree strongly with original rollouts. Recovering exact action/prelude/core helpers and explicit dose decoder to validate transport before another edit. No weights changed.
+
+Python run 145; forwards 9. Testing a dedicated latent-transport attention head, with zero payload first. Replayed original prelude and fitted three-head compensation on factual training states with whole-stay holdout; no weights changed.
+
+Python run 146; forwards 9. New prelude replay failed equality checks, so no head edit is justified. Comparing retained exact helper and raw-versus-normalized token conventions; original weights remain unchanged.
+
+Python run 147; forwards 9. Raw-token replay validated. Dedicated latent head 3; three-head and closed-form FFN compensation, held-out E RMSE 0.000725809. Zero-payload candidate installed=True; factual acceptance still requires authoritative forward. No dose payload yet.
+
+Python run 148; forwards 10. Zero-payload latent-head transport passed tuning factual test (1.63982 original, 1.63985 edited). Checking retained nonlinear action decoder and context dose-policy accuracy before adding a causal signal.
+
+Python run 149; forwards 10. Restart recovery: zero-payload latent-head transport remains installed and factual-neutral (+0.00003 NLL). Retained action decoder rate RMSE is about 0.021 insulin and 0.016 NE; context-policy prediction errors are much larger. Recovering exact transport, decoder, and record-identification evidence before adding any dose payload. No weights changed in this run.
+
+Python run 150; forwards 10. Architecture recovered. Current five-tensor edit reserves an attention transport head with factual compensation but no causal payload. Recovering its compact implementation and retained nonlinear decoder before a payload contrast test. No weights changed.
+
+Python runs 151-152; forwards 10. Run 151 diagnostic stopped on structured reference data; no weight changes. Recovered reference structure, prior posterior-pilot notes, decoder scenario checks, and reserved-head projection norms.
+
+Python run 153; forwards 10. Reconstructed original and saved gated-posterior pilot on aligned factual and scaled action cases, measuring latent contrasts before transport. Previous pilot rollout failure must be distinguished from decoder failure. Current five zero-payload transport edits remain unchanged; saved posterior pilot was not installed.
+
+Python run 154; forwards 10. Constructed, but did not install, four-neuron gated physical-dose innovations with fresh whole-stay-held-out context policies, compensated posterior outputs, and two explicit orthogonal latent carrier directions. Candidate dictionaries post154/zin154/zb154 retained. Transport and physiological output calibration still required; current five zero-payload edits unchanged.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 156 of at most 300:
+```
+Posterior reconstruction vs authoritative z RMS: 2.416945426375605e-05
+Include-current False h RMS 16.617097854614258 out RMS 0.18790185451507568 age range 0.0 25.08329963684082
+Include-current True h RMS 16.491127014160156 out RMS 0.18725726008415222 age range 0.0 25.08329963684082
+
+Readout setup:
+Codes: [ 5  6  7 10]
+next_dt105: (16,) [3300.12 3300.12 3300.12 3300.12 3300.12]
+attr_static105 shape: torch.Size([200, 192])
+Traceback (most recent call last):
+  File "<run>", line 39, in <module>
+  File "<run>", line 40, in means105
+RuntimeError: The size of tensor a (16) must match the size of tensor b (200) at non-singleton dimension 0
+
+```

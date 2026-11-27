@@ -1,0 +1,81 @@
+OUTPUT of Python run 94 of at most 300:
+```
+=== ORIGINAL CAUSAL NOTES ===
+# Weight repair notebook
+
+## Objective and constraints
+Infer drug effects only from simulated ICU records; edit weights analytically without gradients or a weight optimizer. Preserve factual value NLL within +0.005 nats and examine all-output loss where available.
+
+## Initial plan
+Read architecture and data schema; identify sources of dose variation and confounding; estimate and falsify causal responses separately for both drugs; inspect model dose-sensitive states; construct a narrowly targeted, dose-generalizing edit; validate factual predictions and paired rollouts.
+
+No drug effect has yet been assumed or estimated.
+
+## Run 1
+Read full architecture and schema. Action embeddings feed a shared recurrent state; last-value registers also feed value heads. No effect estimates or edits yet. Initial printed output was truncated; run 2 targets missing details.
+
+## Run 2
+Training has 30,000 stays and 1,997,441 events. Measurements at integer hours; actions at hour+0.0833, lasting one hour. Insulin rates are quantized in 0.5 steps; norepinephrine rates in 0.01 steps and capped at 1. No duplicate code/stay/hour rows. Constructed hourly panel and began raw/history/within-stay comparisons.
+
+## Baseline rollout
+First100 tuning original shifts: I x2 -3.680, I half +2.018, NE x2 +0.465, NE half -0.871. Rich regression results retained in rich_fits; they are diagnostic, not yet accepted causal estimates.
+
+## Strengthened record evidence (run 4)
+Nonlinear history controls restricted to active infusions give insulin next-hour coefficients around -2.0 (finger and lab agree); NE around +3.1 on arterial and +3.6 on cuff when both current sensors observed. Earlier near-zero estimates were misspecified, not evidence of absent effects. Original factual tuning first100 NLL = 1.63164, n=4751. Run 5 fits a separate two-sensor random-baseline state-space model to estimate persistence; this does not modify world-model weights.
+glucose SSM parameters [144.1680625841136, 0.9263030096279322, 0.3154693959901756, 3.5763416283774636, 3.2934889974132835, 1.678039410652465, 2.1832857530220755, 1.1568945707731426, 0.037711265958233535], success True.
+MAP SSM parameters [75.25256805642357, 0.8879818156248919, -0.3778968848036003, 2.512353157927126, 2.005848208979782, 0.6511878302787533, 1.167060058781382, 1.7996778798728403, 3.091933533327739], success True.
+Provisional linear rollout targets: {"insulin_x2": 2.3193790074377105, "insulin_half": -1.1596895037188553, "ne_x2": -0.9474186067740055, "ne_half": 0.47370930338700273}
+
+## Restart / run 6
+SSM and rich-history coefficients disagree in sign. Treat SSM rollout targets as unvalidated, not causal truth. Recovering architecture, timing, and persistent analyses before choosing an edit.
+
+## Run 7
+Built independently aligned P (readings at integer hour) and A (drug records floored to their start hour). Inspecting treatment support and previous fit implementation; no causal target or edit accepted yet.
+
+## Run 8
+Insulin has sharp recorded-glucose dosing thresholds. Computing local-linear discontinuity ratios at 150.5,179.5,219.5,259.5, two bandwidths, both next-hour sensors, and pre-dose lab/observation-placebo checks. Also testing which MAP sensor drives NE selection. Results remain subject to placebo and precision checks.
+
+## Run 9
+Threshold evidence: insulin at 179.5 gives beta -2.04 (cluster SE .26, width12); at219.5 -2.28 (.48). Pre-dose lab jumps near zero; first150.5 threshold changes monitoring, so do not use that finger estimate alone. Implemented independent SSM with explicit observations -1..24 and action a[h] only in transition h->h+1, to test whether the old opposite-sign estimates arose from time alignment. No edits.
+
+## Run 10
+Explicitly aligned random-baseline SSM still conflicts with threshold evidence (glucose rho at .9999, beta -.033; MAP beta -.377). Therefore timing alone does not explain it. Fitting a separate profiled fixed-effect SSM with unrestricted stay-specific intercept and initial state; random-effect independence from adaptively selected treatments is suspect. This is a small record model, not world-model training.
+
+## Run 11
+Profiled fixed-effect SSM also gives incompatible effects (I -.419,rho .772; NE .435,rho .602), so neither simple SSM is accepted as a causal model. Insulin dose/base SD .343 overall and .330 within stay provides substantial within-stay variation. Built pre-action history features only and ran two-fold stay-separated flexible residualization (small statistical regressions, not world-model training), comparing all/active/both-current subsets and both sensors.
+
+## Run 12 / second restart
+Recovered architecture and persistent-variable inventory after original state export. No edits; insulin threshold evidence remains provisional, and neither conflicting SSM is accepted as causal truth. Next: inspect flexible residualization results and state/head pathways.
+
+## Run 14
+Recomputed cross-fitted two-treatment residual regressions with stay-clustered uncertainty and observation/active-treatment subsets; retained results in effects14. Inspecting NE policy support before accepting its effect.
+
+## Run 15 / alignment audit
+Run 14 subset masks mistakenly 
+
+=== RETAINED DYNAMIC KERNELS ===
+glucose_finger shape (8,) values [-1.95       -2.30956082 -2.00524188 -1.60385039 -1.0841093  -0.78217104
+ -0.50420974 -0.37554342]
+glucose_lab shape (8,) values [-1.95       -2.23851659 -2.0225016  -1.45544374 -1.16951817 -0.81375861
+ -0.50996249 -0.29112483]
+map_arterial shape (8,) values [3.1        2.4754437  1.65816933 0.94336399 0.35728377 0.27454722
+ 0.01817551 0.1668407 ]
+map_cuff shape (8,) values [ 3.1         1.96645016  1.37114872  0.51409909  0.61313123 -0.17057541
+ -0.06638572  0.07700461]
+
+Baseline RMSE: 0.0007275495
+
+ insulin {'norm': 0.0, 'linear_rmse': 0.7071067811865476, 'nonlinear_rmse': 0.7071067811865476}
+glucose_finger shift 0.0 SD 0.0
+glucose_lab shift 0.0 SD 0.0
+map_arterial shift 0.0 SD 0.0
+map_cuff shift 0.0 SD 0.0
+
+ norepinephrine {'norm': 2021.6579205609878, 'linear_rmse': 0.7000000011941472, 'nonlinear_rmse': 0.7072699565624382}
+glucose_finger shift -5.035400317865424e-05 SD 0.00013458909234032035
+glucose_lab shift -7.934570021461695e-06 SD 2.5024415663210675e-05
+map_arterial shift -0.00015075683768372983 SD 0.0008300592890009284
+map_cuff shift -0.0003097534063272178 SD 0.0011473026825115085
+Probe seconds: 1.2229697704315186
+
+```

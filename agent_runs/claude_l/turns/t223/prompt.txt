@@ -1,0 +1,19 @@
+OUTPUT of Python run 208 of at most 300:
+```
+def bmha(W,xq,xkv,n,H=4):
+    # xq (B,nq,192) xkv (B,nk,192)
+    B,nq,_=xq.shape; nk=xkv.shape[1]; dh=192//H
+    q=(xq@W[n+'.q.weight'].T).reshape(B,nq,H,dh).transpose(1,2)
+    kv=xkv@W[n+'.kv.weight'].T; k=kv[...,:192].reshape(B,nk,H,dh).transpose(1,2); v=kv[...,192:].reshape(B,nk,H,dh).transpose(1,2)
+    att=torch.softmax((q@k.transpose(-1,-2))/math.sqrt(dh),-1)
+    o=(att@v).transpose(1,2).reshape(B,nq,192)
+    return o@W[n+'.out.weight'].T
+--
+def bself(W,x,L):
+    a=bln(W,x,L+'.norm1'); x=x+bmha(W,a,a,L+'.attn')
+    return x+bmlp(W,bln(W,x,L+'.norm3'),L+'.ffn')
+--
+def bln(W,x,n): return F.layer_norm(x,(x.shape[-1],),W[n+'.weight'],W[n+'.bias'],1e-5)
+--
+
+```

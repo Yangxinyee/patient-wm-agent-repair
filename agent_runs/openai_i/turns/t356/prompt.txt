@@ -1,0 +1,268 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 355 replies happened before. Forward passes used: 43 of 50; Python runs used: 299 of 300. Your kernel is still running with its variables. Tensors currently edited: ['z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['blended284.npz', 'candidate186.npz', 'compensated220.npz', 'corrected269.npz', 'corrected_direct286.npz', 'direct_g1_ne3_290.npz', 'edited', 'fallback188.npz', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_36', 'fwd_37', 'fwd_38', 'fwd_39', 'fwd_4', 'fwd_40', 'fwd_41', 'fwd_42', 'fwd_43', 'fwd_44', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_9', 'gain278.npz', 'head275_0.npz', 'head275_1.npz', 'head275_2.npz', 'head275_3.npz', 'neutral203.npz', 'neutral204.npz', 'neutral209.npz', 'notes.md', 'protected_head295.npz', 'rejected_gain08_284.npz', 'response233.npz', 'response_candidates216.npz', 'response_directions231.npz', 'response_fd230.npz', 'sharp243.npz', 'small_route222.npz', 'token257.npz', 'token_directions215.npz', 'zero_route285.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+1e-06), 2: (0.5716827127207477, 0.41776062063817904, 0.0001, 1e-06), 3: (1.0948381699376113, 1.4025162669999116, 0.001, 1e-05)}.
+- Best head 0; provisionally installed True.
+- Closed-form regressions only; response directions retained at gain 1.
+- No candidate is accepted without GPU factual validation.
+
+## Python 277 — reject alternative-head edit
+- Forward 27 alternative-head factual dNLL +0.31001: rejected.
+- Restored neutral209; recovering architecture, causal targets, and candidate contracts.
+
+## Python 280 — definitive gain-0.8 installation
+- Installed corrected269 with z_in response delta scaled by 0.8.
+- Retrieved factual CSV stay IDs directly; candidate remains provisional.
+
+## Python 282 — restart recovery after mixed-type diagnostic failure
+- Gain-0.8 corrected269 remains installed and provisional.
+- Recovering architecture, recorded causal targets, and latest GPU validation files.
+- Explicit NumPy conversion avoids ndarray/Tensor subtraction errors; no weights changed.
+
+## Python 283 — compact validation recovery
+- Previous recovery output was truncated before its validation section.
+- Extracting recent factual NLLs, dose shifts, exact causal-target notes, and installed response gain.
+- No weights changed; gain-0.8 candidate remains provisional pending these results.
+
+## Python 284 — reject gain-0.8 on independent factual cohort
+- First cohort dNLL +0.004965; second +0.010455; pooled +0.007685.
+- Saved rejected_gain08_284; it is not an acceptable final candidate.
+- Installed blended284 provisionally: prelude deltas scaled to 0.6, response gain 1.0.
+- Retained the actual-empty-action gate correction. No gradient training.
+- Hypothesis: reduce routing overhead while preserving treatment transport; requires GPU validation.
+
+## Python 285 — reject interpolated routing; isolate overhead
+- Forward 31 / fwd_32: blended284 dNLL +0.02537 on second 100 tuning stays; rejected.
+- Restored full corrected269 route with both added z_in response columns at gain zero.
+- zero_route285 is diagnostic only, not accepted. Next factual pass isolates routing overhead.
+
+## Python 286 — reject full routing overhead; correct direct-token test
+- Forward 32 / fwd_33 zero-response full route dNLL +0.01055 on second cohort; rejected.
+- Installed corrected_direct286: token257 gain 0.3 plus corrected269 empty-action posterior gates.
+- All prelude attention and FFN weights restored to original.
+- Prior direct-token failure preceded discovery of the nonzero empty-action encoding.
+- Hypothesis: fixing that leakage may permit direct causal transport without routing overhead.
+- Candidate remains provisional; requires matched factual and dose validation.
+
+## Python 287 — recover direct-token validation context
+- corrected_direct286 factual dNLL is +0.00045 on the latest 100-stay cohort.
+- This clears the factual limit on that cohort, not yet causal validation.
+- Recovering architecture, record-derived targets, saved candidates, and stay IDs.
+- No weights changed.
+
+## Python 288 — compact restart recovery
+- Prior output was truncated; extracting numeric causal targets, cohort IDs, and edit contracts.
+- corrected_direct286 remains installed; factual dNLL +0.00045 on the latest cohort.
+- No weights changed.
+
+## Forward 34; Python 289 — direct transport is underpowered
+- corrected_direct286 dose shifts on second cohort: insulin x2 -2.743, half +2.309; NE x2 +0.124, half +0.050.
+- Factual fit passes (+0.00045), but causal responses remain inadequate.
+- Recovering response-channel calibration before changing gains or directions.
+- corrected_direct286 retained as a factual-safe checkpoint; no weights changed.
+
+## Python 290 — provisional stronger corrected direct transport
+- Installed direct_g1_ne3_290: corrected_direct286 posterior gates, insulin response gain 1.0 and NE response gain 3.0.
+- All attention and FFN weights remain original; only the six posterior/input tensors are edited.
+- The gain-0.3 checkpoint remains available as a factual-safe fallback.
+- Candidate is provisional: requires factual dNLL <= .005 and improved dose responses.
+- No gradients or optimiser over model weights used.
+
+## Forwards 35–36; Python 291 — reject higher direct gains
+- Gains insulin 1 / NE 3 give factual dNLL +.00214, but dose shifts remain -2.835, +2.120, +.173, +.031.
+- Direct transport saturates; larger gains offer no meaningful repair.
+- Restored corrected_direct286 as factual-safe checkpoint.
+- Investigating corrected-route factual compensation using actual empty-action encoding.
+
+## Python 292 — recover targeted compensation options
+- Higher direct-token gains were factually acceptable but causally ineffective; the low-gain checkpoint remains installed.
+- Recovering architecture, record-based effect evidence, and available readout/calibration features before spending the remaining runs.
+- No weights changed. Any routed candidate must pass independent factual validation and retain its dose responses.
+
+## Python 293 — routed-candidate calibration data collection
+- Reinstalled corrected269 provisionally; uncalibrated factual fit is not acceptable.
+- Preparing a training-stay state cohort and recovering exact readout helpers.
+- Goal: a small record-fitted value calibration, validated on separate tuning stays, without gradient training of the model.
+- corrected_direct286 remains the factual-safe restore point.
+
+## Python 295 — provisional protected-head correction
+- Run294 completed paired-state and dose-direction collection but stopped at a NumPy/Torch centre mismatch; no correction was installed then.
+- Reused collected data: 4415 cases, 4415 recovered labels.
+- Held original/routed local NLL: 1.534268 / 1.543273.
+- Selected (held dNLL, RMS, local dose distortion, protected rank, ridge): (0.004400521410540925, 0.44859093673445094, 0.02327793711651031, 24, 0.1).
+- Refitted local dose shifts: [('insulin', 0.5, 1.287083397155016, 1.3057683364976735, 0.014517271673272289), ('insulin', 2.0, -2.766359706707205, -2.828251869494751, 0.02237314353498017), ('norepinephrine', 0.5, -0.5880330430272229, -0.6095533525665944, 0.036597109285872516), ('norepinephrine', 2.0, 1.0564235511783988, 1.0932019246820195, 0.03481404164323661)].
+- Installed protected_head295 provisionally. GPU factual validation on independent tuning cohorts and rollout validation are still required.
+- Correction is a closed-form regression, with no model gradients or optimiser over weights.
+
+## Python 297 — final validation recovery
+- Run296 failed on a 7-versus-4 intermediate-array mismatch; its diagnostic is inconclusive.
+- Recovered architecture, record-derived evidence, checkpoint agreement, and tuning cohorts.
+- No weights changed. Protected-head candidate still requires independent GPU factual and rollout validation.
+
+## Python 298 — compact final-validation inventory
+- Run297 output was truncated; retrieved checkpoint agreement, tuning cohort IDs, and numeric target notes compactly.
+- Preserved the installed tensors in protected_state298. No weights changed.
+- Next decision will use matched GPU factual and dose-rollout results, not the failed local diagnostic.
+
+## Python 299 — reject protected-head factual fit; final correction attempt
+- Protected-head factual dNLL: second cohort +0.00924; first +0.00373; third +0.00937. Three-cohort pooled deterioration about +0.0074 exceeds the limit.
+- Matched second-cohort dose shifts: insulin x2 -10.678, half +4.151; NE x2 +1.471, half -1.733. Causal response survived, but the candidate is rejected as-is.
+- Relaxed-head recovery failed safely: IndexError('boolean index did not match indexed array along axis 0; size of axis is 4415 but size of corresponding boolean axis is 4035'). Restored corrected_direct286, previously factual dNLL +0.00045.
+- Closed-form statistical regression only; no backpropagation or optimiser over model weights.
+- Acceptance still requires GPU factual dNLL <=0.005 and useful dose-response retention. Corrected_direct286 remains the restore point if validation fails.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 43 of 50 done (factual); files in /work/fwd_44/. Summary:
+```
+{
+ "type": "factual",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.61402,
+   "n_values": 4563,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1303,
+     "nll": 1.4422,
+     "mean_abs_error": 10.892
+    },
+    "glucose_lab": {
+     "n": 492,
+     "nll": 1.3164,
+     "mean_abs_error": 8.872
+    },
+    "map_arterial": {
+     "n": 1125,
+     "nll": 1.4548,
+     "mean_abs_error": 3.873
+    },
+    "map_cuff": {
+     "n": 1643,
+     "nll": 1.9484,
+     "mean_abs_error": 5.921
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.6156,
+   "n_values": 4563,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1303,
+     "nll": 1.445,
+     "mean_abs_error": 10.961
+    },
+    "glucose_lab": {
+     "n": 492,
+     "nll": 1.3187,
+     "mean_abs_error": 8.896
+    },
+    "map_arterial": {
+     "n": 1125,
+     "nll": 1.4553,
+     "mean_abs_error": 3.879
+    },
+    "map_cuff": {
+     "n": 1643,
+     "nll": 1.9495,
+     "mean_abs_error": 5.924
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "seconds": 3.1
+}
+```
+Forward passes left: 7.
+Edits used in this pass: z_in.bias, z_in.weight, z_post.0.bias, z_post.0.weight, z_post.2.bias, z_post.2.weight (edit hash 9b8af7a03f).

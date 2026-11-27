@@ -1,0 +1,118 @@
+OUTPUT of Python run 142 of at most 300:
+```
+=== EARLIER DESIGN NOTES ===
+# World-model weight repair
+
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+  180.5   5  38087     0.5698       -0.7370          -1.2935      0.5515
+  180.5  10  75667     0.7794       -1.1972          -1.5359      0.2877
+  180.5  15 112580     0.8600       -1.4093          -1.6386      0.2149
+  180.5  20 148824     0.9038       -1.5463          -1.7108      0.1791
+  220.5   5  13465     0.6094       -1.9360          -3.1771      1.0528
+  220.5  10  27007     0.8056       -1.8092          -2.2459      0.5494
+  220.5  15  41128     0.8857       -1.9515          -2.2034      0.4082
+  220.5  20  55451     0.9242       -2.0053          -2.1697      0.3407
+  260.5   5   2121     0.4853       -1.7844          -3.6771      3.6196
+  260.5  10   4328     0.7606       -2.5573          -3.3620      1.6647
+  260.5  15   6845     0.8875       -2.7845          -3.1374      1.1748
+  260.5  20   9743     0.9343       -2.9469          -3.1542      0.9651
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440       -1.8588          -1.7805      0.1641
+  220.0   5  10878     1.0678       -3.1426          -2.9430      0.7643
+  220.0  10  24707     1.0534       -2.2490          -2.1350      0.4629
+  220.0  15  39001     1.0530       -2.2109          -2.0996      0.3641
+  220.0  20  53461     1.0493       -2.1822          -2.0797      0.3138
+  260.0   5   1722     0.9170       -4.7440          -5.1732      2.5458
+  260.0  10   3976     1.0306       -3.9808          -3.8625      1.3933
+  260.0  15   6526     1.0794       -3.8052          -3.5254      1.0430
+  260.0  20   9462     1.0751       -3.7279          -3.4675      0.8812
+Two-fold, stay-separated history-adjusted dose/outcome residual regressions:
+          drug         target      n     beta  cluster_se  dose_R2  dose_residual_SD  outcome_residual_SD
+       insulin glucose_finger 391466 -2.04924     0.04571  0.80748           0.48910             12.20504
+norepinephrine   map_arterial 330203  3.17146     0.08848  0.92657           0.09261              4.31153
+These estimates require dose innovations to be unconfounded conditional on
+rec
+
+=== ACTION / CHANNEL INTERFACES ===
+controlled_action_repair keys: ['insulin', 'norepinephrine']
+action_atom_vectors_repair keys: ['insulin', 'norepinephrine']
+action_fixture_repair DataFrame
+action_ctx_repair shape (133, 192) mean/std 0.07546424865722656 1.3949605226516724
+gated_innovation94 (raw) dependencies: ('gelu94', 'np', 'asarray', 'W0base94', 'reserved94', 'T', 'b0base94')
+capture_transition102 (indices, action_override=None) dependencies: ('sys', 'getprofile', 'setprofile', 'transition73')
+capture_ep112 (indices) dependencies: ('sys', 'getprofile', 'setprofile', 'transition73')
+transition_with_z95 (indices, delta) dependencies: ('np', 'asarray', 'int', 'torch', 'as_tensor', 'float32', 'globals', 'transition73')
+head_features_fixed (states, dataset, draws=16, seed=2501) dependencies: ('torch', 'as_tensor', 'np', 'asarray', 'to_numpy', 'float32', 'reshape', 'exp', 'head_W_repair', 'head_norm_fixed', 'mean', 'head_mlp_fixed', 'log1p', 'zeros', 'len', 'long', 'head_linear_fixed', 'Generator', 'manual_seed', 'range', 'clamp', 'randn', 'F', 'gelu', 'softmax', 'numpy')
+head_predictions_repair keys: [('gelu', 0, 'has_age_numeric'), ('gelu', 0, 'numeric_has_age'), ('gelu', 0, 'four_then_zero'), ('gelu', 0, 'has_age_zrate_zdose_flags'), ('gelu', 1, 'has_age_numeric'), ('gelu', 1, 'numeric_has_age'), ('gelu', 1, 'four_then_zero'), ('gelu', 1, 'has_age_zrate_zdose_flags'), ('silu', 0, 'has_age_numeric'), ('silu', 0, 'numeric_has_age'), ('silu', 0, 'four_then_zero'), ('silu', 0, 'has_age_zrate_zdose_flags'), ('silu', 1, 'has_age_numeric'), ('silu', 1, 'numeric_has_age'), ('silu', 1, 'four_then_zero'), ('silu', 1, 'has_age_zrate_zdose_flags'), ('relu', 0, 'has_age_numeric'), ('relu', 0, 'numeric_has_age'), ('relu', 0, 'four_then_zero'), ('relu', 0, 'has_age_zrate_zdose_flags')]
+probe_indices95 shape (256,) mean/std 2141.12890625 1232.3861083984375
+drug_indices95 shape (1292,) mean/std 2083.756103515625 1194.480712890625
+dose_probe104 8.0
+channel_fits112 keys: [40.0, 80.0, 160.0]
+reader_direction112 shape (192,) mean/std -7.775953417876735e-05 0.0723574161529541
+channel_direction112 shape (192,) mean/std -3.1044086745701804e-10 0.07235746085643768
+amplitude112 160.0
+q112 shape (4059,) mean/std -0.0008588553173467517 0.2929757535457611
+q118 2.0
+actual_insulin95 shape (4059,) mean/std 0.19167283177375793 0.39366552233695984
+
+=== TRAINING FIXTURE ===
+E65 torch.Size([4159, 192])
+U65 torch.Size([4159, 192])
+reference_x125 (4159, 992)
+fact_state_repair torch.Size([4903, 992])
+fact_prev_repair (4903,)
+fact_dt_repair (4903,)
+function names: ['capture_attention103', 'capture_call87', 'capture_ep111', 'capture_ep112', 'capture_q111', 'capture_transition102', 'gated_innovation94', 'replay_factual125', 'rp_action_encoder', 'singleton_action_repair']
+
+```

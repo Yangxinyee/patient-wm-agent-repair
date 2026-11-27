@@ -1,0 +1,214 @@
+OUTPUT of Python run 264 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== SAVED CANDIDATES ===
+recurrent_glucose_valid.npz [('b_in', (192, 192), 'float32')]
+recurrent_half_backup.npz [('original', (192, 192), 'float32'), ('edited', (192, 192), 'float32')]
+
+=== RECENT KERNEL OBJECTS ===
+r246_matches list len 78
+r246_objects list len 2706
+r246_name 'obj242'
+r247_lines list len 1110
+r247_selected list len 14
+r247_items list len 2712
+r247_n 'obj242'
+r248_items list len 2715
+r248_n 'ids243'
+r248_o ndarray (24,)
+r248_t 'ndarray'
+r249_items list len 2719
+r249_n 'r248_t'
+r249_o 'ndarray'
+r249_fns list len 10
+r250_items list len 2724
+r250_n 'r179_capture_head'
+r250_fn function ('out', 'h', 'indices')
+r250_i 970
+r250_lines list len 1115
+r250_idxs list len 7
+r251_name 'z_post.2.weight'
+r251_previous dict len 6
+r251_C ndarray (192, 192)
+r251_base ndarray (192, 192)
+r251_strength 0.5
+r251_weight ndarray (192, 192)
+r251_stays list len 100
+sections list len 207
+matched list len 80
+col 1
+nc18 list len 1
+j18 dict len 9
+snap253 list len 2748
+recent253 list len 37
+r254_original Tensor (192, 192)
+r254_current Tensor (192, 192)
+r254_delta Tensor (192, 192)
+snap254 list len 2753
+fun254 list len 160
+r255_matches list len 4
+transq True
+gg ndarray (192, 2)
+transw True
+cc ndarray (192, 192)
+r255_best tuple len 3
+r255_q ndarray (2, 2)
+r255_components list len 2
+r255_CI ndarray (192, 192)
+r255_CN ndarray (192, 192)
+r255_fp ndarray (8800, 2)
+ff ndarray (1280, 2)
+r256_strength_I 1.0
+r256_strength_N 0.0
+r256_C ndarray (192, 192)
+r256_predict function ('case', 'correction', 'strength')
+r256_fact0 ndarray (320, 4)
+r256_fact1 ndarray (320, 4)
+mult 3.0
+case dict len 4
+r256_weight ndarray (192, 192)
+r257_F ndarray (2200, 4, 192)
+r257_Fm ndarray (2200, 192)
+r257_Fw ndarray (8800, 192)
+r257_Cm ndarray (192, 192)
+r257_Cw ndarray (192, 192)
+r257_Dm ndarray (3200, 192)
+r257_Ym ndarray (3200, 2)
+r257_weights ndarray (3200,)
+contrast_rms np.float64(0.8980430112193959)
+r257_Cd ndarray (192, 192)
+r257_rhs ndarray (192, 2)
+r257_ridge np.float64(9.580266479936903e-07)
+r257_fits dict len 12
+within 1.0
+cov ndarray (192, 192)
+fm ndarray (2,)
+ratios list len 10
+r257_factual_delta np.float64(0.003000799831614165)
+rr_recover function ()
+rr_inventory function ()
+rr_details function ()
+rr_fit_map_features function ()
+rr_Nfits dict len 12
+rr_Ndirection ndarray (192,)
+rr_NA ndarray (10, 192)
+rr_Ntargets ndarray (10,)
+rr_Nlabels list len 10
+rr_Nbase_shifts dict len 10
+rr_conservative_map function ()
+rr_Nsubset_fits dict len 3
+rr_Nv ndarray (192,)
+rr_NC ndarray (192, 192)
+rr_Ntotal ndarray (192, 192)
+rr_Nlocal_shifts dict len 7
+rr_trial_weight ndarray (192, 192)
+rr_eval_stays list len 100
+
+=== REPLAY / HEAD HELPERS ===
+embed_record_audit ('row', 'kind', 'end_numeric', 'end_categories') uses: ('event', 'np', 'zeros', 'float32', 'getattr', 'nan', 'pd', 'notna', 'drug_codes', 'num_spec0', 'clip', 'searchsorted', 'W0', 'code_id0', 'event_kind_ids_audit', 'lin0', 'torch', 'tensor', 'unit_ids_audit', 'get', 'rate_unit_ids_audit')
+embed_consistent_audit ('row', 'kind', 'end_numeric', 'end_categories', 'end_kq') uses: ('embed_record_audit', 'event', 'measure_codes', 'W0', 'world_kq_audit', 'world_bin_side_audit', 'num_spec0', 'np', 'searchsorted', 'value')
+r23_base_embed ('row', 'kind', 'end_numeric', 'end_categories', 'end_kq') uses: ('embed_record_audit', 'event', 'measure_codes', 'W0', 'world_kq_audit', 'world_bin_side_audit', 'num_spec0', 'np', 'searchsorted', 'value')
+assay_head110 ('gap_scale', 'value_column', 'flag_column', 'activation', 'type_index') uses: ('mlp0', 'torch', 'log', 'dt104', 'ctx104', 'norm0', 'zh104', 'W0', 'np', 'zeros', 'len', 'ix104', 'float32', 'has104', 'age105', 'zval104', 'codeemb104', 'binemb104', 'lin0', 'tensor', 'act0', 'F', 'linear', 'trans104', 'softmax')
+predictions119 ('parameters', 'rows') uses: ('torch', 'tensor', 'np', 'asarray', 'reshape', 'float32', 'features119', 'T', 'proj118', 'numproj118', 'F', 'gelu', 'linear', 'W0', 'tr118', 'softmax', 'mean', 'centres104', 'sum', 'numpy', 'log', 'arange', 'len', 'labels118', 'clamp_min')
+r179_capture_head ('out', 'h', 'indices') uses: ('lin0', 'torch', 'softmax', 'globals', 'r49_readouts', 'len', 'enumerate', 'r49_sensors', 'numpy', 'astype', 'np', 'float64', 'concatenate', 'ones', 'shape', 'r49_centres', 'sum', 'max', 'abs', 'mean')
+r186_heads ('indices', 'actions') uses: ('r59_core', 'r179_capture_head')
+r245_prediction ('case', 'amplitude') uses: ('np242', 'r245_V', 'r245_G', 'T', 'torch', 'as_tensor', 'float32', 'r244_read_pre', 'indices151')
+r256_predict ('case', 'correction', 'strength') uses: ('np242', 'np', 'einsum', 'r245_delta', 'torch', 'as_tensor', 'float32', 'r244_read_pre', 'indices151')
+
+=== IDENTIFICATION NOTES ===
+- Recovering architecture, identification evidence, and candidate interfaces
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,153 @@
+OUTPUT of Python run 243 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RECORD-DERIVED TARGET HISTORY ===
+## Forward 10?11: first validated insulin candidate
+Four value-head tensors, hash 70c11c43ec. Paired tuning factual NLL:
+original 1.63461, edited 1.63592, delta +0.00131 (4751 readings).
+Dose shifts on the same 100 stays:
+original insulin -1.847/+0.777; edited -5.908/+2.782.
+Original NE -0.498/-0.600; edited -0.517/-0.615.
+Insulin intervention transmission improved substantially, but remains below
+provisional record-derived targets -13.599/+6.800. NE is not repaired.
+Backed up this factual-budget-compliant candidate in memory and
+/work/insulin_candidate_v1.npz before any further changes.
+
+
+## Restart / Runs 113?115 and Forward 12?13
+Strength-2 insulin candidate (hash 43d7176a64): paired factual NLL on tuning stays 2020000100..199 is 1.62310 vs 1.62044, delta +0.00266. On tuning stays 2020000000..99 its dose shifts are insulin x2 -10.248, half +5.053; NE x2 -0.513, half -0.604. Provisional record-derived targets for those rollout hours remain -13.599/+6.800 and +4.746/-2.373. Saved current strength-2 tensors in r115_strength2. Further amplification requires factual-budget validation; NE remains unrepaired.
+
+
+## Forward 20?21 / Run 165: guarded insulin validated provisionally
+On tuning 300..399, factual NLL delta approximately +0.00141. On tuning 0..99, dose shifts: insulin x2 -14.397, half +6.597; NE x2 -0.538, half -0.599. Record-derived targets on that cohort remain provisional: -13.599/+6.800 and +4.746/-2.373. Four-tensor insulin backup retained in r165_insulin_backup. Investigating NE factual efficiency; no NE edit installed yet.
+
+
+## Runs 171?173: restart audit and combined-trial results
+Re-read architecture and record schema. Forward 22 factual on tuning 300..399: original 1.64248740, combined 1.64634215, delta +0.00385475; passes this cohort. Forward 23 on tuning 0..99: insulin x2 -14.331, half +6.691; NE x2 +2.387, half -0.873. Combined edit is a provisional fallback, not yet validated across other cohorts. NE remains weaker than provisional record-derived targets, especially for half-dose. Four-tensor backup r171_combined_backup retained. No new weight change.
+
+
+## Run 234: focused recovery
+Previous output was truncated. Retrieved long-horizon identification and recent candidate objects with bounded output. No weights changed.
+
+
+## Forward 29 / 30 and Run 235: validated fallback
+Current edit hash 6288c226d6: tuning 0?99 rollout shifts insulin -13.693/+6.196; NE +1.262/-0.633. Tuning 100?199 factual NLL 1.62521 vs original 1.62044, delta +0.00477. Saved exact tensors in r235_safe and /work/safe_6288c226d6.npz. Insulin is near the provisional record-derived target; NE remains underpowered. No weights changed during this audit.
+
+
+
+=== RECENT CHECKPOINTS ===
+idate/evaluator interfaces before testing training-only nonlinear factual cancellation. No weights changed.
+
+## Run 239: exact cancellation interfaces
+Recovered changed hidden rows, original/safe head weights, cache types and evaluator outputs. Cancellation will be fitted on training features rather than tuning labels. No weights changed.
+
+## Run 240: training-only nonlinear factual cancellation screen
+Fitted ridge predictions of the installed NE pair's factual activation using 188 unchanged original hidden features, on first 60 training stays. Protected event-average and optional principal-component sensitivity to the approximate raw NE probe. Screened NE amplitude .6/.8/1.0 and partial/full cancellation on training-held-out and tuning caches. No weights installed. Proxy constraints do not establish real dose-edit preservation.
+ npc  ridge  ne_amp  cancel  train_fit  train_validation  tune100  probe_mean_max  null_dim
+  16  0.001     0.6     1.0   0.003716          0.003068 0.005373    4.163336e-17       168
+   8  0.001     0.6     1.0   0.003608          0.003038 0.005415    5.204170e-17       176
+   0  0.001     0.6     1.0   0.003670          0.003151 0.005445    6.245005e-17       184
+   4  0.001     0.6     1.0   0.003614          0.003197 0.005460    3.469447e-17       180
+  16  0.010     0.6     1.0   0.003708          0.002972 0.005601    4.857226e-17       168
+   8  0.010     0.6     1.0   0.003605          0.002919 0.005665    5.551115e-17       176
+   0  0.010     0.6     1.0   0.003629          0.003004 0.005691    6.245005e-17       184
+   4  0.010     0.6     1.0   0.003595          0.002995 0.005695    1.908196e-17       180
+  16  0.001     0.6     0.5   0.003691          0.002784 0.005776    4.163336e-17       168
+   8  0.001     0.6     0.5   0.003636          0.002772 0.005799    5.204170e-17       176
+   0  0.001     0.6     0.5   0.003666          0.002817 0.005811    6.245005e-17       184
+   4  0.001     0.6     0.5   0.003639          
+[output cut at 10,000 characters]
+```

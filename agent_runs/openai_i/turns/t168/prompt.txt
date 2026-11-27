@@ -1,0 +1,164 @@
+OUTPUT of Python run 150 of at most 300:
+```
+=== RETAINED READOUT RECONSTRUCTION FINDINGS ===
+## Exact input investigation ? Python 18; forward 4
+- Architecture describes four register fields but last_numeric has eight columns.
+- Inspecting function bytecode, vocabulary and tensor inventory to resolve the mismatch.
+- No weights changed.
+
+
+## Compact helper inspection ? Python 19; forward 4
+- Previous bytecode output was truncated; isolating register construction and baseline dose results.
+- No weights changed.
+
+
+## Behavioral reconstruction checks ? Python 20; forward 4
+- Inspecting original rollout results and reconstruction errors by sensor, register presence and hour.
+- No weights changed.
+
+
+## Register-flag search ? Python 21; forward 4
+- Tested 64 binary flag layouts and five age encodings without changing weights.
+- Original rollout responses are weak relative to record-based impulse estimates.
+               age flag_columns      rms     bias      nll  mask_id
+              zero         (4,) 4.246606 1.894217 1.687699        4
+   hours_log_div10         (4,) 4.279984 2.014240 1.689289        4
+hours_linear_div10         (4,) 4.371322 2.171057 1.693805        4
+              zero           () 4.627127 1.905579 1.705522        0
+   hours_log_div10           () 4.673152 2.009212 1.706651        0
+              zero    (0, 3, 4) 4.680979 2.030317 1.754868        7
+   hours_log_div10    (0, 3, 4) 4.753480 2.146869 1.757741        7
+hours_linear_div10           () 4.776523 2.145068 1.711134        0
+
+
+## Register layout resolved ? Python 22?23; forward 4
+- Exhaustive input search identifies previous z_value in column 6, not column 2.
+- Flags are columns 0 and 3; age is provisionally log1p(age in hours)/10.
+- Added head_exact helper correcting inputs only; no weights changed.
+Full 32-draw reconstruction: RMS 1.581861, bias 0.147118, NLL 1.627269; reference 1.638051.
+Original exposed-hour readouts:
+                  mean       std  count
+edit                                   
+insulin_half  0.748828  1.022116     52
+insulin_x2   -1.611756  1.224233     52
+ne_half      -0.029211  0.086717     21
+ne_x2         0.323391  0.588468     21
+
+
+## Restart ? Python 24; forward 4
+- No weights changed. Local head reconstruction is approximate and cannot certify factual loss.
+- Inspecting full architecture and tensor shapes to design a reversible dose-sensitive edit.
+- Record-based impulse estimates remain provisional; factual certification will use the forward tool.
+
+
+## Python 25; forward 4
+- Architecture places dose information in a shared recurrent state.
+- Prefer testing a small value-head correction before risking shared transition weights.
+- Next test: whether state-derived dose innovations explain original factual prediction errors.
+
+
+## Python 27; forward 4
+- No weights changed. Tested original reading errors against dose innovations and split-stay decoding from head features.
+        sensor   n  missing_effect_slope  stay_cluster_se
+glucose_finger 678             -1.711465         1.125185
+   glucose_lab 130             -1.694045         3.047887
+  map_arterial 437              4.028994         2.145740
+      map_cuff 359              3.016211         2.367138
+
+
+## Python 28; forward 4
+- Head-feature dose-innovation decoder failed on 50 held-out training stays; not safe to edit from it alone.
+- Checked event timing and compared raw-state dose decodability.
+          drug    features          target   alpha  heldout_R2  correlation
+       insulin head_hidden     actual_rate   100.0      0.4185       0.6534
+       insulin head_hidden dose_innovation 10000.0      0.0050       0.0707
+       insulin         out     actual_rate    10.0      0.5323       0.7353
+       insulin         out dose_innovation    10.0      0.0071       0.3052
+       insulin      mean_h     actual_rate    10.0      0.5490       0.7430
+       insulin      mean_h dose_innovation    10.0      0.0362       0.3111
+       insulin       all_h     actual_rate    10.0      0.5657       0.7591
+       insulin       all_h dose_innovation    10.0      0.0240       0.3472
+       insulin poster
+
+=== RELEVANT TENSOR SHAPES ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+embed_transition.value_bin.weight (221, 17)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+=== EXPOSED STATE SCALES ===
+out RMS 1.011721134185791 standard deviation 1.0117051601409912 absolute quantiles [0.1422 1.7563 3.6984]
+h RMS 35.266075134277344 standard deviation 35.24778366088867 absolute quantiles [  5.3821  61.1749 136.1972]
+posterior mean RMS 0.26582223176956177 standard deviation 0.26551634073257446 absolute quantiles [0.0566 0.2567 1.1164]
+
+=== HELPER DEFAULTS AND CURRENT PROBE ===
+core_step136 defaults ('key', None) arguments ('h_before', 'dt_seconds', 'e', 'u', 'z', 'memory', 'ages', 'age_mode', 'mask')
+block136 defaults (None, None, 'key', None) arguments ('x', 'prefix', 'memory', 'ages', 'age_mode', 'mask')
+attention136 defaults (None, None) arguments ('x', 'memory', 'prefix', 'key_add', 'mask')
+atom145 defaults (0, True) arguments ('r', 'unit', 'add_absent_bins')
+pool137 defaults (False,) arguments ('atoms', 'prefix', 'zero_empty')
+norm136 defaults None arguments ('x', 'prefix')
+probe shapes: torch.Size([1, 4, 192]) torch.Size([1, 192]) torch.Size([1, 32]) torch.Size([1]) torch.Size([10, 192])
+probe time gap: tensor([3600.])
+code/event metadata: {'glucose_finger': {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, 'glucose_lab': {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, 'map_arterial': {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, 'map_cuff': {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, 'insulin': {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, 'norepinephrine': {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}}
+value centres container: dict
+currently edited: []
+
+```

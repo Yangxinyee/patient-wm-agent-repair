@@ -1,0 +1,84 @@
+OUTPUT of Python run 101 of at most 300:
+```
+=== MATCHED-READING ERRORS ===
+glucose_finger n 1171 mean error quantiles [-26.0457  -7.6754   2.7683  15.0495  60.0893] mean abs error 7.280673634136407 NLL difference 0.4617999176181758
+glucose_lab n 424 mean error quantiles [-38.0231  -6.652    2.3791  12.0964  46.1902] mean abs error 6.7049089176106 NLL difference 0.5000112163273793
+map_arterial n 900 mean error quantiles [-9.8197 -1.4135  1.3008 17.4508 41.306 ] mean abs error 5.579393798088922 NLL difference 1.6672052767705388
+map_cuff n 1287 mean error quantiles [-7.9709 -2.1504  1.0598 11.8415 44.8615] mean abs error 4.2612274749020775 NLL difference 0.6126022487132792
+   stay_id  hour          event  position  local_mean  observed  predicted_mean    nll  local_nll
+1010000000     1 glucose_finger         1  167.147232     175.0        166.2374 1.6070   1.667836
+1010000000     2 glucose_finger         3  166.321365     169.0        169.7501 1.0853   0.941315
+1010000000     3 glucose_finger         5  162.006821     150.0        166.5014 2.1309   2.202845
+1010000000     4 glucose_finger         7  158.257126     151.0        158.4713 1.2655   1.373309
+1010000000     5 glucose_finger         9  158.447479     146.0        155.1550 1.0627   1.396068
+1010000000     9 glucose_finger        14  148.761154     125.0        145.3360 2.4739   3.179284
+1010000000    13 glucose_finger        18  142.122696     143.0        138.2067 0.8954   0.855699
+1010000000    17 glucose_finger        22  160.737106     154.0        156.5018 1.1704   1.369800
+1010000000    18 glucose_finger        24  161.063126     147.0        155.3292 1.0530   1.910801
+1010000000    19 glucose_finger        26  155.202942     156.0        152.9393 1.2679   0.682400
+1010000000    20 glucose_finger        28  157.494614     146.0        156.6266 1.1748   1.177573
+1010000000    24 glucose_finger        34  167.262405     152.0        162.9264 1.7005   1.827813
+=== FEATURE / HEAD IMPLEMENTATIONS ===
+
+FUNCTION r49_readouts (out, h, indices)
+VARIABLES ('out', 'h', 'indices', 'hours49', 'dt_np49', 'dt49', 'flowed49', 'ctx49', 'mu49', 'ls49', 'zs49', 'q49', 'readings49', 'j49', 'sensor49', 'spec49', 'lv49', 'lh49', 'has49', 'value49', 'bins49', 'numeric49', 'age49', 'code49', 'wc49', 'logits49')
+GLOBALS ('np', 'asarray', 'int', 'r49_hours', 'maximum', 'ceil', 'torch', 'tensor', 'float32', 'exp', 'W0', 'norm0', 'mean', 'mlp0', 'log', 'chunk', 'r49_noise', 'lin0', 'enumerate', 'r49_sensors', 'num_spec0', 'r49_register', 'T', 'isfinite', 'where', 'searchsorted', 'zeros', 'len', 'log1p', 'clip', 'code_id0', 'append', 'softmax', 'r49_centres', 'sum', 'stack')
+CONSTANTS (None, ('dtype',), 1e-05, 0.0001, 3600, 'core.flow.a', 1, 'core.out_norm', 10, 'gap', 'z_prior', 2, -1, 'z_head', 'type_emb.weight', 'query_norm', 'value', 'median', 'fine_bin_edges', 'left', ('side',), 0, 8, 'iqr', -8, 3, 'embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'attr_heads.value_bin', 'embed_transition.value_bin.weight', 17)
+0:RESUME  | 2:LOAD_GLOBAL np | 12:LOAD_ATTR NULL|self + asarray | 32:LOAD_FAST indices | 34:LOAD_GLOBAL int | 44:KW_NAMES ('dtype',)
+46:CALL  | 54:STORE_FAST indices | 56:LOAD_GLOBAL r49_hours | 66:LOAD_FAST indices | 68:BINARY_SUBSCR  | 72:STORE_FAST hours49
+74:LOAD_GLOBAL np | 84:LOAD_ATTR NULL|self + maximum | 104:LOAD_GLOBAL np | 114:LOAD_ATTR NULL|self + ceil | 134:LOAD_FAST hours49 | 136:LOAD_CONST 1e-05
+138:BINARY_OP + | 142:CALL  | 150:LOAD_FAST hours49 | 152:BINARY_OP - | 156:LOAD_CONST 0.0001 | 158:CALL 
+166:LOAD_CONST 3600 | 168:BINARY_OP * | 172:STORE_FAST dt_np49 | 174:LOAD_GLOBAL torch | 184:LOAD_ATTR NULL|self + tensor | 204:LOAD_FAST dt_np49
+206:LOAD_GLOBAL torch | 216:LOAD_ATTR float32 | 236:KW_NAMES ('dtype',) | 238:CALL  | 246:STORE_FAST dt49 | 248:LOAD_FAST h
+250:LOAD_GLOBAL torch | 260:LOAD_ATTR NULL|self + exp | 280:LOAD_FAST dt49 | 282:LOAD_CONST None | 284:LOAD_CONST None | 286:BUILD_SLICE 
+288:LOAD_CONST None | 290:LOAD_CONST None | 292:BUILD_TUPLE  | 294:BINARY_SUBSCR  | 298:UNARY_NEGATIVE  | 300:LOAD_GLOBAL torch
+310:LOAD_ATTR NULL|self + exp | 330:LOAD_GLOBAL W0 | 340:LOAD_CONST 'core.flow.a' | 342:BINARY_SUBSCR  | 346:CALL  | 354:BINARY_OP *
+358:CALL  | 366:BINARY_OP * | 370:STORE_FAST flowed49 | 372:LOAD_FAST out | 374:LOAD_GLOBAL NULL + norm0 | 384:LOAD_FAST flowed49
+386:LOAD_ATTR NULL|self + mean | 406:LOAD_CONST 1 | 408:CALL  | 416:LOAD_CONST 'core.out_norm' | 418:CALL  | 426:BINARY_OP +
+430:STORE_FAST ctx49 | 432:LOAD_FAST ctx49 | 434:LOAD_GLOBAL NULL + mlp0 | 444:LOAD_GLOBAL torch | 454:LOAD_ATTR NULL|self + log | 474:LOAD_FAST dt49
+476:CALL  | 484:LOAD_CONST None | 486:LOAD_CONST None | 488:BUILD_SLICE  | 490:LOAD_CONST None | 492:BUILD_TUPLE 
+494:BINARY_SUBSCR  | 498:LOAD_CONST 10 | 500:BINARY_OP / | 504:LOAD_CONST 'gap' | 506:CALL  | 514:BINARY_OP +=
+518:STORE_FAST ctx49 | 520:LOAD_GLOBAL NULL + mlp0 | 530:LOAD_FAST ctx49 | 532:LOAD_CONST 'z_prior' | 534:CALL  | 542:LOAD_ATTR NULL|self + chunk
+562:LOAD_CONST 2 | 564:LOAD_CONST -1 | 566:CALL  | 574:UNPACK_SEQUENCE  | 578:STORE_FAST mu49 | 580:STORE_FAST ls49
+582:LOAD_FAST mu49 | 584:LOAD_CONST None | 586:LOAD_CONST None | 588:BUILD_SLICE  | 590:LOAD_CONST None | 592:LOAD_CONST None
+594:LOAD_CONST None | 596:BUILD_SLICE  | 598:BUILD_TUPLE  | 600:BINARY_SUBSCR  | 604:LOAD_GLOBAL torch | 614:LOAD_ATTR NULL|self + exp
+634:LOAD_FAST ls49 | 636:CALL  | 644:LOAD_CONST None | 646:LOAD_CONST None | 648:BUILD_SLICE  | 650:LOAD_CONST None
+652:LOAD_CONST None | 654:LOAD_CONST None | 656:BUILD_SLICE  | 658:BUILD_TUPLE  | 660:BINARY_SUBSCR  | 664:LOAD_GLOBAL r49_noise
+674:LOAD_CONST None | 676:BINARY_SUBSCR  | 680:BINARY_OP * | 684:BINARY_OP + | 688:STORE_FAST zs49 | 690:LOAD_GLOBAL NULL + norm0
+700:LOAD_FAST ctx49 | 702:LOAD_CONST None | 704:LOAD_CONST None | 706:BUILD_SLICE  | 708:LOAD_CONST None | 710:LOAD_CONST None
+712:LOAD_CONST None | 714:BUILD_SLICE  | 716:BUILD_TUPLE  | 718:BINARY_SUBSCR  | 722:LOAD_GLOBAL NULL + lin0 | 732:LOAD_FAST zs49
+734:LOAD_CONST 'z_head' | 736:CALL  | 744:BINARY_OP + | 748:LOAD_GLOBAL W0 | 758:LOAD_CONST 'type_emb.weight' | 760:BINARY_SUBSCR 
+764:LOAD_CONST 1 | 766:BINARY_SUBSCR  | 770:BINARY_OP + | 774:LOAD_CONST 'query_norm' | 776:CALL  | 784:STORE_FAST q49
+786:BUILD_LIST  | 788:STORE_FAST readings49 | 790:LOAD_GLOBAL NULL + enumerate | 800:LOAD_GLOBAL r49_sensors | 810:CALL  | 818:GET_ITER 
+820:EXTENDED_ARG  | 822:FOR_ITER to 2046 | 826:UNPACK_SEQUENCE  | 830:STORE_FAST j49 | 832:STORE_FAST sensor49 | 834:LOAD_GLOBAL num_spec0
+844:LOAD_FAST sensor49 | 846:LOAD_CONST 'value' | 848:BUILD_TUPLE  | 850:BINARY_SUBSCR  | 854:STORE_FAST spec49 | 856:LOAD_GLOBAL r49_register
+866:LOAD_FAST indices | 868:LOAD_FAST j49 | 870:BUILD_TUPLE  | 872:BINARY_SUBSCR  | 876:LOAD_ATTR T | 896:UNPACK_SEQUENCE 
+900:STORE_FAST lv49 | 902:STORE_FAST lh49 | 904:LOAD_GLOBAL np | 914:LOAD_ATTR NULL|self + isfinite | 934:LOAD_FAST lv49 | 936:CALL 
+944:STORE_FAST has49 | 946:LOAD_GLOBAL np | 956:LOAD_ATTR NULL|self + where | 976:LOAD_FAST has49 | 978:LOAD_FAST lv49 | 980:LOAD_FAST spec49
+982:LOAD_CONST 'median' | 984:BINARY_SUBSCR  | 988:CALL  | 996:STORE_FAST value49 | 998:LOAD_GLOBAL np | 1008:LOAD_ATTR NULL|self + where
+1028:LOAD_FAST has49 | 1030:LOAD_CONST 1 | 1032:LOAD_GLOBAL np | 1042:LOAD_ATTR NULL|self + searchsorted | 1062:LOAD_FAST spec49 | 1064:LOAD_CONST 'fine_bin_edges'
+1066:BINARY_SUBSCR  | 1070:LOAD_FAST value49 | 1072:LOAD_CONST 'left' | 1074:KW_NAMES ('side',) | 1076:CALL  | 1084:BINARY_OP +
+1088:LOAD_CONST 0 | 1090:CALL  | 1098:STORE_FAST bins49 | 1100:LOAD_GLOBAL np | 1110:LOAD_ATTR NULL|self + zeros | 1130:LOAD_GLOBAL NULL + len
+1140:LOAD_FAST indices | 1142:CALL  | 1150:LOAD_CONST 8 | 1152:BUILD_TUPLE  | 1154:LOAD_GLOBAL np | 1164:LOAD_ATTR float32
+1184:KW_NAMES ('dtype',) | 1186:CALL  | 1194:STORE_FAST numeric49 | 1196:LOAD_FAST has49 | 1198:LOAD_FAST numeric49 | 1200:LOAD_CONST None
+1202:LOAD_CONST None | 1204:BUILD_SLICE  | 1206:LOAD_CONST 0 | 1208:BUILD_TUPLE  | 1210:STORE_SUBSCR  | 1214:LOAD_GLOBAL np
+1224:LOAD_ATTR NULL|self + where | 1244:LOAD_FAST has49 | 1246:LOAD_GLOBAL np | 1256:LOAD_ATTR NULL|self + maximum | 1276:LOAD_FAST hours49 | 1278:LOAD_FAST dt_np49
+1280:LOAD_CONST 3600 | 1282:BINARY_OP / | 1286:BINARY_OP + | 1290:LOAD_FAST lh49 | 1292:BINARY_OP - | 1296:LOAD_CONST 0
+1298:CALL  | 1306:LOAD_CONST 3600 | 1308:BINARY_OP * | 1312:LOAD_CONST 0 | 1314:CALL  | 1322:STORE_FAST age49
+1324:LOAD_GLOBAL np | 1334:LOAD_ATTR NULL|self + log1p | 1354:LOAD_FAST age49 | 1356:CALL  | 1364:LOAD_CONST 10 | 1366:BINARY_OP /
+1370:LOAD_FAST numeric49 | 1372:LOAD_CONST None | 1374:LOAD_CONST None | 1376:BUILD_SLICE  | 1378:LOAD_CONST 1 | 1380:BUILD_TUPLE 
+1382:STORE_SUBSCR  | 1386:LOAD_GLOBAL np | 1396:LOAD_ATTR NULL|self + where | 1416:LOAD_FAST has49 | 1418:LOAD_GLOBAL np | 1428:LOAD_ATTR NULL|self + clip
+1448:LOAD_FAST value49 | 1450:LOAD_FAST spec49 | 1452:LOAD_CONST 'median' | 1454:BINARY_SUBSCR  | 1458:BINARY_OP - | 1462:LOAD_FAST spec49
+1464:LOAD_CONST 'iqr' | 1466:BINARY_SUBSCR  | 1470:BINARY_OP / | 1474:LOAD_CONST -8 | 1476:LOAD_CONST 8 | 1478:CALL 
+1486:LOAD_CONST 0 | 1488:CALL  | 1496:LOAD_FAST numeric49 | 1498:LOAD_CONST None | 1500:LOAD_CONST None | 1502:BUILD_SLICE 
+1504:LOA
+
+FUNCTION r59_features (out, h, indices)
+VARIABLES ('out', 'h', 'indices', 'capture_mlp', 'capture_softmax', 'means', 'H', 'centres', 'sample_mean', 'gain', 'G')
+GLOBALS ('globals', 'torch', 'softmax', 'r49_readouts', 'stack', 'r49_centres', 'sum', 'beta59', 'mean', 'numpy')
+CONSTANTS (None, 'mlp0', <code object capture_mlp at 0x76205aaac1b0, file "<run>", line 48>, <code object capture_softmax at 0x76206ba0b870, file "<run>", line 55>, 1, -1, True, ('keepdim',), (Ellipsis, None), 2)
+0:MAKE_CELL captures | 2:MAKE_CELL previous_mlp | 4:MAKE_CELL previous_softmax | 6:MAKE_CELL probabilities | 8:RESUME  | 10:BUILD_LIST 
+12:BUILD_LIST  | 14:SWAP  | 16:STORE_DEREF captures | 18:STORE_DEREF probabilities | 20:LOAD_GLOBAL NULL + globals | 30:CALL 
+38:LOAD_CONST 'mlp0' | 40:
+[output cut at 10,000 characters]
+```

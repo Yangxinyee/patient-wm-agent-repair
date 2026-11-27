@@ -1,0 +1,178 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 168 replies happened before. Forward passes used: 15 of 50; Python runs used: 147 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+72: END routing resolved
+Single-start posterior RMSE 2.66e-5. END atoms belong to the observation encoder, with numeric attributes and units absent, not to the action encoder. This convention gives END-bundle posterior RMSE 4.1e-5. Constructing original and synthetic-dose posterior hidden features; no weights edited.
+
+## Runs 73–78: observation reconstruction checks
+Architecture reread; posterior hidden features are 192-dimensional. Measurement unit and categorical-tag searches did not resolve the observation-only posterior mismatch. No weights edited. Checking numerical tables and encoder activations before relying on observation features for a factual-preserving edit.
+
+## Run 81: context recovery
+No edits. Drug-only posterior reconstruction remains accurate (~4e-5), but observation reconstruction is inaccurate (~0.14 RMSE). Recovering architecture and helpers before using reconstructed features.
+
+## Run 85: absent-action routing check
+       embedding  has_action    n  mean_rmse  median_rmse  max_rmse
+        existing       False 2778   0.137688     0.119116  0.832527
+        existing        True 1472   0.000042     0.000038  0.000057
+absent_rate_unit       False 2778   0.137688     0.119116  0.832527
+absent_rate_unit        True 1472   0.000042     0.000038  0.000057
+
+## Runs 93–95: empty-action convention recovered
+Saved forward states support the encoded empty action, not zero: no-action posterior RMSE falls from 0.13769 to 0.01344; drug bundles remain about 4e-5. Run 94's diagnostic stopped on normalization key layout, without editing weights.
+
+## Runs 97–101: fourth context recovery and unit correction
+Recovered architecture/helpers; no weights edited. Correct measurement unit IDs: glucose_finger=0, glucose_lab=5, map_arterial=map_cuff=2. Rebuilt complete noninitial bundles with END atoms in observations and encoded empty sets in both encoders. Reconstruction summary:
+            size      mean       max
+has_action                          
+False       2778  0.002159  0.119282
+True        1472  0.000042  0.000057
+
+## Runs 102–103: dose-residual identifiability in model features
+Correct reconstruction on drug bundles (~4e-5); remaining large errors are terminal visit END bundles at hour 25.1667, excluded from fitting. Existing posterior hidden-feature contrast fits have poor held-out factual/dose-response tradeoff, so not installed. Testing uncompressed ctx/e/u inputs:
+ probe_weight  insulin_factual_rms  insulin_contrast_gain  insulin_rms_per_gain  norepinephrine_factual_rms  norepinephrine_contrast_gain  norepinephrine_rms_per_gain
+         0.03             0.062873               0.183941              0.341810                    0.013736                      0.237258                     0.057895
+         0.30             0.209895               0.557639              0.376399                    0.049072                      0.546695                     0.089761
+         3.00             0.309315               0.814713              0.379661                    0.101697                      0.805250                     0.126293
+        30.00             0.344656               0.925477              0.372409                    0.137159                      0.925320                     0.148229
+
+## Runs 105–110: local intervention reconstruction
+Recovered exact-head configuration repair_head_cfg and 4-head recurrent step. Measured finite-difference posterior-z sensitivity at 32 factual drug bundles; results are in latent_J110 and latent_out_J110. No edits installed.
+
+## Run 110 result and run 111
+Posterior-z perturbations are essentially ignored by the recurrent model (mean response norms about 0.00057 glucose and 0.000026 MAP per z-unit). Reject posterior amplification. Extracted factual and dose-probe prelude FFN hidden features and E inputs for an analytical direct-state edit. No edits installed.
+
+## Runs 113–120: direct recurrent-input route
+No edits. Recovered prelude fits; intercept is FIRST. Affine E residuals can be implemented linearly using the layer-norm invariant (conversion max error 2.4e-5). Exact recurrent convention: 4 heads, memory includes current observation, age in keys and values. Run 119 stopped on read-only npz assignment; run 120 uses a temporary dict. Testing core.b_in injection via finite differences, not gradients.
+
+## Runs 128–132: direct recurrent steering candidate
+Recovered finite-difference h-pre-coda steering V128 with near-unit glucose/MAP responses and negligible cross-response. E dose residual is folded into Wdose128 using the layer-normalization invariant (max conversion error about 2.5e-5). Installed only core.b_in.weight:
+delta_B = diag(1/softplus(delta_in)) @ V128 @ diag([-5,8]) @ Wdose128.T.
+This is a conservative diagnostic, not an accepted final repair. Record-supported immediate effects remain insulin roughly -1.55 to -1.97/rate and NE +3.5 to +3.9/rate; statistical accumulation targets on 100 tuning stays roughly -14.8/+7.4 and +7.1/-3.6, with persistence uncertainty. Next require exact factual budget and paired rollout improvement.
+
+## Runs 133–134: cached-decoder inconsistency
+No weights remain edited. The prior Wdose128 failed affine reconstruction on actual E119 too. Reconstructing the decoder directly from fit128 B/mu/sd, with intercept FIRST, then folding its intercept using sum(E/gamma)=sum(beta/gamma). Only a construction matching standardized predictions on all factual E features will be used.
+
+## Run 135: corrected recurrent candidate installed
+Resolved the cached-name swap: Wdose128 was RAW slopes, whereas Edecoder128 was already FOLDED. Canonical construction is raw_coef134=B[1:]/sd, affine_b134=B[0]-mu@raw_coef134, Wdose134=raw_coef134+outer(1/gamma,affine_b134/sum(beta/gamma)).
+Matches standardized factual predictions exactly and folded predictions within 2.5e-5. Factual residual RMS 0.10747 insulin, 0.03304 NE.
+Installed only core.b_in.weight using gains [-5,+8] and V128/softplus(delta_in). Large matrix norm reflects the intercept folded through the layer-normalization invariant; actual factual injection is small. Await exact paired factual test, then rollout if budget holds. Run-132 construction must not be reused.
+
+## Restart after forward 13 / run 136
+Current corrected core.b_in edit raises held-out tuning factual NLL from 1.57474 to 1.57640 (+0.00166), within +0.005. Causal rollout improvement is not yet tested. Recovering architecture, record-supported estimates, and evaluation IDs before paired rollout.
+
+## Forward 14: corrected recurrent steering succeeds directionally
+99 tuning stays, paired exact rollouts: original insulin x2/half -3.226/+1.825, NE +1.373/-0.846; corrected edited gains [-5,+8] give -9.016/+4.485 and +3.372/-1.557. Factual cost from forward13 +0.00166. Retain this as a viable fallback; audit record-supported accumulation targets before stronger gains.
+
+## Run 139: stronger recurrent candidate
+Saved validated gains [-5,+8] matrix as fallback_recurrent139. Reconstruction checked against installed weights. Installed corrected Wdose134/V128 edit at gains [-10,+12], prioritizing insulin. Require exact factual NLL test before accepting or rolling out.
+
+## Forward 15 / run 140: stronger gains rejected on first cohort
+Gains [-10,+12] factual NLL 1.58059 vs 1.57474 (+0.00585); exceeds budget. Restored exact fallback_recurrent139 [-5,+8]. Inspecting alternative decoder efficiency and factual shifts before choosing a revised candidate. No rollout spent on failed candidate.
+
+## Runs 142–144: factual-cost attribution
+Canonical E decoder Wdose134 and steering V128 recovered; fallback [-5,+8] remains installed. Stronger [-10,+12] costs glucose_finger +0.00815 and map_arterial +0.00815 per sensor. Fallback changes the first glucose reading at hour -1 from 143.99 to 154.79, and stronger to 168.85, despite no previous drug exposure. Investigating omitted initial-bundle zero-dose constraints before accepting a simple stronger gain compromise. Record-based target uncertainty retained.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 147 of at most 300:
+```
+Attention helper: (q_input, source, prefix, heads, mask=None, age=None, age_mode='both')
+Factual / contrast designs: (17000, 193) (13416, 193) target RMS: [1.11778395 0.33382574]
+Baseline affine vs folded max error: 2.4171620930013918e-05
+     candidate  ins_rms   ne_rms  initial_max  ins_half_gain  ins_x2_gain  ne_half_gain  ne_x2_gain
+      baseline 0.107472 0.033037 1.873328e+00       0.205813     0.171093      0.140589    0.111156
+  (0.0, 1e-06) 0.105427 0.032432 2.912147e-06       0.193382     0.159534      0.142152    0.088895
+ (0.0, 0.0001) 0.103026 0.032057 2.539886e-07       0.188905     0.154576      0.145227    0.088841
+   (0.0, 0.01) 0.109086 0.032683 3.453931e-06       0.179136     0.151827      0.130047    0.081937
+ (0.03, 1e-06) 0.105527 0.032702 2.079679e-06       0.195612     0.161419      0.143926    0.093138
+(0.03, 0.0001) 0.103595 0.032304 5.141815e-07       0.191138     0.156225      0.147151    0.090944
+  (0.03, 0.01) 0.110071 0.032928 3.547362e-06       0.183475     0.153904      0.133220    0.083321
+  (0.3, 1e-06) 0.107267 0.033378 1.454993e-06       0.200078     0.166939      0.145052    0.102349
+ (0.3, 0.0001) 0.106025 0.033108 9.618150e-07       0.197195     0.162442      0.149933    0.098197
+   (0.3, 0.01) 0.112599 0.034048 4.032199e-06       0.195076     0.159205      0.143394    0.089011
+  (3.0, 1e-06) 0.110291 0.034149 2.701178e-06       0.203214     0.170658      0.142512    0.109090
+ (3.0, 0.0001) 0.109568 0.034133 2.774213e-07       0.201203     0.168545      0.145228    0.106797
+   (3.0, 0.01) 0.115311 0.036299 4.961794e-06       0.200515     0.163791      0.150772    0.098770
+
+```

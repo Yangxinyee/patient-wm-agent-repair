@@ -1,0 +1,180 @@
+OUTPUT of Python run 219 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RETAINED IMPULSE OBJECTS ===
+impulse_tables_repair dict
+  insulin DataFrame (6, 11) 
+  norepinephrine DataFrame (6, 11) 
+impulse_results159 dict
+  insulin dict None ['chosen', 'states', 'responses']
+  norepinephrine dict None ['chosen', 'states', 'responses']
+impulse_x159 ndarray
+  (4159, 992)
+impulse_q159 ndarray
+  (4159, 4)
+impulse_p159 ndarray
+  (4699, 17)
+impulse_mean159 ndarray
+  (4699,)
+impulse_time159 dict
+  1010000004 float None 
+  1010000012 float None 
+  1010000017 float None 
+  1010000018 float None 
+  1010000025 float None 
+  1010000026 float None 
+  1010000034 float None 
+  1010000035 float None 
+  1010000037 float None 
+  1010000038 float None 
+  1010000039 float None 
+  1010000042 float None 
+impulse_hour160 dict
+  1010000000 float None 
+  1010000003 float None 
+  1010000007 float None 
+  1010000009 float None 
+  1010000011 float None 
+  1010000013 float None 
+  1010000014 float None 
+  1010000016 float None 
+  1010000019 float None 
+  1010000024 float None 
+  1010000030 float None 
+  1010000031 float None 
+impulse_tests166 dict
+  submitted dict None ['glucose_finger', 'map_arterial']
+  1.0 dict None ['glucose_finger', 'map_arterial']
+  2.0 dict None ['glucose_finger', 'map_arterial']
+  2.5 dict None ['glucose_finger', 'map_arterial']
+
+=== RESPONSE/CHANNEL FUNCTIONS ===
+transition73 (indices, action_override=None) globals: ('np', 'asarray', 'int', 'pre_context_repair', 'repair_bank', 'next', 'E65', 'U65', 'rp_mlp', 'torch', 'cat', 'rW', 'rp_linear', 'rp_norm', 'self_block67', 'memory67', 'log1p', 'attention67', 'F', 'softplus', 'exp', 'mean', 'reshape', 'len')
+collect_channel186 () globals: ('range', 'len', 'indices102', 'capture_transition102', 'append', 'as_np184', 'np', 'concatenate')
+
+=== CURRENT ROLLOUT: ELIGIBLE-HOUR ROW MEANS ===
+original
+edit  insulin_half  insulin_x2  ne_half  ne_x2
+hour                                          
+13          -0.003      -0.213   -0.202 -0.101
+14           0.087      -0.169   -0.235 -0.115
+15           0.041      -0.196   -0.372 -0.154
+16           0.027      -0.349   -0.454 -0.126
+17           0.081      -0.369   -0.434 -0.106
+18           0.076      -0.460   -0.475 -0.061
+19           0.077      -0.500   -0.672 -0.165
+20           0.126      -0.454   -0.576 -0.132
+21           0.207      -0.533   -0.584 -0.122
+22           0.163      -0.569   -0.588 -0.082
+23           0.145      -0.689   -0.630 -0.038
+24           0.127      -0.623   -0.569  0.032
+edited
+edit  insulin_half  insulin_x2  ne_half  ne_x2
+hour                                          
+13           4.274      -0.796   -2.022 -0.738
+14           5.093      -3.884   -1.501 -0.538
+15           7.532      -4.144   -2.591 -0.656
+16           9.200      -5.775   -3.170  0.323
+17          10.860      -6.782   -2.848  0.545
+18          13.701     -10.042   -2.518  1.357
+19          14.845     -11.024   -4.218  1.270
+20          14.963     -13.533   -3.565  0.579
+21          16.153     -14.692   -2.820  1.790
+22          17.163     -16.711   -3.902  1.380
+23          18.401     -17.791   -3.907  1.729
+24          18.788     -18.848   -4.200  1.250
+
+```

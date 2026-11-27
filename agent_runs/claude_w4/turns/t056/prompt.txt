@@ -1,0 +1,162 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 55 replies happened before. Forward passes used: 3 of 50; Python runs used: 51 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'notes.md', 'sel100_both.json'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+# Notes
+
+## Run 1-2: read ARCHITECTURE.md, README. Dose enters only via encode_action (z_rate,z_dose,bins) -> u_k -> z_post & prelude.
+
+## Runs 2-14: data facts
+- All stays 25.17h; readings at integer hours, drugs at h+0.0833 (1h infusions). 30k stays; ins in 18.4k stays, NE in 13.1k.
+- INSULIN POLICY (sliding scale on latest glucose reading; finger preferred if same hour as lab): rate=0 if G<=150,
+  base 1 (150-180], 2 (180-220], 3 (220-260], 4 (>260), times iid lognormal noise (log-sd ~0.31-0.37) rounded to 0.5, min 0.5.
+  Noise has ~zero autocorrelation (per-record). Finger checks become hourly when G>150.
+- finger vs lab same hour: mean diff 0.03, sd 9.1 -> same latent glucose. arterial ~3 mmHg below cuff (sd 6.7).
+- NE: rate 0.01..1.0 (cap at 1.0: 14% of NE records), dose=4.8*rate. NE on-prob falls smoothly with MAP; sharper near art MAP 64-65.
+- INSULIN 1-HOUR EFFECT: within-band-noise OLS: -2.0 mg/dL per unit/h on next-hour finger glucose (se .05), stable across controls.
+  RD at thresholds 150/180/220/260: -2.1..-2.4, -1.76, -2.0, -3.2..-4 (se .2-1.0) -> consistent, ~ -2 per unit/h at 1h.
+
+## Runs 15-20: insulin dynamics
+- glucose_lab measured randomly p=0.2/hour, independent of state -> unbiased outcome. finger hourly iff prev latest G>150 else p=0.3.
+- 2SLS impulse response (dose surprises e=rate-E[rate|band] as instruments), LAB outcome, K=12:
+  h=[-1.63,-1.83,-1.78,-1.4,-1.41,-0.89,-0.54,-0.71,-0.12,-0.33,-0.31,-0.03] (se~.3); cumsum ~ -11 at 12h.
+  FINGER K=8: [-1.89,-2.42,-2.08,-1.66,-1.25,-0.9,-0.68,-0.48] (se .1).
+- One-hour effect linear in rate (per-unit ~ -1.7..-2.3 for rates 0.5..5) and similar across glucose bands -> linear, homogeneous.
+
+## Runs 21-29: NE policy & effects
+- NE policy: start iff latest MAP (arterial preferred same hour) < 65 (h>0; hour-0 'starts' are arrivals on NE).
+  On: log-ratio steps, drift depends on band (<65 up ~+0.05 additive, 65-75 hold, >75 down ~-0.04 & stop p~.19) AND smoothly on MAP value; iid noise (log-sd ~.3).
+- MAP measured state-independently: art-line stays (14.5k, from hour 0) art p=.95, cuff p=.3; other stays cuff p=.9.
+- Crossfit HGB expected-dose models (feats prev rate, latest reading, band, age, source, h) -> clean surprises e_ins2, e_ne2 (no within-band corr).
+- INS->LAB K12: [-1.53,-1.79,-1.69,-1.32,-1.28,-.81,-.45,-.58,-.09,-.30,-.28,-.08] cum -10.2; INS->FINGER: [-1.83,-2.12,-1.90,-1.55,-1.08,-.76,-.44,-.28,-.21,-.08,-.12,.06] cum -10.3
+- NE->MAP_ART (art stays) per mcg/kg/min: [3.71,2.71,1.34,1.06,.43,.79,.17,-.18,...] cum ~10; NE->CUFF non-art stays cum ~7; cuff in art stays cum ~10 (noisy).
+
+## Runs 37-50 (after restart)
+- fwd_1: ORIGINAL dose_edit (tuning sel100): ins x2 -0.348, ins x1/2 +0.208, NE x2 +0.018, NE x1/2 -0.245 -> model ~ignores doses.
+- fwd_2: ORIGINAL factual sel100: value NLL 1.49383 (finger 1.5515, lab 1.2396, art 1.3522, cuff 1.6918). fwd_3: original states sel100.
+- Vocab: padding rows (index 0) of bins/categorical are zero. predicted mean = sum p(b)*bin centre (16 coarse bins, top finger bin >258 centre 269).
+  insulin rate z=(r-1.5)/1, bins edges .5,.5,.5,1,1,1,1,1.5,1.5,2,2.5,3,3.5,4,5 ; NE rate z=(r-.47)/.6.
+- FACTUAL RESIDUAL TEST: regress (observed - old predicted mean) on insulin surprise s=r-E[r|band] lags1-8 (band_mean: 0,1.06,2.10,3.15,4.28):
+  finger gamma=[-2.05,-1.64,-1.33,1.11,-.09,.34,.27,-.52] se~.6-.7 ; lab [-1.32,-.79,-1.22,...] se~1.2. -> old model ignores dose surprise; adding it improves factual fit.
+- Tried to replicate model on CPU (runs 44-49): could not match z posterior (mean err ~.04 vs cross-stay sd .07). ABANDONED replica.
+- States (fwd_3) ridge CV R2: out->latest glucose .95-.98, ins rate lag1 .76 lag2 .71, NE rate .46-.57, but insulin SURPRISE s1,s2 R2~0.
+  -> state keeps only band-predictable dose info; heads-only edit impossible; must inject surprise into core.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 51 of at most 300:
+```
+insulin bundles: z -> s: n=1625 CV R2=0.046
+insulin bundles: z -> rhat: n=1625 CV R2=0.313
+insulin bundles: z -> r: n=1625 CV R2=0.325
+<run>:24: RuntimeWarning: divide by zero encountered in log
+Traceback (most recent call last):
+  File "<run>", line 27, in <module>
+  File "/opt/site/sklearn/base.py", line 1403, in wrapper
+    return fit_method(estimator, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/site/sklearn/linear_model/_ridge.py", line 1253, in fit
+    X, y = validate_data(
+           ^^^^^^^^^^^^^^
+  File "/opt/site/sklearn/utils/validation.py", line 3058, in validate_data
+    X, y = check_X_y(X, y, **check_params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/site/sklearn/utils/validation.py", line 1347, in check_X_y
+    y = _check_y(y, multi_output=multi_output, y_numeric=y_numeric, estimator=estimator)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/site/sklearn/utils/validation.py", line 1357, in _check_y
+    y = check_array(
+        ^^^^^^^^^^^^
+  File "/opt/site/sklearn/utils/validation.py", line 1090, in check_array
+    _assert_all_finite(
+  File "/opt/site/sklearn/utils/validation.py", line 137, in _assert_all_finite
+    _assert_all_finite_element_wise(
+  File "/opt/site/sklearn/utils/validation.py", line 186, in _assert_all_finite_element_wise
+    raise ValueError(msg_err)
+ValueError: Input y contains infinity or a value too large for dtype('float64').
+
+```

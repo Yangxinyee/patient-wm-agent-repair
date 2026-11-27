@@ -1,0 +1,285 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 7 replies happened before. Forward passes used: 2 of 50; Python runs used: 5 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+
+# Weight-repair investigation
+## Initial inspection — Python 1; forward 0
+- No weights changed and no drug effects assumed.
+- Inspect architecture, vocabulary, and record schema first.
+- Establish effects from training records, accounting for dose selection.
+- Validate any edit against paired rollouts and the factual NLL limit (original + 0.005 nats per reading).
+
+## Inspection — Python 2; forward 0
+- Architecture read: separate action encoder; recurrent action pathways; shared attribute embeddings and same-code last-value registers.
+- Initial output truncated before vocabulary and sample rows; reprinted compact metadata and loaded records.
+- Reserved fixed tuning subsets for development, independent checking, and final validation. No weights changed.
+
+## Hourly analysis — Python 3; forward 0
+- Measurements are at integer hours; infusions begin at hour + 0.0833.
+- Built chronological panels with zero rate when no infusion is recorded.
+- Preliminary associations below are diagnostic, not established effects; linear adjustment and dynamic fixed effects can be biased.
+        sensor           drug            method      n  beta_per_rate  cluster_se
+glucose_finger        insulin             naive 263668      17.929280    0.115173
+glucose_finger        insulin  history-adjusted 263668      -1.889789    0.042105
+glucose_finger        insulin history + stay FE 263668      -1.939217    0.041457
+   glucose_lab        insulin             naive  52643      17.885480    0.164865
+   glucose_lab        insulin  history-adjusted  52643      -1.973027    0.068524
+   glucose_lab        insulin history + stay FE  52643      -2.059826    0.070363
+  map_arterial norepinephrine             naive 152923     -14.511075    0.241974
+  map_arterial norepinephrine  history-adjusted 152923       2.094215    0.085729
+  map_arterial norepinephrine history + stay FE 152923       2.621544    0.085211
+      map_cuff norepinephrine             naive 111949     -15.371100    0.234747
+      map_cuff norepinephrine  history-adjusted 111949      -0.673979    0.181196
+      map_cuff norepinephrine history + stay FE 111949       1.578414    0.174600
+
+## Nonlinear identification — Python 4; forward 2
+- Original development factual NLL 1.66206; limit 1.66706.
+- Original rollouts (99 stays): insulin x2 -1.864, half +0.975; NE x2 +0.342, half -0.032.
+- Crossfit dose and outcome nuisance models by stay, using only pre-dose history. Active-dose estimates still require exchangeability and attention to observation selection and nuisance-model error.
+        sensor           subset      n      beta  cluster_se
+glucose_finger       all active 263668 -1.986075    0.044771
+glucose_finger           hour 0   9307 -2.004139    0.243609
+glucose_finger        hours 1-5  48376 -1.811866    0.104447
+glucose_finger       hours 6-11  63523 -1.945429    0.091394
+glucose_finger      hours 12-23 142462 -2.052531    0.059515
+glucose_finger both sensors now  51056 -1.872719    0.095800
+   glucose_lab       all active  52643 -2.101326    0.073338
+   glucose_lab           hour 0   1868 -1.747917    0.457723
+   glucose_lab        hours 1-5   9655 -1.874173    0.178218
+   glucose_lab       hours 6-11  12707 -2.138924    0.153661
+   glucose_lab      hours 12-23  28413 -2.175754    0.097108
+   glucose_lab both sensors now  10073 -1.942218    0.157055
+  map_arterial       all active 152923  3.104719    0.088675
+  map_arterial           hour 0   6367  1.343762    0.313113
+  map_arterial        hours 1-5  32415  3.520649    0.224280
+  map_arterial       hours 6-11  38900  2.879506    0.178614
+  map_arterial      hours 12-23  75241  3.387522    0.116377
+  map_arterial both sensors now  43223  3.164128    0.159062
+      map_cuff       all active 111949  2.788186    0.172623
+      map_cuff           hour 0   4596 -2.065359    0.630626
+      map_cuff        hours 1-5  23444  2.883714    0.451089
+      map_cuff       hours 6-11  28356  3.309199    0.350870
+      map_cuff      hours 12-23  55553  3.324056    0.234617
+      map_cuff both sensors now  13489  3.439605    0.434051
+
+## Identification checks — Python 5; forward 2
+- Crossfit estimates support insulin approximately -2 per unit/hour on both glucose sensors. NE approximately +3 after startup; hour-0 disagreement remains unresolved.
+- Checked empirically located insulin dose-policy discontinuities with local linear IV and a pre-dose lab placebo. Discrete running variables and smoothness assumptions limit RD certainty.
+     n  dose_jump  outcome_jump  IV_effect  cluster_se               sensor  bandwidth    sample
+ 91629   0.694895     -1.559407  -2.244089    0.276843       glucose_finger          6 all hours
+  3367   0.763631      0.576171   0.754515    1.301074       glucose_finger          6    hour 0
+153610   0.809845     -1.787755  -2.207528    0.185199       glucose_finger         10 all hours
+  5545   0.755502    -16.388754 -21.692545    1.639247       glucose_finger         10    hour 0
+231106   0.875574     -1.808918  -2.065978    0.141024       glucose_finger         15 all hours
+  8375   0.895406      0.897508   1.002348    0.716953       glucose_finger         15    hour 0
+ 21552   0.639749     -1.000271  -1.563536    0.445901          glucose_lab          6 all hours
+   821   0.707822      6.401902   9.044512    2.478909          glucose_lab          6    hour 0
+ 35587   0.770971     -1.167060  -1.513754    0.288337          glucose_lab         10 all hours
+  1330   0.767100     -5.183869  -6.757750    1.718301          glucose_lab         10    hour 0
+ 52759   0.854804     -1.315024  -1.538392    0.213385          glucose_lab         15 all hours
+  1970   0.803874     -7.337967  -9.128259    1.419479          glucose_lab         15    hour 0
+ 21320   0.661996     -0.005302  -0.008010    0.330877 PRE-DOSE lab placebo          6 all hours
+ 35407   0.796182     -0.021624  -0.027159    0.215680 PRE-DOSE lab placebo         10 all hours
+ 52842   0.866616     -0.000792  -0.000914    0.164007 PRE-DOSE lab placebo         15 all hours
+        sensor                 state      n      beta  cluster_se
+glucose_finger  lower predicted dose 133548 -1.918558    0.088033
+glucose_finger higher predicted dose 130120 -2.000873    0.051147
+   glucose_lab  lower predicted dose  26723 -1.740929    0.147544
+   glucose_lab higher predicted dose  25920 -2.181734    0.083418
+  map_arterial  lower predicted dose  71430  2.979233    0.177470
+  map_arterial higher predicted dose  81493  3.146841    0.099880
+      map_cuff  lower predicted dose  60748  1.591780    0.337326
+      map_cuff higher predicted dose  51201  3.240350    0.199530
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 5 of at most 300:
+```
+=== SIMULTANEOUS SENSOR DIFFERENCES ===
+glucose_finger - glucose_lab n= 86052 mean= -0.0174 SD= 8.9797
+map_arterial - map_cuff n= 106563 mean= -2.9863 SD= 6.7373
+
+=== INSULIN POLICY NEAR POSSIBLE THRESHOLDS, HOUR 0 ===
+                  n  mean_rate
+glucose_finger                
+145             173      0.000
+146             166      0.000
+147             171      0.000
+148             172      0.000
+149             156      0.000
+150             167      0.539
+151             135      1.074
+152             170      1.041
+153             194      1.070
+154             170      1.115
+155             153      1.029
+                  n  mean_rate
+glucose_finger                
+175             144      1.059
+176             131      1.065
+177             121      1.041
+178             120      1.038
+179             104      1.058
+180             142      1.637
+181             109      2.064
+182             114      2.180
+183             121      2.087
+184             119      1.983
+185             102      2.127
+                 n  mean_rate
+glucose_finger               
+215             52      2.096
+216             62      2.121
+217             57      2.140
+218             71      2.007
+219             55      2.136
+220             66      2.788
+221             60      3.075
+222             54      3.111
+223             62      2.984
+224             34      2.956
+225             40      3.212
+Empirically selected integer-reading boundaries: [149.5, 179.5, 219.5]
+
+=== NE POLICY BY ARTERIAL MAP, HOUR 0 ===
+                n  mean_rate  active
+map_arterial                        
+55.0          233      0.437   1.000
+56.0          203      0.365   1.000
+57.0          255      0.358   1.000
+58.0          264      0.333   1.000
+59.0          307      0.356   1.000
+60.0          293      0.326   1.000
+61.0          314      0.306   1.000
+62.0          338      0.288   1.000
+63.0          345      0.260   1.000
+64.0          371      0.243   1.000
+65.0          355      0.197   0.907
+66.0          336      0.176   0.777
+67.0          338      0.151   0.710
+68.0          341      0.128   0.633
+69.0          378      0.107   0.571
+70.0          377      0.081   0.480
+71.0          382      0.088   0.458
+72.0          373      0.051   0.338
+73.0          391      0.043   0.251
+74.0          371      0.029   0.199
+75.0          421      0.021   0.131
+
+=== LOCAL DOSE-POLICY DISCONTINUITY CHECK ===
+              sensor    sample  bandwidth      n  dose_jump  outcome_jump  IV_effect  cluster_se
+      glucose_finger all hours          6  91629     0.6949       -1.5594    -2.2441      0.2768
+      glucose_finger    hour 0          6   3367     0.7636        0.5762     0.7545      1.3011
+      glucose_finger all hours         10 153610     0.8098       -1.7878    -2.2075      0.1852
+      glucose_finger    hour 0         10   5545     0.7555      -16.3888   -21.6925      1.6392
+      glucose_finger all hours         15 231106     0.8756       -1.8089    -2.0660      0.1410
+      glucose_finger    hour 0         15   8375     0.8954        0.8975     1.0023      0.7170
+         glucose_lab all hours          6  21552     0.6397       -1.0003    -1.5635      0.4459
+         glucose_lab    hour 0          6    821     0.7078        6.4019     9.0445      2.4789
+         glucose_lab all hours         10  35587     0.7710       -1.1671    -1.5138      0.2883
+         glucose_lab    hour 0         10   1330     0.7671       -5.1839    -6.7577      1.7183
+         glucose_lab all hours         15  52759     0.8548       -1.3150    -1.5384      0.2134
+         glucose_lab    hour 0         15   1970     0.8039       -7.3380    -9.1283      1.4195
+PRE-DOSE lab placebo all hours          6  21320     0.6620       -0.0053    -0.0080      0.3309
+PRE-DOSE lab placebo all hours         10  35407     0.7962       -0.0216    -0.0272      0.2157
+PRE-DOSE lab placebo all hours         15  52842     0.8666       -0.0008    -0.0009      0.1640
+
+=== DOSE-INNOVATION EFFECTS BY PREDICTED DOSE ===
+        sensor                 state      n    beta  cluster_se
+glucose_finger  lower predicted dose 133548 -1.9186      0.0880
+glucose_finger higher predicted dose 130120 -2.0009      0.0511
+   glucose_lab  lower predicted dose  26723 -1.7409      0.1475
+   glucose_lab higher predicted dose  25920 -2.1817      0.0834
+  map_arterial  lower predicted dose  71430  2.9792      0.1775
+  map_arterial higher predicted dose  81493  3.1468      0.0999
+      map_cuff  lower predicted dose  60748  1.5918      0.3373
+      map_cuff higher predicted dose  51201  3.2404      0.1995
+
+Counts: {'python': 5, 'forward': 2}
+
+```

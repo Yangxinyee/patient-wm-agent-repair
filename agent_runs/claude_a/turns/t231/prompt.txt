@@ -1,0 +1,45 @@
+OUTPUT of Python run 221 of at most 300:
+```
+lib1.py 30 lines 2 defs
+   4 def cl(P0): return {k:(v.clone() if torch.is_tensor(v) else torch.as_tensor(np.asarray(v))
+   5 def kill(P0, J, mem=()):
+lib2.py 55 lines 7 defs
+   3 def LNx(x, P, pre): return F.layer_norm(x, (x.shape[-1],), P[pre+'.weight'], P[pre+'.bias'
+   4 def prelude(P, hf, e, u, z):
+   19 def mh(P, pre, xq, xkv, mask=None, kadd=None):
+   27 def ffP(P, pre, x): return F.linear(F.gelu(F.linear(x, P[pre+'.0.weight'], P[pre+'.0.bias'
+   28 def agE(P, age_s):
+   31 def core_rest(P, hf, E, Mx, Mage, Mmask, agemode='kv', keep=False):
+   47 def mem_for(ds, rows_by_stay, e_all):
+lib3.py 75 lines 7 defs
+   4 def scaffold(P0, J):
+   14 def internals(P, ds, chunk=2000):
+   24 def capture_wc(P, ds):
+   34 def mean_ablate(P, vunits, funits, WC, N3):
+   50 def ds_edit(ds, drug, f, rng=None):
+   59 def bundle_rates(ds, drug):
+   66 def ds_edit(ds, drug, f, rng=None):
+--- tail lib3
+    e, u = G['encode_bundles'](at2, ds['bd']['row'].values.astype(np.int64))
+    d2 = dict(ds); d2['at'] = at2; d2['e'] = np.asarray(e); d2['u'] = np.asarray(u)
+    return d2
+def bundle_rates(ds, drug):
+    import numpy as np
+    at = ds['at']; ridx = {r: i for i, r in enumerate(ds['bd']['row'].values)}
+    r = np.zeros(len(ds['bd'])); a = at[at.event == drug]
+    r[[ridx[x] for x in a['row'].values]] = a['rate'].values
+    return r
+
+def ds_edit(ds, drug, f, rng=None):
+    import numpy as np, torch
+    at2 = ds['at'].copy(); m = (at2.event == drug).values
+    fac = f(m.sum(), rng) if callable(f) else f
+    at2.loc[m, 'rate'] = at2.loc[m, 'rate'].values * fac
+    at2.loc[m, 'dose'] = at2.loc[m, 'dose'].values * fac
+    e, u = G['encode_bundles'](at2, ds['bd']['row'].values.astype(np.int64))
+    d2 = dict(ds); d2['at'] = at2
+    d2['e'] = torch.as_tensor(np.asarray(e), dtype=torch.float32); d2['u'] = torch.as_tensor(np.asarray(u), dt
+    return d2
+[]
+
+```

@@ -1,0 +1,56 @@
+OUTPUT of Python run 56 of at most 300:
+```
+=== VOCABULARY STRUCTURE ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom_kinds {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+numeric_note 'z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.'
+value_bin_note "The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1]."
+embed shapes: {'embed.bins.dose.weight': (17, 192), 'embed.bins.rate.weight': (17, 192), 'embed.bins.value.weight': (17, 192), 'embed.categorical.action.weight': (2, 192), 'embed.categorical.discharged_to.weight': (2, 192), 'embed.categorical.rate_unit.weight': (4, 192), 'embed.categorical.route.weight': (2, 192), 'embed.categorical.status.weight': (2, 192), 'embed.categorical.unit.weight': (6, 192), 'embed.code.weight': (13, 192), 'embed.ekind.weight': (5, 192), 'embed.kind.weight': (3, 192), 'embed.kq.weight': (4, 192), 'embed.numeric.bias': (192,), 'embed.numeric.weight': (192, 6), 'embed.text.weight': (2, 192)}
+gap prefix: gap
+category globals: []
+
+=== ATOM BASE IMPLEMENTATION ===
+26 LOAD_GLOBAL code_ids | LOAD_FAST row | LOAD_CONST 'event' | BINARY_SUBSCR  | BINARY_SUBSCR  | STORE_FAST code
+27 LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.code.weight' | BINARY_SUBSCR  | LOAD_FAST code | BINARY_SUBSCR  | BINARY_OP + | BINARY_OP + | BINARY_OP + | STORE_FAST v
+28 LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.kind.weight' | BINARY_SUBSCR  | LOAD_FAST kind | BINARY_SUBSCR 
+29 LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.ekind.weight' | BINARY_SUBSCR  | LOAD_CONST 2 | BINARY_SUBSCR 
+30 LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.numeric.bias' | BINARY_SUBSCR  | LOAD_ATTR NULL|self + clone | CALL 
+31 LOAD_GLOBAL np | LOAD_ATTR NULL|self + zeros | LOAD_CONST 6 | LOAD_GLOBAL np | LOAD_ATTR float32 | KW_NAMES ('dtype',) | CALL  | STORE_FAST nums
+32 LOAD_FAST include_numbers | POP_JUMP_IF_FALSE to 560
+33 LOAD_CONST (('dose', 2), ('rate', 4)) | GET_ITER  | FOR_ITER to 558 | UNPACK_SEQUENCE  | STORE_FAST attr | STORE_FAST offset | END_FOR 
+34 LOAD_GLOBAL NULL + float | LOAD_FAST row | LOAD_FAST attr | BINARY_SUBSCR  | CALL  | STORE_FAST value
+35 LOAD_GLOBAL np | LOAD_ATTR NULL|self + isfinite | LOAD_FAST value | CALL  | POP_JUMP_IF_TRUE to 316 | JUMP_BACKWARD to 232
+36 LOAD_GLOBAL numeric_specs | LOAD_FAST row | LOAD_CONST 'event' | BINARY_SUBSCR  | LOAD_FAST attr | BUILD_TUPLE  | BINARY_SUBSCR  | STORE_FAST spec
+37 LOAD_GLOBAL np | LOAD_ATTR NULL|self + clip | CALL  | LOAD_FAST nums | LOAD_FAST offset | STORE_SUBSCR 
+38 LOAD_FAST value | LOAD_FAST spec | LOAD_CONST 'median' | BINARY_SUBSCR  | BINARY_OP - | LOAD_FAST spec | LOAD_CONST 'iqr' | BINARY_SUBSCR  | BINARY_OP / | LOAD_CONST -10 | LOAD_CONST 10
+40 LOAD_CONST 1 | LOAD_FAST nums | LOAD_FAST offset | LOAD_CONST 1 | BINARY_OP + | STORE_SUBSCR 
+41 LOAD_CONST 1 | LOAD_GLOBAL np | LOAD_ATTR NULL|self + searchsorted | LOAD_FAST spec | LOAD_CONST 'fine_bin_edges' | BINARY_SUBSCR  | LOAD_FAST value | LOAD_CONST 'left' | KW_NAMES ('side',) | CALL  | BINARY_OP + | STORE_FAST b
+42 LOAD_FAST v | LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.bins.' | LOAD_FAST attr | BINARY_OP + | LOAD_CONST '.weight' | BINARY_OP + | BINARY_SUBSCR  | LOAD_GLOBAL NULL + int | LOAD_FAST b | CALL  | BINARY_SUBSCR  | BINARY_OP += | STORE_FAST v | JUMP_BACKWARD to 232
+43 LOAD_FAST v | LOAD_GLOBAL NULL + repair_linear | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + from_numpy | LOAD_FAST nums | CALL  | LOAD_CONST 'embed.numeric' | CALL  | BINARY_OP + | BINARY_OP - | RETURN_VALUE 
+44 LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.numeric.bias' | BINARY_SUBSCR 
+
+=== START CATEGORIES IMPLEMENTATION ===
+7 LOAD_FAST row | LOAD_CONST 'event' | BINARY_SUBSCR  | LOAD_CONST 'insulin' | COMPARE_OP == | STORE_FAST insulin44
+8 LOAD_GLOBAL NULL + repair_atom_base | LOAD_FAST row | CALL  | BINARY_OP + | BINARY_OP + | RETURN_VALUE  | BINARY_OP + | RETURN_VALUE 
+9 LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.categorical.unit.weight' | BINARY_SUBSCR  | LOAD_FAST insulin44 | POP_JUMP_IF_FALSE to 62 | LOAD_CONST 3 | JUMP_FORWARD to 64 | LOAD_CONST 4 | BINARY_SUBSCR 
+10 LOAD_GLOBAL repair_weights | LOAD_CONST 'embed.categorical.rate_unit.weight' | BINARY_SUBSCR  | LOAD_FAST insulin44 | POP_JUMP_IF_FALSE to 104 | LOAD_CONST 2 | BINARY_SUBSCR  | LOAD_CONST 3 | BINARY_SUBSCR 
+
+=== CATEGORY IMPLEMENTATION ===
+47 LOAD_GLOBAL NULL + dict | LOAD_FAST unit | LOAD_FAST rate_unit | LOAD_FAST action | LOAD_FAST status | KW_NAMES ('unit', 'rate_unit', 'action', 'status', 'route', 'discharged_to') | CALL  | STORE_FAST chosen
+48 LOAD_FAST route | LOAD_FAST discharged_to
+49 LOAD_GLOBAL NULL + sum | LOAD_CONST <code object <genexpr> at 0x7e72318b0ad0, file "<run>", line 49> | MAKE_FUNCTION  | GET_ITER  | CALL  | CALL  | RETURN_VALUE 
+50 LOAD_FAST chosen | LOAD_ATTR NULL|self + items | CALL 
+
+=== CONTEXT IMPLEMENTATION ===
+2 LOAD_GLOBAL np | LOAD_ATTR NULL|self + asarray | LOAD_FAST indices | LOAD_GLOBAL np | LOAD_ATTR int64 | KW_NAMES ('dtype',) | CALL  | STORE_FAST indices
+3 LOAD_GLOBAL torch | LOAD_ATTR NULL|self + from_numpy | LOAD_GLOBAL latent_state | LOAD_FAST indices | LOAD_CONST 1 | BINARY_OP - | LOAD_CONST None | LOAD_CONST 960 | BUILD_SLICE  | BUILD_TUPLE  | BINARY_SUBSCR  | CALL  | STORE_FAST prev
+4 LOAD_GLOBAL np | LOAD_ATTR NULL|self + round | LOAD_GLOBAL latent_hour | LOAD_CONST 3600 | BINARY_OP * | CALL  | STORE_FAST seconds
+5 LOAD_GLOBAL torch | LOAD_ATTR NULL|self + from_numpy | LOAD_FAST seconds | LOAD_FAST indices | BINARY_SUBSCR  | LOAD_FAST seconds | LOAD_FAST indices | LOAD_CONST 1 | BINARY_OP - | BINARY_SUBSCR  | BINARY_OP - | LOAD_ATTR NULL|self + astype | LOAD_GLOBAL np | LOAD_ATTR float32 | CALL  | CALL  | STORE_FAST dt
+6 LOAD_FAST prev | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST 192 | LOAD_CONST None | BUILD_SLICE  | BUILD_TUPLE  | BINARY_SUBSCR  | LOAD_ATTR NULL|self + reshape | LOAD_CONST -1 | LOAD_CONST 4 | LOAD_CONST 192 | CALL  | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + exp | CALL  | BINARY_OP * | STORE_FAST hf
+7 LOAD_FAST dt | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | LOAD_CONST None | BUILD_TUPLE  | BINARY_SUBSCR  | UNARY_NEGATIVE  | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + exp | LOAD_GLOBAL repair_weights | LOAD_CONST 'core.flow.a' | BINARY_SUBSCR  | CALL  | LOAD_CONST None | LOAD_CONST None | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | BUILD_TUPLE  | BINARY_SUBSCR  | BINARY_OP *
+8 LOAD_FAST prev | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | LOAD_CONST 192 | BUILD_SLICE  | BUILD_TUPLE  | BINARY_SUBSCR  | LOAD_GLOBAL NULL + repair_norm | LOAD_FAST hf | LOAD_ATTR NULL|self + mean | LOAD_CONST 1 | CALL  | LOAD_CONST 'core.out_norm' | CALL  | BINARY_OP + | BINARY_OP + | RETURN_VALUE 
+9 LOAD_GLOBAL NULL + repair_mlp_act | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + log | LOAD_FAST dt | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | BUILD_TUPLE  | BINARY_SUBSCR  | CALL  | LOAD_CONST 10 | BINARY_OP / | LOAD_GLOBAL gap_prefix41 | LOAD_GLOBAL F | LOAD_ATTR gelu | CALL 
+
+```

@@ -1,0 +1,190 @@
+OUTPUT of Python run 200 of at most 300:
+```
+=== RECONSTRUCTION AND REPAIR NOTES ===
+## Run 115: corrected local contrast reconstruction
+- Unchanged core out/h RMSE: 0.005435898, 0.5176648.
+- Rebuilt 0 dose contrasts with corrected numeric register; no edits.
+
+
+## Runs 145?146: complete stochastic reconstruction
+- Rebuilt reading metadata agrees exactly with existing training metadata.
+- Four-draw-mixture CPU tuning NLL 1.631776 versus GPU 1.631642; scaled mean RMSE 0.0564, negligible bias.
+- Rebuilding common-noise local dose contrasts for a final-layer-only correction.
+- No edits; 14 forward passes used.
+
+
+## Run 152: stochastic glucose-only raw-input frontier
+- Final-layer-only frontier offered negligible safe causal improvement.
+- Tested a glucose-gated scalar readout before the original nonlinear head, with factual prior noise included.
+- No edits installed; 14 forward passes.
+      fw        ridge   cv_dNLL  tuning_dNLL  tuning_tilt_rms  latent_tilt_sd  weight_norm      I0.5      I2.0  N_to_G0.5  N_to_G2.0
+ 0.00001 1.000000e-07 13.894092    13.418981        47.738472       16.257486  1829.931241 -0.579061 -0.615252  -0.557299  -0.700419
+ 0.00001 1.000000e-04  2.800967     2.841510        15.845983       15.161922    56.421499 -1.463915 -1.724694  -6.273540  -3.622642
+ 0.00010 1.000000e-07  4.979834     5.878974        15.161920        3.605106  1592.004222 -1.220858 -1.907245  -4.555647  -4.224811
+ 0.00010 1.000000e-04  0.911186     0.906327         7.378676        7.181513    53.918440 -2.034251 -2.358898  -9.733448  -4.886330
+ 0.00100 1.000000e-07  0.584974     0.621483         4.215538        1.069502  1235.965368 -2.278359 -3.14
+## Forward 16 and run 162: working insulin repair
+- GPU rollout, first 100 tuning: insulin x2 -11.073 (original -3.680); half +5.894 (original +2.018).
+- Record-derived geometric-kernel estimates on these stays: x2 -10.5288; half +5.2644, with persistence uncertainty.
+- NE x2 +0.507, half -0.819: little change, still below record-based +3.8084/-1.9042.
+- Preserved four-tensor working edit as best_insulin_v1 and /work/best_insulin_v1.npz. Factual delta +0.00307 on first 100.
+- Next: independent factual validation and cautious MAP-only extension.
+
+
+## Run 164: MAP-only stochastic ridge frontier
+- Fitted raw-head-input scalar tilts using NE local contrasts, all factual prior samples, and optional insulin spillover penalty.
+- Evaluated held-out training stays and tuning states. No new edits installed; insulin fallback remains active.
+
+
+## Run 165: sensor-specific MAP feasibility
+- Shared MAP correction showed limited safe local response; testing separate arterial/cuff tilts and linear sensor gates.
+- No new edits installed. Factual and rollout fallback retained.
+
+
+## Run 177: modest MAP extension installed for validation
+- Preserved insulin fallback and allocated MAP neurons [118, 84] by algebraic head compression.
+- Added shared MAP-gated raw-input tilt: fw=1, gain=1.5 from the stochastic factual/NE-contrast ridge fit.
+- All non-value-head weights remain original. GPU factual and dose-rollout checks are required next.
+- Run 177 local validation: compression logit RMS 0.00047 train/0.00057 tuning; overall value dNLL +0.00351 train/+0.00401 tuning.
+- Local insulin response unchanged; NE arterial local slopes half=1.0848, double=0.4531. Whether this gives useful rollout amplification remains untested.
+
+
+
+=== HEAD SHAPES AND HELPERS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+head177_make globals: ('head177_compressed', 'items', 'clone', 'torch', 'as_tensor', 'trial158_gate', 'float32', 'map', 'int', 'head177_free', 'head177_names', 'wm_v151')
+ 33           0 RESUME                   0
+
+ 34           2 LOAD_GLOBAL              0 (head177_compressed)
+             12 LOAD_ATTR                3 (NULL|self + items)
+             32 CALL                     0
+             40 GET_ITER
+             42 LOAD_FAST_AND_CLEAR      1 (k)
+             44 LOAD_FAST_AND_CLEAR      2 (v)
+             46 SWAP                     3
+             48 BUILD_MAP                0
+             50 SWAP                     2
+        >>   52 FOR_ITER                22 (to 100)
+             56 UNPACK_SEQUENCE          2
+             60 STORE_FAST               1 (k)
+             62 STORE_FAST               2 (v)
+             64 LOAD_FAST                1 (k)
+             66 LOAD_FAST                2 (v)
+             68 LOAD_ATTR                5 (NULL|self + clone)
+             88 CALL                     0
+             96 MAP_ADD                  2
+             98 JUMP_BACKWARD           24 (to 52)
+        >>  100 END_FOR
+            102 STORE_FAST               3 (ww)
+            104 STORE_FAST               1 (k)
+            106 STORE_FAST               2 (v)
+
+ 35         108 LOAD_GLOBAL              6 (torch)
+            118 LOAD_ATTR                9 (NULL|self + as_tensor)
+            138 LOAD_GLOBAL             10 (trial158_gate)
+            148 LOAD_GLOBAL              6 (torch)
+            158 LOAD_ATTR               12 (float32)
+            178 KW_NAMES                 1 (('dtype',))
+            180 CALL                     2
+            188 UNARY_NEGATIVE
+            190 STORE_FAST               4 (gate)
+
+ 36         192 LOAD_GLOBAL              6 (torch)
+            202 LOAD_ATTR                9 (NULL|self + as_tensor)
+            222 LOAD_FAST                0 (map_coef)
+            224 LOAD_GLOBAL              6 (torch)
+            234 LOAD_ATTR               12 (float32)
+            254 KW_NAMES                 1 (('dtype',))
+            256 CALL                     2
+            264 STORE_FAST               5 (coef)
+
+ 37         266 LOAD_GLOBAL             15 (NULL + map)
+            276 LOAD_GLOBAL             16 (int)
+            286 LOAD_GLOBAL             18 (head177_free)
+            296 CALL                     2
+            304 UNPACK_SEQUENCE          2
+            308 STORE_FAST               6 (j0)
+            310 STORE_FAST               7 (j1)
+
+ 38         312 LOAD_FAST                5 (coef)
+            314 LOAD_CONST               0 (None)
+            316 LOAD_CONST               2 (192)
+     
+Current MAP coefficients: ndarray (193,) [-0.2900821   1.37169235 -1.5244382  -2.36208438  2.23577256  1.58797568
+ -1.89663761 -1.93373822 -0.41640747 -1.01285052  0.89197206  0.13272364
+ -3.51913431 -2.36352029  1.19763497 -0.96688799 -4.29464811 -1.31375504
+  0.43523634  2.75640206 -1.58196932  3.17062545  0.08994048  0.43980537
+ -2.46112219 -0.41233568 -1.87788028 -1.97385893  0.41644851  0.11841255
+ -1.81964374  1.35151679 -0.59233923  1.30294758  1.10671231 -1.34606109
+  1.64299176  0.09183999  5.91901307  0.17287796 -0.8651241  -
+
+=== RELEVANT PERSISTENT OBJECTS ===
+last_raw (320,) float64
+raw_dose_targets (4510, 2) float64
+raw_probe DataFrame (6193, 7) ['stay_id', 'hour', 'event', 'value', 'rate', 'dose', 'end_hour']
+fit_post_contrast function ('drug', 'dj', 'mode', 'factual_weight', 'alpha', 'fitting_mask')
+tau87_raw (4510,) float64
+r124_raw (4510, 192) float64
+r125_decode_raw (190, 2) float64
+audit_initial_raw dict 12 keys ['state', 'dt', 'context', 'view', 'register', 'numbers']
+raw143 dict 12 keys ['state', 'dt', 'context', 'view', 'register', 'numbers']
+wm_mc_raw146 function ('meta', 'raw', 'noise')
+raw146 dict 13 keys ['state', 'dt', 'context', 'view', 'register', 'numbers']
+wm_rawloss152 function ('mc', 'w', 'glucose_mask')
+map164_mask (4510,) bool
+map164_tune_mask (4751,) bool
+map164_train_mask (4510,) bool
+map164_X (16, 4510, 192) float64
+map164_scale (192,) float64
+map164_F (16, 4510, 193) float64
+map164_fact (25824, 193) float64
+map164_K (193, 193) float64
+map164_C_ne (193, 193) float64
+map164_b_ne (193,) float64
+map164_C_i (193, 193) float64
+map164_mean function ('mc', 'raw_coef', 'mask', 'centres')
+map164_fits dict 20 keys [(0.0, 0.1, 0.0001), (0.0, 0.1, 0.001), (0.0, 0.3, 0.0001), (0.0, 0.3, 0.001), (0.0, 1.0, 0.0001), (0.0, 1.0, 0.001)]
+map164_frontier DataFrame (20, 12) ['cross', 'fw', 'ridge', 'weight_norm', 'cv_dNLL', 'tuning_dNLL', 'tuning_tilt_rms', 'latent_tilt_sd', 'I_to_M0.5', 'I_to_M2.0']
+_raw (193,) float64
+map172_glucose_train (4510,) bool
+map172_glucose_tune (4751,) bool
+map172_MAP_train (4510,) bool
+map172_MAP_tune (4751,) bool
+map172_tau function ('mc', 'insulin_coef', 'map_coef', 'glucose_mask')
+map172_mean function ('mc', 'tau', 'centres')
+map172_candidates dict 21 keys [(0.3, 0.0), (0.3, 1.0), (0.3, 2.0), (0.3, 3.0), (0.3, 4.0), (0.3, 6.0)]
+map172_frontier DataFrame (21, 8) ['fw', 'gain', 'heldout_dNLL', 'tuning_dNLL', 'N0.5_slope', 'N0.5_shift', 'N2.0_slope', 'N2.0_shift']
+head177_base dict 4 keys ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+h177 (72160, 192) float64
+A177 (72160, 193) float64
+G177 (193, 193) float64
+P177 (193, 193) float64
+wc177 (17, 192) float32
+score177 (192,) float64
+head177_free (2,) int64
+head177_keep (190,) int64
+K177 (72160, 191) float64
+Y177 (72160, 17) float64
+cov177 (191, 191) float64
+comp177 (191, 17) float64
+head177_compressed dict 4 keys ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+head177_make function ('map_coef',)
+head177_eval function ('mc', 'weights', 'centres')
+head177_coef (193,) float64
+head177_weights dict 4 keys ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+head177_base_mu (4510,) float32
+raw188 dict 12 keys ['state', 'dt', 'context', 'view', 'register', 'numbers']
+scalar_mean192 function ('mc', 'base_logits', 'coef', 'centres', 'mask')
+map192_cal (193,) float64
+map192_nebase dict 2 keys [0.5, 2.0]
+map192_candidates dict 25 keys [(1.0, 1.5), (0.3, 1.0), (0.3, 2.0), (0.3, 3.0), (0.3, 4.0), (0.3, 6.0)]
+source192 (193,) float64
+coef192 (193,) float64
+delta192 (193,) float64
+nt192 (4510,) float32
+nu192 (47
+[output cut at 10,000 characters]
+```

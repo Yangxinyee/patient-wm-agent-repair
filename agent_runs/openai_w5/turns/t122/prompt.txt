@@ -1,0 +1,172 @@
+OUTPUT of Python run 107 of at most 300:
+```
+=== EFFECT-ESTIMATION NOTES ===
+ide': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}.
+- Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+- Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+- No weight edits.
+
+## Restart after forward 5
+- Independent training states received in /work/fwd_5.
+- Rechecking architecture and reusable analysis objects before selecting an edit.
+- No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+
+## Run 23: head-only correction screening
+- Testing the selected register convention on original GPU predictions.
+- Preparing independent state samples for a no-gradient correction of treatment innovations.
+- Head-only edits would preserve the recurrent state and all other prediction heads directly.
+
+## Run 25: posterior-action ablation candidate
+- Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+- Latent sampling accounts for much of the local-vs-GPU head discrepancy.
+- Exploratory edit: zero z_post.0.weight[:,384:576], retaining direct action input.
+- Hypothesis: action-conditioned latent severity inference masks direct drug responses.
+- Requires paired factual and rollout tests; this is not yet a validated repair.
+- Earlier small-sample error-vs-innovation SE printouts include an intercept SE.
+
+## Forward 6 / run 26: failed posterior-action ablation
+- Removing z_post.0.weight[:,384:576] barely changed any dose-edit response.
+- Reverted the ablation; no tensors currently edited.
+- This does not support posterior action conditioning as the main cause of weak responses.
+- Reinspecting direct dose/state pathways before choosing another intervention.
+
+## Runs 27?33: local encoder reconstruction
+- Confirmed state layout: out = core.out_norm(mean of four h slots).
+- Drug-start latent reconstruction uses GELU, quality embedding row 0, and encoded empty measurement set.
+- Insulin: dose unit 3, rate unit 2; NE: dose unit 4, rate unit 3.
+- Recorded decimal doses resolve NE bin-boundary discrepancies; left-sided binning confirmed.
+- Measurement/empty-action and infusion-END conventions are being checked before any recurrence edit.
+- No tensors edited; 6 forward passes used.
+
+## Restart, runs 42?43
+- Re-read architecture. Doses enter recurrent state; value heads also use sensor-specific last-reading registers.
+- Run 42 inventory failed on a module's callable shape attribute, before any edit.
+- Best local recurrence remains approximate; current edits are empty, 6 forwards used.
+
+## Runs 45?48: dose representation and failed decoder
+- Dose encoder varies sharply and non-monotonically with rate; infusion END has no dose attributes and goes through the measurement encoder.
+- Ridge decoding of treatment innovations from posterior hidden features, including synthetic dose multipliers, failed held-out factual and dose-response tests. Do not use it.
+- Temporary diagnostic: action-encoder norm output fixed to the verified empty-action vector. Test paired factual NLL before deciding whether replacement is feasible.
+
+## Restart / forward 7
+- Empty-action ablation: factual NLL 1.65737 versus original 1.63933, +0.01804; fails the +0.005 constraint. Reverted all edits.
+
+## Restart, runs 55?59
+- Re-read architecture and inspected local recurrence.
+- Run 58 stopped on context tuple/tensor mismatch; no edit.
+- Run 59 tests dose/innovation decoding at drug bundles on stay-held-out splits.
+
+## Restart after run 61
+- Run 61 found two local latent-response correction directions, but no weights were edited.
+- Complete encoder RMSE remained about 0.084; recurrence diagnostics included NaNs and large errors.
+- Local mean response matching is not sufficient evidence of a valid rollout repair.
+- Reinspect architecture and persistent candidate objects before testing any edit.
+
+## Runs 65?66: reconstruction bookkeeping bug
+- Forward states are in interleaved stay order, not sorted by stay ID.
+- np.searchsorted on stay IDs selected incorrect memory boundaries; fixed local diagnostic boundaries.
+- Zeroing empty-action vectors worsened posterior reconstruction and was not retained.
+- Held-out action-u linear rate decoding active R2: insulin .653, NE .519; innovation R2 .281/.180.
+- No weight edits. Revalidate recurrence conventions using saved posterior means.
+
+## Runs 67?68: provisional response reconstruction
+- Global attention packing and current-inclusive memory improved local recurrence substantially.
+- Best local convention remains approximate; it cannot certify factual fit or rollout effects.
+- Reco
+
+=== FUNCTION NAMES ===
+act0 action_atom_exact action_hidden105 action_vectors4 array103 as_np atom_action_local brief_impl64 causal_features channel_targets105 clustered_ols compact_code73 compact_dis_repair compact_impl79 context_from_saved correction_data drop_edit edited f64 f94 f_repair fn fn104 fn67 fn81 fun func function_repair head0 head_features_layout head_mc head_mc_layout head_parts helper_probe latent_step61 latent_step66 lin0 load load_original local_step67 make_panel measurement_atom_local mechanistic_shifts mlp0 next_means61 next_means_crn74 norm0 obj64 posterior_features4 prelude_all83 r2_score reading_cache reconstruct_head response_pair68 save_edit set_encode_single_local short_impl60 show_impl85 v94 wm_attention wm_layer wm_lin wm_mlp wm_norm wm_set wm_step_saved
+
+=== RELEVANT OBJECTS ===
+action_probe_exact_doses dict 2 keys ['insulin', 'norepinephrine']
+candidate_rows68 ndarray (1369,)
+causal_features (p)
+channel_coef105 ndarray (2, 768)
+channel_intercept105 ndarray (2,)
+channel_targets105 (rates, raw)
+clear_names103 list 4 ['core.c_out.weight', 'core.coda.0.attn.out.weight', 'core.coda.0.ffn.2.weight', 'core.coda.0.ffn.2.bias']
+coef ndarray (2,)
+coeff2 ndarray (3,)
+coefidx 2
+dose_actual4 ndarray (4314, 2)
+dose_encoder_probe dict 2 keys ['insulin', 'norepinephrine']
+dose_lookup_probe dict 1599 keys [(1010000000, 5, 'insulin'), (1010000000, 125, 'insulin'), (1010000000, 185, 'insulin'), (1010000000, 305, 'insulin'), (1010000000, 365, 'insulin'), (1010000000, 425, 'insulin'), (1010000000, 485, 'insulin'), (1010000000, 545, 'insulin'), (1010000000, 605, 'insulin'), (1010000000, 665, 'insulin'), (1010000000, 725, 'insulin'), (1010000000, 785, 'insulin')]
+doses ndarray (30,)
+feature 'Q'
+feature55 dict 4 keys ['posterior_hidden', 'action_u', 'ctx_plus_u', 'post_state_out_z']
+feature98 'wc'
+feature_name 'post_state_out_z'
+feature_name65 'posterior_hidden'
+head_features_layout (cache, layout, ageunit='seconds', subset=None, nsamples=16, seed=913)
+make_panel (df)
+panel DataFrame (780000, 6)
+panel_tune DataFrame (10400, 6)
+posterior_features4 (action_vectors)
+rate 0.1
+rate55 ndarray (4214, 2)
+rate_scale105 ndarray (2,)
+rate_unit 3
+rates ndarray (30,)
+rates83 ndarray (4314, 2)
+rawrate ndarray (132000,)
+ridge61 float64 ()
+ridge_unit68 float64 ()
+state4 dict 6 keys ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+state_key4 dict 4314 keys [(1010000000, -120), (1010000000, -60), (1010000000, 0), (1010000000, 5), (1010000000, 60), (1010000000, 65), (1010000000, 120), (1010000000, 125), (1010000000, 180), (1010000000, 185), (1010000000, 240), (1010000000, 245)]
+temporary105 ndarray (4,)
+testpanel DataFrame (132000, 6)
+tracked105 ndarray (4,)
+
+=== CHANNEL-RELEVANT TENSORS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+query_norm.bias (192,)
+query_norm.weight (192,)
+
+```

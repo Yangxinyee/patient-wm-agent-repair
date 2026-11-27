@@ -1,0 +1,131 @@
+OUTPUT of Python run 182 of at most 300:
+```
+NOTEBOOK LENGTH 54786
+
+EARLY NOTEBOOK
+# World-model weight repair
+
+## Initial plan
+- Infer drug effects exclusively from the supplied simulated records.
+- Separate dose assignment from subsequent physiological response; do not assume either effect's sign or magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+Counts: 4 Python runs, 1 forward passes.
+
+## Forward 2 / Run 5
+Exported original states for training stays 1010000000..1010000099 (all bundles). Checked held-out-stay dose decoding and residual-effect dose-range diagnostics. Past-change placebo here is raw, not separately residualized, and must not be treated as a definitive independence test.
+         event                range      n      beta       se
+glucose_finger               0.5..1  21312 -1.895856 0.144475
+glucose_finger                 1..2 134998 -2.042501 0.083923
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab                 1..2   6440 -1.674272 0.221519
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab prior_change_placebo   5781  0.010951      NaN
+  map_arterial           0.01..0.31  46952  2.808803 0.267351
+  map_arterial            0.31..0.7  48870  3.186511 0.130080
+  map_arterial               0.7..1  48494  3.503649 0.137606
+  map_arterial prior_change_placebo 298800  0.134794      NaN
+      map_cuff           0.01..0.21  24183  1.573456 0.905161
+      map_cuff           0.21..0.62  25354  2.622023 0.337926
+      map_cuff              0.62..1  24436  2.837563 0.321496
+      map_cuff prior_change_placebo 279926  0.482887      NaN
+ features  alpha           drug  test_r2  test_rmse
+      out    1.0        insulin 0.739124   0.663240
+      out    1.0 norepinephrine 0.790876   0.158897
+      out   30.0        insulin 0.690299   0.722644
+      out   30.0 norepinephrine 0.743011   0.176145
+      out  300.0        insulin 0.652943   0.764986
+      out  300.0 norepinephrine 0.697538   0.191095
+out_and_z    1.0        insulin 0.899701   0.411246
+out_and_z    1.0 norepinephrine 0.795638   0.157077
+out_and_z   30.0        insulin 0.890078   0.430523
+out_and_z   30.0 norepinephrine 0.777885   0.163758
+out_and_z  300.0        insulin 0.830641   0.534389
+out_and_z  300.0 norepinephrine 0.732674   0.179653
+all_state    1.0        insulin 0.899256   0.412158
+all_state    1.0 norepinephrine 0.779078   0.163318
+all_state   30.0        insulin 0.892723   0.425312
+all_state   30.0 norepinephrine 0.781131   0.162557
+all_state  300.0        insulin 0.838499   0.521844
+all_state  300.0 norepinephrine 0.748401   0.174288
+Counts: 5 Python runs, 2 forward passes.
+
+## Forward 3 / Run 6
+Original factual NLL on matching 100 training stays: 1.63065 (4745 values). Reconstructing prediction heads from exported states; compared candidate activations, gap encodings, and last-register layouts. No edits yet.
+                                             config  mean_rmse  nll_rmse      nll
+('silu', 'log1p', 'gelu', 'interleaved', 0, 'silu')   4.519133  0.451487 1.712594
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'silu')   4.519134  0.451485 1.712592
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'gelu')   4.559348  0.425870 1.703790
+('silu', 'log1p', 'gelu', 'interleaved', 0, 'gelu')   4.559350  0.425875 1.703792
+  ('gelu', 'log', 'gelu', 'interleaved', 0, 'silu')   4.613220  0.477999 1.724570
+('gelu', 'log1p', 'gelu', 'interleaved', 0, 'silu')   4.613243  0.478005 1.724573
+  ('gelu', 'log', 'silu', 'interleaved', 0, 'silu')   4.701380  0.467703 1.724681
+('gelu', 'log1p', 'silu', 'interleaved', 0, 'silu')   4.701406  0.467708 1.724684
+Counts: 6 Python runs, 3 forward passes.
+
+## Run 7
+Re-reading architecture and inspecting persistent variables before a targeted algebraic edit. Reconstruction remains too inaccurate to use safely; no tensors edited.
+Counts: 7 Python runs, 3 forward passes.
+
+## Run 10
+Direct reconstruction grid over gap scale, activation, latent source, query type, last-register flags and status. Still no edits.
+[(('silu', 0.1, 'gelu', 'prior', 1, 3, 0, 'silu'), 4.607177356790052, 0.4679384991024623, 1.7100245952606201), (('silu', 0.1, 'silu', 'zero', 1, 3, 0, 'silu'), 4.61602379769742, 0.47527918777192124, 1.7125592231750488), (('silu', 0.1, 'gelu', 'zero', 1, 3, 0, 'silu'), 4.61602379769742, 0.47527918777192124, 1.7125592231750488), (('silu', 0.1, 'gelu', 'prior', 1, 3, 0, 'gelu'), 4.666139433119243, 0.4374716970171015, 1.7025305032730103), (('silu', 0.1, 'silu', 'zero', 1, 3, 0, 'gelu'), 4.6671216267476865, 0.4484234491205614, 1.7064038515090942)]
+Counts: 10 Python runs, 3 forward passes.
+
+## Run 11
+Checking latent-probability averaging instead of a deterministic latent mean.
+[(('silu', 'gelu', 'gelu', 1.0), 4.599382696680694, 0.43500487927887543, 1.706592082977295, 0.44631290459442136, 0.06186679615491629), (('silu', 'gelu', 'gelu', 0.5), 4.599914960000067, 0.4363669175661295, 1.7085585594177246, 0.424250216720581, 0.06383318363541365), (('silu', 'gelu', 'silu', 1.0), 4.65668039098584, 0.4705122763196616, 1.7173858880996704, 0.5321874763946532, 0.0726605230089426), (('silu', 'gelu', 'silu', 0.5), 4.6756450136965455, 0.4724108044289337, 1.7201770544052124, 0.5108177330474853, 0.07545164412671328)]
+Counts: 11 Python runs, 3 forward passes.
+
+## Run 13
+Best reconstruction now has mean RMSE 1.633 and NLL RMSE 0.245, still not exact. Re-reading architecture, shapes, and persistent helper inventory before choosing a directly validated algebraic weight edit. No edits yet.
+Counts: 13 Python runs, 3 forward passes.
+
+## Run 15
+Inspected panel indexing, examples, and saved dose-innovation residuals. Next priority is causal dynamics and properly residualized pre-dose placebos, not more uncontrolled head-reconstruction grids.
+Counts: 15 Python runs, 3 forward passes.
+
+## Runs 16?17: six-hour local projections
+Run 16 failed because exposure indices extended one hour too far; corrected in run 17. No edits.
+Two-fold stay-separated HGB adjustment using pre-dose history, current main reading observed. Deconvolution separates later policy-dose changes from an estimated fixed-dose response. Requires conditional exogeneity; not established merely by this regression.
+('glucose_finger', 'insulin') y_response=[(-1.850340141162819, 0.05921533919140744), (-2.1762604567431203, 0.06489918613459421), (-1.7410683131830231, 0.06761284716241134), (-1.2531025010849781, 0.06920144163811291), (-0.6551003687865006, 0.07183981699949399), (-0.3467783443919157, 0.07189773446145925)] dose_response=[(1.0, 0.0), (-0.043158439043129916, 0.00367638110517134), (-0.05631395190790126, 0.0038729998584322244), (-0.05248995784797088, 0.0038764553121176304), (-0.03888142649128522, 0.004054276323950561), (-0.011719974297229152, 0.004260511826010613)] kernel=[-1.85034014 -2.25611825 -1.94263882 -1.56111897 -1.02224091 -0.69018551]
+('map_arterial', 'norepinephrine') y_response=[(3.3505774844819856, 0.11296414420802602), (5.0683432874472025, 0.1299952890881905), (5.506229788027758, 0.1425291933163007),
+[output cut at 10,000 characters]
+```

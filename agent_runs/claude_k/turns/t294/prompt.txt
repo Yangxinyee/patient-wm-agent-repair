@@ -1,0 +1,220 @@
+OUTPUT of Python run 272 of at most 300:
+```
+ARCH chars 5234
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+=====
+fwd 9 ['factual_edited.csv', 'factual_original.csv', 'summary.json']
+{
+ "ok": true,
+ "type": "factual",
+ "split": "train",
+ "n_stays": 99,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.52011,
+   "n_values": 5521,
+   "by_event": {
+    "glucose_finger": {
+     "n": 2040,
+     "nll": 1.5123,
+     "mean_abs_error": 11.853
+    },
+    "glucose_lab": {
+     "n": 501,
+     "nll": 1.2035,
+     "mean_abs_error": 9.594
+    },
+    "map_arterial": {
+     "n": 1836,
+     "nll": 1.4137,
+     "mean_abs_error": 3.931
+    },
+    "map_cuff": {
+     "n": 1144,
+     "nll": 1.8433,
+     "mean_abs_error": 5.814
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.5202,
+   "n_values": 5521,
+   "by_event": {
+    "glucose_finger": {
+     "n": 2040,
+     "nll": 1.5124,
+     "mean_abs_error": 11.853
+    },
+    "glucose_lab": {
+     "
+fwd 10 ['states_edited.npz', 'states_original.npz', 'summary.json']
+{
+ "ok": true,
+ "type": "states",
+ "split": "train",
+ "n_stays": 99,
+ "results": {
+  "original": {
+   "file": "states_original.npz",
+   "rows": 5244,
+   "layout": "x[:, 0:192] = out, x[:, 192 + 192*s : 384 + 192*s] = slot s of h (s = 0..3), x[:, 960:992] = z posterior mean; one row per bundle, after the bundle",
+   "other_arrays": [
+    "stay_id",
+    "hour",
+    "has_insulin",
+    "has_norepinephrine",
+    "n_atoms"
+   ]
+  },
+  "edited": {
+   "file": "states_edited.npz",
+   "rows": 5244,
+   "layout": "x[:, 0:192] = out, x[:, 192 + 192*s : 384 + 192*s] = slot s of h (s = 0..3), x[:, 960:992] = z posterior mean; one row per bundle, after the bundle",
+   "other_arrays": [
+    "stay_id",
+    "hour",
+    "has_insulin",
+    "has_norepinephrine",
+    "n_atoms"
+   ]
+  }
+ },
+ "edited_tensors": [
+ 
+fwd 11 ['dose_edit_edited.csv', 'dose_edit_original.csv', 'summary.json']
+{
+ "ok": true,
+ "type": "dose_edit",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -2.148,
+     "n_stay_hours": 773,
+     "n_stays": 86
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 1.227,
+     "n_stay_hours": 773,
+     "n_stays": 86
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.336,
+     "n_stay_hours": 792,
+     "n_stays": 71
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.057,
+     "n_stay_hours": 792,
+     "n_stays": 71
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit 
+=====
+z_in.weight (192, 32) rows [ 0  1  2  3  4  5  6  7  8  9 10 11] 192 cols [17 18 21 26 27 28] 6 maxabs 1.94e+03
+z_post.0.bias (192,) idx [  2  12  56  88 105 130 170] maxabs 114
+z_post.0.weight (192, 576) rows [  2  12  56  88 105 130 170] 7 cols [ 0  1  2  3  4  5  6  7  8  9 10 11] 576 maxabs 1e+03
+z_post.2.bias (64,) idx [17 18 21 26 27 28] maxabs 0.0276
+z_post.2.weight (64, 192) rows [ 0  1  2  3  4  5  6  7  8  9 10 11] 64 cols [ 0  1  2  3  4  5  6  7  8  9 10 11] 192 maxabs 1.07
+VARS {'NAMES': 'list', 'SHAPES': 'dict', 'VOCAB': 'dict', 'V': 'ndarray', 'k': 'int', 's': 'int', 'tr': 'ndarray', 'tu': 'DataFrame', 'notes': 'str', 'adm': 'DataFrame', 'd': 'str', 'x': 'tuple', 'H': 'ndarray', 'P': 'dict', 'ids': 'list', 'PT': 'dict', 'ids_t': 'list', 'G': 'dict', 'hrs': 'list', 'f': 'str', 'ins': 'list', 'ne': 'ndarray', 'on': 'DataFrame', 'onn': 'ndarray', 'gf': 'ndarray', 'gl': 'dict', 'ma': 'ndarray', 'mc': 'ndarray', 'glast': 'ndarray', 'mlast': 'ndarray', 'rows': 'list', 't': 'ndarray', 'j': 'int', 'D': 'ndarray', 'on_': 'ndarray', 'tab': 'DataFrame', 'mid': 'DataFrame', 'D2': 'DataFrame', 'icc': 'float64', 'both': 'ndarray', 'bm': 'ndarray', 'dm': 'ndarray', 'R': 'DataFrame', 'Rv': 'DataFrame', 'gb': 'ndarray', 'res': 'dict', 'on2': 'DataFrame', 'gbest': 'ndarray', 'b': 'ndarray', 'X': 'ndarray', 'r': 'ndarray', 'jj': 'int', 'F': 'DataFrame', 'r1': 'DataFrame', 'out': 'list', 'sb': 'DataFrame', 'N': 'DataFrame', 'nm': 'str', 'ry': 'ndarray', 'rf': 'DataFrame', 'Lb': 'DataFrame', 'jcols': 'dict', 'Nb': 'DataFrame', 'Q': 'DataFrame', 'bothq': 'DataFrame', 'onlyc': 'DataFrame', 'none': 'DataFrame', 'HistGradientBoostingRegressor': 'ABCMeta', 'KFold': 'ABCMeta', 'featcols': 'list', 'results': 'dict', 'drug': 'ndarray', 'B': 'DataFrame', 'rd': 'str', 'm': 'int', 'se': 'ndarray', 'md': 'ndarray', 'rdk': 'ndarray', 'fb': 'float64', 'o': 'ndarray', 'tot': 'list', 'h': 'int', 'Bi': 'DataFrame', 'Xi': 'DataFrame', 'rdi': 'ndarray', 'mi': 'int', 'Bn': 'DataFrame', 'Xn': 'ndarray', 'rdn': 'ndarray', 'mn': 'int', 'm0': 'ndarray', 'ryn1': 'ndarray', 'slope': 'list', 'mlo': 'int', 'mhi': 'int',
+[output cut at 10,000 characters]
+```

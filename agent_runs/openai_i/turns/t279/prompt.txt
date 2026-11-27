@@ -1,0 +1,184 @@
+OUTPUT of Python run 247 of at most 300:
+```
+=== FORWARD 22 SUMMARY ===
+{
+ "ok": true,
+ "type": "factual",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.63155,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.4587,
+     "mean_abs_error": 10.762
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.3011,
+     "mean_abs_error": 8.513
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.4757,
+     "mean_abs_error": 3.824
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.0028,
+     "mean_abs_error": 6.266
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.7386,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.5411,
+     "mean_abs_error": 11.64
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.3578,
+     "mean_abs_error": 8.918
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.5958,
+     "mean_abs_error": 4.063
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.1396,
+     "mean_abs_error": 6.521
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "edited_tensors": [
+  "core.prelude.0.attn.kv.weight",
+  "core.prelude.0.attn.out.weight",
+  "core.prelude.0.attn.q.weight",
+  "core.prelude.0.ffn.2.bias",
+  "core.prelude.0.ffn.2.weight",
+  "z_in.bias",
+  "z_in.weight",
+  "z_post.0.bias",
+  "z_post.0.weight",
+  "z_post.2.bias",
+  "z_post.2.weight"
+ ],
+ "edit_hash": "7f45e3efe5",
+ "seconds": 2.8,
+ "gpu_peak_mib": 232
+}
+
+files ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+
+=== CANDIDATES VERSUS INSTALLED ===
+neutral209.npz keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+tensor differences {'z_post.0.weight': 0.0, 'z_post.0.bias': 0.0, 'z_post.2.weight': 0.0, 'z_post.2.bias': 0.0, 'z_in.weight': 0.0, 'z_in.bias': 0.0}
+fallback188.npz keys ['attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+tensor differences {'attr_heads.value_bin.2.bias': 3.036351, 'attr_heads.value_bin.2.weight': 74.832039}
+response233.npz keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias', 'core.prelude.0.attn.q.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.ffn.2.weight', 'core.prelude.0.ffn.2.bias']
+tensor differences {'z_post.0.weight': 0.0, 'z_post.0.bias': 0.0, 'z_post.2.weight': 0.0, 'z_post.2.bias': 0.0, 'z_in.weight': 0.029613, 'z_in.bias': 0.0, 'core.prelude.0.attn.q.weight': 37.617287, 'core.prelude.0.attn.kv.weight': 58.870586, 'core.prelude.0.attn.out.weight': 457.73822, 'core.prelude.0.ffn.2.weight': 314.361847, 'core.prelude.0.ffn.2.bias': 17.753628}
+sharp243.npz keys ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias', 'core.prelude.0.attn.q.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.ffn.2.weight', 'core.prelude.0.ffn.2.bias']
+tensor differences {'z_post.0.weight': 0.0, 'z_post.0.bias': 0.0, 'z_post.2.weight': 0.0, 'z_post.2.bias': 0.0, 'z_in.weight': 0.029613, 'z_in.bias': 0.0, 'core.prelude.0.attn.q.weight': 74.826363, 'core.prelude.0.attn.kv.weight': 58.870586, 'core.prelude.0.attn.out.weight': 457.73822, 'core.prelude.0.ffn.2.weight': 314.361847, 'core.prelude.0.ffn.2.bias': 17.753628}
+
+=== RECORD-EVIDENCE NOTE EXCERPTS ===
+## Initial inspection ? Python 1; forward 0
+- No weights changed and no drug effects assumed.
+- Inspect architecture, vocabulary, and record schema first.
+- Establish effects from training records, accounting for dose selection.
+- Validate any edit against paired rollouts and the factual NLL limit (original + 0.005 nats per reading).
+
+
+## Inspection ? Python 2; forward 0
+- Architecture read: separate action encoder; recurrent action pathways; shared attribute embeddings and same-code last-value registers.
+- Initial output truncated before vocabulary and sample rows; reprinted compact metadata and loaded records.
+- Reserved fixed tuning subsets for development, independent checking, and final validation. No weights changed.
+
+
+## Hourly analysis ? Python 3; forward 0
+- Measurements are at integer hours; infusions begin at hour + 0.0833.
+- Built chronological panels with zero rate when no infusion is recorded.
+- Preliminary associations below are diagnostic, not established effects; linear adjustment and dynamic fixed effects can be biased.
+        sensor           drug            method      n  beta_per_rate  cluster_se
+glucose_finger        insulin             naive 263668      17.929280    0.115173
+glucose_finger        insulin  history-adjusted 263668      -1.889789    0.042105
+glucose_finger        insulin history + stay FE 263668      -1.939217    0.041457
+   glucose_lab        insulin             naive  52643      17.885480    0.164865
+   glucose_lab        insulin  history-adjusted  52643      -1.973027    0.068524
+   glucose_lab        insulin history + stay FE  52643      -2.059826    0.070363
+  map_arterial norepinephrine             naive 152923     -14.511075    0.241974
+  map_arterial norepinephrine  history-adjusted 152923       2.094215    0.
+## Nonlinear identification ? Python 4; forward 2
+- Original development factual NLL 1.66206; limit 1.66706.
+- Original rollouts (99 stays): insulin x2 -1.864, half +0.975; NE x2 +0.342, half -0.032.
+- Crossfit dose and outcome nuisance models by stay, using only pre-dose history. Active-dose estimates still require exchangeability and attention to observation selection and nuisance-model error.
+        sensor           subset      n      beta  cluster_se
+glucose_finger       all active 263668 -1.986075    0.044771
+glucose_finger           hour 0   9307 -2.004139    0.243609
+glucose_finger        hours 1-5  48376 -1.811866    0.104447
+glucose_finger       hours 6-11  63523 -1.945429    0.091394
+glucose_finger      hours 12-23 142462 -2.052531    0.059515
+glucose_finger both sensors now  51056 -1.872719    0.095800
+   glucose_lab       all active  52643 -2.101326    0.073338
+   glucose_lab           hour 0   1868 -1.747917    0.457723
+   glucose_lab        hours 1-5   9655 -1.874173    0.178218
+   glucose_lab       hours 6-11  12707 -2
+## Identification checks ? Python 5; forward 2
+- Crossfit estimates support insulin approximately -2 per unit/hour on both glucose sensors. NE approximately +3 after startup; hour-0 disagreement remains unresolved.
+- Checked empirically located insulin dose-policy discontinuities with local linear IV and a pre-dose lab placebo. Discrete running variables and smoothness assumptions limit RD certainty.
+     n  dose_jump  outcome_jump  IV_effect  cluster_se               sensor  bandwidth    sample
+ 91629   0.694895     -1.559407  -2.244089    0.276843       glucose_finger          6 all hours
+  3367   0.763631      0.576171   0.754515    1.301074       glucose_finger          6    hour 0
+153610   0.809845     -1.787755  -2.207528    0.185199       glucose_finger         10 all hours
+  5545   0.755502    -16.388754 -21.692545    1.639247       glucose_finger         10    hour 0
+231106   0.875574     -1.808918  -2.065978    0.141024       glucose_finger         15 all hours
+  8375   0.895406      0.897508   1.002348    0.716953       glu
+## Resumed investigation ? Python 6; forward 2
+- Re-reading architecture, tensor inventory, and retained analysis objects before designing an edit.
+- No weights changed. Insulin ~-2 and post-startup NE ~+3 remain provisional record-based estimates.
+
+
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.090980
+  map_arterial        1 146556            3.288
+## Local head reconstruction ? Python 9; forward 4
+- Captured original states and factual predictions for 100 training stays (original NLL 1.63805).
+age_unit      layout  status  type_index  gap_scale  mean_abs_difference  rms_difference
+   hours interleaved       0           1        0.1             3.061518        5.090333
+ seconds interleaved       0           1        0.1             3.371605        5.700936
+   hours     grouped       0           1        0.1             5.040884        8.075172
+ seconds     grouped       0           1        0.1             5.345762        8.810462
+   hours interleaved       0           0        0.1             6.580535        8.956929
+ seconds interleaved       0           0        0.1             6.880753        9.013090
+   hours     grouped       0           0        0.1             7.313674       10.350065
+ seconds     grouped       0           0        0.1             7.785411       10.703313
+Best head settings: {'age_unit': 'hours', 'layout': 'interleaved', 'status': 0, 'type_index': 1, 'ga
+## Restart ? Python 10; forward 4
+- No weights edited. Local head reconstruction is not yet exact; recovering architecture and retained objects before designing a reversible edit.
+
+
+## Reconstruction inspection ? Python 12; forward 4
+- Architecture recovered. last_numeric.weight is (192,8); the four-field schematic is insufficient to reproduce its inputs.
+[output cut at 10,000 characters]
+```

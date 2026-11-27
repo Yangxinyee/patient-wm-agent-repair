@@ -1,0 +1,175 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 325 replies happened before. Forward passes used: 9 of 50; Python runs used: 296 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.ffn.0.bias', 'core.prelude.0.ffn.0.weight', 'core.prelude.0.ffn.2.weight']. Files in /work: ['bundles_B.pkl', 'edit_parts.pkl', 'edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md', 'sel_train_B.json', 'sel_tuning_A.json'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+n to u?) reduces err to 4.6e-4. Unresolved.
+- No IPython history available (In=None). LOG EVERY FINDING HERE.
+
+- RUN 258-260 ROOT CAUSE: local WE/WCUR contained an UNSAVED rank-2 edit of core.prelude.0.attn.kv.weight (rows 240-287 = v of head 1,
+  sv 29462/12075, max 1928) = stage 1 (rate signal from u into slots). Decoders were fit WITH it. Tool ran without it -> factual injection
+  +3..+7.7 reading-units at every insulin bundle (drift +12 by h24) and no dose response. With kv (WE): factual inj mean ~0, x2 mean -4.9
+  (expected -4.2), x1/2 +0.8 (exp +2.1), noisy per bundle. Run 261: SAVED kv edit -> 5 tensors edited. Next: dose_edit both on selA.
+
+## Runs 262-283 (restart 6)
+- fwd_6 (dose_edit both selA, FULL edit incl kv, hash ee4374ba4c): ins x2 -9.43, x1/2 -1.63, ne x2 +3.21, x1/2 -0.40 (orig -0.55, 0.00, 0.19, -0.17).
+  Per hour ins x2 -3.1 (h13) -> -14.1 (h24); factual path drift edited-orig: glucose +0.7 -> +4.6, MAP -1.4 -> -6.8.
+- fwd_7 states both (13 tuning stays): tool edited == local WE (rel err 2e-6). W64 had the kv edit too (in-place bug) -> FIXED (W64 = true original now).
+- Local single-bundle responses linear & symmetric (slopes ~0.9 x2/x1/2). Local h13 (teacher forced to 12:05): ins x2 -2.66, x1/2 +1.28; tool -3.08/+0.09.
+  Tool h13 factual of EDITED model differs from local by median 2.1 mg/dL (orig 0.37) -> dose_edit rollout encodes something differently
+  (not u=0, not z sampling, not END/dose drop; right-side bins for h12 atoms reproduce tool x2 at h13 exactly (-3.10) but not x1/2). UNRESOLVED.
+- Without stage 1 (kv), (rate-c_hat) poorly decodable from n3 (R2 .72 I / .38 N) -> keep stage 1.
+- fwd_8 factual both train selB: orig 1.43643, edited 1.43319 (-0.0032) -> constraint OK.
+- Run 283: kappa scaling via b_in columns along q_I,q_N: c_I=1.5, c_N=1.3 (B_IN_c1 = c=1 version kept in kernel). Next: dose_edit selA + factual check.
+
+## Restart 7 (runs 283+)
+- fwd_9 (dose_edit edited selA, c_I=1.5, c_N=1.3, hash a56a7f6079): ins x2 -14.60, x1/2 -2.99 (WRONG SIGN; target +7.15), ne x2 +3.96, x1/2 -0.42 (target -2.05). Fit E(s)=a(s-1)+b: ins a=-7.74 b=-6.86; ne a=2.92 b=1.04 -> common-offset artifact.
+  fwd_6 h13 (c=1): tool-local artifact -0.42 (x2), -1.19 (x1/2); recorded-run drift edited-orig grows ~linearly (const per-bundle bias?).
+- Run 287: bundles hold kind0 (start) + kind2 (END, prev rate) atoms; my scale_atoms scaled only kind0. Local h13 vs tool (fwd_9):
+  insulin_x2 V0: n=49 corr=0.406 tool=-4.62 local=-3.87
+  insulin_x2 V1: n=49 corr=0.406 tool=-4.62 local=-3.87
+  insulin_half V0: n=49 corr=0.429 tool=-0.04 local=1.87
+  insulin_half V1: n=49 corr=0.429 tool=-0.04 local=1.87
+  ne_x2 V0: n=66 corr=0.581 tool=1.20 local=1.14
+  ne_x2 V1: n=66 corr=0.581 tool=1.20 local=1.14
+  ne_half V0: n=66 corr=-0.276 tool=-0.50 local=-0.52
+  ne_half V1: n=66 corr=-0.276 tool=-0.50 local=-0.52
+- Run 287 result: END-atom scaling has NO effect on encoding (V0==V1); local-vs-tool per-stay h13 corr only .4-.6.
+- Run 288 bin-side test (LL/RA=right all runs at 12:05/RE=right edited only):
+  insulin_x2 LL: corr=0.406 tool=-4.62 local=-3.87 sd_t=5.16 sd_l=3.25
+  insulin_x2 RA: corr=0.486 tool=-4.62 local=-4.53 sd_t=5.16 sd_l=3.28
+  insulin_x2 RE: corr=0.464 tool=-4.62 local=-4.16 sd_t=5.16 sd_l=3.04
+  insulin_half LL: corr=0.429 tool=-0.04 local=1.87 sd_t=6.32 sd_l=1.82
+  insulin_half RA: corr=0.664 tool=-0.04 local=1.29 sd_t=6.32 sd_l=2.63
+  insulin_half RE: corr=0.622 tool=-0.04 local=1.67 sd_t=6.32 sd_l=2.03
+  ne_x2 LL: corr=0.581 tool=1.20 local=1.14 sd_t=4.16 sd_l=1.17
+  ne_x2 RA: corr=0.491 tool=1.20 local=1.10 sd_t=4.16 sd_l=1.04
+  ne_x2 RE: corr=0.573 tool=1.20 local=1.18 sd_t=4.16 sd_l=1.17
+  ne_half LL: corr=-0.276 tool=-0.50 local=-0.52 sd_t=3.28 sd_l=0.60
+  ne_half RA: corr=-0.328 tool=-0.50 local=-0.57 sd_t=3.28 sd_l=0.88
+  ne_half RE: corr=-0.271 tool=-0.50 local=-0.50 sd_t=3.28 sd_l=0.62
+- Run 288: bin side barely matters (RA ins_h local 1.29 vs tool -0.04); tool per-stay SD 2-5x local -> suspect z sampling (logstd).
+- Run 289 (pred_mean with lv=logstd, nz=64):
+  insulin_x2 logstd: corr=0.409 tool=-4.62 local=-3.82 sd_t=5.16 sd_l=3.18
+  insulin_half logstd: corr=0.425 tool=-0.04 local=1.84 sd_t=6.32 sd_l=1.79
+  ne_x2 logstd: corr=0.585 tool=1.20 local=1.11 sd_t=4.16 sd_l=1.15
+  ne_half logstd: corr=-0.280 tool=-0.50 local=-0.51 sd_t=3.28 sd_l=0.59
+- Run 289: logstd z sampling changes nothing. Run 290 bundle-merge test (S separate / M0 merged 12:00 readings+12:05 drugs at 12:00 / M5 at 12:05):
+  S insulin_x2: corr=0.41 tool=-4.62 loc=-3.87 sdl=3.25 | base corr=0.982 medabs=3.26
+  S insulin_half: corr=0.43 tool=-0.04 loc=1.87 sdl=1.82
+  S ne_x2: corr=0.58 tool=1.20 loc=1.14 sdl=1.17 | base corr=0.982 medabs=1.82
+  S ne_half: corr=-0.28 tool=-0.50 loc=-0.52 sdl=0.60
+  M0 insulin_x2: corr=0.11 tool=-4.62 loc=-6.86 sdl=12.37 | base corr=0.714 medabs=14.60
+  M0 insulin_half: corr=-0.14 tool=-0.04 loc=3.40 sdl=10.34
+  M0 ne_x2: corr=0.20 tool=1.20 loc=2.20 sdl=5.63 | base corr=0.846 medabs=3.54
+  M0 ne_half: corr=-0.10 tool=-0.50 loc=-0.96 sdl=4.35
+  M5 insulin_x2: corr=0.12 tool=-4.62 loc=-6.76 sdl=12.81 | base corr=0.688 medabs=15.77
+  M5 insulin_half: corr=-0.14 tool=-0.04 loc=3.77 sdl=10.50
+  M5 ne_x2: corr=0.19 tool=1.20 loc=2.33 sdl=6.04 | base corr=0.835 medabs=4.01
+  M5 ne_half: corr=-0.11 tool=-0.50 loc=-1.06 sdl=4.69
+- Run 290: merged bundles WORSE (base mad 14-16) -> tool uses separate bundles; S base mad 3.26 glc / 1.82 MAP (orig model 0.37).
+- Run 291 bin-combo test at 12:05 (rate_side,dose_side):
+  LL: insulin_x2 c=0.41 m=-3.87 [base mad=3.26] insulin_half c=0.43 m=1.87 ne_x2 c=0.58 m=1.14 [base mad=1.82] ne_half c=-0.28 m=-0.52
+  RR: insulin_x2 c=0.49 m=-4.53 [base mad=3.33] insulin_half c=0.66 m=1.29 ne_x2 c=0.49 m=1.10 [base mad=1.96] ne_half c=-0.33 m=-0.57
+  RL: insulin_x2 c=0.40 m=-3.98 [base mad=3.42] insulin_half c=0.42 m=2.00 ne_x2 c=0.36 m=0.97 [base mad=2.00] ne_half c=-0.28 m=-0.69
+  LR: insulin_x2 c=0.42 m=-3.88 [base mad=3.57] insulin_half c=0.20 m=2.15 ne_x2 c=0.47 m=1.05 [base mad=2.00] ne_half c=-0.37 m=-0.64
+- Run 291: no bin combo fixes base mad (3.3-3.6). Run 292 precision-fragility test at 12:05 step:
+  E64: ins: base mad_tool=3.26 |d vs64|=0.00 x2=-3.79 h=1.83; nor: base mad_tool=1.82 |d vs64|=0.00 x2=1.13 h=-0.51;
+  Eb16: ins: base mad_tool=3.90 |d vs64|=2.03 x2=-4.44 h=1.25; nor: base mad_tool=1.26 |d vs64|=1.27 x2=1.35 h=-0.82;
+  O64: ins: base mad_tool=3.23 |d vs64|=0.00 x2=-0.17 h=0.08; nor: base mad_tool=2.01 |d vs64|=0.00 x2=0.06 h=-0.04;
+  Ob16: ins: base mad_tool=3.21 |d vs64|=0.01 x2=-0.17 h=0.08; nor: base mad_tool=2.03 |d vs64|=0.01 x2=0.06 h=-0.04;
+  E16: ins: base mad_tool=3.59 |d vs64|=0.89 x2=-3.53 h=1.87; nor: base mad_tool=1.80 |d vs64|=0.14 x2=1.16 h=-0.49;
+  O16: ins: base mad_tool=3.23 |d vs64|=0.00 x2=-0.17 h=0.08; nor: base mad_tool=2.01 |d vs64|=0.00 x2=0.06 h=-0.04;
+- Run 293: bf16 fragility by tensor (median |d| h13 glc/MAP): kv .74/.75, ffn0 1.07/1.05, ffn2 .01, b_in .002 -> tool rollout likely low precision.
+- Run 294: gate offset Bg 25->smaller (exact-equivalent rebuild of units 502,131,140). results {6.0: (np.float64(0.00022032295261651), np.float64(1.7222201278040413e-07), np.float64(6.06716418584194), np.float64(1.1281232273734131e-06)), 8.0: (np.float64(3.487309515795337e-07), np.float64(1.4379633550899888e-07), np.float64(5.433356165084568), np.float64(4.880935600588618e-12)), 10.0: (np.float64(3.0770388502648285e-07), np.float64(1.2687907216854685e-07), np.float64(4.779281375545592), np.float64(0.0)), 12.0: (np.float64(2.666768335543539e-07), np.float64(1.0996187718852107e-07), np.float64(4.125276994863453), np.float64(0.0))}; selected None.
+- Run 295 crashed: I clobbered kernel global W0/W2/b0 (lin_t uses one) -> use z-prefixed names; W0=W64 restored if needed.
+- Run 296: x-gain scaling (exact, twin adjusted). frag=median bf16 |dx| at drug steps: {'cur': (0.2059, 0.6839), (3, 10): (0.0, 6.9519, (0.819, 0.2252)), (4, 20): (0.0, 7.7428, (0.1592, 0.0997))}; saved None.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 296 of at most 300:
+```
+lin_t names ('W', 'T')
+cur frag (median |dx| I, N): (0.2059, 0.6839)
+variants (drug max|dx|, nondrug max|dx|, frag): {(3, 10): (0.0, 6.9519, (0.819, 0.2252)), (4, 20): (0.0, 7.7428, (0.1592, 0.0997))}
+
+```

@@ -1,0 +1,161 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes). The weight values themselves are not available to you.
+   - You edit the model with operations. They are applied in order to the original weights whenever the forward tool runs
+     the edited model, and at the evaluation:
+     scale(name, c): multiply a whole tensor by the number c;
+     rank1(name, vector, alpha, side="out"): a rank-1 update along the unit direction v of the vector. With side "out" (v
+     has shape[0] entries), W <- W + alpha * v (v^T W): the tensor's output component along v is scaled by 1 + alpha.
+     With side "in" (2-D tensors, v has shape[1] entries), W <- W + alpha * (W v) v^T. For a 1-D tensor,
+     w <- w + alpha * v (v . w);
+     ops() lists the operations, undo() removes the last one, and clear_ops() removes them all.
+     Directions can come from anything you compute: the records, or the states the forward tool returns.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 118 replies happened before. Forward passes used: 10 of 50; Python runs used: 103 of 300. Your kernel is still running with its variables. Operations so far: ['1. rank1 z_in.weight', '2. rank1 z_in.weight']. Files in /work: ['dir_g.npy', 'dir_m.npy', 'fwd_1', 'fwd_10', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md', 'ops.json', 'tu_ids.json', 'v_z26.npy', 'vectors'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+# Notebook (ICU world-model dose repair)
+
+## Data facts (runs 1-15)
+- All stays 25.17 h; readings at integer hours (-1..24), drug records at h+0.0833 lasting 1 h.
+- Insulin policy (deterministic given reading): uses finger glucose at hour h (else lab if no finger). No insulin if <150;
+  tiers base rate 1/2/3/4(~4.2) U/h at thresholds 150/180/220/260 (50/50 at exact threshold values).
+  Rate = base * lognormal noise (log-sd ~0.3) rounded to 0.5. Noise is iid (lag1 corr 0.004, no stay effect,
+  no corr with pre-treatment vars). ALL 'skips' are at hour -1 (pre-ICU) -> skip variation is confounded, don't use.
+- NE: capped at 1.0 mcg/kg/min (13.6% at cap); given ~always when MAP<65; analysis pending.
+## Insulin causal effect (from within-tier rate noise among given doses, finger-tier hours)
+- dG(finger) per U/h of a 1-h dose: L=1 -1.98, L=2 -2.23, L=3 -1.75, L=4 -1.27, L=6 -0.45, L=8 -0.14, L=10/12 ~0.
+- Same across tiers (no glucose-level dependence); roughly linear in dose (no saturation seen up to ~6 U/h).
+- Naive regressions including skips give a fake 'rebound' (+2 at 12h) -> artifact.
+
+## Structural IRFs (run 22), triangular deconvolution of reduced forms on policy innovations
+- Insulin (finger glucose, per U/h 1-h dose): [-1.98,-2.33,-2.01,-1.63,-1.12,-0.88,-0.59,-0.45,-0.26,-0.10,-0.08,0]; cum -11.4
+- NE (map_arterial, per mcg/kg/min 1-h): [3.37,2.56,1.79,0.98,0.45,0.22,~0...]; cum ~ +9.4. Linear across rate strata.
+- NE policy: titration NE_t = NE_{t-1}*mult(MAP_t)*lognormal(sd .29), mult ~1.09 (<65), 1.0 (65-75), 0.9 (>75, stop 19%/h);
+  starts when arterial MAP<65 (arterial drives decisions). Cap 1.0.
+
+## Model diagnostics (passes 1-3)
+- Original dose_edit on tuning[0:100]: ins x2 -1.85, ins x1/2 +0.78, ne x2 -0.50, ne x1/2 -0.60. My estimated truth on same stay-hours:
+  -13.07, +6.54, +4.75, -2.38 (population ~ -13.6, +6.8, +4.6, -2.3). Readout = pooled mean over reached stay-hours (rows only at
+  recorded reading hours 13-24 of target code; reached = drug dose at h>=12 started before reading).
+- Model insulin response has right time-shape but ~1/7 magnitude. NE: negative for both x2 and x1/2.
+- Factual original tuning[0:100]: value NLL 1.63461 (n=4751). Model's teacher-forced slope of next glucose pred on within-tier dose:
+  +0.17+-0.26 (truth -2). NE slope 0.03+-0.8 (truth ~3). => model hasn't learned causal effects at all.
+- States: dose explains 14% of z posterior var at insulin bundles, ~0.3% of dOut/dH. z dose-direction also varies at reading bundles.
+- Concern: amplifying full-dose pathway double counts systematic (tier-driven) dose effect absorbed in reading dynamics.
+
+## Restart-2 findings (runs 37-47, pass 5)
+- ops 1-2 = rank1 'in' on embed.numeric.weight along e2 (z_dose) and e4 (z_rate), alpha=4 (cols x5). Pass 4: ins x2 -2.51, half +1.66, ne x2 +0.14, half -0.02.
+- Per 'since' (hrs since first edited dose), model/true ratio ~0.15 at all lags for insulin x2 (lag1 -0.43 vs -2.90; lag12 -3.37 vs -19.55): time shape OK, per-step gain too small.
+- NE: original's negative-for-both comes from cap stays (rate 1.0); at cap half gives -0.7 (true -1.69 lag1); x2 at cap -0.5..-1.0 (OOD: rate 2.0 -> bin16, z 2.6 > train max 0.92). ops1-2 flattened NE responses to ~0.
+- z posterior: at insulin bundles only z dim 26 varies (var 2.28); z26 ~ 0.65*innov + 1.37*exp_rate - 0.31*g/50; z26 also varies at reading bundles (sd 1.6) -> not selective.
+- Factual-cost estimate (Gaussian, sigma_gf=14.5): lag-1 effect -k*(dose-d0): d0=0,k=1.98 -> +0.0072/reading; d0=1.5 (z-score centre) -> +0.0023. Centering at median makes raw-dose amplification affordable.
+- Original model residual ~ innovation slope -1.37 at finger readings after insulin (model under-uses dose).
+- ids100 = tuning stays 2020000000..2020000099.
+
+## Restart-3 (runs 58-60)
+- Pass 6 = embed.numeric z_dose/z_rate cols x5: ins x2 -2.54, half +1.69, ne x2 +0.13, half +0.06 (orig -1.85,+0.78,-0.50,-0.60).
+- Pass 7 = 30 rank1 'out' ops on embed.bins.dose/rate (15 directions each, alpha 2, i.e. bin variation x3):
+  ins x2 -1.88, half -0.21 (wrong sign), ne x2 -0.33, half -0.84 -> FAILED, cleared.
+- Run 57: dose-induced variation in out is <0.08 of natural sd in every coordinate -> no dose-selective coordinate in out.
+
+## z26 lever (runs 61-66)
+- At ALL drug bundles only z26 varies (ins 2.31, ne 2.23, both 2.18 var); other z dims ~const. Reading bundles: many dims vary, z26 var 2.48
+  but z26 ~ linear fn of other z dims (R2~0.999). z26 at ins bundles ~ 1.43*ins_rate (R2 .53); at ne bundles ~ 2.41*ne_rate (R2 .38).
+- Selective edit: z_in.weight <- W (I + a e26 v^T), v.z ~0 at reading bundles (ridge-10 LS, HO leak sd ~0.12 vs z26 sd 1.57),
+  v.z = z26 - type mean at drug bundles. Implemented as 4 rank1 'in' ops (balanced SPD factorisation, cond ~22). v saved /work/v_z26.npy.
+- E1: alpha=4 (z26 deviation x5 at drug bundles). Testing in pass 8.
+- PASS 8 (E1 z26 x5 at drug bundles via z_in): readouts unchanged (-1.83,+0.76,-0.50,-0.60). z->state pathway is NOT the dose carrier. Cleared.
+
+## Restart-4 (runs 74-78, pass 9)
+- Pass 9: numeric z_dose/z_rate cols x20: ins x2 -2.11, half +1.50, ne x2 +0.15, half +0.00 -> input-side scaling SATURATES (x5 was -2.54). Dead end.
+- Idea: remap z-space in z_in (W<-W M, M=I+k g p^T): dose signal p (drug bundles) -> glucose-surprise direction g (reading bundles). Checking if g exists.
+
+## Restart-5 (runs 91-97)
+- Slots of h are identical copies (rel diff 1e-4); h norm ~842 (accumulator), out=LN(h) norm ~13.9.
+- Pass-5 (numeric x5) diffs: per-step injection along dose dirs (ins sd 4.5, ne 21.6) << natural step sd along same dirs at reading bundles (~100-110) -> NO selective direction in h; state-space edits (b_in/c_out) ruled out.
+- u_k is LN'd (encode_action.norm) and re-LN'd (prelude norm1) -> input scaling only rotates token -> saturates.
+- z at reading bundles encodes surprises: glucose_finger dir g (dims 13,10,21,30; 0.33 per sd), map_arterial m (dims 12,13); saved /work/dir_g.npy, dir_m.npy.
+- z route blocker: z26 mixes insulin & NE (cross-effects would cost huge factual NLL). Testing z-token potency first (pass 10: z_in x4 along g and m, factual both).
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 103 of at most 300:
+```
+181
+attr_heads.rate_bin.0.bias(192,); attr_heads.rate_bin.0.weight(192, 192); attr_heads.rate_bin.2.bias(17,); attr_heads.rate_bin.2.weight(17, 192); attr_heads.status.0.bias(192,); attr_heads.status.0.weight(192, 192); attr_heads.status.2.bias(2,); attr_heads.status.2.weight(2, 192); attr_heads.value_bin.0.bias(192,); attr_heads.value_bin.0.weight(192, 192); attr_heads.value_bin.2.bias(17,); attr_heads.value_bin.2.weight(17, 192); code_bias(13,); cont_head.0.bias(192,); cont_head.0.weight(192, 192); cont_head.2.bias(3,); cont_head.2.weight(3, 192); core.a_in(192,); core.age.0.bias(192,); core.age.0.weight(192, 1); core.age.2.bias(192,); core.age.2.weight(192, 192); core.b_in.weight(192, 192); core.blocks.0.0.attn.kv.weight(384, 192); core.blocks.0.0.attn.out.weight(192, 192); core.blocks.0.0.attn.q.weight(192, 192); core.blocks.0.0.cross.kv.weight(384, 192); core.blocks.0.0.cross.out.weight(192, 192); core.blocks.0.0.cross.q.weight(192, 192); core.blocks.0.0.ffn.0.bias(768,); core.blocks.0.0.ffn.0.weight(768, 192); core.blocks.0.0.ffn.2.bias(192,); core.blocks.0.0.ffn.2.weight(192, 768); core.blocks.0.0.norm1.bias(192,); core.blocks.0.0.norm1.weight(192,); core.blocks.0.0.norm2.bias(192,); core.blocks.0.0.norm2.weight(192,); core.blocks.0.0.norm3.bias(192,); core.blocks.0.0.norm3.weight(192,); core.blocks.0.1.attn.kv.weight(384, 192); core.blocks.0.1.attn.out.weight(192, 192); core.blocks.0.1.attn.q.weight(192, 192); core.blocks.0.1.cross.kv.weight(384, 192); core.blocks.0.1.cross.out.weight(192, 192); core.blocks.0.1.cross.q.weight(192, 192); core.blocks.0.1.ffn.0.bias(768,); core.blocks.0.1.ffn.0.weight(768, 192); core.blocks.0.1.ffn.2.bias(192,); core.blocks.0.1.ffn.2.weight(192, 768); core.blocks.0.1.norm1.bias(192,); core.blocks.0.1.norm1.weight(192,); core.blocks.0.1.norm2.bias(192,); core.blocks.0.1.norm2.weight(192,); core.blocks.0.1.norm3.bias(192,); core.blocks.0.1.norm3.weight(192,); core.c_out.weight(192, 192); core.coda.0.attn.kv.weight(384, 192); core.coda.0.attn.out.weight(192, 192); core.coda.0.attn.q.weight(192, 192); core.coda.0.ffn.0.bias(768,); core.coda.0.ffn.0.weight(768, 192); core.coda.0.ffn.2.bias(192,); core.coda.0.ffn.2.weight(192, 768); core.coda.0.norm1.bias(192,); core.coda.0.norm1.weight(192,); core.coda.0.norm3.bias(192,); core.coda.0.norm3.weight(192,); core.delta_in(192,); core.flow.a(192,); core.out_norm.bias(192,); core.out_norm.weight(192,); core.prelude.0.attn.kv.weight(384, 192); core.prelude.0.attn.out.weight(192, 192); core.prelude.0.attn.q.weight(192, 192); core.prelude.0.ffn.0.bias(768,); core.prelude.0.ffn.0.weight(768, 192); core.prelude.0.ffn.2.bias(192,); core.prelude.0.ffn.2.weight(192, 768); core.prelude.0.norm1.bias(192,); core.prelude.0.norm1.weight(192,); core.prelude.0.norm3.bias(192,); core.prelude.0.norm3.weight(192,); core.prelude_norm.bias(192,); core.prelude_norm.weight(192,); core.slots(4, 192); count_head.bias(15,); count_head.weight(15, 192); count_head_action.bias(15,); count_head_action.weight(15, 192); delay_head.0.bias(192,); delay_head.0.weight(192, 192); delay_head.2.bias(12,); delay_head.2.weight(12, 192); embed.bins.dose.weight(17, 192); embed.bins.rate.weight(17, 192); embed.bins.value.weight(17, 192); embed.categorical.action.weight(2, 192); embed.categorical.discharged_to.weight(2, 192); embed.categorical.rate_unit.weight(4, 192); embed.categorical.route.weight(2, 192); embed.categorical.status.weight(2, 192); embed.categorical.unit.weight(6, 192); embed.code.weight(13, 192); embed.ekind.weight(5, 192); embed.kind.weight(3, 192); embed.kq.weight(4, 192); embed.numeric.bias(192,); embed.numeric.weight(192, 6); embed.text.weight(2, 192); embed_transition.rate_bin.weight(221, 17); embed_transition.value_bin.weight(221, 17); encode.mlp1.0.bias(768,); encode.mlp1.0.weight(768, 192); encode.mlp1.2.bias(192,); encode.mlp1.2.weight(192, 768); encode.mlp2.0.bias(768,); encode.mlp2.0.weight(768, 192); encode.mlp2.2.bias(192,); encode.mlp2.2.weight(192, 768); encode.norm.bias(192,); encode.norm.weight(192,); encode.size.bias(192,); encode.size.weight(192, 1); encode_action.mlp1.0.bias(768,); encode_action.mlp1.0.weight(768, 192); encode_action.mlp1.2.bias(192,); encode_action.mlp1.2.weight(192, 768); encode_action.mlp2.0.bias(768,); encode_action.mlp2.0.weight(768, 192); encode_action.mlp2.2.bias(192,); encode_action.mlp2.2.weight(192, 768); encode_action.norm.bias(192,); encode_action.norm.weight(192,); encode_action.size.bias(192,); encode_action.size.weight(192, 1); exec_delay_head.0.bias(192,); exec_delay_head.0.weight(192, 192); exec_delay_head.2.bias(8,); exec_delay_head.2.weight(8, 192); exec_head.0.bias(192,); exec_head.0.weight(192, 192); exec_head.2.bias(5,); exec_head.2.weight(5, 192); filter_gate.bias(192,); filter_gate.weight(192, 384); filter_norm.bias(192,); filter_norm.weight(192,); gap.0.bias(192,); gap.0.weight(192, 1); gap.2.bias(192,); gap.2.weight(192, 192); last_numeric.bias(192,); last_numeric.weight(192, 8); last_status.weight(2, 192); monitor_head.0.bias(192,); monitor_head.0.weight(192, 192); monitor_head.2.bias(2,); monitor_head.2.weight(2, 192); pending_mlp.0.bias(192,); pending_mlp.0.weight(192, 192); pending_mlp.2.bias(192,); pending_mlp.2.weight(192, 192); query_norm.bias(192,); query_norm.weight(192,); time_head.0.bias(192,); time_head.0.weight(192, 192); time_head.2.bias(12,); time_head.2.weight(12, 192); type_emb.weight(15, 192); z_head.bias(192,); z_head.weight(192, 32); z_in.bias(192,); z_in.weight(192, 32); z_post.0.bias(192,); z_post.0.weight(192, 576); z_post.2.bias(64,); z_post.2.weight(64, 192); z_prior.0.bias(192,); z_prior.0.weight(192, 192); z_prior.2.bias(64,); z_prior.2.weight(64, 192)
+
+```

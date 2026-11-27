@@ -1,0 +1,35 @@
+OUTPUT of Python run 287 of at most 300:
+```
+def bstep(W,out,h,dt,e,u,Mt,ages):
+    # out (B,192) h (B,4,192) e,u (B,192) Mt (B,n,192) ages (n,) seconds
+    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+    g=bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+    ctx=out+bln(W,hf.mean(1),'core.out_norm')+g
+    z=bmlp(W,torch.cat([ctx,e,u],-1),'z_post')[:,:32]
+    tok=torch.cat([hf+W['core.slots'],e[:,None],u[:,None],blin(W,z,'z_in')[:,None]],1)
+    tok=bself(W,tok,'core.prelude.0'); E=bln(W,tok[:,:4],'core.prelude_norm')
+    ae=bmlp(W,torch.log1p(ages)[:,None],'core.age')
+    Mk=Mt+ae[None]
+    x=hf+E
+    for L in ['core.blocks.0.0','core.blocks.0.1']:
+        a_=bln(W,x,L+'.norm1'); x=x+bmha(W,a_,a_,L+'.attn')
+        x=x+bmha(W,bln(W,x,L+'.norm2'),Mk,L+'.cross')
+        x=x+bmlp(W,bln(W,x,L+'.norm3'),L+'.ffn')
+    sp=F.softplus(W['core.delta_in']); abar=torch.exp(-sp*torch.exp(W['core.a_in']))
+    h2=abar*hf+sp*(E@W['core.b_in.weight'].T)+(x-(hf+E))
+    y=bself(W,h2@W['core.c_out.weight'].T,'core.coda.0')
+    return bln(W,y.mean(1),'core.out_norm'), y, z
+def blin(W,x,n,bias=True):
+def bln(W,x,n): return F.layer_norm(x,(x.shape[-1],),W[n+'.weight'],W[n+'.bias'],1e-5)
+def bself(W,x,L):
+E_of names ('torch', 'exp', 'cat', 'bself', 'bln') vars ('W', 'h', 'dt', 'e', 'u', 'zt', 'hf', 'tok')
+collect_drug names ('torch', 'tensor', 'X0row', 'T', 'reshape', 'split_fix', 'set_enc', 'range', 'len', 'u_empty', 'append', 'stack', 'exp', 'bln', 'mean', 'bmlp', 'math', 'log', 'rate_of', 'int', 'round', 'PHI', 'get', 'np', 'nan', 'numpy', 'astype', 'float32', 'FAC', 'fix_atom2') vars ('W', 'B_', 'sidv', 'nedit', 'b', 'times', 'rows', 'urows', 'out', 'h', 'ea', 'ua', 'Ms', 'ts', 'k', 't', 'dt', 'atoms', 'e', 'u')
+base_of names ('torch', 'exp', 'bln', 'mean', 'bmlp', 'tensor', 'math', 'log', 'T') vars ('W', 'out', 'h', 'dt', 'hf')
+copyK names ('mu_ut', 'P28', 'T') vars ('u',)
+copyz names () vars ('ctx', 'e', 'u', 'info')
+c {'hf': (4, 192), 'e': (192,), 'u': (192,), 'ctx': (192,), 'info': ()}
+Pk (192, 30) ue_ ndarray (192,) K 30
+ins GATE [('ndarray', (192,)), ('float64', ()), ('float64', ())] DEC2 (193,) PH (193,) VD_ (192,) 3.5945377417513678
+ne GATE [('ndarray', (192,)), ('float64', ()), ('float64', ())] DEC2 (193,) PH (193,) VD_ (192,) 9.665132154602881
+
+```

@@ -1,0 +1,259 @@
+OUTPUT of Python run 147 of at most 300:
+```
+=== RECORD-BASED EFFECT ESTIMATES ===
+## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+## Forward requests 1 and 2
+Original factual NLL (tuning IDs 2020000000..99): 1.63461; provisional maximum 1.63961.
+Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours >=12": [
+      -2.04868,
+      0.05966,
+      0.61587,
+      142454
+    ],
+    "lower half of doses": [
+      -1.94372,
+      0.07221,
+      0.40383,
+      158100
+    ],
+    "upper half of doses": [
+      -2.01779,
+      0.05771,
+      0.73907,
+      95763
+    ],
+    "away from maximum": [
+      -1.99092,
+      0.04556,
+      0.59868,
+      253862
+    ],
+    "current primary observed": [
+      -1.99783,
+      0.0459,
+      0.60385,
+      246971
+    ]
+  },
+  "norepinephrine": {
+    "all active": [
+      3.29011,
+      0.09111,
+      0.13328,
+      146556
+    ],
+    "hours >=12": [
+      3.38311,
+      0.11624,
+      0.13967,
+      75241
+    ],
+    "lower half of doses": [
+      3.50921,
+      0.15079,
+      0.10196,
+      74248
+    ],
+    "upper half of doses": [
+      3.17119,
+      0.11255,
+      0.14585,
+      72308
+    ],
+    "away from maximum": [
+      3.29965,
+      0.10114,
+      0.1253,
+      124482
+    ],
+    "current primary observed": [
+      3.29235,
+      0.09268,
+      0.13325,
+      139375
+    ]
+  }
+}
+
+## Run 5
+Estimated 1..12 hour local projections using held-out history models. Subtracted subsequent-treatment feedback using future-dose residual covariances to estimate controlled impulse responses. Geometric summaries are tentative; long-lag selection and recursive estimation can amplify error. No weight edits yet.
+{
+  "insulin": {
+    "rows": [
+      {
+        "lag": 1,
+        "total_LP": -1.9915,
+        "controlled_impulse": -1.9915,
+        "total_LP_SE": 0.04557,
+        "next_dose_feedback": 0,
+        "n": 253863
+      },
+      {
+        "lag": 2,
+        "total_LP": -2.2912,
+        "controlled_impulse": -2.3867,
+        "total_LP_SE": 0.05054,
+        "next_dose_feedback": -0.0479,
+        "n": 227223
+      },
+      {
+        "lag": 3,
+        "total_LP": -1.8451,
+        "controlled_impulse": -2.0916,
+        "total_LP_SE": 0.05563,
+        "next_dose_feedback": -0.0497,
+        "n": 210298
+      },
+      {
+        "lag": 4,
+        "total_LP": -1.3483,
+        "controlled_impulse": -1.7057,
+        "total_LP_SE": 0.05969,
+        "next_dose_feedback": -0.0503,
+        "n": 196607
+      },
+      {
+        "lag": 5,
+        "total_LP": -0.772,
+        "controlled_impulse": -1.1955,
+        "total_LP_SE": 0.06484,
+        "next_dose_feedback": -0.0503,
+        "n": 184608
+      },
+      {
+        "lag": 6,
+        "total_LP": -0.4743,
+ 
+=== ACCEPTED INSULIN CANDIDATE AND STRENGTH TESTS ===
+## Run 103: candidate preparation
+Recovered stable DML immediate slopes: insulin -1.99285 (SE 0.04554), NE +3.29011 (SE 0.09111). Insulin state innovation decoder is useful; NE decoder is not. Checking standardized-feature conversion and exact cached value-head evaluation, then selecting low-contribution neurons for an insulin-only gated correction. No edits installed.
+
+## Run 104: local gated-insulin candidate
+Original tuning rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600. Provisional targets on those exact hours: insulin -13.599/+6.800, NE +4.746/-2.373. Constructed a raw-coordinate, latent-aware insulin gate/innovation correction using neurons 107/109; assessing local held-out NLL before installing any weights.
+
+## Run 105 result
+Installation aborted before save_edit: max logit reconstruction error 0.003045 exceeded numerical threshold 0.003. No edits saved. Likely cancellation between paired gated neurons; increasing their decoder separation to reduce numerical sensitivity.
+
+## Run 106: insulin candidate installed
+Increased symmetric decoder separation from 0.05 to 0.20 to reduce cancellation. Local checks passed; full-strength gated correction installed in value-head neurons 107/109, with mean compensation. Four value-head tensors edited. Awaiting paired GPU factual validation; not yet accepted.
+
+## Forward 10?11: first validated insulin candidate
+Four value-head tensors, hash 70c11c43ec. Paired tuning factual NLL:
+original 1.63461, edited 1.63592, delta +0.00131 (4751 readings).
+Dose shifts on the same 100 stays:
+original insulin -1.847/+0.777; edited -5.908/+2.782.
+Original NE -0.498/-0.600; edited -0.517/-0.615.
+Insulin intervention transmission improved substantially, but remains below
+provisional record-derived targets -13.599/+6.800. NE is not repaired.
+Backed up this factual-budget-compliant candidate in memory and
+/work/insulin_candidate_v1.npz before any further changes.
+
+## Runs 108?110: causal and construction recovery
+Immediate residual-dose effects are stable across hour/dose strata:
+insulin approximately -1.99 per rate unit; NE approximately +3.29.
+Cumulative targets use controlled impulse kernels and remain provisional.
+Recovered exact local amplitude evaluator and existing gated construction;
+testing scaling analytically before another weight installation.
+
+## Run 112: provisional insulin strength 2
+Scaled only the two correction output columns; gate, decoder, and
+removed-neuron mean compensation are unchanged.
+Local delta NLL at strength 2: all +0.002618, training +0.001343,
+held-out +0.006454. Held-out result is a generalization warning.
+This is a trial, not an accepted replacement. Saved strength-1 candidate
+remains available for immediate restoration. GPU factual check is next.
+
+## Restart / Runs 113?115 and Forward 12?13
+Strength-2 insulin candidate (hash 43d7176a64): paired factual NLL on tuning stays 2020000100..199 is 1.62310 vs 1.62044, delta +0.00266. On tuning stays 2020000000..99 its dose shifts are insulin x2 -10.248, half +5.053; NE x2 -0.513, half -0.604. Provisional record-derived targets for those rollout hours remain -13.599/+6.800 and +4.746/-2.373. Saved current strength-2 tensors in r115_strength2. Further amplification requires factual-budget validation; NE remains unrepaired.
+
+## Run 116: insulin strength-2.6 trial
+Installed strength 2.6 by scaling only value-head output columns 107/109 of the saved strength-1 construction. Gate, decoder, and removed-neuron mean compensation are unchanged. Strength-2 fallback remains in r115_strength2. This trial is not accepted pending a
+=== AVAILABLE RECENT VARIABLES ===
+['r107_backup', 'r108_lines', 'r108_notes', 'r108_start', 'r111_results', 'r112_candidate', 'r112_strength', 'r115_strength2', 'r116_candidate', 'r116_strength', 'r123_statefiles', 'r123_statepath', 'r123_states', 'r124_W', 'r124_context', 'r124_ctx', 'r124_ctx_error', 'r124_lin', 'r124_mlp', 'r124_norm', 'r124_pp', 'r124_probe_code', 'r124_probe_delta_rate', 'r124_x', 'r124_x_error', 'r125_dx', 'r125_ne', 'r125_original', 'r125_probe', 'r126_desc', 'r126_notes', 'r127_aligned', 'r127_ctx_e', 'r127_ctx_o', 'r127_dctx', 'r128_hits', 'r128_items', 'r129_pp_e', 'r129_pp_o', 'r129_q_e', 'r129_q_o', 'r129_queries', 'r129_register', 'r129_register_error', 'r131_best', 'r131_dx', 'r131_errors', 'r131_numpy', 'r131_queries', 'r131_reg_error', 'r131_register', 'r131_x_e', 'r131_x_o', 'r132_active', 'r132_candidates', 'r132_centered', 'r132_cov', 'r132_dmean', 'r132_family', 'r132_feat', 'r132_fit', 'r132_gate', 'r132_gate_scores', 'r132_gb', 'r132_gv', 'r132_mean', 'r132_response_fit', 'r132_response_val', 'r132_results', 'r132_trainX', 'r132_val', 'r136_H', 'r136
+[output cut at 10,000 characters]
+```

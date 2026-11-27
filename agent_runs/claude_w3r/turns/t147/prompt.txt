@@ -1,0 +1,65 @@
+OUTPUT of Python run 134 of at most 300:
+```
+===== /work/impl.py 4376
+6 def fbin(code, attr, x):
+8 def zsc(code, attr, x):
+11 def build_bundles(ev, opts):
+35     def __init__(self, W): self.W={k:torch.tensor(np.asarray(v)) for k,v in W.items()}
+36     def lin(self, x, name, bias=True):
+40     def mlp(self, x, name):
+42     def ln(self, x, name, eps=1e-5):
+44     def embed_atom(self, a, opts):
+56     def encode_set(self, X, name):
+60     def encode_bundle(self, atoms, opts):
+65     def ctx(self, out, h, dt_s):
+70     def zpost(self, ctx, e, u):
+===== /work/impl2.py 2401
+9 def m_of(g): return 0.0 if (g is None or g!=g) else MBAND[int(np.searchsorted(BANDS[1:],g,side='right'))]
+10 def fbin(code, attr, x):
+12 def zsc(code, attr, x):
+14 def read_stays(path, stays=None, usecols=('stay_id','hour','event','value','rate','dose','end_hour')):
+19     def __init__(self, W): self.W={k:torch.tensor(np.asarray(v)) for k,v in W.items()}; self.fa=self.W['core.flow.a']
+20     def L(self,x,n):
+23     def MLP(self,x,n): return self.L(Fnn.gelu(self.L(x,n+'.0')),n+'.2')
+24     def LN(self,x,n): return Fnn.layer_norm(x,(x.shape[-1],),self.W[n+'.weight'],self.W[n+'.bias'],1e-5)
+25     def ctx(self, out_, h_, dt):
+28     def zprior(self, ctx): pr=self.MLP(ctx,'z_prior'); return pr[...,:32], pr[...,32:]
+29     def wc(self, ctx, z, code_name, lv, age_s, typ=1):
+35     def hidden(self, wc): return Fnn.gelu(self.L(wc,'attr_heads.value_bin.0'))
+36     def logits(self, hid, trow): return self.L(hid,'attr_heads.value_bin.2')+self.W['embed_transition.value_bin.weight'][trow]
+===== /work/impl3.py 13218
+0     def load(name):
+6     def load_original(name):
+12     def save_edit(name, tensor):
+29     def drop_edit(name):
+38     def edited():
+45 def m_of(g): return 0.0 if (g is None or g!=g) else MBAND[int(np.searchsorted(BANDS[1:],g,side='right'))]
+48 def read_stays(path, stays=None, usecols=('stay_id','hour','event','value','rate','dose','end_hour')):
+78 def cross_val_predict(
+229         # For estimators, a MetadataRouter is created in get_metadata_routing
+230         # methods. For these router methods, we create the router to use
+231         # `process_routing` on it.
+240                 # TODO(SLEP6): also pass metadata for the predict method.
+247             # The default exception would mention `fit` since in the above
+248             # `process_routing` code, we pass `fit` as the caller. However,
+249             # the user is not calling `fit` directly, so we change the message
+250             # to make it more suitable for this case.
+271     # If classification methods produce multiple columns of output,
+272     # we need to manually encode classes to ensure consistent column ordering.
+291     # We clone the estimator to make sure that all the folds are
+292     # independent, and that it is pickle-able.
+313         # `predictions` is a list of method outputs from each fold.
+314         # If each of those is also a list, then treat this as a
+315         # multioutput-multiclass task. We need to separately concatenate
+316         # the method outputs for each label into an `n_labels` long list.
+core_step (hprev, outprev, dt, e, u, zk, Mem, Mage, var)
+run_stay (B, rows, EU, var, mask_prelude=False, mem_obs_only=False, ret=False)
+step_at (B, rows, EU, k, du=None, de=None)
+head_inputs (stay, hour, event)
+pred_mean_gf (y, o, dt_next, lv, age_s, code_name='glucose_finger')
+enc_eu (atoms)
+stay_data (s)
+step_parts (k, du=None, dE=None)
+core_step_v (hprev, dt, e, u, zk, Mem, Mage, dec_mode='std')
+
+```

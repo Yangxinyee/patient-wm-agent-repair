@@ -1,0 +1,183 @@
+OUTPUT of Python run 190 of at most 300:
+```
+=== PRIOR PATHWAY TESTS ===
+
+## Head computation tests ? Python 16; forward 4
+- State layout verified: out equals normalized mean(h) to ~1e-7 RMS.
+- Reconstruction glucose bias is predominantly in rows with a last-value register.
+- Testing separate prior/view gap scaling, age units, latent modes and bin boundaries; no edits.
+
+
+## Python 29; forward 4 ? first reversible edit
+- Estimated rollout targets by convolving recorded post-hour-12 rates with controlled impulse estimates; these are not intervention truth.
+        edit  exposed_stays  original_prediction  record_estimate_8_lags  record_estimate_with_tail
+  insulin_x2             52              -1.6118                -10.6853                   -10.9705
+insulin_half             52               0.7488                  5.3426                     5.4852
+       ne_x2             21               0.3234                  3.8352                     3.8352
+     ne_half             21              -0.0292                 -1.9176                    -1.9176
+- Probe only: multiplied encode_action.norm.weight and bias by 2, scaling action bundle vectors while leaving action-free bundles unchanged.
+- Must verify factual value-NLL <= original +0.005 and inspect paired dose responses; revert if unsuitable.
+
+
+## Restart ? Python 30; forward 5
+- Action encoder norm scaled by 2: tuning factual NLL 1.66215 versus original 1.66206, delta +0.00009 on 4,499 readings.
+- Factual probe passes; dose-rollout response remains untested.
+- Recovering architecture, early causal analyses, and retained objects before choosing the next paired rollout.
+
+
+## Python 31; forward 5
+- Architecture recovered: action effects can enter through z_post and prelude.
+- Recovering causal-analysis details, retained helpers, and tuning stay IDs after the previous display was truncated.
+
+
+## Python 32; forward 5
+- Recovered record-based identification: insulin immediate slope near -2; RD estimates agree and pre-dose lab placebo is near zero.
+- Printing only the rollout request, lag estimates, and relevant tensor shapes to avoid output truncation.
+
+
+## Python 33; forward 6 ? scaling rejected
+- Paired tuning rollout: original/scale2 insulin x2 -1.845/-1.838, half +1.021/+1.044; NE x2 +0.342/+0.285, half -0.032/-0.009.
+- Reverted both action norm edits: scaling has no useful causal amplification.
+- Next candidate: dose-innovation correction through z_post, using prior condition and action together, rather than shifting every factual dose.
+
+
+## Python 34; forward 6
+- No edits. Checking exact posterior inputs against exposed original latent means.
+- A dose-innovation correction will only be considered after held-out decoding and reconstruction checks, not from dose associations alone.
+
+
+## Python 35; forward 6 ? posterior reconstruction
+- Infusion endings are separate atoms; current-drug flags distinguish starts.
+- Searched categorical mappings and gap conventions on single-start bundles, matching original exposed posterior means, without editing weights.
+- Best encoding checks: {'insulin': (0.1312907487154007, (4, 3, 0, 1, 1, 0), 'log_seconds_div10', 'prior_plus'), 'norepinephrine': (0.13130687177181244, (2, 2, 0, 0, 0, 2), 'log_seconds_div10', 'prior_plus')}
+
+
+## Python 91; forward 6 ? compact convention audit
+- Posterior has 192 hidden features, allowing a low-rank statistical correction.
+- Checking absent embeddings, helper contracts, and the earlier scaling probe before fitting it.
+- No weights changed.
+
+
+=== COMPUTATION HELPERS ===
+core_step136 (h_before, dt_seconds, e, u, z, memory, ages, age_mode='key', mask=None) refs ('torch', 'exp', 'W', 'cat', 'linear136', 'norm136', 'block136', 'range', 'F', 'softplus', 'mean')
+singleton_encoder145 (atoms) refs ('mlp136', 'linear136', 'torch', 'full', 'len', 'np', 'log', 'float32', 'norm136')
+encode_rows152 (rows, groups, ends, prefix, units=True, ru=(2, 3), end_ekind=1, zero_empty=False) refs ('len', 'np', 'array', 'asarray', 'bool', 'codes', 'int64', 'where', 'event_kind_ids', 'code_info', 'W', 'torch', 'from_numpy', 'zeros', 'float32', 'get', 'nan', 'float', 'unique', 'numeric', 'flatnonzero', 'isfinite', 'clip', 'max', 'searchsorted', 'linear136
+readout153 (h, out, stay, current_hour, event, type_index=1) refs ('np', 'floor', 'float', 'torch', 'exp', 'W', 'norm136', 'mean', 'mlp136', 'full', 'len', 'log1p', 'linear136', 'zeros', 'last_tables153', 'get', 'int', 'searchsorted', 'numeric', 'clip', 'max', 'codes', 'softmax', 'centres153')
+readout_capture156 (h, out, stay, hour, event, type_index) refs ('readout153', '__code__', 'sys', 'getprofile', 'setprofile', 'torch', 'softmax', 'centres16_156')
+replay_inputs161 (i, include_current=False, age_scale=1.0) refs ('int', 'stays156', 'np', 'flatnonzero', 'indices_all161', 'len', 'ValueError', 'concatenate', 'state_cal161', 'reshape', 'torch', 'tensor', 'hours156', 'float32', 'e_cal161', 'unsqueeze', 'u_cal161')
+call_core161 (args, age_mode) refs ('core_step136', 'ndim')
+encode_actions168 (scales) refs ('act_rows152', 'dict', 'float', 'append', 'encode_rows152', 'act_groups152', 'len')
+features169 (u) refs ('torch', 'cat', 'context', 'E166', 'as_tensor', 'float32', 'F', 'gelu', 'linear', 'base169', 'np', 'stack', 'range', 'neurons169', 'numpy')
+batch_replay182 (Uall) refs ('mlp136', 'torch', 'cat', 'context', 'ids182', 'e_cal161', 'empty', 'n182', 'groups182', 'items', 'range', 'len', 'args_cache182', 'oldpost182', 'call_core161', 'tuple')
+evaluate_head183 (vector) refs ('fact_xa183', 'fact_logits183', 'numpy', 'tilt_np183', 'max', 'np', 'exp', 'sum', 'mean', 'pold183', 'log', 'clip', 'bin_index183', 'fact_bins183', 'old_nll183', 'float', 'fact_hold183', 'linalg', 'norm', 'contrasts182', 'drugs182', 'cal_hold183', 'slice', 'b
+
+=== RELEVANT WEIGHTS ===
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+
+=== RETAINED ARRAYS, RUNS 176?186 ===
+U179 dict keys ['base', 'insulin2', 'ne2']
+official_h180 torch.Size([1, 4, 192])
+official_out180 torch.Size([1, 192])
+drug_probes181 dict keys ['insulin', 'norepinephrine']
+errors181 dict keys [(False, 1.0), (False, 0.0002777777777777778), (True, 1.0), (True, 0.0002777777777777778)]
+rows_by_stay182 dict keys [1010000000, 1010000001, 1010000002, 1010000004, 1010000005, 1010000006, 1010000007, 1010000008, 1010000009, 1010000011, 1010000012, 1010000013]
+ids182 (258,)
+stays182 (258,)
+drugs182 (258,)
+rates182 (258,)
+groups182 dict keys [6, 10, 25, 37, 16, 20, 29, 33, 8, 22, 30, 44]
+oldpost182 torch.Size([258, 32])
+batch_replay182 function
+base_h182 torch.Size([258, 4, 192])
+base_o182 torch.Size([258, 192])
+official_h182 torch.Size([258, 4, 192])
+official_o182 torch.Size([258, 192])
+reg_terms182 torch.Size([258, 4, 192])
+base_x182 torch.Size([258, 4, 192])
+base_logits182 torch.Size([258, 4, 17])
+gap_features182 torch.Size([258, 192])
+gap_seconds182 torch.Size([258])
+base_q182 torch.Size([258, 192])
+batch_q182 function
+centres182 torch.Size([4, 17])
+tilt182 torch.Size([17])
+base_p182 torch.Size([258, 4, 17])
+base_mean182 torch.Size([258, 4])
+sensitivity182 torch.Size([258, 4])
+state_rows183 dict keys [1010000000, 1010000001, 1010000002, 1010000003, 1010000004, 1010000005, 1010000006, 1010000007, 1010000008, 1010000009, 1010000010, 1010000011]
+fact_ctx183 torch.Size([4510, 192])
+fact_reg183 torch.Size([4510, 192])
+fact_trans183 torch.Size([4510, 17])
+fact_stays183 (4510,)
+fact_bins183 (4510,)
+prior183 torch.Size([4510, 64])
+eps183 torch.Size([5, 4510, 32])
+zs183 torch.Size([5, 4510, 32])
+views183 torch.Size([5, 4510, 192])
+queries183 torch.Size([5, 4510, 192])
+fact_x183 torch.Size([5, 4510, 192])
+fact_logits183 torch.Size([5, 4510, 17])
+fact_p183 (5, 4510, 17)
+fact_xa183 (5, 4510, 193)
+unique_stays183 (100,)
+held_stays183 (25,)
+fact_hold183 (4510,)
+cal_hold183 (258,)
+xf183 (16770, 193)
+CX183 (193, 193)
+DX183 (3104, 193)
+Y183 (3104,)
+CD183 (193, 193)
+BD183 (193,)
+ridge183 ()
+pold183 (4510, 17)
+bin_index183 (4510,)
+old_nll183 (4510,)
+tilt_np183 (17,)
+evaluate_head183 function
+fits183 dict keys [1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0]
+find_vector186 function
+vector186 (193,)
+reconstructed186 torch.Size([4510, 17])
+delta_w186 (17, 192)
+delta_b186 (17,)
+Active edits: []
+
+```

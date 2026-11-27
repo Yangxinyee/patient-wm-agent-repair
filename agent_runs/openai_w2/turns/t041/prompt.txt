@@ -1,0 +1,86 @@
+OUTPUT of Python run 35 of at most 300:
+```
+=== NOTEBOOK SECTION DIGEST ===
+# World-model weight repair
+
+## Constraints
+- Infer drug effects solely from the supplied simulated records. - No model gradients or weight optimiser. - Preserve factual value NLL within +0.005 nats of original. - Maximum 300 Python runs and 50 forward requests.
+## Initial plan
+Read architecture and schema; examine treatment assignment and temporal variation; estimate effects with falsification checks; construct a targeted weight edit; validate factual fit and the exact rollout.
+## Run 1
+Inspecting architecture, tensor shapes, vocabulary, and sample records. No effect estimates or edits yet.
+## Run 2
+Architecture has separate observation and action encoders, with actions entering the latent posterior and recurrent prelude. Attribute heads also use last-value registers. This offers targeted editing routes, but no drug-effect conclusion has been drawn. Loaded both record files and inspected schema, vocabulary, distributions, and event timing.
+## Run 3
+Constructed complete hourly panels (-1 through 24), aligning infusions at hour+0.0833 to that hour's pre-dose measurements. Missing infusion records mean zero exposure. Auditing paired measurement channels, dose-assignment rules, and next-hour associations before estimating causal effects. No edits yet.
+## Original rollout, forward 1
+100 tuning stays: insulin x2 -3.226; insulin half +1.825; NE x2 +1.373; NE half -0.846. These are predictions, not truth.
+## Run 4: dose-threshold identification
+151.0, 181.0, 220.0, 260.0 -3.172, -1.8702 -3.0375, -1.8801 -0.0537, 0.2505 0.2667, 0.2881 -2.2535, -1.5694 -2.2333, -1.6165 -0.0735, 0.1027 0.266, 0.2796 -2.2041, -1.6694 -2.1757, -1.6925 -0.1206, 0.0204 0.2652, 0.2768 -3.2587, -1.9867 -0.1426, 0.1681
+## Run 5: recording-policy falsification
+Initial insulin RD was accompanied by a large discontinuity in future finger-reading availability, threatening identification. Rounded threshold values have half-jumps, so this audit uses cuts at 150/180/220/260 and excludes exact cut values. Testing lab outcomes and their availability separately, and unadjusted past-outcome placebos rather than treating history-adjusted placebos as decisive. -2.1
+## Run 6: independent effect checks
+Clean threshold RD supports insulin next-hour effect about -1.55/unit on lab readings. Lab availability is smooth at thresholds; unadjusted past-outcome placebos are null. Finger availability jumps, and its effect estimate is more negative. Fitting stay-crossfitted history-adjusted effects and two-sensor transition models. -2.1127, -1.8248 2.5591, 4.2918 2.334, 3.2265 0.1525, 0.8854 0.7326, 0.19
+## Run 10: NE threshold audit (mask fixed)
+sensor                outcome  bw  adjusted      n  dose_jump  outcome_jump    effect  cluster_se map_arterial          map_cuff_next   4      True  14427    0.03949       0.10173   2.57572     7.34530 map_arterial      map_arterial_next   4      True  45668    0.04012       0.16659   4.15265     2.69603 map_arterial          map_cuff_next   8      True  29723    0.03873       0.08150   2.10442   
+... END:  1010006618, 1010022570, 1010024912, 1010018574, 1010007662, 1010005808, 1010018322, 1010026881, 1010008553, 1010018559, 1010019209, 1010026994, 1010000842, 1010011240, 1010001344, 1010024931, 1010029456, 1010011674, 1010009179, 1010011705, 1010026618, 1010020196, 1010003937, 1010025179, 1010021143]
+## Run 11: rich pre-dose history, stay-crossfitted estimates
+label      n   effect  cluster_se  dose_residual_sd  outcome_residual_sd  seconds NE_cuff_both_current  28031  3.51113     0.46432           0.09161              6.82217      1.5 NE_arterial_both_current  89388  3.91356     0.16693           0.09039              4.27770      2.1 NE_cuff_all_histories 250000  3.61924     0.23487           0.06341              7.05825      3.6 insulin_lab_all_histor
+## Run 12: persistence and rollout target sensitivity
+drug     n  assumed_effect  persistence  cluster_se  cross_sensor_residual_cov insulin 15266           -1.55      0.99773     0.00781                  108.17329 insulin 15266           -1.80      1.00763     0.00782                  108.17329 insulin 15266           -2.00      1.01556     0.00784                  108.17329 norepinephrine 28031            3.00      0.89761     0.02096              
+... END:     155   7.8479 -3.9240 norepinephrine  4.00 0.70             155   5.1197 -2.5598 norepinephrine  4.00 0.80             155   6.5342 -3.2671 norepinephrine  4.00 0.90             155   8.7199 -4.3600 Targets assume linear, time-homogeneous drug effects; they are estimates, not tool-provided truth.
+## Restart, run 13: recovering architecture and kernel state
+No edits yet. Drug-effect evidence is promising, but glucose persistence near one requires further checks before fixing rollout targets. Inspecting architecture to identify a constrained, factual-preserving edit.
+## Run 16: local value-head reconstruction
+Forward 4 provides the factual baseline on the 100 state-sampled training stays: NLL 1.64320, 4660 readings. Testing activation, query type, gap scaling, and last-register layout before relying on a head-only edit.
+## Run 17: head reconstruction audit
+
+## Run 18: expanded register audit
+Head reconstruction remains provisional until systematic errors are explained.
+## Run 19: restart audit
+No edits. Best provisional head reconstruction still has mean RMSE 1.87 and NLL RMSE 0.24; recovering the exact architecture and previous evidence before deriving any factual-preserving weight edit.
+## Run 22: consolidated evidence and alignment audit
+Insulin clean lab threshold estimates approximately -1.55/rate unit; history-adjusted lab estimates approximately -1.97. NE rich-history estimates approximately +3.5 to +3.9/rate unit. Positive persistence is supported, but accumulated rollout targets remain uncertain. No edits; inspecting state/head alignment and exact features.
+## Run 24: register and activation audit
+MAP discrepancies can be explained by four-draw latent sampling. Searching glucose register flags and boundary conventions. Best config: {'activation': 'gelu', 'gap_mode': 'seconds_div10', 'type_id': 1, 'status_id': 0, 'age_mode': 'seconds_div10', 'zcol': 6, 'acol': 3, 'flags': (0,), 'mean_rmse': 3.579830679304847, 'nll_rmse': 0.40590378333394833, 'score': 4.797542029306692, 'gap_activation': 'gel
+## Runs 25?26: successful head reconstruction and diagnostic dose probe
+All 4660 reading means reconstructed without meaningful channel bias (glucose_finger -0.040, lab -0.091, MAP arterial -0.0002, cuff +0.003). Head config: GELU for gap/prior/value; query type 1; status 0; last flags (0,), age column 3, value-z column 6; age log1p(seconds)/10; bin side left. Original states: S_reference; baseline head features: head_original_features, 64 prior draws, seed 917. Run 2
+... END: ephrine': 0.30000000000000004}. Restore embed.numeric.weight after obtaining probe states. Bins are unchanged; the final correction must be tested with exact dose_edit. F includes current drug exposures: exclude the target drug's current exposure when estimating its assignment from pre-dose history.
+## Run 27: probe collected, original embedding restored
+Forward 5 returned 4350 bundle states for the same 100 training stays. Saved as S_probe; removed temporary embed.numeric.weight edit. Recovering architecture and kernel analysis before constructing a lasting correction.
+## Run 30: matched head-dose probe
+Probe rows align exactly. RMS state differences: out 0.01181, h 0.7450, posterior z 0.04997. Original embedding remains restored. Used validated head_cfg and matched state globals to compute head_probe_features with the same 64 prior draws (seed 917); head_probe_delta_hidden records the controlled hidden-feature changes.
+
+=== FUNCTIONS ===
+load (name)
+load_original (name)
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+compact (x)
+make_panel (df)
+clustered_last_coef (X, y, clusters)
+insulin_rd (outcome, label, bandwidth, adjusted=True)
+clean_insulin_rd (outcome, label, bandwidth, adjusted=True)
+fit_dml (drug, outcome, label, extra_mask, max_rows=240000)
+local_iv (data, running, outcome, cutoff=65, bw=8, adjust=True)
+rich_dml (drug, outcome, label, extra=None, max_rows=250000)
+sensor_iv_persistence (gold, proxy, drug, drug_effect)
+linear_rollout_targets (data_panel, drug, b, a)
+softmax (x, axis=None)
+logsumexp (a, axis=None, b=None, keepdims=False, return_sign=False)
+hw (name)
+act_fn (x, activation)
+head_mlp (x, prefix, activation)
+head_norm (x, prefix)
+local_value_head (data, cfg, bin_side='left', zmode='prior_mean', nsamples=32, return_features=False, seed=917)
+eigh (a, b=None, *, lower=True, eigvals_only=False, overwrite_a=False, overwrite_b=False, type=1, check_finite=True, subset_by_index=None, subset_by_value=None, driver=None)
+
+=== NONTRIVIAL DATA OBJECTS ===
+SHAPES dict 181 keys ['code_bias', 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.kq.weight', 'embed.text.weight']
+VOCAB dict 8 keys ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note']
+Traceback (most recent call last):
+  File "<run>", line 35, in <module>
+TypeError: '>=' not supported between instances of 'numpy._ArrayFunctionDispatcher' and 'int'
+
+```

@@ -1,0 +1,21 @@
+OUTPUT of Python run 232 of at most 300:
+```
+def value_mean(ctx, codes, lastv, lastage_s, typ=1, lay=0, nz=0, seed=0, extra_view=None):
+    """ctx (N,192); codes list of str; lastv (N,) nan if none; lastage_s (N,). returns mean (N,), probs (N,17)"""
+    N = ctx.shape[0]; mu, ls = zprior2(ctx)
+    if nz==0: Z = mu[None]
+    else:
+        g = torch.Generator().manual_seed(seed); eps = torch.randn((nz,N,32), generator=g, dtype=torch.float64)
+        Z = mu[None] + torch.exp(ls)[None]*eps
+    view = ctx[None] + lin2(Z,'z_head')
+    if extra_view is not None: view = view + extra_view[None]
+    q = F_.layer_norm(view + T64('type_emb.weight')[typ], (192,), T64('query_norm.weight'), T64('query_norm.bias'), 1e-5)
+    cid = torch.tensor([CID[c] for c in codes])
+    has = torch.tensor(~np.isnan(lastv), dtype=torch.float64)
+    zl = torch.tensor([0.0 if np.isnan(v) else float(zsc(c,'value',v)) for c,v in zip(codes,lastv)], dtype=torch.float64)
+    ag = torch.tensor(np.where(np.isnan(lastv),0.0,np.log1p(np.nan_to_num(lastage_s))/10.0), dtype=torch.float64)
+    feats = torch.zeros((N,8), dtype=torch.float64)
+    if lay==0: feats[:,0]=has; fe
+ERR ValueError('setting an array element with a sequence. The requested array has an inhomogeneous shape after 2 dimensions. The detected shape was (2, 192) + inhomogeneous part.')
+
+```

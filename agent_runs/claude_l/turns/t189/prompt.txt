@@ -1,0 +1,192 @@
+OUTPUT of Python run 178 of at most 300:
+```
+
+import torch, math, numpy as np
+import torch.nn.functional as F
+T=torch.float64
+G_=F.gelu
+def blin(W,x,n,bias=True):
+    y=x@W[n+'.weight'].T
+    if bias and (n+'.bias') in W: y=y+W[n+'.bias']
+    return y
+def bmlp(W,x,n): return blin(W,G_(blin(W,x,n+'.0')),n+'.2')
+def bln(W,x,n): return F.layer_norm(x,(x.shape[-1],),W[n+'.weight'],W[n+'.bias'],1e-5)
+def bmha(W,xq,xkv,n,H=4):
+    # xq (B,nq,192) xkv (B,nk,192)
+    B,nq,_=xq.shape; nk=xkv.shape[1]; dh=192//H
+    q=(xq@W[n+'.q.weight'].T).reshape(B,nq,H,dh).transpose(1,2)
+    kv=xkv@W[n+'.kv.weight'].T; k=kv[...,:192].reshape(B,nk,H,dh).transpose(1,2); v=kv[...,192:].reshape(B,nk,H,dh).transpose(1,2)
+    att=torch.softmax((q@k.transpose(-1,-2))/math.sqrt(dh),-1)
+    o=(att@v).transpose(1,2).reshape(B,nq,192)
+    return o@W[n+'.out.weight'].T
+def bself(W,x,L):
+    a=bln(W,x,L+'.norm1'); x=x+bmha(W,a,a,L+'.attn')
+    return x+bmlp(W,bln(W,x,L+'.norm3'),L+'.ffn')
+def bstep(W,out,h,dt,e,u,Mt,ages):
+    # out (B,192) h (B,4,192) e,u (B,192) Mt (B,n,192) ages (n,) seconds
+    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+    g=bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+    ctx=out+bln(W,hf.mean(1),'core.out_norm')+g
+    z=bmlp(W,torch.cat([ctx,e,u],-1),'z_post')[:,:32]
+    tok=torch.cat([hf+W['core.slots'],e[:,None],u[:,None],blin(W,z,'z_in')[:,None]],1)
+    tok=bself(W,tok,'core.prelude.0'); E=bln(W,tok[:,:4],'core.prelude_norm')
+    ae=bmlp(W,torch.log1p(ages)[:,None],'core.age')
+    Mk=Mt+ae[None]
+    x=hf+E
+    for L in ['core.blocks.0.0','core.blocks.0.1']:
+        a_=bln(W,x,L+'.norm1'); x=x+bmha(W,a_,a_,L+'.attn')
+        x=x+bmha(W,bln(W,x,L+'.norm2'),Mk,L+'.cross')
+        x=x+bmlp(W,bln(W,x,L+'.norm3'),L+'.ffn')
+    sp=F.softplus(W['core.delta_in']); abar=torch.exp(-sp*torch.exp(W['core.a_in']))
+    h2=abar*hf+sp*(E@W['core.b_in.weight'].T)+(x-(hf+E))
+    y=bself(W,h2@W['core.c_out.weight'].T,'core.coda.0')
+    return bln(W,y.mean(1),'core.out_norm'), y, z
+def bview(W,out,h,dt,zs=None,gen=None,nz=4):
+    # returns views (B,nz,192) ; zs: if None draw from prior
+    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+    base=out+bln(W,hf.mean(1),'core.out_norm')+bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+    zp=bmlp(W,base,'z_prior')
+    if zs is None:
+        eps=torch.randn(base.shape[0],nz,32,generator=gen,dtype=T)
+    else: eps=zs
+    z=zp[:,None,:32]+torch.exp(zp[:,None,32:])*eps
+    return base[:,None,:]+blin(W,z,'z_head')
+def bvalue_probs(W,views,code,has,age_s,zlast,vblast):
+    # views (B,nz,192); has,age_s,zlast (B,), vblast (B,) long
+    q=bln(W,views+W['type_emb.weight'][1],'query_norm')
+    B=views.shape[0]; f=torch.zeros(B,8,dtype=T); f[:,0]=has; f[:,3]=torch.log1p(age_s)/10*has; f[:,6]=zlast
+    wc=q+(W['embed.code.weight'][code]+blin(W,f,'last_numeric')+W['embed.bins.value.weight'][vblast]+W['embed.bins.rate.weight'][0])[:,None,:]
+    lg=bmlp(W,wc,'attr_heads.value_bin')+W['embed_transition.value_bin.weight'][code*17+vblast][:,None,:]
+    return torch.softmax(lg,-1).mean(1)   # (B,17)
+
+=====
+
+DRUGN={8:'insulin',9:'norepinephrine'}
+def edit_atom(a, f):
+    nm=DRUGN[a['code']]
+    dm,di=NUMV[(nm,'dose')]['median'],NUMV[(nm,'dose')]['iqr']; rm,ri=NUMV[(nm,'rate')]['median'],NUMV[(nm,'rate')]['iqr']
+    dose=a['num'][2]*di+dm; rate=a['num'][4]*ri+rm
+    b=dict(a); b['num']=(0,0,zsc(nm,'dose',dose*f),1,zsc(nm,'rate',rate*f),1)
+    b['db']=fbin_f32(nm,'dose',dose*f); b['rb']=fbin_f32(nm,'rate',rate*f); return b
+def u_for(atoms, t, cond, t_edit):
+    ua=[a for a in atoms if a['act'] and a['kind']==0]
+    if not ua: return u_empty
+    if cond is not None and t>=t_edit:
+        dcode,f=cond; ua=[edit_atom(a,f) if a['code']==dcode else a for a in ua]
+    return set_enc(W0c[0], [fix_atom2(a) for a in ua], 'encode_action')
+W0c=[W0]
+def rollout(W, B_, conds, npaths=20, seed=0, t_edit=12.0, t_hide=13.0, nz=4):
+    W0c[0]=W
+    C=len(conds); Bt=C*npaths; gen=torch.Generator().manual_seed(seed)
+    times=[b[0] for b in B_]
+    k0=next(k for k,t in enumerate(times) if t>t_edit-1e-9 and any(a['act'] for a in B_[k][1]) or t>=t_hide)
+    out=None; h=None; Ms=[]; ts=[]
+    for k in range(k0):
+        e,u=enc_eu2(B_[k][1]) if W is W0 else (None,None)
+        if W is not W0:
+            ea,ua=split_fix(B_[k][1]); e=set_enc(W,ea,'encode'); u=set_enc(W,ua,'encode_action') if ua else u_empty
+        if k==0:
+            out=torch.tensor(Xs[0,:192],dtype=T)[None] if False else None
+        if k>0:
+            Mt=torch.stack(Ms+[e])[None]; ages=torch.tensor([(times[k]-tj)*3600.0 for tj in ts+[times[k]]],dtype=T)
+            out,h,_=bstep(W,out,h,(times[k]-times[k-1])*3600.0,e[None],u[None],Mt,ages)
+        else:
+            out=torch.tensor(X0row[:192],dtype=T)[None]; h=torch.tensor(X0row[192:960],dtype=T).reshape(1,4,192)
+        Ms.append(e); ts.append(times[k])
+    # registers per code from prefix
+    reg={}
+    for k in range(k0):
+        for a in B_[k][1]:
+            if a['code'] in MEASC and a['kind']==0: reg[a['code']]=(times[k], a['num'][0], a['vb'])
+    out=out.repeat(Bt,1); h=h.repeat(Bt,1,1); M=torch.stack(Ms)[None].repeat(Bt,1,1)
+    RG={c:(torch.full((Bt,),v[0],dtype=T), torch.full((Bt,),v[1],dtype=T), torch.full((Bt,),v[2],dtype=torch.long)) for c,v in reg.items()}
+    rec={}
+    for k in range(k0,len(B_)):
+        t=times[k]; dt=(t-times[k-1])*3600.0; atoms=B_[k][1]
+        ea,ua=split_fix(atoms)
+        meas=[i for i,a in enumerate(ea) if a['code'] in MEASC and a['kind']==0]
+        rows=(atom_matrix(W,ea) if ea else torch.zeros(0,192,dtype=T))[None].repeat(Bt,1,1)
+        if t>=t_hide and meas:
+            eps=torch.randn(npaths,nz,32,generator=gen,dtype=T).repeat(C,1,1)
+            views=bview(W,out,h,dt,zs=eps)
+            U=torch.rand(npaths,len(meas),generator=gen,dtype=T).repeat(C,1)
+            for j,i in enumerate(meas):
+                c=ea[i]['code']
+                if c in RG: tl,zl,vl=RG[c]; has=torch.ones(Bt,dtype=T); age=(t-tl)*3600.0
+                else: has=torch.zeros(Bt,dtype=T); age=torch.zeros(Bt,dtype=T); zl=torch.zeros(Bt,dtype=T); vl=torch.zeros(Bt,dtype=torch.long)
+                p=bvalue_probs(W,views,c,has,age,zl,vl)
+                pm=(p[:,1:]*torch.tensor(CENd[c],dtype=T)).sum(1)
+                rec[(round(t),c)]=pm.reshape(C,npaths).numpy()
+                q=p[:,1:]/p[:,1:].sum(1,keepdim=True); cdf=torch.cumsum(q,1)
+                b=(U[:,j:j+1]>cdf).sum(1).clamp(max=15)+1
+                x=torch.tensor(CENd[c],dtype=T)[b-1]
+                md,iq=MED[c]; zv=((x-md)/iq).clamp(-10,10)
+                rows[:,i,:]=rows[:,i,:]+W['embed.bins.value.weight'][b]-W['embed.bins.value.weight'][ea[i]['vb']]+(zv-ea[i]['num'][0])[:,None]*W['embed.numeric.weight'][:,0]
+                RG[c]=(torch.full((Bt,),t,dtype=T), zv, b)
+        else:
+            for i in meas:
+                c=ea[i]['code']; RG[c]=(torch.full((Bt,),t,dtype=T), torch.full((Bt,),ea[i]['num'][0],dtype=T), torch.full((Bt,),ea[i]['vb'],dtype=torch.long))
+        e=bset_enc(W,rows,'encode') if ea else set_enc(W,[],'encode')[None].repeat(Bt,1)
+        u=torch.cat([u_for(atoms,t,cd,t_edit)[None].repeat(npaths,1) for cd in conds],0)
+        M=torch.cat([M,e[:,None]],1); ts.append(t)
+        ages=torch.tensor([(t-tj)*3600.0 for tj in ts],dtype=T)
+        out,h,_=bstep(W,out,h,dt,e,u,M,ages)
+    return rec
+
+=====
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.a_in (192,)
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+core.slots (4, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+```

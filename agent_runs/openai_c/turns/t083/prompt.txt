@@ -1,0 +1,110 @@
+OUTPUT of Python run 56 of at most 300:
+```
+=== EARLY NOTEBOOK ===
+# World-model repair notebook
+
+## Initial inspection
+- Python runs: 1; forward passes: 0.
+- No weight edits made.
+- Read architecture, record definitions, vocabulary and tensor shapes first.
+- Drug effects are unknown. No medical assumptions will be used.
+- Plan: establish effects from treatment variation in the records, inspect the model's corresponding predictions, then test targeted weight edits against both dose rollouts and the factual NLL constraint.
+
+## Inspection, run 2
+- First output was truncated after the vocabulary; loaded records and requested compact summaries.
+- Architecture separates action encoding from observation encoding. Candidate edits must still be justified by estimated drug effects.
+- No weight edits; no forward passes.
+
+## Run 3: hourly panels and preliminary regressions
+- Infusions begin at hour + 0.0833, after readings, and run one hour.
+- Built complete -1..24 panels; absent infusion means rate zero.
+- Preliminary adjusted slopes are associations, not yet established causal effects. Need nonlinear adjustment and independent checks.
+- Sensor/dose summaries printed. Preliminary estimates: {('glucose_finger', 'insulin'): {'n': 400154, 'raw_slope': np.float64(27.415433254830994), 'adjusted_slope': np.float64(-0.813008629750258), 'cluster_se': np.float64(0.04208575715363863), 'residual_rmse': np.float64(13.420845287662623)}, ('glucose_lab', 'insulin'): {'n': 143791, 'raw_slope': np.float64(30.153346410333576), 'adjusted_slope': np.float64(-0.7489972769612019), 'cluster_se': np.float64(0.06732977710214152), 'residual_rmse': np.float64(11.56030767772446)}, ('map_arterial', 'norepinephrine'): {'n': 328940, 'raw_slope': np.float64(-30.026406261425024), 'adjusted_slope': np.float64(0.8529804747023586), 'cluster_se': np.float64(0.08565469619687506), 'residual_rmse': np.float64(4.43480783695137)}, ('map_cuff', 'norepinephrine'): {'n': 439865, 'raw_slope': np.float64(-33.90418077217516), 'adjusted_slope': np.float64(-4.774212872772716), 'cluster_se': np.float64(0.1866481398966458), 'residual_rmse': np.float64(7.695480574994642)}}
+- Probe stays: tuning IDs 2020000000..2020000099; independent validation IDs 2020000200..2020000299.
+- Python runs: 3; forward passes: 0; no edits.
+
+## Run 4 / forwards 1?2: causal diagnostics and baselines
+- Original probe factual NLL: 1.63461; allowed increase 0.005.
+- Original dose rollouts: {'insulin_x2': -1.847, 'insulin_half': 0.777, 'ne_x2': -0.498, 'ne_half': -0.6}
+- Insulin threshold estimates: {('glucose_finger', 1, 6): {'n': 94569, 'rate_jump': 0.676820167360905, 'outcome_jump': -1.469092110147066, 'effect': -2.1705796916120748, 'se': 0.2823686119400948}, ('glucose_finger', 1, 10): {'n': 158690, 'rate_jump': 0.800859016409116, 'outcome_jump': -1.7400345142239886, 'effect': -2.172710150690366, 'se': 0.18469317346762512}, ('glucose_finger', 1, 14): {'n': 223106, 'rate_jump': 0.8605678363604209, 'outcome_jump': -1.767739842270549, 'effect': -2.0541551375505844, 'se': 0.14557496818862847}, ('glucose_lab', 1, 6): {'n': 22161, 'rate_jump': 0.6106859197361182, 'outcome_jump': -0.9623250088225842, 'effect': -1.575810048540847, 'se': 0.4515120296985709}, ('glucose_lab', 1, 10): {'n': 36635, 'rate_jump': 0.7512887970002406, 'outcome_jump': -1.1779938611589744, 'effect': -1.5679640983101166, 'se': 0.2826879624651828}, ('glucose_lab', 1, 14): {'n': 50919, 'rate_jump': 0.8293928985338691, 'outcome_j
+
+=== RELEVANT TENSORS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.a_in (192,)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+core.flow.a (192,)
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed_transition.value_bin.weight (221, 17)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+query_norm.bias (192,)
+query_norm.weight (192,)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+
+=== PAIRED STATE CHANGES ===
+out delta RMS 0.014741 factual centered RMS 0.199548
+  has_insulin rows 1024 delta RMS 0.005776
+  has_norepinephrine rows 831 delta RMS 0.027176
+h delta RMS 1.07152 factual centered RMS 14.720906
+  has_insulin rows 1024 delta RMS 0.471544
+  has_norepinephrine rows 831 delta RMS 1.921956
+z delta RMS 0.087948 factual centered RMS 0.496104
+  has_insulin rows 1024 delta RMS 0.148021
+  has_norepinephrine rows 831 delta RMS 0.184149
+
+=== CAUSAL RESULTS AND BASELINE ROLLOUTS ===
+baseline_rollouts {'insulin_x2': -1.847, 'insulin_half': 0.777, 'ne_x2': -0.498, 'ne_half': -0.6}
+dml_results {('glucose_finger', 'all'): {'n': 400154, 'effect': -1.9205123153267514, 'se': 0.046687521700809545, 'dose_residual_sd': 0.49018342634703577, 'outcome_residual_sd': 12.422922826191442}, ('glucose_finger', 'fresh'): {'n': 298450, 'effect': -1.9349220454366567, 'se': 0.047097440462058895, 'dose_residual_sd': 0.5639277025139702, 'outcome_residual_sd': 12.3318485715214}, ('map_arterial', 'all'): {'n': 328940, 'effect': 3.062084804446521, 'se': 0.08898857289398902, 'dose_residual_sd': 0.09352020066962713, 'outcome_residual_sd': 4.325493241423042}, ('map_arterial', 'fresh'): {'n': 312563, 'effect': 3.1166978915729437, 'se': 0.0891845742058681, 'dose_residual_sd': 0.09349417174331442, 'outcome_residual_sd': 4.295459295140099}}
+dynamic_moments {'insulin': [{'h': 1, 'n': 223106, 'effect': -2.054155137550587, 'se': 0.1455749681886286, 'phi': [1.0]}, {'h': 2, 'n': 205065, 'effect': -1.9215505007955112, 'se': 0.15973192071265485, 'phi': [1.0, 0.025215871026567586]}, {'h': 4, 'n': 182164, 'effect': -1.30868113770493, 'se': 0.19061378818234964, 'phi': [1.0, 0.04948621470637709, -0.005534859740399555, -0.01710917618348411]}, {'h': 6, 'n': 163583, 'effect': -0.6953659704972652, 'se': 0.2156277623132073, 'phi': [1.0, 0.05780741421219487, -0.005006001563280803, -0.020813196722217174, -0.03845105671049845, -0.02815311855012386]}], 'norepinephrine': [{'h': 1, 'n': 312563, 'effect': 3.116538954905723, 'se': 0.08932562245910886, 'phi': [1.0]}, {'h': 2, 'n': 299506, 'effect': 4.860383476324453, 'se': 0.1068007636923712, 'phi': [1.0, 0.7508293535077544]}, {'h': 4, 'n': 273503, 'effect': 5.158283324771074, 'se': 0.13259557350076712, 'phi': [1.0, 0.7560151330798912, 0.5911606243095916, 0.4716599701183076]}, {'h': 6, 'n': 247499, 'effect': 3.9048242277985303, 'se': 0.15550859589971106, 'phi': [1.0, 0.7613918338652426, 0.5983575838047945, 0.4797127918586145, 0.3880467773670123, 0.3179327899297267]}]}
+probe_targets None
+
+=== SAVED CANDIDATES ===
+['numeric_gain4', 'slot_shear_015', 'slot_shear_008', 'head_ne_pilot', 'numeric_value_mix_m2', 'latent_in_gain21', 'outnorm_diag_010', 'numeric_gain16', 'query_gain15']
+
+=== DATA VARIABLES ===
+Xdf (328940, 45) ['glucose_finger', 'glucose_finger_previous', 'glucose_finger_previous2', 'glucose_finger_observed', 'glucose_finger_square', 'glucose_lab', 'glucose_lab_previous', 'glucose_lab_previous2', 'glucose_lab_observed', 'glucose_lab_square', 'map_arterial', 'map_arterial_previous', 'map_arterial_previous2', 'map_arterial_observed', 'map_arterial_square', 'map_cuff']
+_df (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+baseline_factual (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+controls (780000, 44) ['glucose_finger', 'glucose_finger_previous', 'glucose_finger_previous2', 'glucose_finger_observed', 'glucose_finger_square', 'glucose_lab', 'glucose_lab_previous', 'glucose_lab_previous2', 'glucose_lab_observed', 'glucose_lab_square', 'map_arterial', 'map_arterial_previous', 'map_arterial_previous2', 'map_arterial_observed', 'map_arterial_square', 'map_cuff']
+d (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+df (26251, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+df6 (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+f14e (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+f14o (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+f16 (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+frame (989, 8) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'last_value', 'last_hour']
+lag1 (780000, 4) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+lag2 (780000, 4) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+last (780000, 4) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+original_rollout (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+panel (780000, 6) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine']
+panel_tuning (10400, 6) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine']
+pred_train (4510, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+q_probe (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'delta_mean', 'delta_nll']
+q_probe_base (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+q_probe_edited (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+q_probe_original (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+s (342696, 3) ['map_arterial', 'norepinephrine', 'reading_band']
+sc (4035, 44) ['glucose_finger', 'glucose_finger_previous', 'glucose_finger_previous2', 'glucose_finger_observed', 'glucose_finger_square', 'glucose_lab', 'glucose_lab_previous', 'glucose_lab_previous2', 'g
+[output cut at 10,000 characters]
+```

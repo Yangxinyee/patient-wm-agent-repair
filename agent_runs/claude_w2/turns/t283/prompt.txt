@@ -1,0 +1,73 @@
+OUTPUT of Python run 269 of at most 300:
+```
+90 lines total; design_build lines: 68
+def design_build(W,Dd,P):
+    Wn={k:_np(v).copy() for k,v in W.items()}; O={k:v.copy() for k,v in Wn.items()}; rep={}
+    XU,isIu,key,SOL=Dd['XU'],Dd['isIu'],Dd['key'],Dd['SOL']
+    E0=enc_u(O,XU,key); pool0,pe,cnt0=E0['pool'],E0['pe'],E0['cnt']
+    # pooled channel dirs: centered cov (empty weighted 1/2)
+    Pd=np.vstack([pool0,np.repeat(pe[None],len(pool0)//2,0)]); mu=Pd.mean(0); C=np.cov(Pd.T)
+    ev,evec=np.linalg.eigh(C); c1I,c1N=evec[:,0],evec[:,1]; rep['ev_pool']=ev[:2]
+    # mlp1 units
+    u1=P['u1']; W1,b1,W2,b2=[Wn['encode_action.mlp1.'+s] for s in ['0.weight','0.bias','2.weight','2.bias']]
+    act1=_gelu(XU@O['encode_action.mlp1.0.weight'].T+O['encode_action.mlp1.0.bias'])
+    for nm,u,c,sg in zip(['I1','I2','N1','N2'],u1,[c1I,c1I,c1N,c1N],[1,-1,1,-1]):
+        b2+=O['encode_action.mlp1.2.weight'][:,u]*act1[:,u].mean()
+        W1[u]=SOL[nm][:192]; b1[u]=SOL[nm][192]; W2[:,u]=sg*P['s1']*c
+    # mlp2: project out c1 dirs from orig units, gated channel units
+    W3,b3,W4,b4=[Wn['encode_action.mlp2.'+s] for s in ['0.weight','0.bias','2.weight','2.bias']]
+    for c in [c1I,c1N]:
+        wc=W3@c; b3+=wc*(c@mu); W3-=np.outer(wc,c)
+    nd=np.r_[cnt0,np.zeros(1)]; Pg=np.vstack([pool0,pe[None]])
+    Pp=Pg-np.outer(Pg@c1I,c1I)-np.outer(Pg@c1N,c1N)
+    sol=np.linalg.lstsq(np.c_[Pp,np.ones(len(Pp))],np.where(nd<=1,1.0,-1.0),rcond=None)[0]
+    g=sol[:192]-c1I*(c1I@sol[:192])-c1N*(c1N@sol[:192]); g0=sol[192]; gp=Pg@g+g0
+    rep['gate_err']=np.abs(gp-np.where(nd<=1,1.0,-1.0)).max()
+    act2=_gelu(pe@O['encode_action.mlp2.0.weight'].T+O['encode_action.mlp2.0.bias'])
+    for u in P['u2']: b4+=O['encode_action.mlp2.2.weight'][:,u]*act2[u]
+    B,G,beta=P['B'],P['G'],P['beta']; mI,mN=c1I@mu,c1N@mu
+    # target directions: dhat in LN1 space (quiet over all prelude tokens), mean-constraints
+    xn=Dd['xn']; g1=Wn['core.prelude.0.norm1.weight']; ge=Wn['encode_action.norm.weight']
+    Mx=np.einsum('ntd,nte->de',xn,xn)/(xn.shape[0]*xn.shape[1])
+    Cc=np.c_[1/g1,1/(g1*ge)]
+    if 'Dh' in P: Dh=P['Dh']; rep['ev_xn']=np.diag(Dh.T@Mx@Dh)
+    else: Dh,evx=_small_dirs(Mx,Cc,2); rep['ev_xn']=evx
+    su=_lnstd(Dd['X7'][:,5]).mean(); sx2=_lnstd(E0['x2']).mean(); rep['su,sx2']=(su,sx2)
+    c2={}
+    for i,(dn,kap) in enumerate([('I',P['kapI']),('N',P['kapN'])]):
+        c2[dn]=sx2*su*kap/(beta*P['s1'])*(Dh[:,i]/(g1*ge))
+    for us,c,m,dn in [(P['u2'][0:4],c1I,mI,'I'),(P['u2'][4:8],c1N,mN,'N')]:
+        uA,uA2,uB,uB2=us
+        W3[uA]=beta*c+G*g; b3[uA]=B-beta*m+G*g0-G; W4[:,uA]=c2[dn]
+        W3[uA2]=G*g; b3[uA2]=B+G*g0-G; W4[:,uA2]=-c2[dn]
+        W3[uB]=np.sqrt(2)*beta*c-G*g; b3[uB]=B-np.sqrt(2)*beta*m-G*g0-G; W4[:,uB]=c2[dn]
+        W3[uB2]=-G*g; b3[uB2]=B-G*g0-G; W4[:,uB2]=-c2[dn]
+    # prelude kv: remove dhat reading, head-2 private value dims
+    K=Wn['core.prelude.0.attn.kv.weight']; att=Dd['att']
+    vt=np.einsum('ntd,ed->nte',xn,O['core.prelude.0.attn.kv.weight'][192+96:192+144])
+    oh=np.einsum('nst,nte->nse',att[:,2,:4,:],vt); Mv=np.einsum('nse,nsf->ef',oh,oh)/(oh.shape[0]*4)
+    evv,evecv=np.linalg.eigh(Mv); vh=evecv[:,:2]; rep['ev_v']=evv[:2]
+    for i in range(2):
+        d=Dh[:,i]; K-=np.outer(K@d,d)
+    for i in range(2): K[192+96:192+144]+=P['gv']*np.outer(vh[:,i],Dh[:,i])
+    # out projection target dirs: max linear gain into out
+    sp=np.log1p(np.exp(Wn['core.delta_in'])); sp=sp.reshape(-1,192).mean(0) if sp.size>=192 else np.full(192,float(sp)
+    gpn=Wn['core.prelude_norm.weight']; gon=Wn['core.out_norm.weight']
+    sX=_lnstd(Dd['X7'][:,:4]).mean(); sy=Dd['sy']; Pc=np.eye(192)-1/192
+    J=np.diag(gon/sy)@Pc@Wn['core.c_out.weight']@np.diag(sp)@Wn['core.b_in.weight']@np.diag(gpn/sX)@Pc
+    Uj,Sj,Vj=np.linalg.svd(J); c3=Vj[:2].T; rep['sJ']=Sj[:2]
+    Wo=Wn['core.prelude.0.attn.out.weight']; blk=Wo[:,96:144]
+    blk=blk@(np.eye(48)-vh@vh.T)
+    for i,(dn,kap,tgt) in enumerate([('I',P['kapI'],P['tgtI']),('N',P['kapN'],P['tgtN'])]):
+        if 'c3' in P: c3=P['c3']
+        g3=P['g3'][i] if 'g3' in P else tgt/(Sj[i]*P['gv']*kap); blk+=g3*np.outer(c3[:,i],vh[:,i])
+    Wo[:,96:144]=blk
+    # z_post: stop reading channel directions of u
+    zp=[n for n in Wn if n.startswith('z_post') and n.endswith('0.weight')][0]; zb=zp.replace('weight','bias')
+    Zw=Wn[zp]; ub=Dd['X7'][:,5].mean(0)
+    for i in range(2):
+        du=Dh[:,i]/g1; du=du/np.linalg.norm(du); wz=Zw[:,384:576]@du; Wn[zb]+=wz*(du@ub); Zw[:,384:576]-=np.outer(wz,d
+    rep.update(dict(c1I=c1I,c1N=c1N,Dh=Dh,vh=vh,c3=c3,g=g,g0=g0))
+    return {k:torch.as_tensor(v,dtype=torch.float32) for k,v in Wn.items()}, rep
+
+```

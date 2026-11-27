@@ -1,0 +1,113 @@
+OUTPUT of Python run 92 of at most 300:
+```
+PRELUDE HELPERS
+
+ prelude46 (h, e, u, z, batch=256)
+locals ('h', 'e', 'u', 'z', 'batch', 'pieces', 'start', 'stop', 'tokens', 'result') constants (None, 0, 'core.slots', 'z_in', 1, ('dim',), 'core.prelude.0', 4, 'core.prelude_norm')
+BUILD_LIST: | STORE_FAST:pieces | LOAD_GLOBAL:NULL + range | LOAD_CONST:0 | LOAD_GLOBAL:NULL + len | LOAD_FAST:h | CALL: | LOAD_FAST:batch | CALL: | GET_ITER: | FOR_ITER:to 358 | STORE_FAST:start
+LOAD_GLOBAL:NULL + min | LOAD_FAST:start | LOAD_FAST:batch | BINARY_OP:+ | LOAD_GLOBAL:NULL + len | LOAD_FAST:h | CALL: | CALL: | STORE_FAST:stop | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:cat | LOAD_FAST:h
+LOAD_FAST:start | LOAD_FAST:stop | BINARY_SLICE: | LOAD_GLOBAL:W0 | LOAD_CONST:'core.slots' | BINARY_SUBSCR: | LOAD_CONST:None | BINARY_SUBSCR: | BINARY_OP:+ | LOAD_FAST:e | LOAD_FAST:start | LOAD_FAST:stop
+BUILD_SLICE: | LOAD_CONST:None | BUILD_TUPLE: | BINARY_SUBSCR: | LOAD_FAST:u | LOAD_FAST:start | LOAD_FAST:stop | BUILD_SLICE: | LOAD_CONST:None | BUILD_TUPLE: | BINARY_SUBSCR: | LOAD_GLOBAL:NULL + core_lin
+LOAD_FAST:z | LOAD_FAST:start | LOAD_FAST:stop | BINARY_SLICE: | LOAD_CONST:'z_in' | CALL: | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | BUILD_TUPLE: | BINARY_SUBSCR:
+BUILD_LIST: | LOAD_CONST:1 | KW_NAMES:('dim',) | CALL: | STORE_FAST:tokens | LOAD_GLOBAL:NULL + core_layer | LOAD_FAST:tokens | LOAD_CONST:'core.prelude.0' | LOAD_CONST:4 | CALL: | STORE_FAST:result | LOAD_FAST:pieces
+LOAD_ATTR:NULL|self + append | LOAD_GLOBAL:NULL + core_norm | LOAD_FAST:result | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | LOAD_CONST:4 | BUILD_SLICE: | BUILD_TUPLE: | BINARY_SUBSCR: | LOAD_CONST:'core.prelude_norm'
+CALL: | CALL: | POP_TOP: | JUMP_BACKWARD:to 50 | END_FOR: | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:cat | LOAD_FAST:pieces | CALL: | RETURN_VALUE:
+
+ core_layer (x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+locals ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode') constants (None, '.norm1', '.attn', '.norm2', '.cross', '.norm3', '.ffn')
+LOAD_FAST:x | LOAD_GLOBAL:NULL + core_attn | LOAD_GLOBAL:NULL + core_norm | LOAD_FAST:x | LOAD_FAST:p | LOAD_CONST:'.norm1' | BINARY_OP:+ | CALL: | LOAD_FAST:p | LOAD_CONST:'.attn' | BINARY_OP:+ | LOAD_FAST:nheads
+CALL: | BINARY_OP:+ | STORE_FAST:x | LOAD_FAST:memory | POP_JUMP_IF_NONE:to 142 | LOAD_FAST:x | LOAD_GLOBAL:NULL + core_attn | LOAD_GLOBAL:NULL + core_norm | LOAD_FAST:x | LOAD_FAST:p | LOAD_CONST:'.norm2' | BINARY_OP:+
+CALL: | LOAD_FAST:p | LOAD_CONST:'.cross' | BINARY_OP:+ | LOAD_FAST:nheads | LOAD_FAST:memory | LOAD_FAST:ages | LOAD_FAST:valid | LOAD_FAST:age_mode | CALL: | BINARY_OP:+ | STORE_FAST:x
+LOAD_FAST:x | LOAD_GLOBAL:NULL + core_ffn | LOAD_GLOBAL:NULL + core_norm | LOAD_FAST:x | LOAD_FAST:p | LOAD_CONST:'.norm3' | BINARY_OP:+ | CALL: | LOAD_FAST:p | LOAD_CONST:'.ffn' | BINARY_OP:+ | CALL:
+BINARY_OP:+ | RETURN_VALUE:
+
+ core_ffn (x, p)
+locals ('x', 'p') constants (None, '.0', '.2')
+LOAD_GLOBAL:NULL + core_lin | LOAD_GLOBAL:NULL + F | LOAD_ATTR:gelu | LOAD_GLOBAL:NULL + core_lin | LOAD_FAST:x | LOAD_FAST:p | LOAD_CONST:'.0' | BINARY_OP:+ | CALL: | CALL: | LOAD_FAST:p | LOAD_CONST:'.2'
+BINARY_OP:+ | CALL: | RETURN_VALUE:
+
+ core_norm (x, p)
+locals ('x', 'p') constants (None, (192,), '.weight', '.bias', 1e-05, ('eps',))
+LOAD_GLOBAL:NULL + F | LOAD_ATTR:layer_norm | LOAD_FAST:x | LOAD_CONST:(192,) | LOAD_GLOBAL:W0 | LOAD_FAST:p | LOAD_CONST:'.weight' | BINARY_OP:+ | BINARY_SUBSCR: | LOAD_GLOBAL:W0 | LOAD_FAST:p | LOAD_CONST:'.bias'
+BINARY_OP:+ | BINARY_SUBSCR: | LOAD_CONST:1e-05 | KW_NAMES:('eps',) | CALL: | RETURN_VALUE:
+
+ coda46 (hnew)
+locals ('hnew', 'y') constants (None, 'core.c_out', 'core.coda.0', 4, 1, ('dim',), 'core.out_norm')
+LOAD_GLOBAL:NULL + core_layer | LOAD_GLOBAL:NULL + core_lin | LOAD_FAST:hnew | LOAD_CONST:'core.c_out' | CALL: | LOAD_CONST:'core.coda.0' | LOAD_CONST:4 | CALL: | STORE_FAST:y | LOAD_FAST:y | LOAD_GLOBAL:NULL + core_norm | LOAD_FAST:y
+LOAD_ATTR:NULL|self + mean | LOAD_CONST:1 | KW_NAMES:('dim',) | CALL: | LOAD_CONST:'core.out_norm' | CALL: | BUILD_TUPLE: | RETURN_VALUE:
+
+MATCHING INPUT ARRAYS
+_U34 (1497, 192)
+_UX34 (1497, 192)
+_act_ctx34 (1497, 192)
+_act_e34 (1497, 192)
+_act_err34 (1497,)
+_act_hidden34 (1497, 192)
+_act_input34 (1497, 576)
+_act_u34 (1497, 192)
+_u34 (1497, 192)
+_uu33 (1497, 192)
+altered47 (1497, 4, 192)
+cf_C (1497, 192)
+cf_E (1497, 192)
+cf_F0 (1497, 193)
+cf_H0 (1497, 192)
+cf_H0_t (1497, 192)
+cf_U (1497, 192)
+cf_Z0 (1497, 32)
+cf_doses (1497, 2)
+cf_err (1497,)
+cf_idx46 (1497,)
+cf_rows (1497,)
+cf_test (1497,)
+cf_train (1497,)
+cf_truth (1497, 32)
+core_e_all (4356, 192)
+core_memories keys [False, True]
+core_state (4356, 992)
+delta47 (1497, 4, 192)
+eedit46 (1497, 4, 192)
+factual_design46 (4356, 192)
+features46 (4356, 192)
+hflow46 (4356, 4, 192)
+prelude_all46 (4356, 4, 192)
+prelude_cf46 (1497, 4, 192)
+prev46 (4356,)
+recon_context (4356, 192)
+recon_e (4356, 192)
+recon_errors (4356,)
+recon_post_hidden (4356, 192)
+recon_post_inputs (4356, 576)
+recon_post_mean (4356, 32)
+recon_u (4356, 192)
+seconds46 (4356,)
+slot_deltas47 keys [('insulin', 2.0), ('insulin', 0.5), ('norepinephrine', 2.0), ('norepinephrine', 0.5)]
+slot_factual47 (4356, 4, 192)
+slot_features47 (4356, 4, 192)
+slot_targets47 keys [('insulin', 2.0), ('insulin', 0.5), ('norepinephrine', 2.0), ('norepinephrine', 0.5)]
+state_array46 (4356, 992)
+test_all46 (4356,)
+test_cf46 (1497,)
+train_all46 (4356,)
+train_cf46 (1497,)
+u47 (1497, 192)
+uedit46 (1497, 192)
+valid46 (4356,)
+z47 (1497, 32)
+zedit46 (1497, 32)
+
+SPLIT MASKS / TARGET SHAPES
+train_cf46 (1497,) [False False False ... False False False]
+test_cf46 (1497,) [ True  True  True ...  True  True  True]
+train_slots81 (5988,) [ True  True  True ... False False False]
+D81 {"('insulin', 2.0)": (5988, 188), "('insulin', 0.5)": (5988, 188), "('norepinephrine', 2.0)": (5988, 188), "('norepinephrine', 0.5)": (5988, 188)}
+Y81 {"('insulin', 2.0)": (5988,), "('insulin', 0.5)": (5988,), "('norepinephrine', 2.0)": (5988,), "('norepinephrine', 0.5)": (5988,)}
+slot_targets47 {"('insulin', 2.0)": (1497, 2), "('insulin', 0.5)": (1497, 2), "('norepinephrine', 2.0)": (1497, 2), "('norepinephrine', 0.5)": (1497, 2)}
+slot_deltas47 {"('insulin', 2.0)": (1497, 4, 192), "('insulin', 0.5)": (1497, 4, 192), "('norepinephrine', 2.0)": (1497, 4, 192), "('norepinephrine', 0.5)": (1497, 4, 192)}
+
+BASELINE VALIDATION NOTE
+## Forwards 9?10 and Run 68: stronger insulin baseline
+Candidate58 at strength 1.6 has paired factual NLL increase 0.00278 on 100 random tuning stays. Rollouts: insulin x2=-12.708, half=+4.335; NE x2=+0.099, half=-1.004. Retain as working baseline, not final acceptance. Recovering NE identification and recurrent-edit helpers. No weights changed. Python runs: 68; forwards: 10.
+
+
+```

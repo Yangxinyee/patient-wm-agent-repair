@@ -1,0 +1,81 @@
+OUTPUT of Python run 36 of at most 300:
+```
+=== NORMALIZATION NOTES ===
+z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1].
+
+=== RELEVANT SHAPES ===
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+
+=== HEAD FUNCTION CONSTANTS ===
+make_head_features start 69
+['x', 192, 960, -1, 4, ('dtype',), 'core.flow.a', 'seconds_div10', 10, 'seconds', 'hours', 3600, 60, 1, 'core.out_norm', 'gap', 'z_prior', 'mean_prior', 32, 992, 'z_head', 'type_emb.weight', 'query_norm', 8, 'interleaved', 0, 2, 3, 'numbers_first', 5, 'has_last_only', 'flags_first', 'embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'attr_heads.value_bin.0', 'attr_heads.value_bin.2', 'embed_transition.value_bin.weight', 17, 'value_bin_centres']
+cpu_head_parts start 72
+['x', ('dtype',), 192, 960, -1, 4, 'core.flow.a', 1, 'core.out_norm', 10, 'gap', 'z_prior', 8, 0, 2, 3, 'embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'embed_transition.value_bin.weight', 17, ('base', 'prior', 'additive', 'transition')]
+cpu_head_probs start 103
+['prior', 32, -10, 5, 17, 1, 0, ('generator',), 'base', 'z_head', 'type_emb.weight', 'query_norm', 'additive', 'attr_heads.value_bin', 'transition', -1, ('dim',), 1e-20]
+reading_metadata start 20
+['value_bin_centres', ('stay_id', 'hour', 'event'), 'stay_id', 'event', False, ('sort',), 1, 'last_value', 'last_hour', 'hour', 'left', ('side',), 0, 3600.0, True, ('drop',), 'state_row', 'dt_seconds', 'code', 'has_last', 'last_age_seconds', 0.0, 'last_z', 'last_bin', 'observed_bin', 'value', ('dtype',), 'median', 'iqr', -10, 10, 'fine_bin_edges']
+
+=== HEAD INPUT CONSTRUCTION ===
+FUNCTION make_head_features
+69 
+72 LOAD_FAST:meta | LOAD_ATTR:state_row | LOAD_ATTR:NULL|self + to_numpy | LOAD_GLOBAL:int | CALL: | STORE_FAST:indices
+73 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + from_numpy | LOAD_FAST:states | LOAD_CONST:'x' | BINARY_SUBSCR: | LOAD_FAST:indices | BINARY_SUBSCR: | CALL: | STORE_FAST:x
+74 LOAD_FAST:x | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | LOAD_CONST:192 | BUILD_SLICE: | BUILD_TUPLE: | BINARY_SUBSCR: | LOAD_FAST:x | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:192 | LOAD_CONST:960 | BUIL
+75 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:dt_seconds | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:float32 | KW_NAMES:('dtype',) | CALL: | STORE_FAST:dt
+76 LOAD_FAST:h | LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + exp | LOAD_FAST:dt | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | LOAD_CONST:None | BUILD_TUPLE: | BINARY_SUBSCR: | UNARY_NEGATIVE: | LOAD_GLOBAL:torch | LOAD_ATTR:NULL|s
+77 LOAD_FAST:gap_style | LOAD_CONST:'seconds_div10' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 518
+78 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + log1p | LOAD_FAST:dt | CALL: | LOAD_CONST:10 | BINARY_OP:/ | STORE_FAST:gt | JUMP_FORWARD:to 686
+79 LOAD_FAST:gap_style | LOAD_CONST:'seconds' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 572
+80 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + log1p | LOAD_FAST:dt | CALL: | STORE_FAST:gt | JUMP_FORWARD:to 686
+81 LOAD_FAST:gap_style | LOAD_CONST:'hours' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 632
+82 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + log1p | LOAD_FAST:dt | LOAD_CONST:3600 | BINARY_OP:/ | CALL: | STORE_FAST:gt | JUMP_FORWARD:to 686
+84 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + log1p | LOAD_FAST:dt | LOAD_CONST:60 | BINARY_OP:/ | CALL: | LOAD_CONST:10 | BINARY_OP:/ | STORE_FAST:gt
+85 LOAD_FAST:out | LOAD_GLOBAL:NULL + ln | LOAD_FAST:hflow | LOAD_ATTR:NULL|self + mean | LOAD_CONST:1 | CALL: | LOAD_CONST:'core.out_norm' | CALL: | BINARY_OP:+ | LOAD_GLOBAL:NULL + mlp | LOAD_FAST:gt | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: 
+86 LOAD_GLOBAL:NULL + mlp | LOAD_FAST:base | LOAD_CONST:'z_prior' | CALL: | STORE_FAST:prior
+87 LOAD_FAST:view_style | LOAD_CONST:'mean_prior' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 842 | LOAD_FAST:prior | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | LOAD_CONST:32 | BUILD_SLICE: | BUILD_TUPLE: | BINARY_SUBSCR: | JUMP_FOR
+88 LOAD_FAST:base | LOAD_GLOBAL:NULL + lin | LOAD_FAST:z | LOAD_CONST:'z_head' | CALL: | BINARY_OP:+ | STORE_FAST:view
+89 LOAD_GLOBAL:NULL + ln | LOAD_FAST:view | LOAD_GLOBAL:W | LOAD_CONST:'type_emb.weight' | BINARY_SUBSCR: | LOAD_FAST:type_id | BINARY_SUBSCR: | BINARY_OP:+ | LOAD_CONST:'query_norm' | CALL: | STORE_FAST:q
+90 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:has_last | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:float32 | KW_NAMES:('dtype',) | CALL: | STORE_FAST:last
+91 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:last_age_seconds | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:float32 | KW_NAMES:('dtype',) | CALL: | STORE_FAST:age
+92 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + log1p | LOAD_FAST:age_style | LOAD_CONST:'seconds' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 1232 | LOAD_FAST:age | JUMP_FORWARD:to 1240 | LOAD_FAST:age | LOAD_CONST:3600 | BINARY_OP:/ | CALL: | LOAD_CONST:10 | 
+93 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:last_z | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:float32 | KW_NAMES:('dtype',) | CALL: | STORE_FAST:value
+94 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + zeros | LOAD_GLOBAL:NULL + len | LOAD_FAST:meta | CALL: | LOAD_CONST:8 | CALL: | STORE_FAST:reg
+95 LOAD_FAST:register_style | LOAD_CONST:'interleaved' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 1530
+96 LOAD_FAST:last | LOAD_FAST:age | LOAD_FAST:value | LOAD_FAST:last | BUILD_TUPLE: | UNPACK_SEQUENCE: | LOAD_FAST:reg | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:0 | BUILD_TUPLE: | STORE_SUBSCR: | LOAD_FAST:reg | LOAD_CONST:None | L
+97 LOAD_FAST:register_style | LOAD_CONST:'numbers_first' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 1620
+98 LOAD_FAST:last | LOAD_FAST:age | LOAD_FAST:value | LOAD_FAST:last | BUILD_TUPLE: | UNPACK_SEQUENCE: | LOAD_FAST:reg | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:0 | BUILD_TUPLE: | STORE_SUBSCR: | LOAD_FAST:reg | LOAD_CONST:None | L
+99 LOAD_FAST:register_style | LOAD_CONST:'has_last_only' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 1688
+100 LOAD_FAST:last | LOAD_FAST:age | LOAD_FAST:value | SWAP: | LOAD_FAST:reg | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:0 | BUILD_TUPLE: | STORE_SUBSCR: | LOAD_FAST:reg | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:
+101 LOAD_FAST:register_style | LOAD_CONST:'flags_first' | COMPARE_OP:== | POP_JUMP_IF_FALSE:to 1776
+102 LOAD_FAST:last | LOAD_FAST:age | LOAD_FAST:last | LOAD_FAST:value | BUILD_TUPLE: | UNPACK_SEQUENCE: | LOAD_FAST:reg | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:0 | BUILD_TUPLE: | STORE_SUBSCR: | LOAD_FAST:reg | LOAD_CONST:None | L
+103 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:code | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:long | KW_NAMES:('dtype',) | CALL: | STORE_FAST:code
+104 LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:last_bin | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:long | KW_NAMES:('dtype',) | CALL: | STORE_FAST:bins
+105 LOAD_FAST:q | LOAD_GLOBAL:W | LOAD_CONST:'embed.code.weight' | BINARY_SUBSCR: | LOAD_FAST:code | BINARY_SUBSCR: | BINARY_OP:+ | LOAD_GLOBAL:NULL + lin | LOAD_FAST:reg | LOAD_CONST:'last_numeric' | CALL: | BINARY_OP:+
+105 BINARY_OP:+
+105 BINARY_OP:+
+105 BINARY_OP:+ | STORE_FAST:wc
+FUNCTION cpu_head_parts
+72 
+73 LOAD_GLOBAL:NULL + torch | LOAD_ATTR:from_numpy | LOAD_FAST:states | LOAD_CONST:'x' | BINARY_SUBSCR: | LOAD_FAST:meta | LOAD_ATTR:state_row | LOAD_ATTR:NULL|self + to_numpy | LOAD_GLOBAL:int | CALL: | BINARY_SUBSCR: | LOAD_ATTR:NULL|self + copy | CAL
+74 LOAD_GLOBAL:NULL + torch | LOAD_ATTR:tensor | LOAD_FAST:meta | LOAD_ATTR:dt_seconds | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:float32 | KW_NAMES:('dtype',) | CALL: | STORE_FAST:dt
+75 LOAD_FAST:x | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:192 | LOAD_CONST:960 | BUILD_SLICE: | BUILD_TUPLE: | BINARY_SUBSCR: | LOAD_ATTR:NULL|self + reshape | LOAD_CONST:-1 | LOAD_CONST:4 | LOAD_CONST:192 | CALL: | STORE_FAST:h
+76 LOAD_FAST:h | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:exp
+77 LOAD_FAST:dt | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | LOAD_CONST:None | BUILD_TUPLE: | BINARY_SUBSCR: | UNARY_NEGATIVE: | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:exp | LOAD_GLOBAL:W | LOAD_CONST:'core.flow.a' | BINARY_SUBSC
+76 CALL: | BINARY_OP:* | STORE_FAST:hflow
+79 LOAD_FAST:x | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | LOAD_CONST:192 | BUILD_SLICE: | BUILD_TUPLE: | BINARY_SUBSCR: | LOAD_GLOBAL:NULL + ln | LOAD_FAST:hflow | LOAD_ATTR:NULL|self + mean | LOAD_CONST:1 | CALL: | LOAD_CONS
+80 LOAD_GLOBAL:NULL + mlp | LOAD_GLOBAL:NULL + torch | LOAD_ATTR:log1p | LOAD_FAST:dt | CALL: | LOAD_CONST:10 | BINARY_OP:/ | LOAD_CONST:None | LOAD_CONST:None | BUILD_SLICE: | LOAD_CONST:None | BUILD_TUPLE: | BINARY_SUBSCR: | LOAD_CONST:'gap' | CALL:
+79 BINARY_OP:+ | STORE_FAST:base
+81 LOAD_GLOBAL:NULL + mlp | LOAD_FAST:base | LOAD_CONST:'z_prior' | CALL: | STORE_FAST:prior
+82 LOAD_GLOBAL:NULL + torch | LOAD_ATTR:zeros | LOAD_GLOBAL:NULL + len | LOAD_FAST:meta | CALL: | LOAD_CONST:8 | CALL: | STORE_FAST:reg
+83 LOAD_GLOBAL:NULL + torch | LOAD_ATTR:tensor | LO
+[output cut at 10,000 characters]
+```

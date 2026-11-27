@@ -1,0 +1,224 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 93 replies happened before. Forward passes used: 4 of 50; Python runs used: 82 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_4', 'fwd_5', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+, half -0.307. Immediate history-adjusted estimates are insulin -2.049 per rate and NE +3.171 per rate. Six-lag deconvolution suggests an insulin hump followed by decay rather than the earlier single-exponential fit; long-horizon truth remains provisional. No edits.
+
+## Runs 30–31
+Run 30 stopped on absent rate_unit/dose_unit columns; no edits. Reconstructed isolated action embeddings, action encoder and z_post using GELU, testing unit/rate-unit/KQ/bin conventions against 133 exported posterior means. Best errors: {'insulin': 0.13187898695468903, 'norepinephrine': 0.13511121273040771}. No weights edited.
+
+## Run 32
+Drug-posterior reconstruction remains inaccurate (RMSE approximately 0.13 versus posterior RMS 0.248). Recovering the exact architecture and retained data before choosing a repair; no weights edited.
+
+Run 37: recovered longitudinal diagnostics and action-reconstruction arrays. Testing whether the empty measurement encoder, rather than zero e, explains posterior mismatch. No edits.
+
+Run 38: tested zero versus learned empty measurement encodings against isolated action posterior states; checked the pre-action context from exported states. No edits.
+
+Run 39: empty measurement encoder resolved the major posterior mismatch. Searched exact drug categorical and bin conventions; retained best atom recipes. No weights edited.
+
+## Run 40 (restart)
+Recovered architecture, schema, retained reconstruction and causal objects. Run-39 isolated drug posterior reconstruction was accurate to approximately 7.4e-5 RMSE after including the learned empty-measurement encoding. This validates that component, not the causal effects or a weight edit. No edits.
+
+## Run 41
+Architecture separates the explicit action encoder, recurrent transition, and same-code last-reading shortcut. Recovering recent reconstruction objects and initial causal diagnostics with compact output. No edits.
+
+## Run 42
+Recovered causal-diagnostic objects, fixture schema and remaining transition metadata. Initial insulin threshold estimates around -2 per rate do not by themselves identify the 12-hour intervention effect. No edits.
+
+## Run 43
+Immediate estimates agree approximately with insulin -2 and NE +3.17 per rate. Recovering exact action fixtures and longitudinal objects with bounded output; long-horizon causal targets remain provisional. No edits.
+
+## Run 44
+Computed controlled half/double-dose perturbations through the reconstructed singleton action encoder and posterior, holding pre-action context fixed. Retrieved retained longitudinal moment tables and nuisance-model structure. No edits; component sensitivity does not establish rollout causality.
+
+## Run 45
+Controlled dose changes move action encodings and posterior means substantially, so the input/posterior is not simply dose-insensitive. Implemented general atom embedding and tested singleton measurement encodings against exported posterior means as a prerequisite for reconstructing memory and recurrent transitions. No edits.
+
+## Run 46 (restart)
+Drug atoms reconstruct accurately; singleton measurement posterior errors remain 0.07–0.12 RMS. Recovering architecture and retained diagnostics before selecting a repair. These component checks do not establish causal effects. No edits.
+
+## Runs 47–48
+Recovered threshold and innovation evidence for immediate effects, but sustained response is not yet accepted as ground truth. Inspecting lagged moments and observation selection before choosing a target. No edits.
+
+## Run 53
+Run 52 failed by requesting a value embedding for hospital_admission. Recovering architecture and retained objects before correcting event-type handling. No causal conclusion follows from that exception; no weights edited.
+
+## Run 54
+Architecture recovered; run-53 object output truncated. Retrieving compact causal/reconstruction inventory rather than repeating the full inventory. No weights edited.
+
+## Run 55
+Retrieved retained threshold, innovation and longitudinal-moment diagnostics to select an evidence-based intervention target. No weights edited.
+
+## Run 56
+Immediate innovation estimates: insulin -2.049 +/-0.046, NE +3.171 +/-0.088 per rate; insulin RD broadly agrees. Six-lag kernels show non-single-exponential persistence. Inspecting encoding recipes and residuals for independent causal and repair validation. No weights edited.
+
+## Run 57
+Corrected measurement units/bin sides from run-52 best recipes (posterior RMSE about 2.5e-5); learned size-bias empty-action encoding is essential. Checking exact encoder and causal-panel alignment. No weights edited.
+
+## Run 59
+Run-58 count check found 1,392 mismatched bundles; posterior test stopped because pre_context returns a tuple. Testing whether infusion-end atoms explain all count differences. No weights edited.
+
+## Run 60
+Added inferred infusion END atoms (kind 2) to world encoder, not action encoder; checked exact bundle counts and complete posterior reconstruction. Head innovation probes have modest independent insulin R2 (~0.14), so a factual-preserving correction may be feasible but is not validated. No weights edited.
+
+## Run 61 (restart)
+Run-60 posterior reconstruction is exact for most multi-world and END bundles, but 100 count mismatches and concentrated NE/single-world errors remain. Recovering transition code and exception structure before committing a targeted edit. No weights edited.
+
+## Run 65
+The 100 count discrepancies are two visit END markers per stay at 25.1667h. Tested float32 bin-edge/input agreement and added visit ENDs. Posterior RMSE=5.636162e-05; counts now have 0 mismatches. No weights edited.
+
+## Run 68 (restart)
+Run-67 reconstructed recurrent transition matches exported h (RMSE 1e-5) and out (RMSE 1.4e-7) with all current events, unnormalised memory, and both age updates. This validates forward reconstruction, not causal identification. Recovering retained functions/data to design and validate a targeted repair. No weights edited.
+
+## Runs 69–74
+Recovered immediate estimates and six-lag kernels. Implemented reusable exact transition: out RMSE 1.4e-7, h RMSE 1.0e-5, posterior RMSE 5.9e-5. Constructed isolated half/double drug state changes and matched next-reading head features on 100 training stays. No weights edited; controlled feature changes are a repair design diagnostic, not causal evidence.
+
+## Run 75 (restart)
+Run-74 isolated next-reading sensitivities are weak for insulin and nonmonotonic for NE despite exact state reconstruction. Recovering head/perturbation objects before fitting a factual-regularized repair. No weights edited; rollout targets still require record-based validation.
+
+## Runs 76–77
+Source inspection failed because notebook functions lack retrievable source. Recovering metadata and retained arrays instead. No edits.
+
+## Run 78
+Recovered paired head perturbation arrays. Checking longitudinal record-derived targets before using immediate effects in a head repair. No edits.
+
+## Run 79
+Record-based immediate effects remain insulin -2.049/rate and NE +3.171/rate; deconvolved kernels show additional persistence. Preparing a closed-form head-feature regression with independent factual validation, not treating one-step fit as rollout success. No edits.
+
+## Run 80
+Fit closed-form scalar calibration regressions using factual bin residuals and paired dose-feature response constraints. Compared independent tuning NLL and nonlinear one-step responses over a ridge/constraint grid. No weights saved.
+
+## Run 81
+Head-only rank-one calibration cannot restore direct effects within the factual budget: meaningful increases cost far above 0.005 nats. No candidates saved. Investigating posterior action innovations and a targeted transition repair instead of globally tilting the value head.
+
+## Run 82
+Tested posterior-hidden dose-innovation regressions with 60/40 stay-separated validation and controlled half/double response constraints. No weight edits; decoder transfer and non-action leakage determine whether a posterior repair is plausible.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 82 of at most 300:
+```
+insulin labelled actions 740 innovation SD 0.5793429987691638 missing action labels 38
+norepinephrine labelled actions 322 innovation SD 0.132829672534425 missing action labels 358
+          drug  alpha  strength  held_action_R2  held_all_RMSE  nonaction_RMS  cf_slope_0.5  cf_slope_2.0
+       insulin  0.001       0.0          0.0181         0.2309         0.0224        0.0548        0.0296
+       insulin  0.001       1.0         -0.0303         0.2661         0.1362        0.1704        0.1062
+       insulin  0.001      10.0         -1.8469         0.6598         0.5848        0.2669        0.1491
+       insulin  0.010       0.0          0.0227         0.2306         0.0255        0.0452        0.0271
+       insulin  0.010       1.0         -0.0615         0.2593         0.1105        0.1561        0.1027
+       insulin  0.010      10.0         -1.3444         0.5475         0.4587        0.2171        0.1271
+       insulin  0.100       0.0          0.0290         0.2300         0.0264        0.0404        0.0277
+       insulin  0.100       1.0         -0.0596         0.2543         0.0960        0.1506        0.1033
+       insulin  0.100      10.0         -0.4069         0.3681         0.2692        0.1804        0.1145
+       insulin  1.000       0.0          0.0318         0.2296         0.0262        0.0378        0.0277
+       insulin  1.000       1.0         -0.0511         0.2526         0.0932        0.1453        0.1047
+       insulin  1.000      10.0         -0.1132         0.2694         0.1238        0.1653        0.1128
+norepinephrine  0.001       0.0         -0.0056         0.0254         0.0025        0.0172        0.0024
+norepinephrine  0.001       1.0         -0.1729         0.0345         0.0216        0.1770        0.0347
+norepinephrine  0.001      10.0         -0.8215         0.1285         0.1263        0.2031        0.0615
+norepinephrine  0.010       0.0         -0.0220         0.0255         0.0023        0.0138        0.0018
+norepinephrine  0.010       1.0         -0.1753         0.0336         0.0201        0.1626        0.0239
+norepinephrine  0.010      10.0         -0.3400         0.0785         0.0743        0.1807        0.0397
+norepinephrine  0.100       0.0         -0.0295         0.0256         0.0021        0.0107        0.0014
+norepinephrine  0.100       1.0         -0.1825         0.0384         0.0274        0.1522        0.0204
+norepinephrine  0.100      10.0         -0.3505         0.0587         0.0519        0.1732        0.0271
+norepinephrine  1.000       0.0         -0.0339         0.0257         0.0020        0.0094        0.0012
+norepinephrine  1.000       1.0         -0.1696         0.0402         0.0301        0.1454        0.0194
+norepinephrine  1.000      10.0         -0.2665         0.0469         0.0381        0.1705        0.0226
+
+END recipe sample:
+  event  value  rate  dose  end_hour
+insulin    NaN   1.0   1.0    4.0833
+insulin    NaN   1.0   1.0    5.0833
+insulin    NaN   1.0   1.0    7.0833
+insulin    NaN   1.0   1.0    8.0833
+insulin    NaN   1.0   1.0   11.0833
+insulin    NaN   1.0   1.0   14.0833
+End-atom absent-attribute RMSE:
+insulin 0.07094103842973709
+norepinephrine 0.0946308895945549
+hospital_admission 0.0
+icu_admission 0.0
+Edits: []
+
+```

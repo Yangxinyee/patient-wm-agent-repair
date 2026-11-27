@@ -1,0 +1,36 @@
+OUTPUT of Python run 191 of at most 300:
+```
+
+import torch, numpy as np
+BLK=['core.blocks.0.0','core.blocks.0.1']
+def cl(P0): return {k:(v.clone() if torch.is_tensor(v) else torch.as_tensor(np.asarray(v)).clone()).float() for k,v in P0.items()}
+def kill(P0, J, mem=()):
+    """Cut h dims J out of the model (no writers, no readers). mem: dims that will carry memory (also cut from ctx->z)."""
+    P=cl(P0); J=list(J)
+    P['core.slots'][:,J]=0
+    pre='core.prelude.0'
+    P[pre+'.attn.out.weight'][J,:]=0
+    P[pre+'.ffn.2.weight'][J,:]=0; P[pre+'.ffn.2.bias'][J]=0
+    P[pre+'.ffn.0.weight'][:,J]=0
+    P['core.prelude_norm.weight'][J]=0; P['core.prelude_norm.bias'][J]=0
+    for b in BLK:
+        for nm in ['attn.out','cross.out']: P[f'{b}.{nm}.weight'][J,:]=0
+        P[f'{b}.ffn.2.weight'][J,:]=0; P[f'{b}.ffn.2.bias'][J]=0
+        for n in ['norm1','norm2','norm3']: P[f'{b}.{n}.weight'][J]=0
+    P['core.b_in.weight'][J,:]=0; P['core.b_in.weight'][:,J]=0
+    P['core.c_out.weight'][J,:]=0; P['core.c_out.weight'][:,J]=0
+    c='core.coda.0'
+    P[c+'.attn.out.weight'][J,:]=0; P[c+'.ffn.2.weight'][J,:]=0; P[c+'.ffn.2.bias'][J]=0
+    P[c+'.norm1.weight'][J]=0; P[c+'.norm3.weight'][J]=0
+    P['core.out_norm.weight'][J]=0; P['core.out_norm.bias'][J]=0
+    P['gap.2.weight'][J,:]=0; P['gap.2.bias'][J]=0
+    P['z_head.weight'][J,:]=0; P['z_head.bias'][J]=0
+    P['type_emb.weight'][:,J]=0
+    P['query_norm.weight'][J]=0
+    for m in mem:
+        P['z_post.0.weight'][:,m]=0; P['z_prior.0.weight'][:,m]=0
+    return P
+
+attr_heads.value_bin.0.bias:192 attr_heads.value_bin.0.weight:192x192 attr_heads.value_bin.2.bias:17 attr_heads.value_bin.2.weight:17x192 c.a_in:192 c.age.0.bias:192 c.age.0.weight:192x1 c.age.2.bias:192 c.age.2.weight:192x192 c.b_in.weight:192x192 c.blocks.0.0.attn.kv.weight:384x192 c.blocks.0.0.attn.out.weight:192x192 c.blocks.0.0.attn.q.weight:192x192 c.blocks.0.0.cross.kv.weight:384x192 c.blocks.0.0.cross.out.weight:192x192 c.blocks.0.0.cross.q.weight:192x192 c.blocks.0.0.ffn.0.bias:768 c.blocks.0.0.ffn.0.weight:768x192 c.blocks.0.0.ffn.2.bias:192 c.blocks.0.0.ffn.2.weight:192x768 c.blocks.0.0.norm1.bias:192 c.blocks.0.0.norm1.weight:192 c.blocks.0.0.norm2.bias:192 c.blocks.0.0.norm2.weight:192 c.blocks.0.0.norm3.bias:192 c.blocks.0.0.norm3.weight:192 c.blocks.0.1.attn.kv.weight:384x192 c.blocks.0.1.attn.out.weight:192x192 c.blocks.0.1.attn.q.weight:192x192 c.blocks.0.1.cross.kv.weight:384x192 c.blocks.0.1.cross.out.weight:192x192 c.blocks.0.1.cross.q.weight:192x192 c.blocks.0.1.ffn.0.bias:768 c.blocks.0.1.ffn.0.weight:768x192 c.blocks.0.1.ffn.2.bias:192 c.blocks.0.1.ffn.2.weight:192x768 c.blocks.0.1.norm1.bias:192 c.blocks.0.1.norm1.weight:192 c.blocks.0.1.norm2.bias:192 c.blocks.0.1.norm2.weight:192 c.blocks.0.1.norm3.bias:192 c.blocks.0.1.norm3.weight:192 c.c_out.weight:192x192 c.coda.0.attn.kv.weight:384x192 c.coda.0.attn.out.weight:192x192 c.coda.0.attn.q.weight:192x192 c.coda.0.ffn.0.bias:768 c.coda.0.ffn.0.weight:768x192 c.coda.0.ffn.2.bias:192 c.coda.0.ffn.2.weight:192x768 c.coda.0.norm1.bias:192 c.coda.0.norm1.weight:192 c.coda.0.norm3.bias:192 c.coda.0.norm3.weight:192 c.delta_in:192 c.flow.a:192 c.out_norm.bias:192 c.out_norm.weight:192 c.prelude.0.attn.kv.weight:384x192 c.prelude.0.attn.out.weight:192x192 c.prelude.0.attn.q.weight:192x192 c.prelude.0.ffn.0.bias:768 c.prelude.0.ffn.0.weight:768x192 c.prelude.0.ffn.2.bias:192 c.prelude.0.ffn.2.weight:192x768 c.prelude.0.norm1.bias:192 c.prelude.0.norm1.weight:192 c.prelude.0.norm3.bias:192 c.prelude.0.norm3.weight:192 c.prelude_norm.bias:192 c.prelude_norm.weight:192 c.slots:4x192 embed.bins.dose.weight:17x192 embed.bins.rate.weight:17x192 embed.bins.value.weight:17x192 embed.code.weight:13x192 embed_transition.value_bin.weight:221x17 gap.0.bias:192 gap.0.weight:192x1 gap.2.bias:192 gap.2.weight:192x192 last_numeric.bias:192 last_numeric.weight:192x8 last_status.weight:2x192 query_norm.bias:192 query_norm.weight:192 type_emb.weight:15x192 z_head.bias:192 z_head.weight:192x32
+
+```

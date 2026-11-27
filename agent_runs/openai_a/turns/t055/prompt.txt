@@ -1,0 +1,396 @@
+OUTPUT of Python run 48 of at most 300:
+```
+=== FEATURE HELPER BYTECODE ===
+LOAD_GLOBAL NULL + cpu_head_parts
+LOAD_FAST meta
+LOAD_FAST states
+CALL 
+STORE_FAST parts
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + tensor
+LOAD_FAST meta
+LOAD_ATTR last_z
+LOAD_ATTR NULL|self + to_numpy
+CALL 
+LOAD_GLOBAL torch
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+STORE_FAST last_z
+LOAD_FAST parts
+LOAD_CONST 'additive'
+BINARY_SUBSCR 
+LOAD_FAST last_z
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_GLOBAL W
+LOAD_CONST 'last_numeric.weight'
+BINARY_SUBSCR 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST 6
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_GLOBAL W
+LOAD_CONST 'last_numeric.weight'
+BINARY_SUBSCR 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST 2
+BUILD_TUPLE 
+BINARY_SUBSCR 
+BINARY_OP -
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+BINARY_OP *
+BINARY_OP +
+STORE_FAST additive
+LOAD_GLOBAL NULL + ln
+LOAD_FAST parts
+LOAD_CONST 'base'
+BINARY_SUBSCR 
+LOAD_GLOBAL NULL + lin
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + zeros
+LOAD_GLOBAL NULL + len
+LOAD_FAST meta
+CALL 
+LOAD_CONST 32
+CALL 
+LOAD_CONST 'z_head'
+CALL 
+BINARY_OP +
+LOAD_GLOBAL W
+LOAD_CONST 'type_emb.weight'
+BINARY_SUBSCR 
+LOAD_CONST 1
+BINARY_SUBSCR 
+BINARY_OP +
+LOAD_CONST 'query_norm'
+CALL 
+STORE_FAST q
+LOAD_GLOBAL F
+LOAD_ATTR NULL|self + gelu
+LOAD_GLOBAL NULL + lin
+LOAD_FAST q
+LOAD_FAST additive
+BINARY_OP +
+LOAD_CONST 'attr_heads.value_bin.0'
+CALL 
+CALL 
+STORE_FAST hidden
+LOAD_GLOBAL NULL + lin
+LOAD_FAST hidden
+LOAD_CONST 'attr_heads.value_bin.2'
+CALL 
+LOAD_FAST parts
+LOAD_CONST 'transition'
+BINARY_SUBSCR 
+BINARY_OP +
+STORE_FAST logits
+LOAD_FAST logits
+LOAD_ATTR NULL|self + softmax
+LOAD_CONST -1
+CALL 
+STORE_FAST probs
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + tensor
+LOAD_GLOBAL np
+LOAD_ATTR NULL|self + stack
+LOAD_FAST meta
+LOAD_ATTR event
+GET_ITER 
+LOAD_FAST_AND_CLEAR e
+SWAP 
+BUILD_LIST 
+SWAP 
+FOR_ITER to 662
+STORE_FAST e
+LOAD_GLOBAL VOCAB
+LOAD_CONST 'value_bin_centres'
+BINARY_SUBSCR 
+LOAD_FAST e
+BINARY_SUBSCR 
+LIST_APPEND 
+JUMP_BACKWARD to 630
+END_FOR 
+SWAP 
+STORE_FAST e
+CALL 
+LOAD_GLOBAL torch
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+STORE_FAST centres
+LOAD_FAST probs
+LOAD_FAST centres
+BINARY_OP *
+LOAD_ATTR NULL|self + sum
+LOAD_CONST -1
+CALL 
+STORE_FAST means
+LOAD_FAST probs
+LOAD_GLOBAL _repair_bin_score
+BINARY_OP *
+LOAD_ATTR NULL|self + sum
+LOAD_CONST -1
+CALL 
+STORE_FAST score_mean
+LOAD_FAST probs
+LOAD_FAST centres
+BINARY_OP *
+LOAD_GLOBAL _repair_bin_score
+BINARY_OP *
+LOAD_ATTR NULL|self + sum
+LOAD_CONST -1
+CALL 
+LOAD_FAST means
+LOAD_FAST score_mean
+BINARY_OP *
+BINARY_OP -
+STORE_FAST covariance
+LOAD_FAST hidden
+LOAD_ATTR NULL|self + numpy
+CALL 
+LOAD_FAST probs
+LOAD_ATTR NULL|self + numpy
+CALL 
+LOAD_FAST means
+LOAD_ATTR NULL|self + numpy
+CALL 
+LOAD_FAST covariance
+LOAD_ATTR NULL|self + numpy
+CALL 
+LOAD_CONST ('hidden', 'probs', 'mean', 'covariance')
+BUILD_CONST_KEY_MAP 
+RETURN_VALUE 
+SWAP 
+POP_TOP 
+SWAP 
+STORE_FAST e
+RERAISE 
+
+=== REGISTER EXAMPLES ===
+tensor([[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000],
+        [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000],
+        [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000],
+        [ 1.0000,  0.8189, -1.3529,  1.0000,  0.0000,  0.0000,  0.0000,  0.0000]])
+last_numeric column norms: [2.983834981918335, 3.0614941120147705, 2.7362890243530273, 3.2411508560180664, 2.8519513607025146, 2.8571834564208984, 3.6546926498413086, 4.346055030822754]
+
+=== NOTEBOOK SECTION SUMMARIES ===
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin'
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+   
+
+## Factual baseline and dynamic identification; Python 5, forward 2
+- Original factual value NLL = 1.63461 on first 100 tuning stays, 4751 readings.
+- NE sensor-difference first stage is weak; do not use its point estimates.
+- Tested replicate-sensor corrections and lag-instrumented first differences; each relies on explicit measurement-noise/innovation assumptions.
+{
+  "('map_arterial', 'norepinephrine', 'basic')": {
+    "persistence": 0.9982457546092935,
+    "effect": 0.25976722831925286,
+    "se_persistence": 0.0018481345452363164,
+    "se_effect": 0.07259737043369274,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "persistence": 0.9158430901733471,
+    "effect": 3.2667303775592043,
+    "se_persistence": 0.009083782933650895,
+    "se_effect": 0.1636034525210515,
+    "n": 93413
+  },
+  "('map_arterial', 'norepi
+
+## More efficient dynamic checks; Python 6, forward 2
+- Replicate-sensor NE estimates are positive but rely on dose/error independence.
+- Insulin replicate-sensor level estimates are invalid if dosing uses finger noise; the negative sensor-difference IV is more defensible for insulin.
+- Enlarged first-difference samples using own-sensor instruments at lags >=2, which avoid overlapping current measurement errors.
+{
+  "('map_arterial', 'admission')": {
+    "coefficients": [
+      0.9825267853113245,
+      0.5165933079110422,
+      0.029677058825007888
+    ],
+    "se": [
+      0.006061144800747398,
+      0.1349655273885699,
+      0.006965149985368135
+    ],
+    "n": 25283
+  },
+  "('map_cuff', 'admission')": {
+    "coefficients": [
+      0.9736397009521174,
+      0.4870228377565288,
+      0.04526212305580476
+    ],
+    "se": [
+      0.0142985332
+
+## Restart: Python 7, forward 2
+- No edits yet. Insulin lag-IV is weak and unstable; NE estimates depend strongly on assumptions.
+- Recovering architecture, record timing, and earlier diagnostics before selecting a causal estimator or weight edit.
+
+
+
+## Sensor-contrast local projections; Python 9, forward 2
+- Reimplemented IV on future reading levels, controlling only pre-treatment history.
+- Pre-treatment placebo horizons test independence; weak first stages remain disqualifying.
+{
+  "('insulin', -2, False)": {
+    "n": 57248,
+    "beta": -0.038767269782738374,
+    "se": 0.6338392802791879,
+    "first_stage": 0.024831879550323475,
+    "first_stage_t": 46.31225775687944
+  },
+  "('insulin', -1, False)": {
+    "n": 61822,
+    "beta": -0.10167365879195693,
+    "se": 0.6044600978809811,
+    "first_stage": 0.0250430044370933,
+    "first_stage_t": 48.56454221088735
+  },
+  "('insulin', 1, False)": {
+    "n": 61734,
+    "beta": -9.265448953253808,
+    "se": 1.0477733869485997,
+    "first_stage": 0.01858921651030461,
+    "first_stage_t": 35.99484856927351
+  },
+  "('insulin', 2, False)": {
+    "n"
+
+## Dynamic identification; Python 10, forward 2
+- Prior-controlled sensor IV supports a modest negative immediate insulin effect; NE sensor instrument is weak.
+- Prior-controlled placebo lags 1/2 were tautologies; added earlier placebos.
+- Estimated persistence conditional on candidate effects and insulin impulse moments including later doses.
+{
+  "fixed_b_dynamics": {
+    "('insulin', -1.8)": [
+      [
+        -2.693714988473109,
+        0.3743989046404466,
+        224413
+      ],
+      [
+        -7.381247201106025,
+        2.1851839577620606,
+        209202
+      ],
+      [
+        9.064263420439419,
+        3.25877373442609,
+        197161
+      ],
+      [
+        6.7982618442898,
+        1.8482641674381641,
+        186615
+      ]
+    ],
+    "('insulin', -2.4)": [
+      [
+        -2.6737204639738095,
+        0.3740867179013077,
+        22
+
+## Representation inspection; Python 12, forward 3
+- Python 11 stopped while inspecting list-valued numeric vocabulary; no edits were made.
+- Tested linear dose/reading decoding from post-drug out and mean h with stays held out.
+{
+  "insulin": [
+    0.8307965993881226,
+    1,
+    0.4609822928905487
+  ],
+  "norepinephrine": [
+    0.7113162279129028,
+    100,
+    0.15150652825832367
+  ],
+  "glucose_finger": [
+    0.9796723127365112,
+    0.1,
+    4.064848899841309
+  ],
+  "map_arterial": [
+    0.9844172596931458,
+    0.1,
+    1.7291861772537231
+  ]
+}
+
+
+
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edi
+[output cut at 10,000 characters]
+```

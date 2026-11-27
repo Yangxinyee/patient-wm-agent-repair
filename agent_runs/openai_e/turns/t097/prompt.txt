@@ -1,0 +1,136 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 96 replies happened before. Forward passes used: 10 of 50; Python runs used: 83 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['baseline77.npz', 'edited', 'fwd_1', 'fwd_10', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate58.npz', 'insulin_candidate63.npz', 'ne_candidate82.npz', 'ne_detector81.npz', 'ne_trial83.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ helper inventory
+Run70 output was truncated before the inventory. Retrieved bounded helper/object summaries to reuse the established local reconstruction. No weights changed. Python runs: 71; forwards: 10.
+
+## Run 72: dynamic NE identification setup
+Inspected panel, run69 objects and causal helper definitions. Next estimate the innovation response across horizons and jointly account for induced later doses; do not equate observational MAP autocorrelation with causal persistence. No weights changed. Python runs: 72; forwards: 10.
+
+## Run 73: dynamic NE innovation identification
+Cross-fitted future MAP and future dose nuisance models on a common t<=16 cohort. Jointly fit one-hour effect and persistence to MAP innovation moments, accounting for induced subsequent doses. Moments={1: {'n': 94452, 'beta': -0.02501344005107875, 'se': 1.04838270976256}, 2: {'n': 97405, 'beta': -1.0135182157036144, 'se': 0.6100605455903194}, 3: {'n': 93462, 'beta': -1.2228509484341887, 'se': 0.6199590540707861}, 4: {'n': 89209, 'beta': -0.6984357074500345, 'se': 0.6356329470532504}, 6: {'n': 81118, 'beta': -1.1122136791348598, 'se': 0.6730170106079933}, 8: {'n': 73092, 'beta': -0.5550111798593667, 'se': 0.7164405256503443}}; dose moments={1: [1.0], 2: [1.0, 0.01914900375353457], 3: [1.0, 0.024263955077150918, 0.02412448431944555], 4: [1.0, 0.021329387098985554, 0.020900864377022942, 0.026311400445344777], 6: [1.0, 0.0295175903312197, 0.028742944681858368, 0.03345312044958435, 0.03467325608332192, 0.03258888550846201], 8: [1.0, 0.012638283124336723, 0.010509397203615156, 0.015868562017731996, 0.016242717650146437, 0.01318490411952469, 0.007581166543398616, 0.0011204137156845314]}; joint fit=(np.float64(1.3082503735627378), np.float64(-0.8973051204084299), np.float64(0.9710000000000001)). These are provisional pending separate arterial/cuff and placebo checks. No weights changed. Python runs: 73; forwards: 10.
+
+## Run 74: reject unreplicated dynamic calculation and audit alignment
+Run73 did not reproduce the audited next-hour effect; its beta/persistence are not accepted. Checked source-row versus stay-hour alignment, dose-residual units and rollout labels before any further fitting. No weights changed. Python runs: 74; forwards: 10.
+
+## Run 75: corrected dynamic NE identification
+Run74 proved run73 future outcomes/doses were misaligned because s69 has a reset index. Replaced positional indexing with exact (stay_id,t+h) lookup; next-hour records match exactly. Refit aligned dose and outcome nuisances with 240 trees. Dynamic moments={1: {'n': 105503, 'beta': 2.707341790473528, 'se': 0.22928813230515843}, 2: {'n': 105659, 'beta': 4.275426804509154, 'se': 0.2516858427454782}, 3: {'n': 105597, 'beta': 5.286207576109406, 'se': 0.2706583217782913}, 4: {'n': 105472, 'beta': 4.896527605434241, 'se': 0.2905893582442792}, 6: {'n': 105647, 'beta': 4.153821192984478, 'se': 0.318405176478772}, 8: {'n': 105537, 'beta': 2.8446145368009423, 'se': 0.3440323915504443}}; induced-dose moments={1: [1.0], 2: [1.0, 0.7678150937142122], 3: [1.0, 0.7687398101649293, 0.6155828468732708], 4: [1.0, 0.7659682086051842, 0.6118029864532559, 0.4867615334720917], 6: [1.0, 0.7654620988437804, 0.6145966743585412, 0.48591950806038614, 0.39504773569326196, 0.3241656232485549], 8: [1.0, 0.7655747854425458, 0.6134864211621766, 0.48805923923578376, 0.3956880370106514, 0.32349670489057053, 0.26711939581157884, 0.22047323900184745]}; joint fit=(5.057288859576627, 2.9779372252559315, 0.6970000000000001); provisional target={'mean': 4.219367108688972, 'n': 314}. No weights changed. Python runs: 75; forwards: 10.
+
+## Run 76: independent MAP channels and causal uncertainty
+Arterial/cuff dynamic checks={'map_arterial': {'estimates': {1: {'n': 51893, 'beta': 2.9387948130277888, 'se': 0.21964029906671806}, 2: {'n': 51940, 'beta': 4.680009584019375, 'se': 0.24861714255824788}, 3: {'n': 51932, 'beta': 5.397717206666027, 'se': 0.2767427349355862}, 4: {'n': 51859, 'beta': 5.2585434808298, 'se': 0.302682560828227}, 6: {'n': 51949, 'beta': 4.3645044465687475, 'se': 0.33745937444494684}, 8: {'n': 51920, 'beta': 3.048246026717235, 'se': 0.367529180249146}}, 'fit': {'loss': 2.555341569475786, 'beta': 3.1670730232094746, 'phi': 0.704}, 'target': {'mean': 4.56014447356125, 'n': 314}}, 'map_cuff': {'estimates': {1: {'n': 69058, 'beta': 2.1020666470455396, 'se': 0.44006518418597923}, 2: {'n': 69251, 'beta': 4.102621742717178, 'se': 0.45135341680031926}, 3: {'n': 69183, 'beta': 5.10635017890205, 'se': 0.47490517092487944}, 4: {'n': 69137, 'beta': 4.626570876278255, 'se': 0.49924869801168564}, 6: {'n': 69196, 'beta': 4.1102847972633265, 'se': 0.537797071089945}, 8: {'n': 69420, 'beta': 2.7429559754483934, 'se': 0.5730563076300162}}, 'fit': {'loss': 3.9035907026925543, 'beta': 2.7222466117192488, 'phi': 0.7090000000000001}, 'target': {'mean': 3.9654392548953075, 'n': 314}}}; pre-treatment placebos={5: {'n': 80743, 'beta': -0.12328763814547097, 'se': 0.23138970019990218}, 8: {'n': 62176, 'beta': 0.20496251801090296, 'se': 0.28579034066169073}}; cluster-bootstrap beta/phi quantiles=[[2.6934940177958335, 0.6509750000000001], [2.989049431534111, 0.6990000000000001], [3.228756742688265, 0.7360250000000003]]; NE x2 target quantiles=[3.779025713488793, 4.240095227778519, 4.730018491810367]. No weights changed. Python runs: 76; forwards: 10.
+
+## Run 77: freeze insulin baseline and recover NE edit machinery
+Independent arterial/cuff persistence is about .70; placebo effects are near zero. Working NE x2 target about +4.2 to +4.6, half about -2.1 to -2.3. Saved current insulin-only b_in delta to /work/baseline77.npz before NE surgery. No weights changed. Python runs: 77; forwards: 10.
+
+## Run 78: restart recovery for NE surgery
+Baseline77 is preserved. Recovering architecture and constrained-feature objects before a reversible NE edit; no weights changed. Python runs: 78; forwards: 10.
+
+## Run 79: NE feature and direction unit audit
+Inspecting constrained factual leakage, dose-target units and local MAP/glucose update sensitivities before choosing a NE correction. No weights changed. Python runs: 79; forwards: 10.
+
+## Run 80: balanced NE detector setup
+Existing factual-zero NE feature is strongly asymmetric between doubling and halving. Auditing raw feature units and held-out stay masks before a separately balanced closed-form fit. No weights changed. Python runs: 80; forwards: 10.
+
+## Run 81: independent balanced NE feature fits
+Raw-unit held-out slopes of the old NE feature are .11648 (double) and .05022 (half); earlier keyed diagnostics were not these slopes. Fitted closed-form NE detectors with factual penalties, exact admission null constraints, insulin-contrast guards, and three halving weights. Forward-only checked the MAP output direction. No weights changed. Python runs: 81; forwards: 10.
+
+## Run 82: selective NE detector and multi-context MAP direction
+Heavy halving weights can reverse doubling sensitivity. Strengthened insulin contrast guards and factual penalties; fitted a broader glucose-neutral MAP output direction using forward differences only. Selected detector=(1.0, 1.0, 300.0), metrics={'cross': 1.0, 'half_w': 1.0, 'anchor': 300.0, 'norm': 1.0216780374234442, 'factual_rms': 0.0033377344221220823, 'cross_rms_2.0': 0.047949565741222555, 'cross_rms_0.5': 0.034422219915327616, 's2.0': 0.05268984731541728, 's0.5': 0.020339962206439764, 'unit_factual': 0.06334682281657412, 'unit_cross': 1.5633331629041907, 'half_ratio': 0.38603190638755563, 'score': 0.3809324982057856}. No weights changed. Python runs: 82; forwards: 10.
+
+## Run 83: reversible insulin+NE trial installed
+Added a rank-one NE correction to the preserved insulin baseline. Detector=(1.0, 1.0, 300.0); multi-context MAP direction ridge=.01; strength=56.937, NE delta norm=714.41. Scaling uses record-based NE beta=3.0, not external medical knowledge. Trial is unaccepted pending paired factual and intervention validation. Saved /work/ne_trial83.npz. Python runs: 83; forwards: 10.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 83 of at most 300:
+```
+NE strength: 56.936965143229536
+NE delta norm: 714.4102997096195
+Combined delta norm: 875.9789702861525
+NE admission feature max: 2.220446049250313e-15
+Edited tensors: ['core.b_in.weight']
+NEXT FORWARD:
+{"type": "factual", "model": "both", "split": "tuning", "stays": [2020000004, 2020000010, 2020000011, 2020000013, 2020000018, 2020000021, 2020000023, 2020000025, 2020000026, 2020000036, 2020000038, 2020000041, 2020000045, 2020000050, 2020000051, 2020000052, 2020000056, 2020000058, 2020000068, 2020000070, 2020000075, 2020000076, 2020000081, 2020000084, 2020000085, 2020000086, 2020000087, 2020000090, 2020000109, 2020000116, 2020000120, 2020000122, 2020000127, 2020000136, 2020000137, 2020000140, 2020000142, 2020000148, 2020000158, 2020000159, 2020000166, 2020000167, 2020000169, 2020000172, 2020000176, 2020000177, 2020000180, 2020000183, 2020000184, 2020000193, 2020000195, 2020000199, 2020000203, 2020000204, 2020000206, 2020000207, 2020000212, 2020000219, 2020000222, 2020000231, 2020000232, 2020000240, 2020000242, 2020000243, 2020000248, 2020000251, 2020000254, 2020000263, 2020000265, 2020000269, 2020000274, 2020000278, 2020000281, 2020000287, 2020000291, 2020000295, 2020000300, 2020000306, 2020000313, 2020000318, 2020000321, 2020000337, 2020000339, 2020000340, 2020000343, 2020000344, 2020000358, 2020000359, 2020000362, 2020000366, 2020000370, 2020000371, 2020000372, 2020000380, 2020000386, 2020000388, 2020000397, 2020000398]}
+
+```

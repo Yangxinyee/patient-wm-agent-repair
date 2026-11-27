@@ -1,0 +1,225 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 16 replies happened before. Forward passes used: 3 of 50; Python runs used: 12 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+Counts: 4 Python runs, 1 forward passes.
+
+## Forward 2 / Run 5
+Exported original states for training stays 1010000000..1010000099 (all bundles). Checked held-out-stay dose decoding and residual-effect dose-range diagnostics. Past-change placebo here is raw, not separately residualized, and must not be treated as a definitive independence test.
+         event                range      n      beta       se
+glucose_finger               0.5..1  21312 -1.895856 0.144475
+glucose_finger                 1..2 134998 -2.042501 0.083923
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab                 1..2   6440 -1.674272 0.221519
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab prior_change_placebo   5781  0.010951      NaN
+  map_arterial           0.01..0.31  46952  2.808803 0.267351
+  map_arterial            0.31..0.7  48870  3.186511 0.130080
+  map_arterial               0.7..1  48494  3.503649 0.137606
+  map_arterial prior_change_placebo 298800  0.134794      NaN
+      map_cuff           0.01..0.21  24183  1.573456 0.905161
+      map_cuff           0.21..0.62  25354  2.622023 0.337926
+      map_cuff              0.62..1  24436  2.837563 0.321496
+      map_cuff prior_change_placebo 279926  0.482887      NaN
+ features  alpha           drug  test_r2  test_rmse
+      out    1.0        insulin 0.739124   0.663240
+      out    1.0 norepinephrine 0.790876   0.158897
+      out   30.0        insulin 0.690299   0.722644
+      out   30.0 norepinephrine 0.743011   0.176145
+      out  300.0        insulin 0.652943   0.764986
+      out  300.0 norepinephrine 0.697538   0.191095
+out_and_z    1.0        insulin 0.899701   0.411246
+out_and_z    1.0 norepinephrine 0.795638   0.157077
+out_and_z   30.0        insulin 0.890078   0.430523
+out_and_z   30.0 norepinephrine 0.777885   0.163758
+out_and_z  300.0        insulin 0.830641   0.534389
+out_and_z  300.0 norepinephrine 0.732674   0.179653
+all_state    1.0        insulin 0.899256   0.412158
+all_state    1.0 norepinephrine 0.779078   0.163318
+all_state   30.0        insulin 0.892723   0.425312
+all_state   30.0 norepinephrine 0.781131   0.162557
+all_state  300.0        insulin 0.838499   0.521844
+all_state  300.0 norepinephrine 0.748401   0.174288
+Counts: 5 Python runs, 2 forward passes.
+
+## Forward 3 / Run 6
+Original factual NLL on matching 100 training stays: 1.63065 (4745 values). Reconstructing prediction heads from exported states; compared candidate activations, gap encodings, and last-register layouts. No edits yet.
+                                             config  mean_rmse  nll_rmse      nll
+('silu', 'log1p', 'gelu', 'interleaved', 0, 'silu')   4.519133  0.451487 1.712594
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'silu')   4.519134  0.451485 1.712592
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'gelu')   4.559348  0.425870 1.703790
+('silu', 'log1p', 'gelu', 'interleaved', 0, 'gelu')   4.559350  0.425875 1.703792
+  ('gelu', 'log', 'gelu', 'interleaved', 0, 'silu')   4.613220  0.477999 1.724570
+('gelu', 'log1p', 'gelu', 'interleaved', 0, 'silu')   4.613243  0.478005 1.724573
+  ('gelu', 'log', 'silu', 'interleaved', 0, 'silu')   4.701380  0.467703 1.724681
+('gelu', 'log1p', 'silu', 'interleaved', 0, 'silu')   4.701406  0.467708 1.724684
+Counts: 6 Python runs, 3 forward passes.
+
+## Run 7
+Re-reading architecture and inspecting persistent variables before a targeted algebraic edit. Reconstruction remains too inaccurate to use safely; no tensors edited.
+Counts: 7 Python runs, 3 forward passes.
+
+## Run 10
+Direct reconstruction grid over gap scale, activation, latent source, query type, last-register flags and status. Still no edits.
+[(('silu', 0.1, 'gelu', 'prior', 1, 3, 0, 'silu'), 4.607177356790052, 0.4679384991024623, 1.7100245952606201), (('silu', 0.1, 'silu', 'zero', 1, 3, 0, 'silu'), 4.61602379769742, 0.47527918777192124, 1.7125592231750488), (('silu', 0.1, 'gelu', 'zero', 1, 3, 0, 'silu'), 4.61602379769742, 0.47527918777192124, 1.7125592231750488), (('silu', 0.1, 'gelu', 'prior', 1, 3, 0, 'gelu'), 4.666139433119243, 0.4374716970171015, 1.7025305032730103), (('silu', 0.1, 'silu', 'zero', 1, 3, 0, 'gelu'), 4.6671216267476865, 0.4484234491205614, 1.7064038515090942)]
+Counts: 10 Python runs, 3 forward passes.
+
+## Run 11
+Checking latent-probability averaging instead of a deterministic latent mean.
+[(('silu', 'gelu', 'gelu', 1.0), 4.599382696680694, 0.43500487927887543, 1.706592082977295, 0.44631290459442136, 0.06186679615491629), (('silu', 'gelu', 'gelu', 0.5), 4.599914960000067, 0.4363669175661295, 1.7085585594177246, 0.424250216720581, 0.06383318363541365), (('silu', 'gelu', 'silu', 1.0), 4.65668039098584, 0.4705122763196616, 1.7173858880996704, 0.5321874763946532, 0.0726605230089426), (('silu', 'gelu', 'silu', 0.5), 4.6756450136965455, 0.4724108044289337, 1.7201770544052124, 0.5108177330474853, 0.07545164412671328)]
+Counts: 11 Python runs, 3 forward passes.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 12 of at most 300:
+```
+Best register/activation encodings:
+((6, 3, (0,), 'relu'), 1.6327455898413652, 0.2445551099933219, 1.6389846801757812)
+((6, 3, (0,), 'gelu'), 1.789027720008194, 0.23603833661230156, 1.634167194366455)
+((6, 3, (0, 4), 'relu'), 1.9166715117670468, 0.2887496929092181, 1.6465132236480713)
+((6, 3, (0,), 'silu'), 2.075657850606084, 0.2775910934337869, 1.6406793594360352)
+((6, 3, (0, 4), 'gelu'), 2.0885647819012347, 0.2728416523764349, 1.6401848793029785)
+((6, 3, (0, 2), 'relu'), 2.160806994857511, 0.32774187497786555, 1.6555018424987793)
+((6, 3, (0, 4), 'silu'), 2.3680583450541124, 0.3058806554145646, 1.646294355392456)
+((6, 4, (0, 3), 'relu'), 2.3695539357892206, 0.30159991774090816, 1.644740343093872)
+((6, 1, (0, 5), 'gelu'), 2.462695347200537, 0.5378320372440366, 1.7298974990844727)
+((6, 2, (0, 3), 'relu'), 2.5100132500849095, 0.31725643131060366, 1.6461454629898071)
+((6, 3, (0, 2), 'gelu'), 2.602949873113289, 0.3808764247606107, 1.668216586112976)
+((6, 1, (0, 5), 'relu'), 2.606000628137853, 0.560417315078026, 1.7418230772018433)
+
+View alternatives with the best register:
+Best view configurations:
+(('silu', 'gelu', 'flow_sum', 1), 1.6327453380896806, 0.24455507332500068, 1.6389846801757812)
+(('silu', 'relu', 'flow_sum', 1), 1.691983007703739, 0.2544456447522517, 1.6413918733596802)
+(('silu', 'silu', 'flow_sum', 1), 1.7258326960740937, 0.23990563512705837, 1.6415711641311646)
+(('gelu', 'silu', 'flow_sum', 1), 1.7889844555930912, 0.23670211266247665, 1.6443722248077393)
+(('gelu', 'gelu', 'flow_sum', 1), 1.8953869643709333, 0.27599286789206173, 1.6507136821746826)
+(('gelu', 'relu', 'flow_sum', 1), 2.002255836823616, 0.295367621403472, 1.655485987663269)
+(('relu', 'gelu', 'flow_sum', 1), 2.3335351046935067, 0.3070158380956492, 1.6629154682159424)
+(('relu', 'silu', 'flow_sum', 1), 2.3723016145086446, 0.2717286686984073, 1.6566082239151)
+
+```

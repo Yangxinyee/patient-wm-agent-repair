@@ -1,0 +1,44 @@
+OUTPUT of Python run 111 of at most 300:
+```
+=== VOCABULARY SEMANTICS ===
+top-level keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom_kinds {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+numeric_note z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+value_bin_note The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1].
+event-kind map: {'glucose_finger': 1, 'glucose_lab': 1, 'map_arterial': 1, 'map_cuff': 1, 'insulin': 2, 'norepinephrine': 2, 'hospital_admission': 3, 'icu_admission': 4}
+world kind map: 0
+centres, first four: tensor([[ 0., 73., 84., 92.],
+        [ 0., 33., 38., 43.],
+        [ 0., 33., 38., 43.],
+        [ 0., 33., 38., 43.]])
+
+=== NO-VALUE MASS ===
+                        mean           max
+event                                     
+glucose_finger  3.476617e-08  3.195502e-06
+glucose_lab     2.703546e-08  1.127171e-06
+map_arterial    3.418354e-09  1.483237e-07
+map_cuff        1.693728e-08  4.330683e-07
+
+=== BEST TYPE CONVENTIONS BY SENSOR ===
+glucose_finger
+{'event': 'glucose_finger', 'type': 1, 'value_col': 6, 'activation': 'gelu', 'mean_mae': 4.222974921795604, 'nll_mae': 0.5038581754095187, 'nll_bias': 0.3106180562275212}
+{'event': 'glucose_finger', 'type': 1, 'value_col': 6, 'activation': 'relu', 'mean_mae': 4.663694500682799, 'nll_mae': 0.5313739581747753, 'nll_bias': 0.3036646512989106}
+{'event': 'glucose_finger', 'type': 10, 'value_col': 6, 'activation': 'relu', 'mean_mae': 8.579184461342416, 'nll_mae': 0.695869093196082, 'nll_bias': 0.48084388941429496}
+glucose_lab
+{'event': 'glucose_lab', 'type': 1, 'value_col': 6, 'activation': 'gelu', 'mean_mae': 3.9368553804438156, 'nll_mae': 0.46187781396799904, 'nll_bias': 0.18473622700331058}
+{'event': 'glucose_lab', 'type': 1, 'value_col': 6, 'activation': 'relu', 'mean_mae': 4.120770348082197, 'nll_mae': 0.47280312522776585, 'nll_bias': 0.1983156388713959}
+{'event': 'glucose_lab', 'type': 1, 'value_col': 2, 'activation': 'gelu', 'mean_mae': 5.930851586914062, 'nll_mae': 0.6715232750562913, 'nll_bias': 0.36445154794682844}
+map_arterial
+{'event': 'map_arterial', 'type': 11, 'value_col': 6, 'activation': 'relu', 'mean_mae': 3.778155554264149, 'nll_mae': 0.9242585862071588, 'nll_bias': 0.709842842096661}
+{'event': 'map_arterial', 'type': 11, 'value_col': 6, 'activation': 'gelu', 'mean_mae': 3.78339823199333, 'nll_mae': 0.9642210606795041, 'nll_bias': 0.747938790402831}
+{'event': 'map_arterial', 'type': 11, 'value_col': 2, 'activation': 'gelu', 'mean_mae': 5.13741872454704, 'nll_mae': 1.0068239381566961, 'nll_bias': 0.7694636957290325}
+map_cuff
+{'event': 'map_cuff', 'type': 1, 'value_col': 6, 'activation': 'relu', 'mean_mae': 2.823750116577148, 'nll_mae': 0.5538801314663887, 'nll_bias': 0.28336579360405606}
+{'event': 'map_cuff', 'type': 1, 'value_col': 6, 'activation': 'gelu', 'mean_mae': 3.3068149734497068, 'nll_mae': 0.5803399616094431, 'nll_bias': 0.32011686695456504}
+{'event': 'map_cuff', 'type': 11, 'value_col': 2, 'activation': 'gelu', 'mean_mae': 4.1003965019226065, 'nll_mae': 0.7142554819997151, 'nll_bias': 0.32773690330823263}
+
+```

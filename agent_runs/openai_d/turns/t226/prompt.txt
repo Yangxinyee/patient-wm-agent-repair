@@ -1,0 +1,134 @@
+OUTPUT of Python run 194 of at most 300:
+```
+=== EARLY PERSISTENCE / TARGET NOTES ===
+# Weight-repair notebook
+
+## Objective and constraints
+- Infer this simulated ICU's drug effects from the provided records only.
+- Repair the four dose-rollout readouts while increasing factual value NLL by no more than 0.005 nats per reading.
+- No model gradients or weight optimiser; statistical fits and computed weight edits only.
+- Limits: 300 Python runs and 50 forward requests.
+
+## Run 1
+Requested architecture, data schema, vocabulary, and tensor shapes. No causal conclusions or weight edits yet.
+
+## Run 2
+Architecture: actions have a separate DeepSets encoder, then enter the posterior and recurrent prelude. Reading heads also have same-code last-reading registers and transition logits. No drug effects inferred yet. Loaded train/tuning records and inspected schedule and drug encodings.
+
+## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+## Forward requests 1 and 2
+Original factual NLL (tuning IDs 2020000000..99): 1.63461; provisional maximum 1.63961.
+Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours 
+=== RUN-190 OBJECTS ===
+C190 ndarray (4510, 17)
+H190 ndarray (32, 4510, 192)
+Lorig190 ndarray (32, 4510, 17)
+Lremoved190 ndarray (32, 4510, 17)
+O2190 ndarray (17, 192)
+O2b190 ndarray (17,)
+W2190 ndarray (17, 192)
+amount190 2.0
+base_mean190 ndarray (4510,)
+d190 ndarray (32, 4510)
+dt190 ndarray (32, 4510)
+g190 ndarray (32, 4510)
+lossorig190 ndarray (4510,)
+lossremoved190 ndarray (4510,)
+mt190 ndarray (4510,)
+orig190 dict keys ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+pair190 ndarray (32, 4510)
+pt190 ndarray (32, 4510)
+removed190 ndarray (32, 4510, 17)
+result190 dict keys [-1, 1]
+sign190 1
+=== CACHED READING ARRAYS ===
+Traceback (most recent call last):
+  File "<run>", line 23, in <module>
+TypeError: object of type 'numpy._ArrayFunctionDispatcher' has no len()
+
+```

@@ -1,0 +1,34 @@
+OUTPUT of Python run 39 of at most 300:
+```
+per-reading nll diff: mean -0.000062 sd 0.00429 se 0.000058 max|d| 0.0512
+                    mean       std  count
+event                                    
+glucose_finger -0.000165  0.006283   1954
+glucose_lab    -0.000076  0.004303    518
+map_arterial    0.000027  0.001783   1587
+map_cuff       -0.000013  0.002355   1329
+{'NAMES': None, 'SHAPES': None, 'VOCAB': None, 'VOC': None, 'tr': (2057535, 10), 'tu': (26947, 9), 'los': (30000,), 'ne_stays': (13200,), 'ins_stays': (18508,), 'P': (780000, 35), 'g': None, 'art': (30000,), 'cuf': (30000,), 'gf': (2,), 'Q': (453208, 41), 't': (41, 4), 'M': (312636, 10), 'R': (698362, 13), 'nomap': (51638, 11), 'R2': (220272, 14), 'Pt': (10400, 10), 'late': (5200, 8), 'ins_late': (400,), 'ne_late': (400,), 'both': None, 'ins_only': None, 'ne_only': None, 'sel1': None, 'S': (115082, 51), 'both_g': (90493, 35), 'd': (5388,), 'A': (342696, 44), 'both_m': (106563, 35), 'd2': (106563,), 'x': (780000,), 'y': (437364,), 'm': (437364,), 'y2': (780000,), 'm2': (780000,), 'base': None, 'Ig': (301616, 40), 'sm_': (18288, 2), 'D': (437364, 64), 'gb': (437364,), 'knots': (35,), 'Xs': None, 'X': (342696, 2), 'fut': None, 'D2': (278854, 52), 'obs': None, 'res': None, 'R_': (16, 8), 'r': (24, 4), 'w': (4,), 'T2': (113753, 47), 'A2': (750000, 36), 'cond': (156681,), 'SS': (6939, 38), 'B': (156681, 55), 'Ig2': (60196, 43), 'B2': (46596, 47), 'C': (225248, 41), 'fa': (10997,), 'fc': (10997,), 'S0': (225248, 41), 'out': None, 'gg': (8372,), 'St': (10997, 48), 'Sp': (17713, 43), 'N0': (12923, 39), 'S_': (10102, 49), 'yk': (10102,), 'ps': (99, 6), 'ne_before': (400,), 'ne_after': (400,), 'R6': (8, 5), 'L': (49532, 62), 'gaps': (30000,), 'allg': (423208,), 'DD': (149438, 64), 'f3': (3420, 7), 'rec': (15, 4), 'df': (3420, 7), 'f2o': (5388, 6), 'f2e': (5388, 6)}
+['load', 'load_original', 'save_edit', 'drop_edit', 'edited', 'panel', 'add_lags', 'rd', 'ols', 'tier', 'fe_slope', 'rd_est', 'fe_ols', 'rd_ne', 'rd_ne2']
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+```

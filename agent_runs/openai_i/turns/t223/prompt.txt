@@ -1,0 +1,155 @@
+OUTPUT of Python run 198 of at most 300:
+```
+=== RECORD-BASED EVIDENCE ===
+
+# Weight-repair investigation
+## Initial inspection ? Python 1; forward 0
+- No weights changed and no drug effects assumed.
+- Inspect architecture, vocabulary, and record schema first.
+- Establish effects from training records, accounting for dose selection.
+- Validate any edit against paired rollouts and the factual NLL limit (original + 0.005 nats per reading).
+
+## Inspection ? Python 2; forward 0
+- Architecture read: separate action encoder; recurrent action pathways; shared attribute embeddings and same-code last-value registers.
+- Initial output truncated before vocabulary and sample rows; reprinted compact metadata and loaded records.
+- Reserved fixed tuning subsets for development, independent checking, and final validation. No weights changed.
+
+## Hourly analysis ? Python 3; forward 0
+- Measurements are at integer hours; infusions begin at hour + 0.0833.
+- Built chronological panels with zero rate when no infusion is recorded.
+- Preliminary associations below are diagnostic, not established effects; linear adjustment and dynamic fixed effects can be biased.
+        sensor           drug            method      n  beta_per_rate  cluster_se
+glucose_finger        insulin             naive 263668      17.929280    0.115173
+glucose_finger        insulin  history-adjusted 263668      -1.889789    0.042105
+glucose_finger        insulin history + stay FE 263668      -1.939217    0.041457
+   glucose_lab        insulin             naive  52643      17.885480    0.164865
+   glucose_lab        insulin  history-adjusted  52643      -1.973027    0.068524
+   glucose_lab        insulin history + stay FE  52643      -2.059826    0.070363
+  map_arterial norepinephrine             naive 152923     -14.511075    0.241974
+  map_arterial norepinephrine  history-adjusted 152923       2.094215    0.085729
+  map_arterial norepinephrine history + stay FE 152923       2.621544    0.085211
+      map_cuff norepinephrine             naive 111949     -15.371100    0.234747
+      map_cuff norepinephrine  history-adjusted 111949      -0.673979    0.181196
+      map_cuff norepinephrine history + stay FE 111949       1.578414    0.174600
+
+## Nonlinear identification ? Python 4; forward 2
+- Original development factual NLL 1.66206; limit 1.66706.
+- Original rollouts (99 stays): insulin x2 -1.864, half +0.975; NE x2 +0.342, half -0.032.
+- Crossfit dose and outcome nuisance models by stay, using only pre-dose history. Active-dose estimates still require exchangeability and attention to observation selection and nuisance-model error.
+        sensor           subset      n      beta  cluster_se
+glucose_finger       all active 263668 -1.986075    0.044771
+glucose_finger           hour 0   9307 -2.004139    0.243609
+glucose_finger        hours 1-5  48376 -1.811866    0.104447
+glucose_finger       hours 6-11  63523 -1.945429    0.091394
+glucose_finger      hours 12-23 142462 -2.052531    0.059515
+glucose_finger both sensors now  51056 -1.872719    0.095800
+   glucose_lab       all active  52643 -2.101326    0.073338
+   glucose_lab           hour 0   1868 -1.747917    0.457723
+   glucose_lab        hours 1-5   9655 -1.874173    0.178218
+   glucose_lab       hours 6-11  12707 -2.138924    0.153661
+   glucose_lab      hours 12-23  28413 -2.175754    0.097108
+   glucose_lab both sensors now  10073 -1.942218    0.157055
+  map_arterial       all active 152923  3.104719    0.088675
+  map_arterial           hour 0   6367  1.343762    0.313113
+  map_arterial        hours 1-5  32415  3.520649    0.224280
+  map_arterial       hours 6-11  38900  2.879506    0.178614
+  map_arterial      hours 12-23  75241  3.387522    0.116377
+  map_arterial both sensors now  43223  3.164128    0.159062
+      map_cuff       all active 111949  2.788186    0.172623
+      map_cuff           hour 0   4596 -2.065359    0.630626
+      map_cuff        hours 1-5  23444  2.883714    0.451089
+      map_cuff       hours 6-11  28356  3.309199    0.350870
+      map_cuff      hours 12-23  55553  3.324056    0.234617
+      map_cuff both sensors now  13489  3.439605    0.434051
+
+## Identification checks ? Python 5; forward 2
+- Crossfit estimates support insulin approximately -2 per unit/hour on both glucose sensors. NE approximately +3 after startup; hour-0 disagreement remains unresolved.
+- Checked 
+
+=== RELEVANT WEIGHT SHAPES ===
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+
+=== RETAINED CHANNEL / REPLAY OBJECTS ===
+attention136 function (x, memory, prefix, key_add=None, mask=None)
+core_step136 function (h_before, dt_seconds, e, u, z, memory, ages, age_mode='key', mask=None)
+statefile136 NpzFile NpzFile
+state_stays ndarray (100,)
+state_lookup dict [(1010000000, -120), (1010000000, -60), (1010000000, 0), (1010000000, 5), (1010000000, 60), (1010000000, 65), (1010000000, 120), (1010000000, 125), (1010000000, 180), (1010000000, 185)]
+posterior137 function (indices, e, u)
+probe_ix138 dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+post_tests143 list list
+eprobe146 Tensor torch.Size([1, 192])
+hprobe146 Tensor torch.Size([1, 4, 192])
+zprobe146 Tensor torch.Size([1, 32])
+dtprobe146 Tensor torch.Size([1])
+step_tests146 list list
+ecache152 dict [(False, 1), (False, 2), (True, 1), (True, 2)]
+ucache152 dict [(False, 0, 0), (False, 0, 1), (False, 0, 2), (False, 0, 3), (False, 1, 0), (False, 1, 1), (False, 1, 2), (False, 1, 3), (False, 2, 0), (False, 2, 1)]
+probe153 ndarray (24,)
+candidates156 ndarray (815,)
+state_stays157 set set
+candidates157 ndarray (766,)
+state_cal161 Tensor torch.Size([4035, 992])
+replay_inputs161 function (i, include_current=False, age_scale=1.0)
+replay_scores161 list list
+probe_indices161 ndarray (18,)
+policy_inputs168 dict ['context', 'context+e']
+policy_results168 list list
+policy168 dict ['insulin', 'norepinephrine']
+gate_strength169 float float
+gate_row ndarray (576,)
+gate_bias float float
+policy_reg Ridge Ridge
+candidate169 dict ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias']
+candidate_probe170 dict ['z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+candidate_negative173 dict ['z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+probes175 dict []
+probe180 int int
+drug_probes181 dict ['insulin', 'norepinephrine']
+probe_pairs181 list list
+old_post Tensor torch.Size([1, 32])
+new_post Tensor torch.Size([1, 32])
+post_error float float
+args_cache182 list list
+oldpost182 Tensor torch.Size([258, 32])
+batch_replay182 function (Uall)
+state_rows183 dict [1010000000, 1010000001, 1010000002, 1010000003, 1010000004, 1010000005, 1010000006, 1010000007, 1010000008, 1010000009]
+tokens192 Tensor torch.Size([258, 7, 192])
+posterior_base193 Tensor torch.Size([4035, 32])
+post193 Tensor torch.Size([4035, 32])
+tokens193 Tensor torch.Size([95, 7, 192])
+policy_pred194 ndarray (3935, 2)
+candidate_dims196 ndarray (8,)
+private_dims196 ndarray (2,)
+post196 Tensor torch.Size([4035, 32])
+private_basis196 ndarray (192, 3)
+attention_features196 function (tokens, qweight, kvweight)
+old_tokens196 Tensor torch.Size([3935, 7, 192])
+old_attention_features196 Tensor torch.Size([3935, 4, 192])
+private_head196 int int
+
+=== HELPER IMPLEMENTATION ===
+attention_features196 names: ('norm136', 'shape', 'F', 'linear', 'reshape', 'transpose', 'split', 'np', 'sqrt', 'softmax') constants: (None, 'core.prelude.0.norm1', 4, 48, 1, 2, 192, -1, ('dim',), -2)
+array196 names: ('torch', 'is_tensor', 'detach', 'cpu', 'numpy', 'np', 'asarray') constants: (None,)
+
+```

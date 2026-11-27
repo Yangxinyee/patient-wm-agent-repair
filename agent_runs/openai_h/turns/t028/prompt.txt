@@ -1,0 +1,144 @@
+OUTPUT of Python run 18 of at most 300:
+```
+=== EDIT CONSTRUCTION AND VALIDATION ===
+## Run 10: training-centered dose-invariant input edit
+- Edited embed.numeric.weight: zero z_dose/z_rate columns; fold empirical mean z into corresponding presence columns.
+- Edited embed.bins.dose.weight and embed.bins.rate.weight: collapse rows 1..16 to empirical frequency-weighted means; preserve absent row 0.
+- Measurement-value inputs, drug identity, presence, units and timing are unchanged.
+- Centering statistics: {"dose": {"mean_z": 0.05982602070235153, "n": 552923, "per_drug": {"insulin": {"n": 306338, "mean_z": 0.09469605468469468, "bin_frequencies": [0.0616, 0.0, 0.0, 0.2391, 0.0, 0.0, 0.1701, 0.1483, 0.0, 0.1179, 0.084, 0.0966, 0.0438, 0.0199, 0.0094, 0.0093]}, "norepinephrine": {"n": 246585, "mean_z": 0.016506206155306746, "bin_frequencies": [0.0164, 0.0, 0.0366, 0.0456, 0.095, 0.1083, 0.0915, 0.1075, 0.1062, 0.0944, 0.0963, 0.0397, 0.0, 0.0, 0.0, 0.1626]}}}, "rate": {"mean_z": 0.05982601604195154, "n": 552923, "per_drug": {"insulin": {"n": 306338, "mean_z": 0.09469605468469468, "bin_frequencies": [0.0616, 0.0, 0.0, 0.2391, 0.0, 0.0, 0.1701, 0.1483, 0.0, 0.1179, 0.084, 0.0966, 0.0438, 0.0199, 0.0094, 0.0093]}, "norepinephrine": {"n": 246585, "mean_z": 0.01650619570518878, "bin_frequencies": [0.0164, 0.0179, 0.0, 0.0643, 0.095, 0.1083, 0.1001, 0.0989, 0.0984, 0.1022, 0.0963, 0.2023, 0.0, 0.0, 0.0, 0.0]}}}}
+- Need validate factual NLL and all four rollout readouts before accepting.
+- Python runs: 10. Forward passes: 2.
+
+## Restart audit: Python run 11, forward passes 5
+- Forward 5: original factual NLL 1.47456, edited 1.47496 on 100 tuning stays / 4,837 values; delta +0.00040, below +0.005.
+- Recovering earlier forward results and kernel objects before extending validation. Null drug effects remain a hypothesis supported by adjusted training-record estimates, not medical assumptions.
+
+## Python run 12: focused validation recovery
+- Run 11 output truncated before saved forward results; recovering forward 3?5 tables and main-sensor adjusted estimates without reprinting architecture.
+- Forward passes remain 5; no additional weight edits.
+
+## Python run 13 / forward passes 7: complete tuning factual validation
+- Forward 3/5/6/7 cover all 400 tuning stays with unchanged edit hash e723af07c9.
+- Pooled factual results: {"stays": 400, "readings": 19413, "original_nll": 1.4894494926080462, "edited_nll": 1.4897565600370883, "delta_nll": 0.00030706742904239493, "stay_cluster_se": 0.00015848602661543352, "approx_95pct_interval": [-3.5651831238547546e-06, 0.0006177000412086447], "allowed_increase": 0.005}
+- Forward 4 confirms all four edited-model dose shifts are exactly zero at every tested eligible stay-hour; original shifts are nonzero.
+- Auditing delayed-effect estimates and remaining dose variation before accepting the training-record-supported near-zero-effect hypothesis.
+
+## Python run 14 / forward passes 7: intensive-margin challenge
+- All 400 tuning stays: original NLL 1.48944949, edited 1.48975656; increase 0.00030707, stay-cluster approximate 95% interval [-0.00000357, 0.00061770]. After hour 12 the increase is 0.000145.
+- Existing target-sensor local projections at horizons 2/3/6/12 show no consistently signed, precisely estimated dose response.
+- New diagnostic uses only positive infusions, disjoint training/held-out stays, pretreatment histories, linear/quadratic dose residualization, and stay-cluster uncertainty. No model weights were changed.
+- Intensive-margin results: {"insulin": {"outcome": "glucose_finger", "training_rows": 234013, "held_out_positive_dose_rows": 58612, "dose_residual_sd": 0.7816665381588074, "linear": {"n": 58612, "stays": 3695, "coefficients": [-0.028980578136419334], "cluster_se": [0.08416433904484774], "joint_null_p": 0.7305957017246745}, "linear_and_quadratic": {"n": 58612, "stays": 3695, "coefficients": [0.050786860719139175, 
+
+=== WORKING OBJECTS ===
+D: ndarray, shape=(780000, 2)
+DRUGS: list, len=2
+EVAL_IDS: list, len=100
+H: DataFrame, shape=(780000, 40)
+H_tune: DataFrame, shape=(10400, 40)
+Hrich: DataFrame, shape=(780000, 82)
+Hrich_tune: DataFrame, shape=(10400, 82)
+MEAS: list, len=4
+NAMES: list, len=181
+SHAPES: dict, keys=['code_bias', 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.kq.weight', 'embed.text.weight', 'embed.categorical.status.weight', 'embed.categorical.unit.weight']
+VOCAB: dict, keys=['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+Xrich: ndarray, shape=(780000, 82)
+a: ndarray, shape=(192, 6)
+arr: ndarray, shape=(17, 192)
+audit_all: DataFrame, shape=(19413, 8)
+audit_cluster_regression: function, args=('features', 'outcome', 'stay_ids')
+audit_cuts: ndarray, shape=(3,)
+audit_d: ndarray, shape=(144000,)
+audit_df: DataFrame, shape=(4837, 6)
+audit_dose: ndarray, shape=(780000,)
+audit_e: DataFrame, shape=(4899, 6)
+audit_fit_mask: ndarray, shape=(780000,)
+audit_group: list, len=1
+audit_ids: list, len=400
+audit_influence: Series, shape=(400,)
+audit_keys: list, len=4
+audit_linear: dict, keys=['n', 'stays', 'coefficients', 'cluster_se', 'joint_null_p']
+audit_mask: ndarray, shape=(780000,)
+audit_next_y: ndarray, shape=(780000,)
+audit_nll: list, len=1
+audit_num: Index, shape=(5,)
+audit_nw: ndarray, shape=(192, 6)
+audit_nwo: ndarray, shape=(192, 6)
+audit_o: DataFrame, shape=(4899, 6)
+audit_pair: DataFrame, shape=(4899, 8)
+audit_pairs: list, len=4
+audit_positive_models: dict, keys=[('insulin', 'dose'), ('insulin', 'dose_squared'), ('insulin', 'next_reading'), ('norepinephrine', 'dose'), ('norepinephrine', 'dose_squared'), ('norepinephrine', 'next_reading')]
+audit_positive_params: dict, keys=['max_iter', 'learning_rate', 'max_leaf_nodes', 'min_samples_leaf', 'l2_regularization', 'early_stopping', 'random_state']
+audit_positive_results: dict, keys=['insulin', 'norepinephrine']
+audit_predictions: list, len=3
+audit_quadratic: dict, keys=['n', 'stays', 'coefficients', 'cluster_se', 'joint_null_p']
+audit_r: ndarray, shape=(144000,)
+audit_residual_basis: ndarray, shape=(30966, 2)
+audit_residual_y: ndarray, shape=(30966,)
+audit_results: dict, keys=['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+audit_severity: ndarray, shape=(780000,)
+audit_stay: DataFrame, shape=(400, 2)
+audit_strata: ndarray, shape=(30966,)
+audit_stratum_results: dict, keys=['1', '2', '3', '4']
+audit_sub: ndarray, shape=(30966,)
+audit_summary: dict, keys=['stays', 'readings', 'original_nll', 'edited_nll', 'delta_nll', 'stay_cluster_se', 'approx_95pct_interval', 'allowed_increase']
+audit_target: ndarray, shape=(780000,)
+audit_test_ids: ndarray, shape=(30966,)
+audit_test_mask: ndarray, shape=(780000,)
+audit_test_severity: ndarray, shape=(30966,)
+audit_valid: ndarray, shape=(780000,)
+audit_w: ndarray, shape=(17, 192)
+audit_wo: ndarray, shape=(17, 192)
+audit_x_fit: ndarray, shape=(124792, 82)
+audit_x_test: ndarray, shape=(30966, 82)
+b: ndarray, shape=(192, 6)
+beta: ndarray, shape=(2,)
+bin_ids: ndarray, shape=(246585,)
+bins: Tensor, shape=torch.Size([17, 192])
+bins_neutral: Tensor, shape=torch.Size([17, 192])
+bins_original: Tensor, shape=torch.Size([17, 192])
+centering_stats: dict, keys=['dose', 'rate']
+cluster_slope: function, args=('res_d', 'res_y', 'ids')
+constant_bin: Tensor, shape=torch.Size([192])
+counts: ndarray, shape=(16,)
+cross_ne_fit: ndarray, shape=(780000,)
+cross_ne_fold: ndarray, shape=(780000,)
+cross_ne_fold_lookup: dict, keys=[1010000000, 1010000005, 1010000010, 1010000015, 1010000020, 1010000025, 1010000030, 1010000035]
+cross_ne_fold_results: dict, keys=['1', '2', '3', '4', '0']
+cross_ne_group: ndarray, shape=(6000,)
+cross_ne_groups: list, len=4
+cross_ne_original_held_stays: ndarray, shape=(6000,)
+cross_ne_pooled_results: dict, keys=['all_training_stays', 'excluding_original_held_out_stays', 'hours_12_to_23', 'new_stays_hours_12_to_23']
+cross_ne_predictions: dict, keys=['dose', 'dose_squared', 'map_change']
+cross_ne_remaining: ndarray, shape=(24000,)
+cross_ne_residual_dose: ndarray, shape=(780000, 2)
+cross_ne_residual_y: ndarray, shape=(780000,)
+cross_ne_stays: ndarray, shape=(30000,)
+cross_ne_subset: ndarray, shape=(780000,)
+cross_ne_target: ndarray, shape=(780000,)
+cross_ne_test: ndarray, shape=(780000,)
+cross_ne_valid: ndarray, shape=(780000,)
+cross_ne_xfit: ndarray, shape=(118862, 86)
+cross_ne_xtest: ndarray, shape=(29135, 86)
+cross_ne_zero: ndarray, shape=(780000,)
+delayed_results: dict, keys=[(2, 'glucose_finger'), (2, 'glucose_lab'), (2, 'map_arterial'), (2, 'map_cuff'), (3, 'glucose_finger'), (3, 'glucose_lab'), (3, 'map_arterial'), (3, 'map_cuff')]
+delta: Series, shape=(108456,)
+dml_results: dict, keys=['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+dose_mo
+
+=== FORWARD RESULT FILES ===
+fwd_1 ['summary.json', 'dose_edit_original.csv']
+fwd_2 ['summary.json', 'factual_original.csv']
+fwd_3 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+fwd_4 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+fwd_5 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+fwd_6 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+fwd_7 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+
+=== DOSE-INVARIANCE CHECK ===
+embed.bins.dose.weight absent_row_unchanged True max_positive_row_difference 0.0
+embed.bins.rate.weight absent_row_unchanged True max_positive_row_difference 0.0
+numeric weight shape: (192, 6)
+per-column max magnitude: [0.4303731322288513, 0.4246283173561096, 0.0, 0.43688511848449707, 0.0, 0.39532679319381714]
+per-column max edit: [0.0, 0.0, 0.39708784222602844, 0.02375619113445282, 0.44473692774772644, 0.026606827974319458]
+
+```

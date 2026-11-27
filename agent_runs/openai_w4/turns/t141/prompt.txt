@@ -1,0 +1,230 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 140 replies happened before. Forward passes used: 6 of 50; Python runs used: 125 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+80
+Fit closed-form scalar calibration regressions using factual bin residuals and paired dose-feature response constraints. Compared independent tuning NLL and nonlinear one-step responses over a ridge/constraint grid. No weights saved.
+
+## Run 81
+Head-only rank-one calibration cannot restore direct effects within the factual budget: meaningful increases cost far above 0.005 nats. No candidates saved. Investigating posterior action innovations and a targeted transition repair instead of globally tilting the value head.
+
+## Run 82
+Tested posterior-hidden dose-innovation regressions with 60/40 stay-separated validation and controlled half/double response constraints. No weight edits; decoder transfer and non-action leakage determine whether a posterior repair is plausible.
+
+Runs 83–85: recovered architecture and initial record evidence. Original tuning dose shifts are small; immediate record-based effects are insulin about -2 and NE about +3.17 per rate. Neither identifies the sustained 12-hour effect alone. No edits.
+
+Run 87: tested raw posterior-input dose-innovation decoders and action-presence gates with stay-separated validation. No weights saved. Six-lag insulin kernel has a delayed peak, unlike a single exponential.
+
+Runs 88–89: insulin action gate has perfect held-out classification under all four controlled dose inputs. Two-pole kernel fits six insulin lags closely but longer-tail targets remain provisional. Corrected a pandas shift-column collision. No edits.
+
+## Run 90
+Two-pole kernel targets remain provisional, not established truth. Recovering architecture and retained causal/repair fixtures before validating sustained effects and choosing a targeted edit. No edits.
+
+## Run 91
+Architecture confirms an explicit action/posterior pathway. Inspecting retained innovation and action-gate validation to assess a localized posterior repair; sustained causal targets remain provisional. No edits.
+
+## Run 92
+Inspecting held-out raw-input innovation regressions and gate margins, plus exact posterior tensor dimensions. No weights edited.
+
+## Run 93
+Raw insulin decoder achieves held-out R2 about 0.62 with half/double response slopes about 0.92/0.89. NE decoder/gate are materially weaker. Prioritizing a selective insulin latent repair, with explicit leakage and factual validation; no weights edited.
+
+## Run 94
+Constructed (not saved) two gated insulin-innovation posterior units. Original removed-unit outputs are compensated by a closed-form regression on retained hidden units. Testing held-out latent fidelity and non-action leakage before selecting an outcome-response direction. No edits.
+
+## Run 95
+Two posterior hidden units can be repurposed with compensated mean-latent error about 2e-7 RMS. Checking action-flag leakage and finite-difference latent-to-reading sensitivities to derive an insulin-specific response direction by closed-form regression. No weights edited.
+
+## Run 96
+Small posterior-latent perturbations have essentially zero reading sensitivity. Testing larger perturbations and near-null latent directions to distinguish an ignored pathway from weak z_in transfer. No weights edited.
+
+## Run 98
+Run 97 confirmed its proposed candidate was not executed and no edits exist. Recovering architecture and recent retained diagnostics to locate the nearly inactive latent pathway before selecting a repair; no weights changed.
+
+## Run 99
+Architecture recovered. Inspecting latent-transfer magnitude and retained sensitivity tests; the action also has a deterministic transition path, so posterior insensitivity alone does not identify the repair location. No edits.
+
+## Run 100
+z_in has ordinary-sized weights despite negligible reading finite differences. Checking the perturbation wrapper and reading-state plumbing before inferring that the learned transition ignores z. No edits.
+
+## Run 101
+Verified posterior injection reaches z but changes out only about 1e-6 RMS for a +5 latent perturbation. The latent-to-state route is nearly inactive. Inspecting prelude/state scales and the retained gated insulin innovation before constructing a selective stronger connection. No edits.
+
+## Run 102
+Captured prelude slot representations for the retained posterior-training bundles and tested stay-held-out linear decoding of the gated insulin innovation. This tests a simpler rank-one recurrent-matrix repair before modifying attention. No weights edited.
+
+## Run 103
+Prelude innovation decoding failed (held-out insulin R2 only ~0.05–0.10), rejecting the simple B_in shortcut. Captured exact attention inputs and tested whether a redundant head can be compensated before creating an explicit gated-innovation channel. No edits.
+
+## Run 104
+Constructed an unsaved explicit innovation-reading attention head (head 1), with compensated original attention output and gated posterior innovation in a dedicated latent direction. Tested token isolation, scalar transfer, and held-out baseline compensation. No edits saved.
+
+## Runs 105–108
+Recovered candidate architecture and interfaces after restart. Head 1 is the most compensable attention head (held-out output RMS about 0.095); candidate remains unsaved pending reading-level and GPU factual tests. Immediate record estimates remain insulin -2.049/rate and NE +3.171/rate; sustained rollout targets are not inferred from these alone.
+
+## Runs 109–115 recovery
+Run-112 controlled channel decodes q roughly monotonically, but has factual/non-action leakage 0.18–0.24 RMS. No weights saved. Runs 113–115 recover retained candidate interfaces; six-lag targets remain provisional and must not be equated with sustained truth.
+
+## Run 117: first saved candidate
+Saved amplitude-80 explicit insulin-innovation channel (9 tensors): z_post hidden/output, z_in, and prelude attention q/kv/out weights. No B_in response connection yet. This isolates factual cost of rewiring; forward factual validation is next. Original first-100 tuning NLL was 1.59524; allowed increase 0.005.
+
+## Forward 5 / Run 118
+Channel-only factual validation, first 100 tuning stays: original 1.59524, edited 1.59518 (delta -0.00006). Now testing B_in response directions against record-based insulin immediate coefficient -2.04924, with MAP target zero. Finite perturbations are design checks, not causal evidence.
+
+## Run 119
+Run-118 response directions are approximately linear and glucose-selective. Recovering exact retained wiring and earlier record evidence before connecting the response; finite differences are not sustained causal validation. No additional weights edited.
+
+## Run 123: provisional insulin response connection
+Recovered exact interfaces: rW is the CPU tensor dictionary; transition73 is the verified one-bundle transition; transition_with_b110 injects an additive core.b_in output; probe_means95 evaluates the next reading. chosen_channel116['decoder'] has shape (192,), decoding prelude E per slot. directions118[0.01] is the smaller glucose-selective response direction (norm 23.695), calibrated to immediate record estimate -2.04924/rate. Saved core.b_in.weight = original + outer(direction, decoder), scale 1.0, in addition to the nine channel edits. This remains provisional pending independent GPU factual and rollout tests; sustained kernels are not yet treated as established ground truth.
+
+## Forward 6 / Run 124: reject rank-one connection
+Full factual first-100 tuning NLL: original 1.59524, connected edit 1.92945, delta +0.33421. All four reading types worsened. Dropped core.b_in.weight; nine channel-only edits remain. Immediate finite-difference calibration did not control recurrent persistence/feedback. Next: reconstruct complete factual trajectories and design a dynamically constrained, reading-selective connection.
+
+## Run 125
+Implemented replay_factual125 using stay-separated sequential updates of repair_bank['x']; original full-state RMSE=1.01486e-05. Retained weights_channel125, weights_rejected125 and replay states/q captures for dynamic diagnosis. No additional saved edits.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 125 of at most 300:
+```
+Original complete-replay RMSE: 1.0148559e-05
+Elapsed seconds: 0.46
+
+ channel-only
+<run>:77: RuntimeWarning: Mean of empty slice
+(-2, 6) out RMSE 0.00017 h RMSE 0.01508 q quantiles [-0.7692 -0.0233  0.8258]
+(6, 12) out RMSE 0.00018 h RMSE 0.01678 q quantiles [-0.8356 -0.0145  0.9044]
+(12, 18) out RMSE 0.00022 h RMSE 0.02198 q quantiles [-0.8984  0.008   1.1295]
+(18, 25) out RMSE 0.00052 h RMSE 0.03908 q quantiles [-0.7713  0.0119  1.2727]
+
+ rejected connection
+(-2, 6) out RMSE 0.18438 h RMSE 11.27932 q quantiles [-10.8424  -0.2069  18.1707]
+(6, 12) out RMSE 0.94053 h RMSE 84.01781 q quantiles [-32.4872  -8.1293  57.02  ]
+(12, 18) out RMSE 1.07185 h RMSE 103.36267 q quantiles [-30.3978 -12.9657  52.1905]
+(18, 25) out RMSE 1.07915 h RMSE 102.38238 q quantiles [-26.8831  -9.5353  51.1441]
+
+Total elapsed seconds: 1.37
+
+Reading-record DataFrames:
+sample (24, 9)
+train (1999040, 7)
+tuning (27609, 7)
+df (27609, 7)
+baseline_fact (4903, 6)
+tuning_records_repair (27609, 9)
+selected_records (7150, 7)
+group (23, 7)
+check_detail_repair (4903, 8)
+fact_probe (4903, 6)
+alignment_probe (12, 13)
+sample_check (512, 8)
+full_check_repair (4903, 8)
+rr (680, 9)
+_bf (4903, 6)
+_tcheck (4903, 12)
+head_train_data_repair (4699, 12)
+head_tuning_data_repair (4903, 12)
+action_fixture_repair (133, 13)
+source_drugs_repair (1458, 8)
+fixture (133, 13)
+fx (133, 13)
+rec (36, 13)
+r44_rec (36, 13)
+r45_fixture (100, 12)
+r45_records (6357, 8)
+r45_measure_fixture (834, 12)
+frame (100, 9)
+r52_table (144, 6)
+repair_records (6357, 9)
+rows58 (680, 9)
+same59 (1, 9)
+ending59 (1, 9)
+end_records60 (1458, 10)
+problem_records63 (1999040, 9)
+rows65 (680, 9)
+visit_ends65 (200, 10)
+all_ends65 (1658, 10)
+available95 (2518, 12)
+probe_data95 (526, 12)
+
+```

@@ -1,0 +1,88 @@
+OUTPUT of Python run 267 of at most 300:
+```
+=== IDENTIFICATION CHECKS ===
+n and checking causal estimates.
+
+## Reconstruction conventions / run 16
+- Tested schema-valid last-numeric features, last-status embeddings, type embeddings, activations, and prior/head gap scaling.
+- Best deterministic convention: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1}.
+- No tensor edits; sampling and register conventions still require validation.
+
+## Runs 17?18
+- Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+- Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+- No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+
+## Register search / run 19
+- Selected reconstruction convention: {'binside': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}.
+- Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+- Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+- No weight edits.
+
+## Restart after forward 5
+- Independent training states received in /work/fwd_5.
+- Rechecking architecture and reusable analysis objects before selecting an edit.
+- No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+
+## Run 23: head-only correction screening
+- Testing the selected register convention on original GPU predictions.
+- Preparing independent state samples for a no-gradient correction of treatment innovations.
+- Head-only edits would preserve the recurrent state and all other prediction heads directly.
+
+## Run 25: posterior-action ablation candidate
+- Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+- Latent sampling accounts for much of the local-vs-GPU head discrepancy.
+- Exploratory edit: zero z_post.0.weight[:,384:576], retaining direct action input.
+- Hypothesis: action-conditioned latent severity inference masks direct drug responses.
+- Requires paired factual and rollout tests; this is not yet a validated repair.
+- Earlier small-sample error-vs-innovation SE printouts include an intercept SE.
+
+## Forward 6 / run 26: failed posterior-action ablation
+- Removing z_post.0.weight[:,384:576] barely changed any dose-edit response.
+- Reverted the ablation; no tensors currently edited.
+- This does not support posterior action conditioning as the main cause of weak responses.
+- Reinspecting direct dose/state pathways before choosing another intervention.
+
+## Runs 27?33: local encoder reconstruction
+- Confirmed state layout: out = core.out_norm(mean of four h slots).
+- Drug-start latent reconstruction uses GELU, quality embedding row 0, and encoded empty measurement set.
+- Insulin: dose unit 3, rate unit 2; NE: dose unit 4, rate unit 3.
+- Recorded decimal doses resolve NE bin-boundary discrepancies; left-sided binning confirmed.
+- Measurement/empty-action and infusion-END conventions are being checked before any recurrence edit.
+- No tensors edited; 6 forward passes used.
+
+## Restart, runs 42?43
+- Re-read architecture. Doses enter recurrent state; value heads also use sensor-specific last-reading registers.
+- Run 42 inventory failed on a module's callable shape attribute, before any edit.
+- Best local recurrence remains approximate; current edits are empty, 6 forwards used.
+
+## Runs 45?48: dose representation an
+=== TARGET / CONSTRUCTION NOTES ===
+- Inspect architecture, recording order, treatment assignment, and dose support before estimating effects. | - Use non-gradient statistical fits to design targeted weight edits. | - Validate factual value NLL and paired rollout responses against the original m
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3'). | - No edits. Dynamic rollout targets remain assumption-dependent, not observed truth. | 
+- Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects. | - Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estim
+- Rechecking architecture and reusable analysis objects before selecting an edit. | - No edits; causal targets remain estimates conditional on identification and response-form assumptions. | 
+ | Run 95 rejects the large action directions: finite effects saturate and frequently reverse sign. No weights edited. Moving to a GPU-validated, targeted value-head correction. | 
+## Runs 97?99: information audit | Head hidden features fail independent insulin innovation decoding; with-code NE decoding reaches only R2=.072. A simple head-only repair is unsupported. Inspecting earlier prelude information before constructing any isolated 
+## Run 103: diagnostic state-coordinate clearing | - Reserved coordinates [61, 21, 15, 66] by zeroing their c_out and coda residual-output rows. | - This is only a capacity diagnostic, not a causal repair. No dose signal has been installed.
+- Private state coordinates receive paired rate signals and decay before subsequent updates. | - No causal value-head correction installed. This is a transport/capacity test only. | - Must pass GPU factual NLL and saved-state rate-transport checks before use.
+## Runs 130?134: restart and head audit | - Re-read architecture and earlier record-derived effects. Dynamic targets remain conditional on identification and response-form assumptions. | - Run 133 stopped on a layout-dictionary/tuple mismatch; no weights chang
+- Run 133 stopped on a layout-dictionary/tuple mismatch; no weights changed. | - Run 134 rebuilt reading features using explicitly edited weights and aligned readings with preceding-hour exposures. No causal head edit yet. | 
+- Saved-state ordinary out RMS difference is 0.03842. Pair differences are small and require timing/rate auditing. | - No causal value-head coupling installed yet; factual fit alone is not a causal validation. | 
+## Restart after run 141 | - Four-neuron head distillation has negligible local likelihood cost; no causal head edit was installed in run 141. | - Dose-proxy error and heterogeneous local tilt sensitivity remain unresolved.
+ | ## Runs 147?149: sensor-specific causal-head candidate | - Run 147's zero insulin tilt was a constrained-fit sign bug, corrected in run 148; it is not evidence of an absent insulin effect.
+- Correct directions, but strong doubling/halving asymmetry. Increasing strengths alone is not yet justified. | - Investigating exposure transport, centering, nonlinear head response, and hourly feedback. | 
+- Intended sensor control gates are approximately 8: GELU gate clipping is ruled out on saved factual features. | - Fixed-dose perturbations affect only the intended reserved neuron; ordinary hidden neurons are unchanged. | - Held-out dose recovery RMSE: finge
+## Restart / run 193 | - Preserved all current edits in _r193_checkpoint; no weights changed. | - Recovering architecture, causal estimates, and replay dependencies.
+- Saturation alone cannot explain doubling response exceeding twice the halving response. | - Next hypothesis: ordinary-feature exposure centering may absorb dose interventions; not yet established. | 
+- Saved current edits to /work/checkpoint_run217.safetensors; no weights changed. | - Recovered sensor-specific identification checks and current head/centering objects. | - Existing exposure centering uses ordinary features; intervention leakage remains a hyp
+- Recovered sensor-specific identification checks and current head/centering objects. | - Existing exposure centering uses ordinary features; intervention leakage remains a hypothesis, not a finding. | 
+- No weights changed. Local head NLL (~2.85) disagrees with GPU factual NLL (~1.64). | - Local strength-loss and centering diagnostics are not trusted until register/head reconstruction is validated. | 
+- Saved complete pre-trial edits in /work/checkpoint_run238.safetensors. | - Multiplied paired glucose value-head columns by 2.0 and MAP columns by 1.2; all transport and centering weights unchanged. | - This is a calibration trial, not an accepted repair. Req
+- Restored the pre-trial value-head output weights (glucose strength 1, NE baseline). | - Investigating whether post-dose ordinary features leak dose into the centering regression. | 
+ | ## Run 249: reversible centering-isolation trial | - Saved all pre-trial edits in /work/checkpoint_run249.safetensors.
+- Constant-center rollout shifts: insulin x2 -4.152, half +1.090; NE x2 +4.538, half -1.092 (reached stay-hour means). | - Removing ordinary-feature centering did not resolve asymmetry. Restored the pre-tria
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,99 @@
+OUTPUT of Python run 115 of at most 300:
+```
+NUMERIC EDIT DIRECTION: [0.         0.         0.70710678 0.         0.70710678 0.        ]
+
+FORWARD 43: factual_edited.csv, factual_original.csv, summary.json
+factual_original.csv rows: 4751 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        143.9628 2.2533
+factual_edited.csv rows: 4751 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        145.4298 2.2017
+
+FORWARD 44: dose_edit_edited.csv, dose_edit_original.csv, summary.json
+dose_edit_original.csv rows: 2500 columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour       edit  shift  shift_se  factual  reached
+2020000000    15 insulin_x2    0.0       0.0  154.496    False
+dose_edit_edited.csv rows: 2500 columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour       edit  shift  shift_se  factual  reached
+2020000000    15 insulin_x2    0.0       0.0 158.7605    False
+
+FORWARD 45: factual_edited.csv, factual_original.csv, summary.json
+factual_original.csv rows: 4563 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour    event  observed  predicted_mean    nll
+2020000208  -1.0 map_cuff      68.0         80.8695 2.0293
+factual_edited.csv rows: 4563 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour    event  observed  predicted_mean    nll
+2020000208  -1.0 map_cuff      68.0         81.7117 2.1174
+
+FORWARD 46: factual_edited.csv, factual_original.csv, summary.json
+factual_original.csv rows: 4664 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour        event  observed  predicted_mean    nll
+2020000112  -1.0 map_arterial      54.0         73.0416 2.0109
+factual_edited.csv rows: 4664 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour        event  observed  predicted_mean    nll
+2020000112  -1.0 map_arterial      54.0         74.0106 2.1451
+
+FORWARD 47: dose_edit_edited.csv, dose_edit_original.csv, summary.json
+dose_edit_original.csv rows: 2500 columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour       edit  shift  shift_se  factual  reached
+2020000000    15 insulin_x2    0.0       0.0  154.496    False
+dose_edit_edited.csv rows: 2500 columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour       edit  shift  shift_se  factual  reached
+2020000000    15 insulin_x2    0.0       0.0 158.9242    False
+
+FORWARD 48: factual_edited.csv, factual_original.csv, summary.json
+factual_original.csv rows: 4563 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour    event  observed  predicted_mean    nll
+2020000208  -1.0 map_cuff      68.0         80.8695 2.0293
+factual_edited.csv rows: 4563 columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour    event  observed  predicted_mean    nll
+2020000208  -1.0 map_cuff      68.0         81.6049 2.1046
+
+RELEVANT VARIABLE NAMES:
+['probe_ids', 'validation_ids', 'target', 'target_probe', 'target_train', 'same_stay', 'valid_actions', 'stay', 'valid', 'q_probe_original', 'q_probe_edited', 'q_probe_base', 'q_probe', 'valid59', '_tuning_probe', '_stay_columns', 'valid72', 'target73', 'recovered_probe_ids', 'loss_audit', 'a113', 'b113', 'before113']
+
+MOST RECENT NOTES:
+.T is identity.
+- Atom embeddings and reading registers transformed by H=I-S;
+  first encoder layers and value-head first layer compensated by G=I+S.
+- Algebra: encoders unchanged; value head sees G*q + original registers.
+- Independent rank-one factorization verified against saved operation vectors.
+- Tied code logits and unrelated attribute heads are not preserved;
+  factual value NLL and recorded-schedule rollouts are the required tests.
+- Candidate is unvalidated. Forward passes used: 40; 10 remain.
+
+## Python run 110 / forwards 41-42: query pilot rejected
+- Compensated query strengths 0.5/0.5: factual NLL 1.70475 vs 1.63461,
+  increase +0.07014, dominated by MAP degradation.
+- Rollouts: insulin -2.427/+1.551; NE +0.112/+0.119.
+- No useful causal improvement; removed all 176 query/basis operations.
+- Restored numeric gain 4 and installed core.b_in.weight gain 1.35.
+- Earlier recurrent gain 2 gave insulin -3.768/+2.902, NE +0.259/-0.131,
+  but factual +0.02422. Testing a smaller gain rather than treating that as safe.
+- Current two-operation candidate is unvalidated. Forward passes: 42; 8 remain.
+
+## Python run 111: restart recovery
+- Retained numeric gain 4 and recurrent input gain 1.35; neither operation changed.
+- Recovered architecture, probe stays, and earlier record-based evidence.
+- Current candidate remains unvalidated; next test is factual NLL.
+- Forward passes used: 42; 8 remain.
+
+## Python run 112 / forwards 43?44: recurrent gain 1.35
+- Probe factual NLL increase 0.003554; stay-cluster SE 0.002000.
+- Dose readouts: insulin x2 -2.997, half +2.128; NE x2 +0.127, half -0.061.
+- All move toward record-based effects versus the original, but remain substantially too small.
+- Retained both operations pending independent factual validation.
+- Forward passes used: 44; 6 remain.
+
+## Python run 113 / forward 45: conservative recurrent gain
+- Gain 1.35 pooled measured loss audit: {'stays': 200, 'readings': 9314, 'delta_nll': 0.0035079342924629595, 'cluster_se': 0.0013727523338252037, 'one_sided_95pct_upper': 0.00576611188160542}.
+- Validation factual increase approximately +0.00346, agreeing with probe.
+- Reduced recurrent gain to 1.30 to preserve more factual safety margin.
+- Numeric gain 4 unchanged. Local NLL interpolation is only a planning diagnostic.
+- Gain-1.30 factual fit and rollouts require direct validation.
+- Forward passes used: 45; 5 remain.
+
+43785
+
+```

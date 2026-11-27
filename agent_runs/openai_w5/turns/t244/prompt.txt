@@ -1,0 +1,95 @@
+OUTPUT of Python run 216 of at most 300:
+```
+=== FUNCTIONS, WITHOUT DEFAULT VALUES ===
+load (name)
+load_original (name)
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+linear205 (x, p, weights)
+norm205 (x, p, weights)
+drug_atom205 (drug, rate, weights)
+set205 (atom_sets, p, weights)
+_fn (atom_sets, p, weights)
+make_head_inputs212 (weights, sf, rows, prev)
+=== head_audit ===
+glucose_finger:
+  ix shape (1473,)
+  exposure shape (1473,)
+  center shape (1473,)
+  rate shape (1473,)
+  slope shape (2,)
+glucose_lab:
+  ix shape (492,)
+  exposure shape (492,)
+  center shape (492,)
+  rate shape (492,)
+  slope shape (2,)
+map_arterial:
+  ix shape (1166,)
+  exposure shape (1166,)
+  center shape (1166,)
+  rate shape (1166,)
+  slope shape (2,)
+map_cuff:
+  ix shape (1619,)
+  exposure shape (1619,)
+  center shape (1619,)
+  rate shape (1619,)
+  slope shape (2,)
+=== history_audit ===
+glucose_finger:
+  coef shape (20,)
+  prediction shape (1473,)
+glucose_lab:
+  coef shape (20,)
+  prediction shape (492,)
+map_arterial:
+  coef shape (20,)
+  prediction shape (1166,)
+map_cuff:
+  coef shape (20,)
+  prediction shape (1619,)
+=== encoder_audit ===
+insulin (array([ 0. ,  0.5,  1. ,  2. ,  4. ,  8. , 12. , 16. , 24. , 32. , 48. ],
+      dtype=float32), tensor([[ 2.2301,  0.5736, -0.2361,  ..., -0.1554, -1.0638, -0.4836],
+        [ 2.1596,  0.5652, -0.5132,  ..., -0.4575, -1.2522, -0.4168],
+        [ 0.0
+norepinephrine (array([0.  , 0.01, 0.05, 0.1 , 0.2 , 0.4 , 0.8 , 1.  , 1.5 , 2.  , 3.  ],
+      dtype=float32), tensor([[ 2.0921,  0.4105,  0.6907,  ...,  0.4861, -0.1841, -0.5509],
+        [ 2.0965,  0.4123,  0.6867,  ...,  0.4859, -0.1880, -0.5523],
+        [ 2.1
+=== sensor_neurons ===
+glucose_finger (74, 171)
+glucose_lab (107, 7)
+map_arterial (64, 124)
+map_cuff (109, 10)
+=== HEAD ROWS ===
+   stay_id  hour          event  value  rate rate_unit  dose dose_unit  end_hour  last_value  last_hour  read_hour  insulin  norepinephrine
+1010000000  -1.0       map_cuff   93.0   NaN       NaN   NaN       NaN       NaN         NaN        NaN        NaN      0.0             0.0
+1010000000   0.0 glucose_finger  158.0   NaN       NaN   NaN       NaN       NaN         NaN        NaN        NaN      0.0             0.0
+1010000000   0.0       map_cuff   88.0   NaN       NaN   NaN       NaN       NaN        93.0       -1.0        NaN      0.0             0.0
+=== PRIVATE AND RESERVED COORDINATES ===
+priv [15, 21, 61, 66] pairs [(21, 61), (15, 66)] reserved [7, 10, 64, 74, 107, 109, 124, 171]
+=== HEAD INPUT ARRAY RANGES ===
+head_ln shape (4750, 8) range -3.0 2.173076868057251
+head_zp shape (4750, 64) range -1.1833161115646362 0.5882191061973572
+head_prev shape (4750,) range 0.0 4311.0
+=== IDENTIFICATION CHECKS FROM NOTEBOOK ===
+
+## Sensor checks and correction (runs 8?9)
+- Sensor-specific held-out next-hour estimates: glucose_finger insulin -1.8383 (SE .1026), glucose_lab -1.9344 (.1744); map_arterial NE +3.4086 (.2191), map_cuff +2.8671 (.4111).
+- Cross-drug coefficients are small relative to their uncertainty.
+- Corrected a diagnostic indexing error: clustered_ols includes an intercept. The initial dose-stratum printouts were intercepts, not drug effects, and must be discarded.
+- Run 8 dynamic-alternative calculation stopped before completion; no edits were made.
+
+
+## Runs 17?18
+- Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+- Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+- No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+
+
+```

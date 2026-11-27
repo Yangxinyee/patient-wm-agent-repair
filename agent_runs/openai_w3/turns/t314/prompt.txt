@@ -1,0 +1,304 @@
+OUTPUT of Python run 276 of at most 300:
+```
+Restored checkpoint273; edited tensors: 11
+
+IMPLEMENTATION
+
+FUNCTION latent206 (u)
+ 11           0 RESUME                   0
+
+ 12           2 LOAD_GLOBAL              1 (NULL + posterior153)
+             12 LOAD_GLOBAL              2 (C154)
+             22 LOAD_GLOBAL              4 (E154)
+             32 LOAD_FAST                0 (u)
+             34 LOAD_GLOBAL              6 (post206)
+             44 CALL                     4
+             52 STORE_FAST               1 (z)
+
+ 13          54 LOAD_GLOBAL              8 (F)
+             64 LOAD_ATTR               11 (NULL|self + linear)
+             84 LOAD_FAST                1 (z)
+             86 LOAD_GLOBAL             13 (NULL + tensor153)
+             96 LOAD_GLOBAL             14 (zin154)
+            106 CALL                     1
+            114 LOAD_GLOBAL             13 (NULL + tensor153)
+            124 LOAD_GLOBAL             16 (zb154)
+            134 CALL                     1
+            142 CALL                     3
+            150 STORE_FAST               2 (raw)
+
+ 14         152 LOAD_GLOBAL             19 (NULL + arr183)
+            162 LOAD_GLOBAL             21 (NULL + layer_norm)
+            172 LOAD_FAST                2 (raw)
+            174 LOAD_CONST               1 ('core.prelude.0.norm1')
+            176 CALL                     2
+            184 CALL                     1
+            192 RETURN_VALUE
+
+
+FUNCTION hidden220 (after)
+ 18           0 RESUME                   0
+
+ 19           2 LOAD_GLOBAL              1 (NULL + F)
+             12 LOAD_ATTR                2 (gelu)
+             32 LOAD_GLOBAL              1 (NULL + F)
+             42 LOAD_ATTR                4 (linear)
+             62 LOAD_GLOBAL              7 (NULL + layer_norm)
+             72 LOAD_FAST                0 (after)
+             74 LOAD_CONST               1 ('core.prelude.0.norm3')
+             76 CALL                     2
+
+ 20          84 LOAD_GLOBAL              8 (w0_220)
+             94 LOAD_GLOBAL             10 (b0_220)
+
+ 19         104 CALL                     3
+            112 CALL                     1
+            120 RETURN_VALUE
+
+
+FUNCTION parts254 (tokens, original=False)
+              0 MAKE_CELL               15 (getter)
+              2 MAKE_CELL               16 (weight)
+
+  7           4 RESUME                   0
+
+  8           6 LOAD_FAST                1 (original)
+              8 POP_JUMP_IF_FALSE        6 (to 22)
+             10 LOAD_GLOBAL              0 (load_original)
+             20 JUMP_FORWARD             5 (to 32)
+        >>   22 LOAD_GLOBAL              2 (load)
+        >>   32 STORE_DEREF             15 (getter)
+
+  9          34 LOAD_CLOSURE            15 (getter)
+             36 BUILD_TUPLE              1
+             38 LOAD_CONST               1 (<code object weight at 0x735f59ba6af0, file "<run>", line 9>)
+             40 MAKE_FUNCTION            8 (closure)
+             42 STORE_DEREF             16 (weight)
+
+ 11          44 LOAD_CLOSURE            16 (weight)
+             46 BUILD_TUPLE              1
+             48 LOAD_CONST               2 (<code object affine at 0x735f59bf92f0, file "<run>", line 11>)
+             50 MAKE_FUNCTION            8 (closure)
+             52 STORE_FAST               2 (affine)
+
+ 14          54 LOAD_CLOSURE            16 (weight)
+             56 BUILD_TUPLE              1
+             58 LOAD_CONST               3 (<code object norm at 0x735f59ba6d30, file "<run>", line 14>)
+             60 MAKE_FUNCTION            8 (closure)
+             62 STORE_FAST               3 (norm)
+
+ 17          64 LOAD_GLOBAL              5 (NULL + torch)
+             74 LOAD_ATTR                6 (as_tensor)
+ 
+
+FUNCTION state_update82 (h, E, memory, mask, age, age_mode=0)
+ 30           0 RESUME                   0
+
+ 31           2 LOAD_FAST                0 (h)
+              4 LOAD_FAST                1 (E)
+              6 BINARY_OP                0 (+)
+             10 STORE_FAST               6 (x)
+
+ 32          12 LOAD_GLOBAL              1 (NULL + layer82)
+             22 LOAD_FAST                6 (x)
+             24 LOAD_CONST               1 ('core.blocks.0.0')
+
+ 33          26 LOAD_FAST                2 (memory)
+             28 LOAD_FAST                3 (mask)
+             30 LOAD_FAST                4 (age)
+             32 LOAD_FAST                5 (age_mode)
+
+ 32          34 CALL                     6
+             42 STORE_FAST               7 (recurrent)
+
+ 34          44 LOAD_GLOBAL              1 (NULL + layer82)
+             54 LOAD_FAST                7 (recurrent)
+             56 LOAD_CONST               2 ('core.blocks.0.1')
+
+ 35          58 LOAD_FAST                2 (memory)
+             60 LOAD_FAST                3 (mask)
+             62 LOAD_FAST                4 (age)
+             64 LOAD_FAST                5 (age_mode)
+
+ 34          66 CALL                     6
+             74 STORE_FAST               7 (recurrent)
+
+ 36          76 LOAD_GLOBAL              2 (torch)
+             86 LOAD_ATTR                4 (nn)
+            106 LOAD_ATTR                6 (functional)
+            126 LOAD_ATTR                9 (NULL|self + softplus)
+            146 LOAD_GLOBAL             10 (W)
+            156 LOAD_CONST             
+
+FUNCTION readout134 (view)
+ 30           0 RESUME                   0
+
+ 31           2 LOAD_GLOBAL              1 (NULL + layer_norm)
+             12 LOAD_FAST                0 (view)
+             14 LOAD_GLOBAL              2 (W)
+             24 LOAD_CONST               1 ('type_emb.weight')
+             26 BINARY_SUBSCR
+             30 LOAD_CONST               2 (1)
+             32 BINARY_SUBSCR
+             36 BINARY_OP                0 (+)
+             40 LOAD_CONST               3 ('query_norm')
+             42 CALL                     2
+             50 STORE_FAST               1 (q)
+
+ 32          52 LOAD_GLOBAL              5 (NULL + mlp)
+             62 LOAD_FAST                1 (q)
+             64 LOAD_GLOBAL              6 (attr_static105)
+             74 BINARY_OP                0 (+)
+             78 LOAD_CONST               4 ('attr_heads.value_bin')
+             80 CALL                     2
+             88 LOAD_GLOBAL              9 (NULL + torch)
+             98 LOAD_ATTR               10 (as_tensor)
+            118 LOAD_GLOBAL             12 (transition97)
+            128 CALL                     1
+            136 BINARY_OP                0 (+)
+            140 STORE_FAST               2 (logits)
+
+ 33         142 LOAD_GLOBAL              9 (NULL + torch)
+            152 LOAD_ATTR               14 (softmax)
+            172 LOAD_FAST                2 (logits)
+            174 LOAD_CONST               5 (-1)
+            176 KW_NAMES                 6 (('dim',))
+            178 CALL          
+
+RETAINED SOURCE253
+RESUME 
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + as_tensor
+LOAD_FAST tokens
+LOAD_GLOBAL torch
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+STORE_FAST x
+LOAD_CONST 'core.prelude.0'
+STORE_FAST p
+LOAD_GLOBAL NULL + ln145
+LOAD_FAST x
+LOAD_FAST p
+LOAD_CONST '.norm1'
+BINARY_OP +
+CALL 
+STORE_FAST n
+LOAD_GLOBAL NULL + F
+LOAD_ATTR linear
+LOAD_FAST n
+LOAD_GLOBAL NULL + wt145
+LOAD_FAST p
+LOAD_CONST '.attn.q.weight'
+BINARY_OP +
+CALL 
+CALL 
+LOAD_ATTR NULL|self + reshape
+LOAD_CONST -1
+LOAD_CONST 7
+LOAD_CONST 4
+LOAD_CONST 48
+CALL 
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+STORE_FAST q
+LOAD_GLOBAL NULL + F
+LOAD_ATTR linear
+LOAD_FAST n
+LOAD_GLOBAL NULL + wt145
+LOAD_FAST p
+LOAD_CONST '.attn.kv.weight'
+BINARY_OP +
+CALL 
+CALL 
+LOAD_ATTR NULL|self + chunk
+LOAD_CONST 2
+LOAD_CONST -1
+CALL 
+UNPACK_SEQUENCE 
+STORE_FAST k
+STORE_FAST v
+LOAD_FAST k
+LOAD_ATTR NULL|self + reshape
+LOAD_CONST -1
+LOAD_CONST 7
+LOAD_CONST 4
+LOAD_CONST 48
+CALL 
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+STORE_FAST k
+LOAD_FAST v
+LOAD_ATTR NULL|self + reshape
+LOAD_CONST -1
+LOAD_CONST 7
+LOAD_CONST 4
+LOAD_CONST 48
+CALL 
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+STORE_FAST v
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + softmax
+LOAD_FAST q
+LOAD_FAST k
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST -1
+LOAD_CONST -2
+CALL 
+BINARY_OP @
+LOAD_GLOBAL np
+LOAD_ATTR NULL|self + sqrt
+LOAD_CONST 48
+CALL 
+BINARY_OP /
+LOAD_CONST -1
+CALL 
+STORE_FAST attention
+LOAD_FAST attention
+LOAD_FAST v
+BINARY_OP @
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+LOAD_ATTR NULL|self + reshape
+LOAD_CONST -1
+LOAD_CONST 7
+LOAD_CONST 192
+CALL 
+STORE_FAST pooled
+LOAD_GLOBAL NULL + F
+LOAD_ATTR linear
+LOAD_FAST pooled
+LOAD_GLOBAL NULL + wt145
+LOAD_FAST p
+LOAD_CONST '.attn.out.weight'
+BINARY_OP 
+
+EDIT NORMS
+core.prelude.0.attn.kv.weight original 16.75 delta 617.8
+core.prelude.0.attn.out.weight original 13.02 delta 973.43
+core.prelude.0.attn.q.weight original 10.32 delta 25.8
+core.prelude.0.ffn.2.bias original 0.51 delta 799.38
+core.prelude.0.ffn.2.weight original 19.04 delta 9978.16
+z_in.bias original 3.4 delta 0.08
+z_in.weight original 6.91 delta 1.8
+z_post.0.bias original 0.6 delta 23338.92
+z_post.0.weight original 15.68 delta 1283498.62
+z_post.2.bias original 0.76 delta 0.08
+z_post.2.weight original 9.23 delta 4.31
+
+NOTEBOOK RUNS 210-225
+Python run 210; forwards 14. Gate-fixed restricted candidate hash b0e94cf0b5: factual NLL 1.64302 vs 1.63982 (+.00320). Rollout shifts insulin x2 -19.175, half +1.421; NE x2 +1.701, half -1.245, versus record-derived references -12.9555,+6.4778,+4.27
+Python run 211; forwards 14. Hourly insulin half shift is -1.796 at hour 13 and remains weak throughout, whereas x2 grows to -26.18 by hour 24. Investigating asymmetric carrier or dose-following factual compensation rather than assuming one scalar ga
+Python run 212; forwards 14. Run 211's decoder matrix output truncated the useful inventory. Retrieving compact paired-dose inputs and helper returns to test actual signal contrasts. No weights changed.
+Python run 213; forwards 14. Testing candidate206 normalized latent decoder against physical dose changes on paired action embeddings with fixed cont
+[output cut at 10,000 characters]
+```

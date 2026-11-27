@@ -1,0 +1,218 @@
+OUTPUT of Python run 253 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== FORWARD 26 FILES ===
+['summary.json', 'factual_edited.csv', 'factual_original.csv']
+summary.json {
+ "ok": true,
+ "type": "factual",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.61876,
+   "n_values": 4741,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1468,
+     "nll": 1.4653,
+     "mean_abs_error": 10.797
+    },
+    "glucose_lab": {
+     "n": 545,
+     "nll": 1.2545,
+     "mean_abs_error": 8.304
+    },
+    "map_arterial": {
+     "n": 1078,
+     "nll": 1.5073,
+     "mean_abs_error": 3.922
+    },
+    "map_cuff": {
+     "n": 1650,
+     "nll": 1.9484,
+     "mean_abs_error": 5.651
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.62123,
+   "n_values": 4741,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1468,
+     "nll": 1.4654,
+     "mean_abs_error": 10.825
+    },
+    "glucose_lab": {
+     "n": 545,
+     "nll": 1.2512,
+     "mean_abs_error": 8.276
+    },
+    "map_arterial": {
+     "n": 1078,
+     "nll": 1.5134,
+     "mean_abs_error": 3.941
+    },
+    "map_cuff": {
+     "n": 1650,
+     "nll": 1.9526,
+     "mean_abs_error": 5.661
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "edited_tensors": [
+  "core.prelude.0.attn.kv.weight",
+  "core.prelude.0.attn.out.weight",
+  "core.prelude.0.attn.q.weight",
+  "z_in.bias",
+  "z_in.weight",
+  "z_post.0.bias",
+  "z_post.0.weight",
+  "z_post.2.bias",
+  "z_post.2.weight"
+ ],
+ "edit_hash": "f6ec60f75d",
+ "seconds": 3.0,
+ "gpu_peak_mib": 232
+}
+
+
+=== RECENT KERNEL OBJECTS ===
+causal_estimates list [{'event': 'glucose_finger', 'drug': 'insulin', 'subset': 'all', 'n': 299023, 'dose_residual_sd': 0.5716502057216534, 'beta': -2.2105915488453087, 'cluster_se': 0.04592275932542807}, {'event': 'glucose_finger', 'drug': 'insulin', 'subset': 'treated', 'n': 256645, 'dose_residual_sd': 0.615634683301967, 'beta': -2.206701367222909, 'cluster_se': 0.046053320398330704}, {'event': 'glucose_finger', 'drug': 'insulin', 'subset': 'hours_6plus', 'n': 23137
+causal_residuals dict [('glucose_finger', 'insulin'), ('glucose_lab', 'insulin'), ('map_arterial', 'norepinephrine'), ('map_cuff', 'norepinephrine')]
+target_d ndarray (480000,)
+repair_effect_diagnostics list [('glucose_finger', 622, np.float64(0.5388645180060517), np.float64(-2.8090846149563298)), ('map_arterial', 709, np.float64(0.08398034451083497), np.float64(5.956418388535041)), ('glucose_lab', 157, np.float64(0.4488516035249422), np.float64(-2.7270076278764104)), ('map_cuff', 231, np.float64(0.08353618972887514), np.float64(15.586323289018258))]
+ce_target ndarray (10054, 2)
+r33_target Tensor (160, 32)
+r36_latent_target Tensor (8443, 32)
+r36_targets dict []
+repair_post_targets ndarray (8443, 2)
+rr50_targets dict [('base', 1.0), (0, 0.0), (0, 0.5), (0, 1.5), (0, 2.0), (0, 3.0), (1, 0.0), (1, 0.5), (1, 1.5), (1, 2.0), (1, 3.0)]
+rr58_targets dict [('base', 1.0), (0, 0.0), (0, 0.5), (0, 1.5), (0, 2.0), (0, 3.0), (1, 0.0), (1, 0.5), (1, 1.5), (1, 2.0), (1, 3.0)]
+r79_target Tensor (8443, 32)
+r86_target Tensor (384, 32)
+r89_target Tensor (512, 32)
+rx_targeth Tensor (48, 4, 192)
+rx_targetout Tensor (48, 192)
+eh_target ndarray (5364,)
+carrier200_names list ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+carrier200_original dict ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+carrier200_w0 ndarray (192, 576)
+carrier200_b0 ndarray (192,)
+carrier200_w2 ndarray (64, 192)
+carrier200_b2 ndarray (64,)
+carrier200_H ndarray (5215, 192)
+carrier200_Z ndarray (5215, 32)
+carrier200_token_original ndarray (5215, 192)
+carrier200_token_comp ndarray (5215, 192)
+install_carrier200 callable (insulin_gain, ne_gain)
+carrier200_W ndarray (192, 32)
+carrier200_token ndarray (5215, 192)
+carrier201_saved dict ['z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+relay206 dict ['norm_tokens', 'head_features', 'target', 'pool', 'train', 'hold', 'fits']
+relay207_base dict ['core.prelude.0.attn.q.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']
+relay207_stays list [2020000001, 2020000012, 2020000014, 2020000023, 2020000024, 2020000030, 2020000031, 2020000042, 2020000043, 2020000044, 2020000045, 2020000046, 2020000047, 2020000049, 2020000060, 2020000062, 2020000067, 2020000075, 2020000083, 2020000086, 2020000093, 2020000109, 2020000110, 2020000116, 2020000123, 2020000125, 2020000134, 2020000135, 2020000138, 2020000144, 2020000145, 2020000152, 2020000155, 2020000162, 2020000163, 2020000166, 2020000168, 20200
+relay208_input ndarray (5215, 576)
+relay208_Z0 ndarray (5215, 32)
+relay208_T0 ndarray (5215, 192)
+relay208_Zc ndarray (5215, 32)
+relay20
+[output cut at 10,000 characters]
+```

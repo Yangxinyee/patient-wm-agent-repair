@@ -1,0 +1,103 @@
+OUTPUT of Python run 117 of at most 300:
+```
+=== RECURRENT UPDATE ===
+31: L_FAST h; L_FAST E; BINARY_OP +; S_FAST x
+32: L_GLOBAL NULL + layer82; L_FAST x; L_CONST 'core.blocks.0.0'; CALL; S_FAST recurrent
+33: L_FAST memory; L_FAST mask; L_FAST age; L_FAST age_mode
+34: L_GLOBAL NULL + layer82; L_FAST recurrent; L_CONST 'core.blocks.0.1'; CALL; S_FAST recurrent
+35: L_FAST memory; L_FAST mask; L_FAST age; L_FAST age_mode
+36: L_GLOBAL torch; L_ATTR nn; L_ATTR functional; L_ATTR NULL|self + softplus; L_GLOBAL W; L_CONST 'core.delta_in'; BINARY_SUBSCR; CALL; S_FAST delta82
+37: L_GLOBAL torch; L_ATTR NULL|self + exp; L_FAST delta82; UNARY_NEGATIVE; L_GLOBAL torch; L_ATTR NULL|self + exp; L_GLOBAL W; L_CONST 'core.a_in'; BINARY_SUBSCR; CALL; BINARY_OP *; CALL; S_FAST abar82
+38: L_FAST abar82; L_FAST h; BINARY_OP *; L_FAST delta82; L_GLOBAL NULL + linear; L_FAST E; L_CONST 'core.b_in'; CALL; BINARY_OP *; BINARY_OP +; L_FAST recurrent; BINARY_OP +; L_FAST x; BINARY_OP -; S_FAST newh82
+39: L_GLOBAL NULL + layer82; L_GLOBAL NULL + linear; L_FAST newh82; L_CONST 'core.c_out'; CALL; L_CONST 'core.coda.0'; CALL; S_FAST newh82
+40: L_GLOBAL NULL + layer_norm; L_FAST newh82; L_ATTR NULL|self + mean; L_CONST 1; KW_NAMES ('dim',); CALL; L_CONST 'core.out_norm'; CALL; S_FAST out82
+41: L_FAST newh82; L_FAST out82; BUILD_TUPLE; RETURN_VALUE
+
+=== ATTENTION ===
+2: L_GLOBAL NULL + linear; L_FAST x; L_FAST prefix; L_CONST '.q'; BINARY_OP +; CALL; S_FAST q82
+3: L_FAST memory; POP_JUMP_IF_NOT_NONE to 40; L_FAST x; JUMP_FORWARD to 42; L_FAST memory; S_FAST source82
+4: L_FAST memory; POP_JUMP_IF_NONE to 72; L_FAST age; POP_JUMP_IF_NONE to 72; L_FAST age_mode; L_CONST 0; COMPARE_OP ==; POP_JUMP_IF_FALSE to 72
+5: L_FAST source82; L_FAST age; BINARY_OP +; S_FAST source82
+6: L_GLOBAL NULL + linear; L_FAST source82; L_FAST prefix; L_CONST '.kv'; BINARY_OP +; CALL; L_ATTR NULL|self + chunk; L_CONST 2; L_CONST -1; KW_NAMES ('dim',); CALL; UNPACK_SEQUENCE; S_FAST k82; S_FAST v82
+7: L_FAST memory; POP_JUMP_IF_NONE to 232; L_FAST age; POP_JUMP_IF_NONE to 232
+8: L_FAST age_mode; L_CONST 1; COMPARE_OP ==; POP_JUMP_IF_FALSE to 172
+9: L_FAST k82; L_FAST age; BINARY_OP +; S_FAST k82; JUMP_FORWARD to 232
+10: L_FAST age_mode; L_CONST 2; COMPARE_OP ==; POP_JUMP_IF_FALSE to 232
+11: L_GLOBAL NULL + linear; L_FAST memory; L_FAST age; BINARY_OP +; L_FAST prefix; L_CONST '.kv'; BINARY_OP +; CALL; L_CONST Ellipsis; L_CONST None; L_CONST 192; BUILD_SLICE; BUILD_TUPLE; BINARY_SUBSCR; S_FAST k82
+12: L_CONST <code object split82 at 0x735f744848f0, file "<run>", line 12>; MAKE_FUNCTION; S_FAST split82
+14: PUSH_NULL; L_FAST split82; L_FAST q82; CALL; PUSH_NULL; L_FAST split82; L_FAST k82; CALL; PUSH_NULL; L_FAST split82; L_FAST v82; CALL; S_FAST v82; S_FAST k82; S_FAST q82
+15: L_FAST q82; L_FAST k82; L_ATTR NULL|self + transpose; L_CONST -1; L_CONST -2; CALL; BINARY_OP @; L_GLOBAL np; L_ATTR NULL|self + sqrt; L_CONST 48; CALL; BINARY_OP /; S_FAST scores82
+16: L_FAST mask; POP_JUMP_IF_NONE to 436
+17: L_FAST scores82; L_ATTR NULL|self + masked_fill; L_FAST mask; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST None; L_CONST None; L_CONST None; L_CONST None; BUILD_SLICE; BUILD_TUPLE; BINARY_SUBSCR; UNARY_INVERT; L_CONST -1000000000.0; CALL; S_FAST scores82
+18: L_GLOBAL torch; L_ATTR NULL|self + softmax; L_FAST scores82; L_CONST -1; KW_NAMES ('dim',); CALL; S_FAST a82
+19: L_FAST a82; L_FAST v82; BINARY_OP @; L_ATTR NULL|self + transpose; L_CONST 1; L_CONST 2; CALL; L_ATTR NULL|self + reshape; L_GLOBAL NULL + len; L_FAST x; CALL; L_FAST x; L_ATTR shape; L_CONST 1; BINARY_SUBSCR; L_CONST 192; CALL; S_FAST joined82
+20: L_GLOBAL NULL + linear; L_FAST joined82; L_FAST prefix; L_CONST '.out'; BINARY_OP +; CALL; RETURN_VALUE
+
+=== BLOCK ===
+23: L_FAST x; L_GLOBAL NULL + attention82; L_GLOBAL NULL + layer_norm; L_FAST x; L_FAST prefix; L_CONST '.norm1'; BINARY_OP +; CALL; CALL; BINARY_OP +; S_FAST x
+24: L_FAST prefix; L_CONST '.attn'; BINARY_OP +
+25: L_FAST memory; POP_JUMP_IF_NONE to 138
+26: L_FAST x; L_GLOBAL NULL + attention82; L_GLOBAL NULL + layer_norm; L_FAST x; L_FAST prefix; L_CONST '.norm2'; BINARY_OP +; CALL; CALL; BINARY_OP +; S_FAST x
+27: L_FAST prefix; L_CONST '.cross'; BINARY_OP +; L_FAST memory; L_FAST mask; L_FAST age; L_FAST age_mode
+28: L_FAST x; L_GLOBAL NULL + mlp; L_GLOBAL NULL + layer_norm; L_FAST x; L_FAST prefix; L_CONST '.norm3'; BINARY_OP +; CALL; L_FAST prefix; L_CONST '.ffn'; BINARY_OP +; CALL; BINARY_OP +; RETURN_VALUE
+
+=== MEMORY CONSTRUCTION ===
+58: BUILD_LIST; S_FAST histories82
+59: L_FAST indices; GET_ITER; FOR_ITER to 126; S_FAST i82; END_FOR
+60: L_GLOBAL stay_indices82; L_GLOBAL S; L_CONST 'stay_id'; BINARY_SUBSCR; L_FAST i82; BINARY_SUBSCR; BINARY_SUBSCR; S_FAST history82
+61: L_FAST history82; L_FAST include_current; POP_JUMP_IF_FALSE to 70; L_FAST history82; L_FAST i82; COMPARE_OP <=; JUMP_FORWARD to 78; BINARY_SUBSCR; BINARY_SLICE; S_FAST history82
+62: L_FAST history82; L_FAST i82; COMPARE_OP <; L_CONST -128; L_CONST None
+63: L_FAST histories82; L_ATTR NULL|self + append; L_FAST history82; CALL; POP_TOP; JUMP_BACKWARD to 10
+64: L_GLOBAL NULL + max; L_GLOBAL NULL + map; L_GLOBAL len; L_FAST histories82; CALL; CALL; S_FAST length82
+65: L_GLOBAL np; L_ATTR NULL|self + zeros; L_GLOBAL NULL + len; L_FAST indices; CALL; L_FAST length82; L_CONST 192; BUILD_TUPLE; L_GLOBAL np; L_ATTR float32; KW_NAMES ('dtype',); CALL; S_FAST mem82
+66: L_GLOBAL np; L_ATTR NULL|self + zeros; L_GLOBAL NULL + len; L_FAST indices; CALL; L_FAST length82; L_CONST 1; BUILD_TUPLE; L_GLOBAL np; L_ATTR float32; KW_NAMES ('dtype',); CALL; S_FAST ages82
+67: L_GLOBAL np; L_ATTR NULL|self + zeros; L_GLOBAL NULL + len; L_FAST indices; CALL; L_FAST length82; BUILD_TUPLE; L_GLOBAL bool; KW_NAMES ('dtype',); CALL; S_FAST masks82
+68: L_GLOBAL NULL + enumerate; L_FAST histories82; CALL; GET_ITER; FOR_ITER to 650; UNPACK_SEQUENCE; S_FAST j82; S_FAST hist82; END_FOR
+69: L_GLOBAL e80; L_FAST hist82; BINARY_SUBSCR; L_FAST mem82; L_FAST j82; L_CONST None; L_GLOBAL NULL + len; L_FAST hist82; CALL; BUILD_SLICE; BUILD_TUPLE; S_SUBSCR
+70: L_GLOBAL hours79; L_FAST indices; L_FAST j82; BINARY_SUBSCR; BINARY_SUBSCR; L_GLOBAL hours79; L_FAST hist82; BINARY_SUBSCR; BINARY_OP -; L_FAST ages82; L_FAST j82; L_CONST None; L_GLOBAL NULL + len; L_FAST hist82; CALL; BUILD_SLICE; L_CONST 0; BUILD_TUPLE; S_SUBSCR
+71: L_CONST True; L_FAST masks82; L_FAST j82; L_CONST None; L_GLOBAL NULL + len; L_FAST hist82; CALL; BUILD_SLICE; BUILD_TUPLE; S_SUBSCR; JUMP_BACKWARD to 472
+72: L_GLOBAL torch; L_ATTR NULL|self + from_numpy; L_FAST mem82; CALL; L_GLOBAL torch; L_ATTR NULL|self + from_numpy; L_FAST masks82; CALL; BUILD_TUPLE; RETURN_VALUE
+73: L_GLOBAL torch; L_ATTR NULL|self + from_numpy; L_FAST ages82; CALL
+
+=== STATE AND RECENT TEST INPUTS ===
+S keys ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+x (4313, 992)
+stay_id (4313,)
+hour (4313,)
+has_insulin (4313,)
+has_norepinephrine (4313,)
+n_atoms (4313,)
+_sel113 (200,) first [False False False False False False False False] rms 0.5
+_h113 (16, 4, 192) first [-156.0867       4.555434    -2.2881062  132.67142    -51.958588
+ -162.9254       4.413217  -181.28493  ] rms 65.29419076504736
+_E113 (16, 4, 192) first [-1.9657706   0.07093117  0.07344579  1.81768    -0.23773755 -2.1298723
+ -0.1196027  -2.1396275 ] rms 0.977484781756838
+_mem113 (16, 50, 192) first [ 1.2737567   0.8529113   1.40848    -0.5144059  -0.20859884  0.3299044
+ -2.694063    1.8835963 ] rms 0.8093037313932594
+_mask113 (16, 50) first [ True  True  True  True  True  True  True  True] rms 0.7632168761236874
+_age113 (16, 50, 1) first [14.0833 13.0833 12.0833 11.0833 10.0833  9.0833  7.0833  6.0833] rms 8.686909749820915
+_dt112 (16,) first [299.88 299.88 299.88 299.88 299.88 299.88 299.88 299.88] rms 299.8800048828125
+idx81 (4213,) first [1 2 3 4 5 6 7 8] rms 2489.046124811828
+h81 (4213, 4, 192) first [-0.57072127  0.15134715  0.22194651  1.0959622  -0.79306895 -1.5297748
+  1.2765089  -3.9788792 ] rms 43.083152893179815
+e80 (4313, 192) first [ 1.2737567   0.8529113   1.40848    -0.5144059  -0.20859884  0.3299044
+ -2.694063    1.8835963 ] rms 1.0599037507910274
+u80 (4313, 192) first [ 4.7854701e-01 -1.0317224e+00 -8.3497263e-02 -3.8012013e-02
+ -5.7572317e-01 -4.3830113e-03 -6.5165682e-04  2.1569717e-03] rms 0.8619914146947402
+hours79 (4313,) first [-2. -1.  0.  1.  2.  3.  4.  5.] rms 14.363368051349264
+stay_indices82 dict 100 keys [np.int64(1010000000), np.int64(1010000001), np.int64(1010000002)]
+
+=== NOTEBOOK REPLAY ENTRY ===
+ {'glucose_finger': 0, 'glucose_lab': 5, 'map_arterial': 2, 'map_cuff': 2}; best convention (4.15297772232248e-14, 'clear_all', 'observation', 3.268759435760653e-14, 8.842182865618272e-15). No weight edits.
+
+Python run 81; forwards 7. Exact preprocessing recovered: glucose_finger unit=0, glucose_lab=5, MAP=2; END atoms route to observations with cleared numeric/unit fields; empty action is its encoded baseline. Verified full-stream posterior and reconstructed prelude features. No weight edits.
+
+Python run 82; forwards 7. Full posterior RMSE 2.42e-5; action attention ~0.232 versus latent ~3e-7 on WORLD drug bundles. Reconstructing recurrent update; best convention (0.0020365272648632526, 1.4436134733841754e-05, True, 3600.0, 1.0, 0). No weights edited.
+
+Python run 83; forwards 7. Restart recovery: the seconds/current-state update reproduces authoritative out with RMSE 1.44e-5 and h with RMSE .00204. Recovering equations/helpers to target the effective prelude/recurrent action path, with all weights original.
+
+Python run 84; forwards 7. Architecture confirms a non-negligible action-token prelude path. Recovering exact replay functions and record-only identification evidence before constructing a factual-policy-residual correction. No edits.
+
+Python runs 86-87; forwards 7. Run 86 found fn76 returns selected action bundles, not the full stream; its indexing diagnostic failed without changing weights. Built an explicitly indexed WORLD-drug action re-encoder, excluding END markers, to validate prelude dose contrasts
+[output cut at 10,000 characters]
+```

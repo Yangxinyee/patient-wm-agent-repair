@@ -1,0 +1,176 @@
+OUTPUT of Python run 252 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+SAVED CANDIDATE CONTRACTS
+ne_nonlinear250.npz
+  raw_coefficient (769,) norm 30.120125723156345 range (-6.359505388798995, 8.936917006586398)
+  scale (768,) norm 41.16842272154554 range (0.04518083622935466, 3.8473038931032115)
+joint236.npz
+  delta (192, 192) norm 524.4189453125 range (-26.649099349975586, 24.315176010131836)
+  insulin_delta (192, 192) norm 515.2865600585938 range (-26.352386474609375, 25.239486694335938)
+  ne_delta (192, 192) norm 82.33145904541016 range (-3.2462387084960938, 2.5707578659057617)
+  insulin_scale () norm 0.85 range (0.85, 0.85)
+  insulin_blend () norm 0.35 range (0.35, 0.35)
+  ne_scale () norm 0.2 range (0.2, 0.2)
+baseline77.npz
+  delta (192, 192) norm 500.6107482910156 range (-23.340627670288086, 23.91939353942871)
+ne_candidate151.npz
+  ne_delta (192, 192) norm 411.6573181152344 range (-16.23119354248047, 12.853789329528809)
+  total_delta (192, 192) norm 660.2034912109375 range (-24.82418441772461, 24.85445785522461)
+  gamma () norm 0.1 range (0.1, 0.1)
+
+RELEVANT KERNEL CONTRACTS
+gpu_h134 (4356, 4, 192)
+gpu_out134 (4356, 192)
+check_out134 (4356, 192)
+coda_input134 args ('x',) names ('core_layer', 'core_norm', 'mean')
+precoda134 (4356, 4, 192)
+target134 (4, 4, 192)
+x134 (4, 4, 192)
+y134 (4, 4, 192)
+error134 (4, 4, 192)
+final134 (4, 4, 192)
+replay_h134 (4356, 4, 192)
+replay_out134 (4356, 192)
+yy134 (4, 4, 192)
+oo134 (4, 192)
+hidden_base242 (4035, 4, 768)
+raw_base242 (4035, 4, 192)
+E_check242 (4035, 4, 192)
+E_reference242 (4035, 4, 192)
+drug_indices242 (1191,)
+np243 args ('x',) names ('isinstance', 'torch', 'Tensor', 'detach', 'cpu', 'numpy', 'np', 'asarray')
+sample243 (28,)
+encoded_bundles243 args ('ids', 'drug', 'factor', 'end_numeric', 'end_units', 'world_only', 'empty_observation') names ('int', 'sid191', 'minute191', 'entries191', 'event', '_replace', 'rate', 'dose', 'recon_record_atom', 'append', 'recon_sets')
+rule243 dict keys ['end_numeric', 'end_units', 'world_only', 'empty_observation']
+ids243 (749,)
+ef243 (749, 192)
+uf243 (749, 192)
+ec243 (749, 192)
+uc243 (749, 192)
+zf243 (749, 32)
+zc243 (749, 32)
+hidden_ne2_243 (749, 4, 768)
+raw_ne2_243 (749, 4, 192)
+E_ne2_243 (749, 4, 192)
+reference243 (749, 4, 192)
+hidden_cf244 dict keys [('norepinephrine', 2.0), ('norepinephrine', 0.5), ('insulin', 2.0), ('insulin', 0.5)]
+flat244 (16140, 768)
+scale244 (768,)
+X244 (16140, 769)
+initial_mask244 (16140,)
+sv244 (400,)
+vt244 (769, 769)
+B244 (769, 765)
+F244 (16140, 765)
+fold244 (16140,)
+D244 dict keys [('norepinephrine', 2.0), ('norepinephrine', 0.5), ('insulin', 2.0), ('insulin', 0.5)]
+Y244 dict keys [('norepinephrine', 2.0), ('norepinephrine', 0.5), ('insulin', 2.0), ('insulin', 0.5)]
+folds_cf244 dict keys [('norepinephrine', 2.0), ('norepinephrine', 0.5), ('insulin', 2.0), ('insulin', 0.5)]
+fits244 dict keys [(1.0, 0.001), (1.0, 0.01), (1.0, 0.1), (10.0, 0.001), (10.0, 0.01), (10.0, 0.1), (100.0, 0.001), (100.0, 0.01), (100.0, 0.1)]
+v250 (4510, 17)
+x250 (4510, 17)
+fn250 args ('h45', 'out45') names ('src45', 'torch', 'exp', 'dt45', 'W0', 'norm0', 'mean', 'mlp0', 'log', 'clamp_min', 'linear0', 'F', 'gelu', 'static45', 'trans45', 'softmax', 'centres45', 'sum')
+FUNCTION schedule_readout args ('beta', 'phi', 'drug', 'outcome', 'source_panel') constants (None, 'stay_id', False, ('sort',), 't', (0.0, False), 12, 24, 0.0, 0, 1, ('stay_id', 'hour', 'delta', 'recorded'), ('columns',), ('all_hours', 'recorded_hours', 'stay_mean', 'n_recorded', 'n_stays')) names ('stay_id', 'isin', 'state_df', 'unique', 'copy', 'groupby', 'set_index', 'range', 'index', 'float', 'loc', 'append', 'pd', 'notna', 'DataFrame', 'recorded', 'delta', 'mean', 'len', 'nunique')
+FUNCTION linear0 args ('x', 'prefix') constants (None, '.weight', '.bias') names ('F', 'linear', 'W0', 'get')
+FUNCTION norm0 args ('x', 'prefix') constants (None, (192,), '.weight', '.bias', 1e-05) names ('F', 'layer_norm', 'W0')
+FUNCTION mlp0 args ('x', 'prefix', 'kind') constants (None, '.0', '.2') names ('linear0', 'activation0')
+FUNCTION core_layer args ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode') constants (None, '.norm1', '.attn', '.norm2', '.cross', '.norm3', '.ffn') names ('core_attn', 'core_norm', 'core_ffn')
+FUNCTION prelude46 args ('h', 'e', 'u', 'z', 'batch') constants (None, 0, 'core.slots', 'z_in', 1, ('dim',), 'core.prelude.0', 4, 'core.prelude_norm') names ('range', 'len', 'min', 'torch', 'cat', 'W0', 'core_lin', 'core_layer', 'append', 'core_norm')
+FUNCTION coda46 args ('hnew',) constants (None, 'core.c_out', 'core.coda.0', 4, 1, ('dim',), 'core.out_norm') names ('core_layer', 'core_lin', 'core_norm', 'mean')
+FUNCTION prelude_hidden93 args ('h', 'e', 'u', 'z', 'batch') constants (None, 0, 'core.slots', 'z_in', 1, ('dim',), 'core.prelude.0', '.norm1', '.attn', 4, '.norm3', 
+[output cut at 10,000 characters]
+```

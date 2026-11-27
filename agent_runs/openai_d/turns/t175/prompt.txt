@@ -1,0 +1,172 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 174 replies happened before. Forward passes used: 18 of 50; Python runs used: 152 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate_v1.npz', 'insulin_ne_candidate_v1.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+0451191301663332, 5.520355684869838], "validation_probe_response_mean_SD": [1.1706060341007631, 0.5496445022100264], "factual_MAP_SD_if_probe_calibrated_to_0.329": 1.81625774423471, "weight_norm": 126.59697219438657}, {"ridge": 0.01, "train_SD_per_unit_probe_response": 7.494145521275962, "validation_factual_mean_SD": [0.5359714159985296, 7.896912788083896], "validation_probe_response_mean_SD": [1.1722724758630239, 0.48231591599648643], "factual_MAP_SD_if_probe_calibrated_to_0.329": 2.598171173320271, "weight_norm": 72.56227832954471}]
+Probe calibration to 0.329 is diagnostic, not a true dose intervention: the code perturbation also affects END atoms and leaves bins unchanged. No new weights installed.
+
+## Runs 133–136: restart recovery
+Architecture and causal checks recovered. Existing strength-2 insulin edit remains unchanged. NE immediate adjusted slope +3.29011 is stable across dose/hour strata; the artificial code probe is only a representation diagnostic, not a causal intervention. Recovering exact cached head probabilities and reading labels before a gated NE local-loss test.
+
+## Runs 137–138: verified local NE scan
+Cached labels/probabilities verified exactly. Strength-2 insulin local NLL delta is +0.002618 overall, +0.001343 on 75 fit stays and +0.006453 on 25 held-out stays. Selected low-contribution neurons [48, 171]. Scanning covariance-constrained NE directions with the actual paired-GELU gate. Probe shifts are diagnostics, not true dose-effect targets. No new edits installed.
+[{'ridge': 1e-07, 'probe_shift': 0.1, 'scale': np.float64(0.09992041359156133), 'all': 0.002654307054567892, 'fit': 0.0015125010412416371, 'validation': 0.0060898744813317795, 'increment_MAP': 7.970173021657452e-05, 'increment_glucose': -2.7211369218814174e-05}, {'ridge': 1e-07, 'probe_shift': 0.2, 'scale': np.float64(0.19984082718312265), 'all': 0.0029493281127730576, 'fit': 0.001877964587039841, 'validation': 0.006172941921312557, 'increment_MAP': 0.0005749981714407499, 'increment_glucose': -2.711338052519669e-05}, {'ridge': 1e-07, 'probe_shift': 0.329011, 'scale': np.float64(0.3287491519617318), 'all': 0.003724122220778059, 'fit': 0.0026522521424537167, 'validation': 0.006949260189780633, 'increment_MAP': 0.001875850185630229, 'increment_glucose': -2.6985684807204473e-05}, {'ridge': 1e-06, 'probe_shift': 0.1, 'scale': np.float64(0.0999165895390723), 'all': 0.0025641521087736976, 'fit': 0.0014462322946115114, 'validation': 0.005927848616275031, 'increment_MAP': -8.922157611379383e-05, 'increment_glucose': -1.3729946181829214e-06}, {'ridge': 1e-06, 'probe_shift': 0.2, 'scale': np.float64(0.1998331790781446), 'all': 0.0028147479842321557, 'fit': 0.001778167856393122, 'validation': 0.005933702413330051, 'increment_MAP': 0.0003119636947654149, 'increment_glucose': 2.746678648713099e-05}, {'ridge': 1e-06, 'probe_shift': 0.329011, 'scale': np.float64(0.32873657040839716), 'all': 0.0036003063028155896, 'fit': 0.002558028413718768, 'validation': 0.0067364046624535795, 'increment_MAP': 0.00160302905687543, 'increment_glucose': 6.862164075455652e-05}, {'ridge': 1e-05, 'probe_shift': 0.1, 'scale': np.float64(0.09986840237599656), 'all': 0.0023470435177655215, 'fit': 0.0012309636769726824, 'validation': 0.005705203749839974, 'increment_MAP': -0.0004361513618897608, 'increment_glucose': -2.7308488506684794e-05}, {'ridge': 1e-05, 'probe_shift': 0.2, 'scale': np.float64(0.19973680475199312), 'all': 0.002482408421199294, 'fit': 0.0014446711575605371, 'validation': 0.005604844543347906, 'increment_MAP': -0.00020886330735404447, 'increment_glucose': -2.730848850483272e-05}, {'ridge': 1e-05, 'probe_shift': 0.329011, 'scale': np.float64(0.32857802934129005), 'all': 0.0032685647453330863, 'fit': 0.002216203753577848, 'validation': 0.006435002040525515, 'increment_MAP': 0.0011111534543135084, 'increment_glucose': -2.730848850244318e-05}, {'ridge': 0.0001, 'probe_shift': 0.1, 'scale': np.float64(0.09981576632002546), 'all': 0.0021856292239820028, 'fit': 0.00097770812410378, 'validation': 0.005820129600060031, 'increment_MAP': -0.0007071783406537576, 'increment_glucose': -2.730848850864436e-05}, {'ridge': 0.0001, 'probe_shift': 0.2, 'scale': np.float64(0.19963153264005093), 'all': 0.002339622868126506, 'fit': 0.0011117754548574826, 'validation': 0.006034079307162633, 'increment_MAP': -0.0004486112017513356, 'increment_glucose': -2.7308488508751852e-05}, {'ridge': 0.0001, 'probe_shift': 0.329011, 'scale': np.float64(0.32840485092717897), 'all': 0.0034140970649823407, 'fit': 0.0020374303117126073, 'validation': 0.007556334362598382, 'increment_MAP': 0.001355513380460157, 'increment_glucose': -2.7308488508890874e-05}, {'ridge': 0.001, 'probe_shift': 0.1, 'scale': np.float64(0.09980746374216955), 'all': 0.002063928535650217, 'fit': 0.0007388061687485838, 'validation': 0.006051074501838686, 'increment_MAP': -0.0009115231138909741, 'increment_glucose': -2.730851233605121e-05}, {'ridge': 0.001, 'probe_shift': 0.2, 'scale': np.float64(0.1996149274843391), 'all': 0.002521266466213066, 'fit': 0.001049387750763205, 'validation': 0.006949985978922203, 'increment_MAP': -0.0001436176372342943, 'increment_glucose': -2.7308536163568472e-05}, {'ridge': 0.001, 'probe_shift': 0.329011, 'scale': np.float64(0.3283775345327494), 'all': 0.004630157463978095, 'fit': 0.002829048677719853, 'validation': 0.010049493678630672, 'increment_MAP': 0.0033973721081083197, 'increment_glucose': -2.7308566903688838e-05}, {'ridge': 0.01, 'probe_shift': 0.1, 'scale': np.float64(0.10010794449157301), 'all': 0.002534046614748818, 'fit': 0.0011115161899991506, 'validation': 0.006814282603884485, 'increment_MAP': -0.00012214975142439387, 'increment_glucose': -2.7321842846216046e-05}, {'ridge': 0.01, 'probe_shift': 0.2, 'scale': np.float64(0.20021588898314602), 'all': 0.005124585029175809, 'fit': 0.0033754166885438365, 'validation': 0.010387638214099569, 'increment_MAP': 0.004227571994101974, 'increment_glucose': -2.7335197790345542e-05}, {'ridge': 0.01, 'probe_shift': 0.329011, 'scale': np.float64(0.32936614925116925), 'all': 0.012629244386290922, 'fit': 0.010176493319071275, 'validation': 0.020009299819658485, 'increment_MAP': 0.01682848231746203, 'increment_glucose': -2.735242802935834e-05}]
+
+## Run 139: NE trial installed
+Four-head-tensor candidate bacb0c2adfe8: retained strength-2 insulin; added paired-GELU NE correction in neurons [48, 171], ridge 1e-05, diagnostic probe calibration 0.329011. Local NLL delta overall 0.003269. Strength-2 insulin-only fallback retained in r139_fallback and r115_strength2. Pending paired GPU factual and actual dose-edit validation; not yet accepted.
+
+## Run 140: factual trial failed acceptance
+Forward 16: original 1.64249, edited 1.64977 on 100 tuning stays; delta +0.00728 exceeds +0.005. Candidate not accepted. Recovering prior evidence to distinguish insulin baseline loss from incremental NE loss before selecting the next edit.
+
+## Forward 17 / Run 143: actual NE response is partial
+Current four-head-tensor trial on tuning 2020000000..99: insulin x2 -10.255, half +5.021; NE x2 +2.351, half -0.893. NE doubling now has the record-supported sign, but both NE effects remain below provisional targets +4.746/-2.373. Factual delta +0.007284 on tuning 300..399 remains unacceptable as a standalone check. Investigating factual feature leakage and decoder fitting before amplification; no new edit installed.
+
+## Run 149: isolate factual failure
+Restored r115_strength2, removing the unaccepted NE trial. Combined-trial tensors remain backed up in r149_trial_backup and r139_candidate. Next check isolates insulin factual loss on tuning 300..399, where combined delta was +0.007284.
+
+## Forward 18 / Run 150: insulin fallback passes narrowly
+On tuning 300..399, strength-2 insulin factual NLL is 1.64733 vs original 1.64249 (delta approximately +0.00484). NE trial's extra factual loss is approximately +0.00244. Need better factual efficiency before scaling either correction. Insulin fallback remains installed.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 152 of at most 300:
+```
+=== FACTUAL LOSS BY HOUR ===
+       count      mean       sum
+hour                            
+-1.0     167 -0.000096 -0.016014
+ 0.0     166 -0.000140 -0.023291
+ 1.0     177  0.044843  7.937136
+ 2.0     177 -0.002802 -0.496022
+ 3.0     165  0.000966  0.159366
+ 4.0     164 -0.000670 -0.109891
+ 5.0     162  0.004852  0.786102
+ 6.0     182  0.005359  0.975347
+ 7.0     180 -0.002795 -0.503149
+ 8.0     167  0.001563  0.261074
+ 9.0     178 -0.002463 -0.438500
+ 10.0    177 -0.000019 -0.003307
+ 11.0    164 -0.007490 -1.228317
+ 12.0    164  0.003870  0.634750
+ 13.0    172  0.006995  1.203094
+ 14.0    179  0.000631  0.112929
+ 15.0    169  0.000801  0.135436
+ 16.0    175  0.004379  0.766335
+ 17.0    173  0.007471  1.292489
+ 18.0    171  0.004991  0.853425
+ 19.0    178  0.000903  0.160779
+ 20.0    178  0.000810  0.144161
+ 21.0    175  0.002630  0.460228
+ 22.0    192  0.001379  0.264800
+ 23.0    183 -0.004882 -0.893462
+ 24.0    175 -0.003594 -0.629015
+tuning failures:
+   stay_id  hour          event  insulin_loss  insulin_mean_shift
+2020000398  21.0 glucose_finger       17.1384            -47.8824
+2020000370  23.0 glucose_finger        1.2407             -8.0005
+2020000304   1.0 glucose_finger        1.2388            -10.4333
+2020000370   1.0 glucose_finger        1.2163            -14.3785
+2020000346   1.0 glucose_finger        1.1513             -6.8199
+2020000306  17.0 glucose_finger        0.8472              9.3039
+2020000381  18.0 glucose_finger        0.8271              6.1223
+2020000337  23.0 glucose_finger        0.7803             -4.8144
+=== WARM-UP GATES AT INSULIN STRENGTH 2.6 ===
+ onset    C  sharp      all      fit  held_out  late_heldout_gate_on  late_score_ratio  max_loss
+     2 0.01    3.0 0.005031 0.003160  0.010663               1.00000          1.000000  2.994086
+     2 0.01    6.0 0.004723 0.002783  0.010559               1.00000          1.000000  2.994086
+     2 0.10    3.0 0.002615 0.001588  0.005707               1.00000          1.000000  1.956298
+     2 0.10    6.0 0.002558 0.001511  0.005710               1.00000          1.000000  2.043132
+     3 0.01    3.0 0.011028 0.004109  0.031846               1.00000          1.000000 15.901679
+     3 0.01    6.0 0.011699 0.003509  0.036342               1.00000          1.000000 25.374962
+     3 0.10    3.0 0.007450 0.001190  0.026287               1.00000          1.000000 24.471733
+     3 0.10    6.0 0.007026 0.001294  0.024276               1.00000          1.000000 22.560003
+     6 0.01    3.0 0.041206 0.028651  0.078983               1.00000          1.000000 45.175905
+     6 0.01    6.0 0.037681 0.028563  0.065114               1.00000          1.000000 43.542749
+     6 0.10    3.0 0.013895 0.009262  0.027833               1.00000          1.000000 27.562520
+     6 0.10    6.0 0.013519 0.008884  0.027465               1.00000          1.000000 27.035886
+    12 0.01    3.0 0.114664 0.092885  0.180195               0.99274          1.000196 67.618751
+    12 0.01    6.0 0.103273 0.077079  0.182090               1.00000          1.000001 67.618751
+    12 0.10    3.0 0.024938 0.021863  0.034190               1.00000          1.000000 26.589239
+    12 0.10    6.0 0.024788 0.022397  0.031982               1.00000          1.000000 28.958437
+
+```

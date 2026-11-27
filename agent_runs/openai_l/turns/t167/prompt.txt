@@ -1,0 +1,216 @@
+OUTPUT of Python run 154 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RELEVANT WEIGHT SHAPES ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.flow.a (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+embed.bins.value.weight (17, 192)
+embed_transition.value_bin.weight (221, 17)
+
+=== RECOVERED COMPONENTS ===
+Bdose125 array (193, 2) norm 162.89663
+Ccontroller145 array (192, 192) norm 12.7589
+Chead118 array (192, 192) norm 15.90399
+CinvJ118 array (192, 20) norm 104344.15005
+Cperp145 array (192, 192) norm 10.30751
+Cpre118 array (192, 192) norm 59178.58276
+Cstate118 array (192, 192) norm 1103292.26158
+Ebase153 array (192, 4, 192) norm 394.48288
+Fflow125 array (32, 4, 4) norm 10.11546
+Hpost118 array (4391, 4, 192) norm 141092.4375
+Hpre118 array (4391, 4, 192) norm 35345.72266
+Jhead118 array (20, 192) norm 0.09928
+Jpre125 array (32, 192, 4) norm 3.94786
+Jrows118 array (20, 100, 192) norm 0.99438
+Jselected118 array (4, 192) norm 0.04549
+P125 array (192, 4) norm 7.51963
+QE125 array (192, 4) norm 2.0
+R118 array (192, 4) norm 2.0
+Rbase118 array (192, 20) norm 4.47214
+SP125 array (192, 4) norm 1.93206
+Sstate125 array (192, 192) norm 0.05907
+T125 array (192, 4) norm 0.76861
+Uexact145 array (192, 4) norm 12.6257
+Uscore118 array (20, 20) norm 4.47214
+Ustate118 array (192, 192) norm 13.85641
+V125 array (192, 192) norm 13.54643
+Vnew125 array (192, 192) norm 165.83987
+Vsignal118 array (192, 4) norm 133.92538
+Wkv125 array (384, 192) norm 18.48668
+Wo125 array (192, 192) norm 13.91191
+Wrepair125 array (192, 192) norm 14.03435
+Xstate125 array (128, 192) norm 3.94786
+Ydesired153 array (128, 4) norm 8.42175
+Ystate125 array (128, 4) norm 10.11546
+aa118 Tensor tensor([[[29099.8809],
+         [25499.8809],
+         [21899.8809],
+         ...,
+         [    0.0000],
+         [    0.0000],
+         [    0.0000]],
+
+        [[32400.0000],
+         [28800.0000],
+         [25200.0000],
+         ...,
+         [    0.0000],
+         [    0.0000],
+         [    0.0000]],
+
+        [[32699.8809],
+         [29099.880
+base_e152 array (128, 4, 192) norm 315.46689
+bn125 array (192,) norm 0.54052
+cache_saved152 dict keys ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']
+cache_saved153 dict keys ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']
+capture125 list length 0 preview []
+capture_pre125 callable
+captured_pre118 list length 35 preview [array([[[ 40.295498  , -12.933987  , -19.02562   , ...,  16.013798  ,
+         -20.240793  ,  -6.447933  ],
+        [ 25.35645   ,  -1.5542126 , -24.004154  , ...,   7.1396008 ,
+         -15.8887825 ,  -4.375331  ],
+        [ 26.14252   ,  -1.2259841 , -25.472689  , ...,   4.970606  ,
+         -17.43996   ,  -3.8150973 ],
+        [ 42.420258  , -1
+cc118 Tensor tensor([[-1.2619,  2.0717, -0.9360,  ..., -0.5001, -0.2072, -0.5171],
+        [-1.2854,  2.0837, -1.0076,  ..., -0.4197, -0.3592, -0.5723],
+        [-1.2425,  2.1067, -0.9448,  ..., -0.2696, -0.1861, -0.5177],
+        ...,
+        [-1.2495,  2.1182, -1.0275,  ..., -0.3143, -0.2423, -0.5283],
+        [-1.1942,  2.0790, -0.9945,  ..., -0.5035, -0.103
+cc125 Tensor tensor([[-0.8832,  1.8034, -0.9459,  ...,  0.4970, -0.3899, -0.8356],
+        [-1.2703,  2.1083, -0.9964,  ..., -0.5133, -0.0951, -0.5166],
+        [-3.5058,  4.5609, -2.4901,  ...,  0.2065,  0.9273, -0.2753],
+        ...,
+        [-3.5106,  4.5202, -2.4598,  ...,  0.1340,  0.8628, -0.3407],
+        [-1.0169,  2.0094, -0.9366,  ..., -0.0538,  0.073
+chosen125 array (2,) norm 185.15129
+col125 int 1
+constant125 float 0.9198309071510804
+constraints125 array (192, 5) norm 13.45721
+constvec125 array (192,) norm 14.38706
+controllers125 dict keys [0.1, 1.0, 10.0]
+controllers153 dict keys [0.001, 0.01, 0.1, 1.0, 10.0]
+cov153 array (192, 192) norm 10655.06641
+de152 array (128, 4, 192) norm 0.53036
+derivative118 array (8, 100, 192) norm 0.66099
+dr125 array (871, 4, 192) norm 654.45859
+dt153 array (32,) norm 14249.43811
+epsrows118 Tensor tensor([[[ 1.0299e+00,  4.5610e-01, -3.2952e-01,  ..., -1.5674e+00,
+           1.1459e-01,  5.6591e-01],
+         [-2.0694e+00,  1.5082e+00,  6.4199e-01,  ..., -3.6930e-01,
+           8.2932e-01,  4.3879e-01],
+         [-3.7059e-01, -1.6045e+00,  8.9492e-01,  ..., -3.8619e-02,
+           6.2519e-01,  7.3873e-01],
+         ...,
+         [-8.9247e-01
+escore118 array (20,) norm 1464.6618
+estate118 array (192,) norm 1103292.26158
+ev125 array (29,) norm 2e-05
+f125 TextIOWrapper <_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+f152 TextIOWrapper <_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+flow145 array (192,) norm 0.00552
+flow_errors153 l
+[output cut at 10,000 characters]
+```

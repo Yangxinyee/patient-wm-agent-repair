@@ -1,0 +1,190 @@
+OUTPUT of Python run 49 of at most 300:
+```
+=== VOCABULARY STRUCTURE ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+
+=== ENCODER AND TRANSITION TENSOR SHAPES ===
+core.a_in (192,)
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+core.slots (4, 192)
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+embed.code.weight (13, 192)
+embed.ekind.weight (5, 192)
+embed.kind.weight (3, 192)
+embed.kq.weight (4, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+embed.text.weight (2, 192)
+encode.mlp1.0.bias (768,)
+encode.mlp1.0.weight (768, 192)
+encode.mlp1.2.bias (192,)
+encode.mlp1.2.weight (192, 768)
+encode.mlp2.0.bias (768,)
+encode.mlp2.0.weight (768, 192)
+encode.mlp2.2.bias (192,)
+encode.mlp2.2.weight (192, 768)
+encode.norm.bias (192,)
+encode.norm.weight (192,)
+encode.size.bias (192,)
+encode.size.weight (192, 1)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+
+=== RECONSTRUCTION FUNCTION SIGNATURES ===
+atom_embedding_repair (event, values=None, rates=None, doses=None, unit=0, rate_unit=0, kind=0, ekind=None, side='left') names: ('len', 'np', 'atleast_1d', 'zeros', 'float32', 'int64', 'asarray', 'float', 'reshape', 'isfinite', 'numeric_specs_repair', 'clip', 'searchsorted', 'rW', 'code_ids_repair', 'NAMES', 'startswith', 'endswith', 'split', 'rp_linear', 'torch', 'from_numpy', 'items') constants: (None, ('insulin', 'norepinephrine'), 2, ('glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'), 1, 3, 0, 6, ('dtype',), 'value', 'dose', 'rate', 4, 5, -1, 'median', 'iqr', -10, 10, 'fine_bin_edges', ('side',), 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.kq.weight', 'embed.text.weight', 'embed.categorical.', '.weig
+rp_action_encoder (atoms) names: ('rp_mlp', 'rp_linear', 'torch', 'full', 'len', 'np', 'log', 'float32', 'rp_norm') constants: (None, 'encode_action.mlp1', 1, 2, ('dtype',), 'encode_action.size', 'encode_action.mlp2', 'encode_action.norm')
+rp_mlp (x, prefix) names: ('rp_linear', 'F', 'gelu') constants: (None, '.0', '.2')
+rp_norm (x, prefix) names: ('F', 'layer_norm', 'shape', 'rW') constants: (None, -1, '.weight', '.bias', 1e-05, ('eps',))
+pre_context_repair (bank, indices) names: ('torch', 'as_tensor', 'float32', 'np', 'rint', 'astype', 'int', 'reshape', 'exp', 'rW', 'rp_norm', 'mean', 'rp_mlp', 'log1p') constants: (None, 'x', 1, ('dtype',), 'hour', 60, 192, 960, -1, 4, 'core.flow.a', ('dim',), 'core.out_norm', 10, 'gap')
+mlp_repair (x, prefix, kind) names: ('linear_repair', 'act_repair') constants: (None, '.0', '.2')
+
+=== ATOM IMPLEMENTATION ===
+  7           0 RESUME                   0
+
+ 10           2 LOAD_FAST                7 (ekind)
+              4 POP_JUMP_IF_NOT_NONE    14 (to 34)
+
+ 11           6 LOAD_FAST                0 (event)
+              8 LOAD_CONST               1 (('insulin', 'norepinephrine'))
+             10 CONTAINS_OP              0
+             12 POP_JUMP_IF_FALSE        2 (to 18)
+             14 LOAD_CONST               2 (2)
+             16 JUMP_FORWARD             7 (to 32)
+
+ 12     >>   18 LOAD_FAST                0 (event)
+             20 LOAD_CONST               3 (('glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'))
+             22 CONTAINS_OP              0
+             24 POP_JUMP_IF_FALSE        2 (to 30)
+             26 LOAD_CONST               4 (1)
+             28 JUMP_FORWARD             1 (to 32)
+
+ 14     >>   30 LOAD_CONST               5 (3)
+
+ 11     >>   32 STORE_FAST               7 (ekind)
+
+ 16     >>   34 LOAD_FAST                1 (values)
+             36 LOAD_FAST                2 (rates)
+             38 LOAD_FAST                3 (doses)
+             40 BUILD_TUPLE              3
+             42 GET_ITER
+             44 LOAD_FAST_AND_CLEAR      9 (v)
+             46 SWAP                     2
+             48 BUILD_LIST               0
+             50 SWAP                     2
+        >>   52 FOR_ITER                 7 (to 70)
+             56 STORE_FAST               9 (v)
+             58 LOAD_FAST                9 (v)
+             60 POP_JUMP_IF_NOT_NONE     1 (to 64)
+             62 JUMP_BACKWARD            6 (to 52)
+        >>   64 LOAD_FAST                9 (v)
+             66 LIST_APPEND              2
+             68 JUMP_BACKWARD            9 (to 52)
+        >>   70 END_FOR
+             72 STORE_FAST              10 (provided)
+             74 STORE_FAST               9 (v)
+
+ 17          76 LOAD_FAST               10 (provided)
+             78 POP_JUMP_IF_FALSE       33 (to 146)
+             80 LOAD_GLOBAL              1 (NULL + len)
+             90 LOAD_GLOBAL              3 (NULL + np)
+            100 LOAD_ATTR                4 (atleast_1d)
+            120 LOAD_FAST               10 (provided)
+            122 LOAD_CONST               6 (0)
+            124 BINARY_SUBSCR
+            128 CALL                     1
+            136 CALL                     1
+            144 JUMP_FORWARD             1 (to 148)
+        >>  146 LOAD_CONST               4 (1)
+        >>  148 STORE_FAST              11 (n)
+
+ 18         150 LOAD_GLOBAL              3 (NULL + np)
+            160 LOAD_ATTR                6 (zeros)
+            180 LOAD_FAST               11 (n)
+            182 LOAD_CONST               7 (6)
+            184 BUILD_TUPLE              2
+            186 LOAD_GLOBAL              2 (np)
+            196 LOAD_ATTR                8 (float32)
+            216 KW_NAMES                 8 (('dtype',))
+            218 CALL                     2
+            226 STORE_FAST              12 (nums)
+
+ 19         228 BUILD_MAP                0
+            230 STORE_FAST              13 (bin_indices)
+
+ 21         232 LOAD_CONST               9 ('value')
+            234 LOAD_FAST                1 (values)
+            236 LOAD_CONST               6 (0)
+            238 LOAD_CONST               4 (1)
+            240 BUILD_TUPLE              4
+            242 LOAD_CONST              10 ('dose')
+            244 LOAD_FAST                3 (doses)
+            246 LOAD_CONST               2 (2)
+            248 LOAD_CONST               5 (3)
+            250 BUILD_TUPLE              4
+
+ 22         252 LOAD_CONST              11 ('rate')
+            254 LOAD_FAST                2 (rates)
+            256 LOAD_CONST              12 (4)
+            258 LOAD_CONST              13 (5)
+            260 BUILD_TUPLE              4
+
+ 20         262 BUILD_TUPLE              3
+            264 GET_ITER
+        >>  266 FOR_ITER               211 (to 692)
+            270 UNPACK_SEQUENCE          4
+            274 STORE_FAST              14 (attr)
+            276 STORE_FAST              15 (supplied)
+            278 STORE_FAST              16 (zcol)
+            280 STORE_FAST              17 (flagcol)
+
+ 24         282 LOAD_GLOBAL              3 (NULL + np)
+            292 LOAD_ATTR                6 (zeros)
+            312 LOAD_FAST               11 (n)
+            314 LOAD_GLOBAL              2 (np)
+            324 LOAD_ATTR               10 (int64)
+            344 KW_NAMES                 8 (('dtype',))
+            346 CALL                
+
+=== MEASUREMENT FIXTURE ===
+ state_index    stay_id  minute  n_atoms  has_insulin  has_norepinephrine  hour    event  value  rate  dose  end_hour
+           3 1010000000      60        1        False               False   1.0 map_cuff   82.0   NaN   NaN       NaN
+           4 1010000000     120        1        False               False   2.0 map_cuff  100.0   NaN   NaN       NaN
+          22 1010000000     720        1        False               False  12.0 map_cuff   88.0   NaN   NaN       NaN
+measurement recipes: not found
+
+=== DOSE NUISANCE MODELS ===
+insulin [(HistGradientBoostingRegressor(early_stopping=False, l2_regularizat
+[output cut at 10,000 characters]
+```

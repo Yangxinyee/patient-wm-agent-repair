@@ -1,0 +1,242 @@
+OUTPUT of Python run 277 of at most 300:
+```
+=== TUNING COHORTS ===
+Total stays: 400
+0 100 2020000000 2020000099 consecutive: True
+1 100 2020000100 2020000199 consecutive: True
+2 100 2020000200 2020000299 consecutive: True
+3 100 2020000300 2020000399 consecutive: True
+
+=== LATER CAUSAL ROBUSTNESS CHECKS ===
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours >=12": [
+      -2.04868,
+      0.05966,
+      0.61587,
+      142454
+    ],
+    "lower half of doses": [
+      -1.94372,
+      0.07221,
+      0.40383,
+      158100
+    ],
+    "upper half of doses": [
+      -2.01779,
+      0.05771,
+      0.73907,
+      95763
+    ],
+    "away from maximum": [
+      -1.99092,
+      0.04556,
+      0.59868,
+      253862
+    ],
+    "current primary observed": [
+      -1.99783,
+      0.0459,
+      0.60385,
+      246971
+    ]
+  },
+  "norepinephrine": {
+    "all active": [
+      3.29011,
+      0.09111,
+      0.13328,
+      146556
+    ],
+    "hours >=12": [
+      3.38311,
+      0.11624,
+      0.13967,
+      75241
+    ],
+    "lower half of doses": [
+      3.50921,
+      0.15079,
+      0.10196,
+      74248
+    ],
+    "upper half of doses": [
+      3.17119,
+      0.11255,
+      0.14585,
+      72308
+    ],
+    "away from maximum": [
+      3.29965,
+      0.10114,
+      0.1253,
+      124482
+    ],
+    "current primary observed": [
+      3.29235,
+      0.09268,
+      0.13325,
+      139375
+    ]
+  }
+}
+
+## Run 5
+Estimated 1..12 hour local projections using held-out history models. Subtracted subsequent-treatment feedback using future-dose residual covariances to estimate controlled impulse responses. Geometric summaries are tentative; long-lag selection and recursive estimation can amplify error. No weight edits yet.
+{
+  "insulin": {
+    "rows": [
+      {
+        "lag": 1,
+        "total_LP": -1.9915,
+        "controlled_impulse": -1.9915,
+        "total_LP_SE": 0.04557,
+        "next_dose_feedback": 0,
+        "n": 253863
+      },
+      {
+        "lag": 2,
+        "total_LP": -2.2912,
+        "controlled_impulse": -2.3867,
+        "total_LP_SE": 0.05054,
+        "next_dose_feedback": -0.0479,
+        "n": 227223
+      },
+      {
+        "lag": 3,
+        "total_LP": -1.8451,
+        "controlled_impulse": -2.0916,
+        "total_LP_SE": 0.05563,
+        "next_dose_feedback": -0.0497,
+        "n": 210298
+      },
+      {
+        "lag": 4,
+        "total_LP": -1.3483,
+        "controlled_impulse": -1.7057,
+        "total_LP_SE": 0.05969,
+        "next_dose_feedback": -0.0503,
+        "n": 196607
+      },
+      {
+        "lag": 5,
+        "total_LP": -0.772,
+        "controlled_impulse": -1.1955,
+        "total_LP_SE": 0.06484,
+        "next_dose_feedback": -0.0503,
+        "n": 184608
+      },
+      {
+        "lag": 6,
+        "total_LP": -0.4743,
+        "controlled_impulse": -0.9007,
+        "total_LP_SE": 0.069,
+        "next_dose_feedback": -0.0493,
+        "n": 173365
+      },
+      {
+        "lag": 7,
+        "total_LP": -0.2797,
+        "controlled_impulse": -0.6669,
+        "total_LP_SE": 0.07385,
+        "next_dose_feedback": -0.0497,
+        "n": 162488
+      },
+      {
+        "lag": 8,
+        "total_LP": -0.1758,
+        "controlled_impulse": -0.5084,
+        "total_LP_SE": 0.07888,
+        "next_dose_feedback": -0.0488,
+        "n": 151796
+      },
+      {
+        "lag": 9,
+        "total_LP": -0.0703,
+        "controlled_impulse": -0.3329,
+        "total_LP_SE": 0.08706,
+        "next_dose_feedback": -0.0504,
+        "n": 141116
+      },
+      {
+        "lag": 10,
+        "total_LP": 0.064,
+        "controlled_impulse": -0.1455,
+        "total_LP_SE": 0.09255,
+        "next_dose_feedback": -0.0499,
+        "n": 130635
+      },
+      {
+        "lag": 11,
+        "total_LP": -0.011,
+        "controlled_impulse": -0.1475,
+        "total_LP_SE": 0.10163,
+        "next_dose_feedback": -0.0489,
+        "n": 120066
+      },
+      {
+        "lag": 12,
+        "total_LP": 0.0378,
+        "controlled_impulse": -0.0541,
+        "total_LP_SE": 0.11201,
+        "next_dose_feedback": -0.0491,
+        "n": 109636
+      }
+    ],
+    "geometric": [
+      -2.447715382968271,
+      0.8378827397427017
+    ],
+    "kernel"
+
+=== TARGET-RELATED NOTE EXCERPTS ===
+## Run 7
+Recovered architecture. Separate action encoder feeds posterior and prelude; reading heads also use same-code last-reading registers and transition logits. No edits. Run 6 record-based rollout targets remain provisional: insulin x2 about -14.18, half +7.09; norepinephrine x2 +4.68, half -2.34 on training schedules.
+
+## Run 8
+---
+## Runs 74?79: restart audit
+No edits. Recovered record-based immediate effects: insulin about -1.99 per rate unit; norepinephrine about +3.29. Provisional controlled-kernel rollout targets: insulin x2 -14.18, half +7.09; NE x2 +4.68, half -2.34. Stored reading gate is excellent on its fitted projected features but fails on sampled raw head inputs. Auditing feature projection and reconstruction before any new installation.
+
+## Run 83: deterministic reading-head diagnostic
+---
+## Run 98: stochastic head reconstruction
+Testing latent prior activation/packing against original factual outputs, allowing for the GPU's four prior draws. Recovered aligned innovation targets. No weights edited.
+{'activation': 'gelu', 'packing': 'split', 'normalized_MSE': 0.0028543598018586636, 'expected_four_draw_MSE': 0.0029637326952069998, 'excess_MSE': -0.00010937289334833622, 'NLL_RMSE': 0.20606064796447754, 'mean_log_sd': -0.48285219073295593}
+{'activation': 'gelu', 'packing': 'interleaved', 'normalized_MSE': 0.0041332063265144825, 'expected_four_draw_MSE': 0.0040336293168365955, 'excess_MSE': 9.957700967788696e-05, 'NLL_RMSE': 0.24339871108531952, 'mean_log_sd': -0.2101394534111023}
+---
+## Run 104: local gated-insulin candidate
+Original tuning rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600. Provisional targets on those exact hours: insulin -13.599/+6.800, NE +4.746/-2.373. Constructed a raw-coordinate, latent-aware insulin gate/innovation correction using neurons 107/109; assessing local held-out NLL before installing any weights.
+
+## Run 105 result
+---
+Insulin intervention transmission improved substantially, but remains below
+provisional record-derived targets -13.599/+6.800. NE is not repaired.
+Backed up this factual-budget-compliant candidate in memory and
+/work/insulin_candidate_v1.npz before any further changes.
+---
+insulin approximately -1.99 per rate unit; NE approximately +3.29.
+Cumulative targets use controlled impulse kernels and remain provisional.
+Recovered exact local amplitude evaluator and existing gated construction;
+testing scaling analytically before another weight installation.
+---
+## Restart / Runs 113?115 and Forward 12?13
+Strength-2 insulin candidate (hash 43d7176a64): paired factual NLL on tuning 
+
+=== FORWARD FILE INTERFACES ===
+39 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+43 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+44 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+
+=== CHECKPOINT FILE INTERFACE ===
+{'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.2.bias': (17,), 'attr_heads.value_bin.2.weight': (17, 192), 'embed_transition.value_bin.weight': (221, 17)}
+
+```

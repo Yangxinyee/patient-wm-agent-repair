@@ -1,0 +1,45 @@
+OUTPUT of Python run 40 of at most 300:
+```
+['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour', 'frac']
+      stay_id  hour               event  value  rate rate_unit  dose dose_unit  end_hour  frac
+0  1010000000  -2.0  hospital_admission    NaN   NaN       NaN   NaN       NaN   25.1667   0.0
+1  1010000000  -1.0      glucose_finger  182.0   NaN       NaN   NaN       NaN       NaN   0.0
+2  1010000000  -1.0        map_arterial   79.0   NaN       NaN   NaN       NaN       NaN   0.0
+3  1010000000  -1.0            map_cuff   80.0   NaN       NaN   NaN       NaN       NaN   0.0
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+[ 4.0833  5.0833  6.0833  8.0833  9.0833 10.0833 11.0833 12.0833] [1010002352 1010002352 1010002352] [1 3 4 1 2 2 1 2 2 2]
+           stay_id    hour               event  value  rate   rate_unit   dose dose_unit  end_hour    frac
+155973  1010002352 -2.0000  hospital_admission    NaN   NaN         NaN    NaN       NaN   25.1667  0.0000
+155974  1010002352 -1.0000      glucose_finger  144.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155975  1010002352 -1.0000        map_arterial   54.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155976  1010002352 -1.0000            map_cuff   68.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155977  1010002352  0.0000      glucose_finger  132.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155978  1010002352  0.0000       icu_admission    NaN   NaN         NaN    NaN       NaN   25.1667  0.0000
+155979  1010002352  0.0000        map_arterial   61.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155980  1010002352  0.0000            map_cuff   62.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155981  1010002352  0.0833      norepinephrine    NaN  0.63  mcg/kg/min  3.024        mg    1.0833  0.0833
+155982  1010002352  1.0000         glucose_lab  128.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155983  1010002352  1.0000        map_arterial   69.0   NaN         NaN    NaN       NaN       NaN  0.0000
+155984  1010002352  1.0833      norepinephrine    NaN  0.47  mcg/kg/min  2.256        mg    2.0833  0.0833
+
+```

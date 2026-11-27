@@ -1,0 +1,33 @@
+OUTPUT of Python run 280 of at most 300:
+```
+  Implied TRUE on same stay-hours (linear SNMM): ins_x2 -14.5, ins_half +7.26. Model underestimates insulin effect ~8x.
+- effects.json: beta_ins (lags0..12) and gam_ne (NE->MAP per unit rate, lags 0..12): [0,3.16,2.63,1.78,0.95,0.46,0.33,-0.02,0.07,0.06,-0.14,0.11,-0.01]
+- Run 46/50: NE effect per unit rate falls with rate (10.8,7.3,5.7,4.6 by quartile) but per log-rate ~constant (2.7-3.5 lag1) -> NE ~ LOG-linear (or Emax).
+  WARNING: EPSN is not clean at capped rates (encodes MAP band; capping selects high noise) -> gam_ne in effects.json is BIASED. Need interior-stratum instrument.
+  p=1 (LINEAR) best J=21 (df16); log rejected (J=582). gam_ne_clean (lags1-8) = [3.28, 2.73, 2.02, 1.21, 0.43, 0.07, -0.16, 0.23] ~ same as old gam_ne. NE linear additive.
+- Targets on sel1 reached hours (linear SNMM): {'insulin_x2': np.float64(-13.99), 'insulin_half': np.float64(6.99), 'ne_x2': np.float64(4.85), 'ne_half': np.float64(-2.43)}
+- Run 85-95: TIME ALIGN BUG fixed (float32 hours: use minutes). eps_ins (rate-1.04*base) linearly decodable (standardized ridge a=3):
+- Run142 lin_sep on WC: glucose vs map separable (r2 1.0); ins-present among glucose r2 .996; joint gate not linear (.78); NE among map .98.
+- fwd11 per-stay-hour regression (lag = h-floor(t) reproduces true_shift_ne; gam_ne_clean padded to 13): ne_x2 target 4.87 = in-range part .90 + OUT-OF-RANGE part 3.97 (doubled rate>1).
+PT_tr DataFrame (778630, 14) ['stay_id', 't', 'glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine', 'ins', 'ne', 'Gdec', 'base', 'ins_exp', 'eps_ins']
+PT DataFrame (780000, 6) ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine']
+TRAIN DataFrame (1997441, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+TR DataFrame (1997441, 2) ['stay_id', 'event']
+TRd DataFrame (40, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+TRe DataFrame (3691, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+TRi DataFrame (4121, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+TRn DataFrame (2500, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+panel function None 
+gl_all ndarray (19451,) 
+glm_all ndarray (19451,) 
+all_tr ndarray (30000,) 
+hourly_panel ('df',)
+dose_panel ('df', 'drug')
+stay_panel ('g',)
+gest_sub ('Y', 'D', 'EPSX', 'contmask', 'K_', 'coefs_prev', 'obsmask', 'sub_s', 'ctrl_fn', 'wts')
+iv_fit ('Y', 'A', 'Zi', 'K', 'tmin', 'extra_ctrl')
+add_lags ('RDf', 'PT', 'cols', 'lags')
+lagD ('df', 'K')
+['beta_ins', 'gam_ne', 'gam_ne_clean']
+
+```

@@ -1,0 +1,231 @@
+OUTPUT of Python run 165 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== CURRENT EDITS === ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.2.bias', 'core.prelude.0.ffn.2.weight']
+
+=== CANDIDATE AND REPLAY INVENTORY ===
+C154 (4213, 192)
+E154 (4213, 192)
+E_carrier155 (4213, 4, 192)
+E_original155 (4213, 4, 192)
+E_zero155 (4213, 4, 192)
+H154 (4213, 192)
+Horig154 (4213, 192)
+Pcomp154 (4213, 64)
+Ptarget154 (4213, 64)
+R154 (4213, 64)
+U154 (4213, 192)
+X154 (4213, 576)
+Y154 (4213, 4)
+Z154 (4213, 32)
+active154 (4213,)
+ae161 (16, 49, 192)
+after_carrier155 (4213, 4, 192)
+age155 (16, 49, 1)
+age156 (16, 50, 1)
+age162 (16, 50, 1)
+attention_carrier155 (4213, 4, 4, 7)
+base154 ()
+baseW154 (64, 192)
+baseb154 (64,)
+best154 (0.2965173166924055, 1.0, array([-3.66332343e-02,  6.99999572e-02, -5.25099824e-02, -2.41582967e-02,
+       -2.40752483e-02,  1.17264520e-01, -4.01802149e-03, -1.15124066e-02,
+       -1.43499800e-02,  2.11861520e-02,  8.55489884e-02,  7.36476119e-02,
+       -6.15066307e-02,  3.74230684e-02, -1.45827514e-01,  1.51336547e-02,
+        3.18945043e-02,  5.80322023e-02, -2.36949488e-01,  1.15671691e-01,
+       -9.77883855e-02,  3.56682884e-02, -6.22320562e-02, -9.30080835e-03,
+       -8.52233751e-02, 
+best_memory156 (0.18725726008415222, True, tensor([[[ 1.2738,  0.8529,  1.4085,  ..., -0.0896,  0.9402, -0.4195],
+         [-1.1472, -0.8020,  0.5822,  ...,  0.4006,  0.3316, -0.2047],
+         [ 0.0181,  0.8385,  0.1199,  ...,  1.5443, -0.5445, -0.5840],
+         ...,
+         [ 0.0000,  0.0000,  0.0000,  ...,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  ...,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  ...,  0.0000,  0.0000,  0.0000]],
+
+        [[ 1.2738,  0.8529,  1
+beta154 (192,)
+bh162 (16, 4, 192)
+bias154 0.5056097016898843
+brief158 (x)
+carrier154 (192, 2)
+carrier_scale154 0.02
+cc154 (493, 192)
+cf161 (16, 192)
+cm154 (192,)
+coef154 (192,)
+coef162 ()
+constraints154 (192, 36)
+coord154 ()
+cost154 (32,)
+cov154 (192, 192)
+dW154 (192, 64)
+db154 (64,)
+drug154 1
+e162 (16, 4, 192)
+eh156 16.491127014160156
+eh162 8.406903266906738
+embage162 (16, 50, 192)
+eo156 0.18725726008415222
+eo162 0.1207566037774086
+expected154 (4213,)
+fn160 (indices, factor)
+func159 dict [('load', 'function'), ('load_original', 'function'), ('save_edit', 'function'), ('drop_edit', 'function'), ('edited', 'function'), ('as_numpy', 'function'), ('make_arrays', 'function'), ('add_feature', 'function'), ('cluster_estimate', 'function'), ('linear', 'function'), ('layer_norm', 'function'), ('mlp', 'function')]
+gamma154 (192,)
+gate_strength154 40.0
+hbase156 (16, 4, 192)
+hc154 (3293, 192)
+hf162 (16, 4, 192)
+hh162 (16, 4, 192)
+hm154 (192,)
+hs155 (16, 4, 192)
+hs156 (16, 4, 192)
+i162 (16,)
+include155 False
+include156 True
+include162 True
+indices155 (16,)
+logscale162 0.1
+m161 (16, 49, 192)
+mask155 (16, 49)
+mask156 (16, 50)
+mask161 (16, 49)
+mask162 (16, 50)
+mean_z154 (32,)
+mem155 (16, 49, 192)
+mem156 (16, 50, 192)
+mem162 (16, 50, 192)
+memory156 (16, 50, 192)
+mode162 2
+n154 4213
+norm_carrier155 (4213, 7, 192)
+normalized_latent154 (4213, 192)
+obase156 (16, 192)
+observed_h156 (4313, 4, 192)
+observed_out156 (4313, 192)
+observed_z156 (4313, 32)
+oo162 (16, 192)
+options154 [(0.3199866024651956, 0.01, array([-0.50160734,  1.09812698, -0.66255397, -1.75303741, -0.79425902,
+        0.4259513 ,  0.18401512, -1.20916967, -1.11448362, -0.09575184,
+        0.56458364, -0.01118995,  1.16948181,  0.89883394, -0.6469566 ,
+        1.75190359,  0.14278291,  0.87183218, -1.40588433, -0.13528206,
+       -1.05595066,  1.38616757, -1.37589588, -0.3950203 , -0.05848648,
+       -0.29084588, -1.10694175,  0.39377654,  0.59817138, -0.88590938,
+       -0.41842416,  0.72566478, -0.6595
+origpost163 dict [('z_post.0.weight', (192, 576)), ('z_post.0.bias', (192,)), ('z_post.2.weight', (64, 192)), ('z_post.2.bias', (64,))]
+os155 (16, 192)
+os156 (16, 192)
+p162 (16,)
+packed156 (4313, 992)
+payload154 (4213, 2)
+pb154 -0.13328725294933808
+pc154 (192,)
+plus154 ()
+policy154 [(array([ 8.53190238e-01,  6.09474669e-01,  9.54702665e-02,  2.50234107e-01,
+       -6.51038134e-02,  3.17054010e-01,  6.02507561e-01,  3.98107635e-01,
+        3.80253809e-01,  1.35158492e-01,  6.49490846e-01, -5.05586313e-01,
+        1.98167653e-01, -1.11393235e-01,  8.52115293e-01,  1.18653039e-01,
+       -5.39010378e-02,  6.43173549e-01,  2.58941905e-01,  1.51775484e-02,
+       -5.68164995e-02, -1.39763331e-01,  7.99521600e-01, -1.94302741e-01,
+       -2.36582840e-01,  4.89625015e-01, -1.1244
+positions155 (16,)
+post154 dict [('z_post.0.weight', (192, 576)), ('z_post.0.bias', (192,)), ('z_post.2.weight', (64, 192)), ('z_post.2.bias', (64,))]
+prelude155 (tokens, overrides=None, injection=None)
+presence154 (193,)
+rate154 (193,)
+raw_laten
+[output cut at 10,000 characters]
+```

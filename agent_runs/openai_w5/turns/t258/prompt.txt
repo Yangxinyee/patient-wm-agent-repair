@@ -1,0 +1,119 @@
+OUTPUT of Python run 228 of at most 300:
+```
+=== COMPACT FUNCTION SIGNATURES ===
+_fn ['atom_sets', 'p', 'weights']
+brief224 ['ob', 'depth']
+drop_edit ['name']
+drug_atom205 ['drug', 'rate', 'weights']
+edited []
+head225 ['weights', 'sf', 'noise', 'status', 'typeidx']
+lin225 ['x', 'prefix', 'weights']
+linear205 ['x', 'p', 'weights']
+ln225 ['x', 'prefix', 'weights']
+load ['name']
+load_original ['name']
+make_head_inputs212 ['weights', 'sf', 'rows', 'prev']
+norm205 ['x', 'p', 'weights']
+save_edit ['name', 'tensor']
+save_file ['tensors', 'filename', 'metadata']
+set205 ['atom_sets', 'p', 'weights']
+summarize216 ['obj', 'prefix', 'depth']
+
+=== TABLES ===
+_df (4585, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+_dp (1437, 2) ['insulin', 'norepinephrine']
+_dr (1599, 10) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour', 'read_hour']
+_gate_table (4, 4) [7, 171, 10, 124]
+comparison225 (958, 7) ['stay_id', 'hour', 'event', 'local_nll', 'observed', 'predicted_mean', 'nll']
+dose18 (2298, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+gpu225 (958, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+head_rows (4750, 14) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour', 'last_value', 'last_hour', 'read_hour']
+train (1996002, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+tuning (26193, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+
+=== RELEVANT OBJECTS ===
+_control 10
+_pair_for_control dict [7, 171, 10, 124]
+_sensor217 'map_cuff'
+head_audit dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+head_ln Tensor (4750, 8)
+head_prev ndarray (4750,)
+head_q Tensor (4750, 192)
+head_vb ndarray (4750,)
+head_wc Tensor (4750, 192)
+head_zp Tensor (4750, 64)
+sensor_neurons dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+state_ids ndarray (100,)
+
+=== FORWARD FILES ===
+/work/fwd_15 ['summary.json', 'states_original.npz', 'states_edited.npz']
+/work/fwd_16 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+/work/fwd_17 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+/work/fwd_19 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+/work/fwd_20 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+
+=== RECONSTRUCTION NOTES ===
+Run 23: head-only correction screening
+- Testing the selected register convention on original GPU predictions.
+- Preparing independent state samples for a no-gradient correction of treatment innovations.
+- Head-only edits would preserve the recurrent state and all other prediction heads directly.
+
+Run 25: posterior-action ablation candidate
+- Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+- Latent sampling accounts for much of the local-vs-GPU head discrepancy.
+- Exploratory edit: zero z_post.0.weight[:,384:576], retaining direct action input.
+- Hypothesis: action-conditioned latent severity inference masks direct drug responses.
+- Requires paired factual and rollout tests; this is not yet a validated repair.
+- Earlier small-sample error-vs-innovation SE printouts include an intercept SE.
+
+Run 123: encoder candidate installed for factual validation
+- Independent rate RMSE I/NE: [0.004455155805703784, 0.0014733773277843163].
+- Ordinary action-feature RMSE: 0.0027597.
+- Installed the best normalized analytic encoder; no causal readout coupling yet.
+- Existing coordinate/head ablations remain. GPU factual validation is required.
+
+Run 125: isolated dose-transport candidate
+- Routed head 3 to the action token using a carrier discriminator and exact constant query.
+- Private state coordinates receive paired rate signals and decay before subsequent updates.
+- No causal value-head correction installed. This is a transport/capacity test only.
+- Must pass GPU factual NLL and saved-state rate-transport checks before use.
+
+Restart after run 125
+- Transport routing passed the local action-token selection check only.
+- No causal readout coupling is installed; factual and temporal transport validation remain required before retaining this candidate.
+
+Runs 147?149: sensor-specific causal-head candidate
+- Run 147's zero insulin tilt was a constrained-fit sign bug, corrected in run 148; it is not evidence of an absent insulin effect.
+- Freed eight low-energy value-head neurons by frozen-feature ridge distillation; no model gradients.
+- Separate, clean sensor gates; smooth monotone logit tilts calibrated to record-derived one-step effects.
+- Centered decoded exposure using independent-stay-validated ordinary-feature regressions.
+- Installed insulin strength 1 and NE strength .5 to reserve factual-loss budget.
+- Float32 local holdout NLL increment 0.001359 above clean transport; GPU factual and finite-dose tests still required.
+
+Run 202: clean recovery after timeout
+- Kernel variables were lost in run 199; persisted edits survived.
+- Saved all current edits in /work/checkpoint_run202.safetensors.
+- Rebuilt weight caches directly from the current and original tensors; no weights changed.
+
+Restart after forward 18 / run 206
+- Tuning B factual value NLL: 1.62038 versus original 1.61898, +0.00140.
+- Factual preservation holds on this sample; finite-dose causal asymmetry remains unresolved.
+- Recovering architecture, record-identification evidence, and kernel objects before further edits.
+
+Runs 209?211: recovered finite-rate channels
+- Correct clean pairs are insulin (21,61), NE (15,66); initial diagnostic pairing was wrong.
+- Encoder signals are mostly linear and drug-specific. Insulin saturates near rate 11.49 due to input clipping.
+- Saturation alone cannot explain doubling response exceeding twice the halving response.
+- Next hypothesis: ordinary-feature exposure centering may absorb dose interventions; not yet established.
+
+Run 217: restart recovery and rollback snapshot
+- Saved current edits to /work/checkpoint_run217.safetensors; no weights changed.
+- Recovered sensor-specific identification checks and current head/centering objects.
+- Existing exposure centering uses ordinary features; intervention leakage remains a hypothesis, not a finding.
+
+Runs 218?219: local-head validation failure
+- No weights changed. Local head NLL (~2.85) disagrees with GPU factual NLL (~1.64).
+- Local strength-loss and centering diagnostics are not trusted until register/head reconstruction is validated.
+
+
+```

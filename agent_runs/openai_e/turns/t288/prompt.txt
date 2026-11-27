@@ -1,0 +1,197 @@
+OUTPUT of Python run 247 of at most 300:
+```
+NEW DETECTOR CHECKS
+(100.0, 0.001) factual RMS 3.8469038399804902 initial max 37.34381453789837 coef norm 30.120125723156345
+  ('norepinephrine', 2.0) slope 0.4735969304917323 mean 0.1426433245709712 RMS 0.7345784677807353
+  ('norepinephrine', 0.5) slope -1.0143208519513245 mean 0.09759972160978077 RMS 0.5800555212349269
+  ('insulin', 2.0) slope -0.22037429461561958 mean -0.5036826235884015 RMS 0.6247297045039443
+  ('insulin', 0.5) slope -0.4090744177856191 mean 0.24272051781292547 RMS 0.5142870884163762
+(100.0, 0.01) factual RMS 3.0353763202533655 initial max 25.520258173191266 coef norm 13.721663615176512
+  ('norepinephrine', 2.0) slope 0.3343655604596677 mean 0.1223013967666291 RMS 0.5504276479028811
+  ('norepinephrine', 0.5) slope -0.15711501714848927 mean 0.005210299593194241 RMS 0.3036834998842654
+  ('insulin', 2.0) slope -0.03785294677777755 mean -0.12497199619996131 RMS 0.2626830340578821
+  ('insulin', 0.5) slope -0.14133206709682278 mean 0.1106389089381257 RMS 0.244038485474252
+(10.0, 0.001) factual RMS 10.021663496797677 initial max 89.74966294141448 coef norm 41.49337601342869
+  ('norepinephrine', 2.0) slope 1.881345421737318 mean 0.6067001933551892 RMS 1.7774266309283424
+  ('norepinephrine', 0.5) slope -1.2582140805430686 mean 0.11113029221458466 RMS 0.879788683700879
+  ('insulin', 2.0) slope -0.4152791532225531 mean -0.7956742405627583 RMS 0.9384244294631341
+  ('insulin', 0.5) slope -0.5762073485120488 mean 0.36831596527081806 RMS 0.7954392657818986
+
+FUNCTION DEFINITIONS
+
+ prelude_hidden93
+
+FUNCTION prelude_hidden93 (h, e, u, z, batch=192)
+  8           0 RESUME                   0
+
+  9           2 BUILD_LIST               0
+              4 BUILD_LIST               0
+              6 STORE_FAST               6 (raw_parts)
+              8 STORE_FAST               5 (hidden_parts)
+
+ 10          10 LOAD_GLOBAL              1 (NULL + range)
+             20 LOAD_CONST               1 (0)
+             22 LOAD_GLOBAL              3 (NULL + len)
+             32 LOAD_FAST                0 (h)
+             34 CALL                     1
+             42 LOAD_FAST                4 (batch)
+             44 CALL                     3
+             52 GET_ITER
+        >>   54 EXTENDED_ARG             1
+             56 FOR_ITER               311 (to 682)
+             60 STORE_FAST               7 (start)
+
+ 11          62 LOAD_GLOBAL              5 (NULL + min)
+             72 LOAD_FAST                7 (start)
+             74 LOAD_FAST                4 (batch)
+             76 BINARY_OP                0 (+)
+             80 LOAD_GLOBAL              3 (NULL + len)
+             90 LOAD_FAST                0 (h)
+             92 CALL                     1
+            100 CALL                     2
+            108 STORE_FAST               8 (stop)
+
+ 12         110 LOAD_GLOBAL              7 (NULL + torch)
+            120 LOAD_ATTR                8 (cat)
+
+ 13         140 LOAD_FAST                0 (h)
+            142 LOAD_FAST                7 (start)
+            144 LOAD_FAST                8 (stop)
+            146 BINARY_SLICE
+         
+
+ core_update_local
+
+FUNCTION core_update_local (z, config, h_flow=None, e=None, u=None, memory_data=None)
+ 90           0 RESUME                   0
+
+ 91           2 LOAD_FAST                1 (config)
+              4 UNPACK_SEQUENCE          4
+              8 STORE_FAST               6 (nheads)
+             10 STORE_FAST               7 (age_divisor)
+             12 STORE_FAST               8 (age_mode)
+             14 STORE_FAST               9 (include_current)
+
+ 92          16 LOAD_FAST                2 (h_flow)
+             18 POP_JUMP_IF_NOT_NONE     6 (to 32)
+             20 LOAD_GLOBAL              0 (core_h_flow)
+             30 JUMP_FORWARD             1 (to 34)
+        >>   32 LOAD_FAST                2 (h_flow)
+        >>   34 STORE_FAST              10 (h)
+
+ 93          36 LOAD_FAST                3 (e)
+             38 POP_JUMP_IF_NOT_NONE     6 (to 52)
+             40 LOAD_GLOBAL              2 (core_E_obs)
+             50 JUMP_FORWARD             1 (to 54)
+        >>   52 LOAD_FAST                3 (e)
+        >>   54 STORE_FAST               3 (e)
+
+ 94          56 LOAD_FAST                4 (u)
+             58 POP_JUMP_IF_NOT_NONE     6 (to 72)
+             60 LOAD_GLOBAL              4 (core_U_actions)
+             70 JUMP_FORWARD             1 (to 74)
+        >>   72 LOAD_FAST                4 (u)
+        >>   74 STORE_FAST               4 (u)
+
+ 96          76 LOAD_FAST                5 (memory_data)
+             78 POP_JUMP_IF_NOT_NONE     9 (to 98)
+             80 LOAD_GLOBAL              6 (core_memories)
+             90 LOAD_FAST                9 (include_current)
+             92 BINARY_SUBSCR
+             96 JUMP_FORWARD             1 (to 100)
+        >>   98 LOAD_FAST                5 (memory_data)
+
+ 95     >>  100 UNPACK_SEQUENCE          3
+            104 STORE_FAST              11 (memory)
+            106 STORE_FAST              12 (age_seconds)
+            108 STORE_FAST              13 (valid)
+
+ 97         110 LOAD_GLOBAL              9 (NULL + core_ffn)
+            120 LOAD_GLOBAL             11 (NULL + torch)
+            130 LOAD_ATTR               12 (log1p)
+            150 LOAD_FAST               12 (age_seconds)
+            152 LOAD_A
+
+ coda46
+
+FUNCTION coda46 (hnew)
+132           0 RESUME                   0
+
+133           2 LOAD_GLOBAL              1 (NULL + core_layer)
+             12 LOAD_GLOBAL              3 (NULL + core_lin)
+             22 LOAD_FAST                0 (hnew)
+             24 LOAD_CONST               1 ('core.c_out')
+             26 CALL                     2
+             34 LOAD_CONST               2 ('core.coda.0')
+             36 LOAD_CONST               3 (4)
+             38 CALL                     3
+             46 STORE_FAST               1 (y)
+
+134          48 LOAD_FAST                1 (y)
+             50 LOAD_GLOBAL              5 (NULL + core_norm)
+             60 LOAD_FAST                1 (y)
+             62 LOAD_ATTR                7 (NULL|self + mean)
+             82 LOAD_CONST               4 (1)
+             84 KW_NAMES                 5 (('dim',))
+             86
+
+ means_all122
+
+FUNCTION means_all122 (h45, out45)
+ 56           0 RESUME                   0
+
+ 57           2 LOAD_FAST                0 (h45)
+              4 LOAD_GLOBAL              0 (src45)
+             14 BINARY_SUBSCR
+             18 LOAD_GLOBAL              3 (NULL + torch)
+             28 LOAD_ATTR                4 (exp)
+
+ 58          48 LOAD_GLOBAL              6 (dt45)
+             58 LOAD_CONST               0 (None)
+             60 LOAD_CONST               0 (None)
+             62 BUILD_SLICE              2
+             64 LOAD_CONST               0 (None)
+             66 LOAD_CONST               0 (None)
+             68 BUILD_SLICE              2
+             70 LOAD_CONST               0 (None)
+             72 BUILD_TUPLE              3
+             74 BINARY_SUBSCR
+             78 UNARY_NEGATIVE
+             80 LOAD_GLOBAL              3 (NULL + torch)
+             90 LOAD
+
+TRAINING STATE CONTRACTS
+hidden_base242 (4035, 4, 768)
+raw_base242 (4035, 4, 192)
+E_check242 (4035, 4, 192)
+E_reference242 (4035, 4, 192)
+drug_indices242 (1191,)
+
+PRIOR NONLINEAR OUTCOMES
+## Run 95: corrected recurrent feature audit
+Factor-one drug posterior is exact. Rebuilt normalized prelude features with consistent drug observation/action encodings and true factual posterior means. Audited old NE detector leakage and refitted constrained 192-feature detectors before any new weight edit. Python runs: 95; forwards: 12.
+
+
+## Run 96: factual dose-innovation error audit
+Corrected old NE detector has materially greater factual leakage and halving than doubling sensitivity. Tested whether original next-hour arterial MAP residuals retain a cross-fitted dose-innovation signal, using only tuning records and original predictions. This is a diagnostic, not an independent causal estimate. No weights changed. Audit beta=nan, cluster SE=nan, n=0. Python runs: 96; forwards: 12.
+
+
+## Run 97: recover targets and fix empty residual audit
+Run96 matched zero future MAP readings; its NaNs are not evidence of a null effect. Inspecting record/prediction keys, causal estimates and model interfaces. No weights changed; baseline77 remains installed. Python runs: 97; forwards: 12.
+
+
+## Run 98: compact evidence and feature recovery
+Architecture and record schema recovered. Fractional infusion hours may explain the empty exact-hour residual match; recovering prior causal targets and retained feature helpers. No weights changed. Python runs: 98; forwards: 12.
+
+
+## Run 99: corrected timing and compact feature recovery
+Next recorded arterial matching found 947/991 NE records within two hours, avoiding fractional-hour equality. Recovering corrected features and record-derived NE dynamics. No weights changed. Python runs: 99; forwards: 12.
+
+
+Not found: Run 100:
+## Run 141: verify output-regression alignment
+Audited admission-null features, corrected dose contrasts, raw NE units, orthonormalized output directions and the exact b_in-to-coda linear map. Preparing stay-held-out distributional and dose-response constraints. No weights changed. Python runs: 141; forwards: 15.
+
+
+
+```

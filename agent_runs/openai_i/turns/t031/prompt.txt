@@ -1,0 +1,97 @@
+OUTPUT of Python run 25 of at most 300:
+```
+=== DATA DOCUMENTATION ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== REMAINING HEAD/PENDING/LATENT TENSORS ===
+filter_gate.bias (192,)
+filter_gate.weight (192, 384)
+filter_norm.bias (192,)
+filter_norm.weight (192,)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+monitor_head.0.bias (192,)
+monitor_head.0.weight (192, 192)
+monitor_head.2.bias (2,)
+monitor_head.2.weight (2, 192)
+pending_mlp.0.bias (192,)
+pending_mlp.0.weight (192, 192)
+pending_mlp.2.bias (192,)
+pending_mlp.2.weight (192, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+time_head.0.bias (192,)
+time_head.0.weight (192, 192)
+time_head.2.bias (12,)
+time_head.2.weight (12, 192)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+=== VOCABULARY STRUCTURE ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+
+=== FORWARD FILES ===
+fwd_1 [('factual_original.csv', 244771), ('summary.json', 681)]
+fwd_2 [('dose_edit_original.csv', 115552), ('summary.json', 1023)]
+fwd_3 [('states_original.npz', 15136340), ('summary.json', 522)]
+fwd_4 [('factual_original.csv', 245166), ('summary.json', 676)]
+
+=== RETAINED NAMES ===
+DML DRUGS F H HC HistGradientBoostingRegressor MEAS Path RUN_COUNTS W a above action active adjusted_x age21 age_name age_options21 age_tensor age_unit age_values ahat allflags22 ans archive arr b121 b221 base22 baseline baseline21 baseline_readouts23 basic_effects best_head_settings beta bin21 bit bw capture21 capture_linear21 centres21 centres22 check20 cid21 cluster_scores clustered_ols code_ids coefficient coefficients col column compact cut cuts d defaultdict denominator df di diff directory dis distance distances dml_table dose dose_base dose_models dose_original22 dose_original23 dose_residuals draws drop_edit drug edited effect21 eligible eligible_irf err error23 errors event exposed22 exposed23 f factual_base fe fine_bin first fitted_pair fitting flag_columns21 flag_masks21 flag_vectors21 flagvectors22 fn fold fold1_ids fold_rng folder future future_actions gap_scale grid21 grid22 grid_rows grid_scores has21 has22 head2 head2_grid head2_settings head_exact head_grid head_reference head_rows head_weight_names head_weights heterogeneity hidden21 hidden23 high history horizon i idx indices initial_only innovation innovation_slope ins inspect instruction instructions io ip irf_coefficients irf_features irf_groups irf_hour irf_models irf_results irf_rng irf_start irf_table item itertools json jump k keep key label lag last layout lf21 linalg linear_base23 linear_named load load_original local_hidden local_mean local_probs logits low m make_panel mask mask_id mean20 mean23 means medians mlp_named model n22 naive_x name ne_policy nearest new_nuisance nll23 nlls nm norm_named np nuisance numeric_cols numeric_specs ob obj obs observed22 observed_bins21 observed_bins23 observed_time order original_linear21 other outcome_models outcome_residuals p0 paired paired_current panel path pd perstay23 policy0 pos pre prebase21 predicted predicted_a prediction prefixes previous prior_count prior_sum probabilities probability23 probe21 probs21 r r2 ra rd_control_names rd_estimate rd_results rd_table reading reconstruct_head records reference21 reference22 report23 residual residual_array result20 rms rng rows rr ry sample save_edit score se second sensor sensors shown si sid spec start state_hours state_ids state_mask state_pack state_x status stay_array sub subsets tab table target te test_fold testing text threadpool_limits threshold time times torch tpanel tr train train_ids transition21 transition22 tt tune_check tune_dev tune_holdout tune_ids tuning type_index val valid valid_time vals value_column w121 w221 wanted wc21 width work x y yhat z z21 z22
+
+=== HEAD OBJECTS ===
+head_rows DataFrame (4510, 12)
+columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'previous_state', 'last_value', 'last_hour', 'last_bin', 'last_z', 'local_mean']
+      stay_id  hour           event  observed  predicted_mean     nll  previous_state  last_value  last_hour  last_bin  last_z  local_mean
+0  1010000000  -1.0    map_arterial      73.0         74.3559  2.0686               0         NaN        NaN         0     0.0   72.586639
+1  1010000000  -1.0  glucose_finger     165.0        162.2361  2.6379               0         NaN        NaN         0     0.0  158.126404
+state_x ndarray (4035, 992)
+sample: [-3.2216423  1.6209344  3.373042   0.7475632 -2.9269016  1.2965726
+  3.0935907 -1.302527 ]
+head_weights dict None
+keys: ['core.flow.a', 'core.out_norm.weight', 'core.out_norm.bias', 'gap.0.weight', 'gap.0.bias', 'gap.2.weight', 'gap.2.bias', 'z_prior.0.weight', 'z_prior.0.bias', 'z_prior.2.weight', 'z_prior.2.bias', 'z_head.weight', 'z_head.bias', 'query_norm.weight', 'query_norm.bias', 'type_emb.weight', 'embed.code.weight', 'last_numeric.weight', 'last_numeric.bias', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias', 'embed_transition.value_bin.weight']
+panel DataFrame (780000, 6)
+columns: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine']
+event          glucose_finger  glucose_lab  map_arterial  map_cuff  insulin  norepinephrine
+stay_id    t                                                                               
+1010000000 -1           165.0          NaN          73.0       NaN      0.0             0.0
+            0           168.0          NaN          67.0      70.0      1.0             0.0
+HC DataFrame (780000, 48)
+columns: ['t', 't2', 'glucose_finger_last', 'glucose_finger_age', 'glucose_finger_observed', 'glucose_finger_lag1', 'glucose_finger_lag2', 'glucose_finger_baseline', 'glucose_lab_last', 'glucose_lab_age', 'glucose_lab_observed', 'glucose_lab_lag1', 'glucose_lab_lag2', 'glucose_lab_baseline', 'map_arterial_last', 'map_arterial_age', 'map_arterial_observed', 'map_arterial_lag1', 'map_arterial_lag2', 'map_arterial_baseline', 'map_cuff_last', 'map_cuff_age', 'map_cuff_observed', 'map_cuff_lag1', 'map_cuff_lag2', 'map_cuff_baseline', 'insulin_lag1', 'insulin_lag2', 'norepinephrine_lag1', 'norepinephrine_lag2', 'glucose_finger_lag3', 'glucose_finger_lag4', 'glucose_finger_past_mean', 'glucose_lab_lag3', 'glucose_lab_lag4', 'glucose_lab_past_mean', 'map_arterial_lag3', 'map_arterial_lag4', 'map_arterial_past_mean', 'map_cuff_lag3', 'map_cuff_lag4', 'map_cuff_past_mean', 'insulin_lag3', 'insulin_lag4', 'insulin_past_mean', 'norepinephrine_lag3', 'norepinephrine_lag4', 'norepinephrine_past_mean']
+               t  t2  glucose_finger_last  glucose_finger_age  glucose_finger_observed  glucose_finger_lag1  glucose_finger_lag2  glucose_finger_baseline  glucose_lab_last  glucose_lab_age  glucose_lab_observed  glucose_lab_lag1  glucose_lab_lag2  glucose_lab_baseline  map_arterial_last  map_arterial_age  map_arterial_observed  map_arterial_lag1  map_arterial_lag2  map_arterial_baseline  map_cuff_last  map_cuff_age  map_cuff_observed  map_cuff_lag1  map_cuff_lag2  map_cuff_baseline  insulin_lag1  insulin_lag2  norepinephrine_lag1  norepinephrine_lag2  glucose_finger_lag3  glucose_finger_lag4  glucose_finger_past_mean  glucose_lab_lag3  glucose_lab_lag4  glucose_lab_past_mean  map_arterial_lag3  map_arte
+[output cut at 10,000 characters]
+```

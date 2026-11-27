@@ -1,0 +1,232 @@
+OUTPUT of Python run 135 of at most 300:
+```
+=== NOTEBOOK SECTION INDEX ===
+26 ## Initial inspection
+395 ## Architecture inspected; Python 2, forward 0
+786 ## Record transition analysis; Python 3, forward 0
+2511 ## Original rollout and identification checks; Python 4, forward 1
+5366 ## Factual baseline and dynamic identification; Python 5, forward 2
+9123 ## More efficient dynamic checks; Python 6, forward 2
+13074 ## Restart: Python 7, forward 2
+13323 ## Sensor-contrast local projections; Python 9, forward 2
+19899 ## Dynamic identification; Python 10, forward 2
+22522 ## Representation inspection; Python 12, forward 3
+23076 ## Kernel recovery; Python 18, forward 4
+23378 ## Recovery and threshold identification; Python 23, forward 4
+28486 ## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+30112 ## Restart recovery; Python 26, forward 4
+30351 ## CPU head diagnostics; Python 32, forward 4
+31342 ## Restart after Python 32
+31581 ## Head recovery after Python 36
+32851 ## Register layout test; Python 38, forward 4
+33525 ## Restart diagnostics; Python 44, forward 4
+33777 ## Recovery; Python 50, forward 4
+34057 ## Cross-stay dose-policy fitting; Python 51, forward 4
+34415 ## Residual-dose decoder; Python 52, forward 4
+35003 ## Restart after Python 52; forward 4/50
+35300 ## Decoder unit check; Python 56, forward 4
+35647 ## Additional training states; Python 57, forward 5/50
+35849 ## First reversible insulin head probe; Python 58, forward 5/50
+36275 ## Rank-one probe rejected; Python 60, forward 7/50
+36655 ## Raw-input decoder recovery; Python 64, forward 7/50
+37115 ## Gated raw-input insulin graft; Python 65, forward 7/50
+37583 ## Graft failure localization; Python 70, forward 7/50
+37854 ## Latent-robust gated graft; Python 72, forward 7/50
+38317 ## GPU validation of latent-robust graft; Python 73, forwards 8?9
+38785 ## Stronger reversible insulin trial; Python 77
+39178 ## Stronger insulin probe rejected; Python 80, forwards 10?11
+39618 ## Restart recovery; Python 84, forwards 11/50
+39911 ## Feedback diagnosis; Python 87, forwards 11/50
+40384 ## Local-step encoding check; Python 89, forwards 11/50
+40666 ## Posterior reconstruction diagnosis; Python 90
+40915 ## Recovery; Python 91?95, forward 11/50
+41487 ## Empty-world/time reconstruction search; Python 96
+41766 ## Safe inventory; Python 100, forward 11/50
+42006 ## Transition reconstruction preparation; Python 101, forward 11/50
+42248 ## World-embedding preparation; Python 102, forward 11/50
+42547 ## Measurement-embedding validation; Python 103, forward 11/50
+42766 ## Empty-action diagnostic; Python 108, forward 11/50
+42976 ## Restart after Python 118; forward 11/50
+43244 ## Complete-transition reconstruction; Python 124
+43534 ## Reconstruction audit; Python 126, forward 11/50
+43815 ## Lab encoding test; Python 130
+44353 ## Lab correction and memory-age tests; Python 131
+44639 ## Action-encoding audit; Python 132
+
+FUNCTION rec_step_with_z (prev, dt, e_world, u_action, z, memory, ages, mask)
+ 53           0 RESUME                   0
+
+ 54           2 LOAD_GLOBAL              1 (NULL + rec_context)
+             12 LOAD_FAST                0 (prev)
+             14 LOAD_FAST                1 (dt)
+             16 CALL                     2
+             24 LOAD_CONST               1 (1)
+             26 BINARY_SUBSCR
+             30 STORE_FAST               8 (hf)
+
+ 55          32 LOAD_GLOBAL              2 (torch)
+             42 LOAD_ATTR                5 (NULL|self + cat)
+             62 LOAD_FAST                8 (hf)
+             64 LOAD_GLOBAL              6 (rm_W)
+             74 LOAD_CONST               2 ('core.slots')
+             76 BINARY_SUBSCR
+             80 LOAD_CONST               0 (None)
+             82 BINARY_SUBSCR
+             86 BINARY_OP                0 (+)
+             90 LOAD_FAST                2 (e_world)
+             92 LOAD_CONST               0 (None)
+             94 LOAD_CONST               0 (None)
+             96 BUILD_SLICE              2
+             98 LOAD_CONST               0 (None)
+            100 BUILD_TUPLE              2
+            102 BINARY_SUBSCR
+
+ 56         106 LOAD_FAST                3 (u_action)
+            108 LOAD_CONST               0 (None)
+            110 LOAD_CONST               0 (None)
+            112 BUILD_SLICE              2
+            114 LOAD_CONST               0 (None)
+            116 BUILD_TUPLE              2
+            118 BINARY_SUBSCR
+            122 LOAD_GLOBAL              9 (NULL + rm_lin)
+            132 LOAD_FAST                4 (z)
+            134 LOAD_GLOBAL             10 (rec_zin)
+            144 CALL                     2
+            152 LOAD_CONST               0 (None)
+            154 LOAD_CONST               0 (None)
+            156 BUILD_SLICE              2
+            158 LOAD_CONST               0 (None)
+            160 BUILD_TUPLE              2
+            162 BINARY_SUBSCR
+
+ 55         166 BUILD_LIST               4
+
+ 56         168 LOAD_CONST               1 (1)
+
+ 55         170 CALL                     2
+            178 STORE_FAST               9 (tokens)
+
+ 57         180 LOAD_GLOBAL             13 (NULL + rm_ln)
+            190 LOAD_GLOBAL             15 (NULL + rec_layer)
+            200 LOAD_FAST                9 (tokens)
+            202 LOAD_CONST               3 ('core.prelude.0')
+            204 CALL                     2
+            212 LOAD_CONST               0 (None)
+            214 LOAD_CONST               0 (None)
+            216 BUILD_SLICE              2
+            218 LOAD_CONST               0 (None)
+            220 LOAD_CONST               4 (4)
+            222 BUILD_SLICE              2
+            224 BUILD_TUPLE              2
+            226 BINARY_SUBSCR
+            230 LOAD_CONST               5 ('core.prelude_norm')
+            232 CALL                     2
+            240 STORE_FAST              10 (E)
+
+ 58         242 LOAD_FAST                8 (hf)
+            244 LOAD_FAST               10 (E)
+            246 BINARY_OP                0 (+)
+            250 STORE_FAST              11 (hbase)
+
+ 59         252 LOAD_FAST               11 (hbase)
+            254 STORE_FAST              12 (u)
+
+ 60         256 LOAD_GLOBAL             17 (NULL + range)
+            266 LOAD_CONST               6 (2)
+            268 CALL                     1
+            276 GET_ITER
+        >>  278 FOR_ITER                30 (to 3
+
+FUNCTION r131_step (prev, dt, e_world, u_action, z, memory, age_embedding, mask, age_mode='both_input')
+  8           0 RESUME                   0
+
+ 10           2 LOAD_GLOBAL              1 (NULL + rec_context)
+             12 LOAD_FAST                0 (prev)
+             14 LOAD_FAST                1 (dt)
+             16 CALL                     2
+             24 LOAD_CONST               1 (1)
+             26 BINARY_SUBSCR
+             30 STORE_FAST               9 (hf)
+
+ 11          32 LOAD_GLOBAL              3 (NULL + torch)
+             42 LOAD_ATTR                4 (cat)
+
+ 12          62 LOAD_FAST                9 (hf)
+             64 LOAD_GLOBAL              6 (rm_W)
+             74 LOAD_CONST               2 ('core.slots')
+             76 BINARY_SUBSCR
+             80 LOAD_CONST               0 (None)
+             82 BINARY_SUBSCR
+             86 BINARY_OP                0 (+)
+
+ 13          90 LOAD_FAST                2 (e_world)
+             92 LOAD_CONST               0 (None)
+             94 LOAD_CONST               0 (None)
+             96 BUILD_SLICE              2
+             98 LOAD_CONST               0 (None)
+            100 BUILD_TUPLE              2
+            102 BINARY_SUBSCR
+            106 LOAD_FAST                3 (u_action)
+            108 LOAD_CONST               0 (None)
+            110 LOAD_CONST               0 (None)
+            112 BUILD_SLICE              2
+            114 LOAD_CONST               0 (None)
+            116 BUILD_TUPLE              2
+            118 BINARY_SUBSCR
+
+ 14         122 LOAD_GLOBAL              9 (NULL + rm_lin)
+            132 LOAD_FAST                4 (z)
+            134 LOAD_GLOBAL             10 (rec_zin)
+            144 CALL                     2
+            152 LOAD_CONST               0 (None)
+            154 LOAD_CONST               0 (None)
+            156 BUILD_SLICE              2
+            158 LOAD_CONST               0 (None)
+            160 BUILD_TUPLE              2
+            162 BINARY_SUBSCR
+
+ 11         166 BUILD_LIST               4
+
+ 15         168 LOAD_CONST               1 (1)
+
+ 11         170 KW_NAMES                 3 (('dim',))
+            172 CALL                     2
+            180 STORE_FAST              10 (tokens)
+
+ 16         182 LOAD_GLOBAL             13 (NULL + r
+
+FUNCTION rec_memory (indices, embeddings=None)
+ 33           0 RESUME                   0
+
+ 34           2 LOAD_FAST                1 (embeddings)
+              4 POP_JUMP_IF_NOT_NONE     6 (to 18)
+              6 LOAD_GLOBAL              0 (rec_e_all)
+             16 JUMP_FORWARD             1 (to 20)
+        >>   18 LOAD_FAST                1 (embeddings)
+        >>   20 STORE_FAST               1 (embeddings)
+
+ 35          22 BUILD_LIST               0
+             24 STORE_FAST               2 (selections)
+
+ 36          26 LOAD_FAST                0 (indices)
+             28 GET_ITER
+        >>   30 FOR_ITER               104 (to 242)
+             34 STORE_FAST               3 (ix)
+
+ 37          36 LOAD_GLOBAL              2 (np)
+             46 LOAD_ATTR                5 (NULL|self + flatnonzero)
+
+ 38          66 LOAD_GLOBAL              6 (rm_states)
+             76 LOAD_CONST               1 ('stay_id')
+             78 BINARY_SUBSCR
+             82 LOAD_GLOBAL              6 (rm_states)
+             92 LOAD_CONST               1 ('stay_id')
+             94 BINARY_SUBSCR
+             98 LOAD_FAST                3 (ix)
+            100 BINARY_SUBSCR
+            104 COMPARE_OP              40 (==)
+
+ 39         108 LOAD_GLOBAL              2 (np)
+            118 LOAD_ATTR                9 (NULL|self + aran
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,186 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 44 replies happened before. Forward passes used: 7 of 50; Python runs used: 35 of 300. Your kernel is still running with its variables. Tensors currently edited: ['embed.bins.dose.weight', 'embed.bins.rate.weight', 'embed.numeric.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_6', 'fwd_7', 'fwd_8', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+7825224759148, 0.8274794051514265], "dose_res_sd": 0.13485117491844242, "horizon": 12, "hour_min": 4, "adjustment": "late_only_matched_change"}, {"n": 6562, "stays": 6562, "coef": 1.4211946115512872, "se": 0.6550354673069708, "ci95": [0.13732509562962436, 2.70506412747295], "dose_res_sd": 0.14207270937150376, "horizon": 12, "hour_min": 12, "adjustment": "late_only_matched_change"}]
+
+## Recovery audit, runs 25–27
+Re-read architecture and audited the existing edit. Numeric columns 2 (z_dose) and 4 (z_rate) are exactly zero; all positive dose/rate-bin rows are identical; absent-bin rows are unchanged. Drug codes, presence indicators, other numeric columns and event timing remain. Need independent replication of the isolated late NE lag-12 signal and factual validation on the remaining 200 tuning stays.
+
+## Replication correction and stability checks
+Run 28 stopped at an assertion before fitting or changing weights. Earlier eligibility spans all 30,000 training stays; no untouched training partition exists. Subsequent even/odd checks are stability diagnostics, not independent confirmatory evidence.
+[{"n": 65609, "stays": 7492, "coef": 0.1815444870695675, "se": 0.22533163196953154, "ci95": [-0.2601055115907143, 0.6231944857298493], "dose_res_sd": 0.13491001569494035, "horizon": 11, "subset": "hours_ge4", "adjustment": "late_matched_change_stability"}, {"n": 13132, "stays": 6930, "coef": 0.16386139286356985, "se": 0.44139415235977925, "ci95": [-0.7012711457615974, 1.028993931488737], "dose_res_sd": 0.14059602292891785, "horizon": 11, "subset": "hours_ge12", "adjustment": "late_matched_change_stability"}, {"n": 6457, "stays": 3412, "coef": -0.12132688268472758, "se": 0.6452007790058625, "ci95": [-1.385920409536218, 1.143266644166763], "dose_res_sd": 0.140368000184538, "horizon": 11, "subset": "hours_ge12_even_stays", "adjustment": "late_matched_change_stability"}, {"n": 6675, "stays": 3518, "coef": 0.43798262573879954, "se": 0.6041079601313998, "ci95": [-0.746068976118744, 1.622034227596343], "dose_res_sd": 0.1408105265286909, "horizon": 11, "subset": "hours_ge12_odd_stays", "adjustment": "late_matched_change_stability"}, {"n": 10534, "stays": 6207, "coef": 0.037300012701273415, "se": 0.5110239530117228, "ci95": [-0.9643069352017032, 1.03890696060425], "dose_res_sd": 0.13336627128617806, "horizon": 11, "subset": "hours_ge12_below_max_rate", "adjustment": "late_matched_change_stability"}, {"n": 59074, "stays": 7435, "coef": 0.33875057645191753, "se": 0.2493514432140352, "ci95": [-0.14997825224759148, 0.8274794051514265], "dose_res_sd": 0.13485117491844242, "horizon": 12, "subset": "hours_ge4", "adjustment": "late_matched_change_stability"}, {"n": 6562, "stays": 6562, "coef": 1.4211946115512872, "se": 0.6550354673069708, "ci95": [0.13732509562962436, 2.70506412747295], "dose_res_sd": 0.14207270937150376, "horizon": 12, "subset": "hours_ge12", "adjustment": "late_matched_change_stability"}, {"n": 3233, "stays": 3233, "coef": 1.0351700090283096, "se": 0.9291402501530189, "ci95": [-0.7859448812716074, 2.8562848993282266], "dose_res_sd": 0.14414422199759627, "horizon": 12, "subset": "hours_ge12_even_stays", "adjustment": "late_matched_change_stability"}, {"n": 3329, "stays": 3329, "coef": 1.818444587437103, "se": 0.9230041866756907, "ci95": [0.009356381552749093, 3.627532793321457], "dose_res_sd": 0.14002581841652068, "horizon": 12, "subset": "hours_ge12_odd_stays", "adjustment": "late_matched_change_stability"}, {"n": 5238, "stays": 5238, "coef": 1.0036126847528408, "se": 0.7594662846390449, "ci95": [-0.4849412331396872, 2.492166602645369], "dose_res_sd": 0.1343514226652355, "horizon": 12, "subset": "hours_ge12_below_max_rate", "adjustment": "late_matched_change_stability"}]
+
+## Restart recovery, run 30
+Latest paired factual test: 100 tuning stays, 4,838 readings; original NLL 1.51558, edited NLL 1.51570, difference +0.00012. No weights changed. Recovering prior evidence and exact validation coverage before completing remaining factual and causal checks.
+
+## Full 400-stay factual validation
+{'stays': 400, 'readings': 19224, 'original_nll': 1.5010981065334998, 'edited_nll': 1.5011797128589264, 'delta': 8.160632542655024e-05, 'stay_cluster_se': 9.44880153443042e-05, 'ci95': [-0.00010359018464828599, 0.00026680283550138646]}
+All four paired batches use unchanged three-tensor edit. The CI measures tuning sampling uncertainty, not a guarantee for unseen evaluation stays. No weight changes in this run.
+
+## NE 12-hour window-average diagnostic, run 34
+500-tree, three-stay-fold nuisance fits on matching positive-dose rows at origins 4..12, adjusting only pre-dose history. Target averages recorded arterial MAP over the next 12 hours and subtracts a pre-dose baseline. This is a single-dose observational diagnostic, not an identified multi-dose rollout effect or an independent replication. No weights changed.
+[{'n': 62214, 'stays': 7441, 'coef': 0.23026856734494877, 'se': 0.15639928844735804, 'ci95': [-0.07627403801187299, 0.5368111727017706], 'dose_res_sd': 0.1346468853328071, 'subset': 'origins_4_to_12', 'target': 'mean_MAP_next_12_hours_minus_pre_dose_baseline'}, {'n': 6880, 'stays': 6880, 'coef': 0.4350701046074095, 'se': 0.41626766266551724, 'ci95': [-0.38081451421700424, 1.2509547234318232], 'dose_res_sd': 0.14183419351741477, 'subset': 'origin_12', 'target': 'mean_MAP_next_12_hours_minus_pre_dose_baseline'}, {'n': 55334, 'stays': 7406, 'coef': 0.20162279406454608, 'se': 0.1688914220428102, 'ci95': [-0.12940439313936192, 0.5326499812684541], 'dose_res_sd': 0.13372620992356268, 'subset': 'origins_4_to_11', 'target': 'mean_MAP_next_12_hours_minus_pre_dose_baseline'}, {'n': 5500, 'stays': 5500, 'coef': 0.35475315438221583, 'se': 0.48343299398517603, 'ci95': [-0.5927755138287292, 1.3022818225931607], 'dose_res_sd': 0.13406393441566827, 'subset': 'origin_12_below_max_rate', 'target': 'mean_MAP_next_12_hours_minus_pre_dose_baseline'}]
+
+## Final candidate audit and stress-test selection, run 35
+[{'tensor': 'embed.bins.dose.weight', 'shape': [17, 192], 'absent_row_unchanged': True, 'all_present_rows_identical': True}, {'tensor': 'embed.bins.rate.weight', 'shape': [17, 192], 'absent_row_unchanged': True, 'all_present_rows_identical': True}]
+Numeric magnitude columns are zero; value columns and absent bin rows remain original. The current best-supported conclusion is approximately null dose effects. This is not proof: observational identification and extrapolation beyond observed rates remain limitations, and the isolated NE lag-12 signal remains uncertain. No new effect is introduced solely from that unstable signal.
+Final rollout test selected by records alone: 50 highest late-NE exposure stays plus 50 highest late-insulin exposure stays among the remainder. No weights changed.
+Stress-test IDs: [2020000003, 2020000004, 2020000007, 2020000010, 2020000013, 2020000017, 2020000023, 2020000030, 2020000032, 2020000036, 2020000037, 2020000038, 2020000047, 2020000050, 2020000051, 2020000060, 2020000062, 2020000063, 2020000068, 2020000077, 2020000078, 2020000079, 2020000080, 2020000081, 2020000083, 2020000085, 2020000086, 2020000089, 2020000091, 2020000092, 2020000100, 2020000101, 2020000104, 2020000112, 2020000114, 2020000127, 2020000136, 2020000139, 2020000140, 2020000141, 2020000144, 2020000147, 2020000149, 2020000150, 2020000152, 2020000158, 2020000160, 2020000162, 2020000169, 2020000172, 2020000188, 2020000195, 2020000196, 2020000199, 2020000203, 2020000212, 2020000218, 2020000219, 2020000220, 2020000227, 2020000232, 2020000235, 2020000238, 2020000239, 2020000240, 2020000244, 2020000247, 2020000255, 2020000260, 2020000272, 2020000274, 2020000276, 2020000280, 2020000281, 2020000285, 2020000288, 2020000293, 2020000297, 2020000300, 2020000307, 2020000311, 2020000312, 2020000319, 2020000324, 2020000334, 2020000335, 2020000339, 2020000340, 2020000354, 2020000356, 2020000361, 2020000364, 2020000365, 2020000374, 2020000375, 2020000380, 2020000382, 2020000391, 2020000393, 2020000395]
+
+```
+Continue from here.
+
+Last result:
+Forward pass 7 of 50 done (dose_edit); files in /work/fwd_8/. Summary:
+```
+{
+ "type": "dose_edit",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": 0.213,
+     "n_stay_hours": 885,
+     "n_stays": 78
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": -0.279,
+     "n_stay_hours": 885,
+     "n_stays": 78
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": -0.002,
+     "n_stay_hours": 494,
+     "n_stays": 43
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": 0.004,
+     "n_stay_hours": 494,
+     "n_stays": 43
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": 0.0,
+     "n_stay_hours": 885,
+     "n_stays": 78
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.0,
+     "n_stay_hours": 885,
+     "n_stays": 78
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.0,
+     "n_stay_hours": 494,
+     "n_stays": 43
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": 0.0,
+     "n_stay_hours": 494,
+     "n_stays": 43
+    }
+   },
+   "file": "dose_edit_edited.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  }
+ },
+ "seconds": 68.7
+}
+```
+Forward passes left: 43.
+Edits used in this pass: embed.bins.dose.weight, embed.bins.rate.weight, embed.numeric.weight (edit hash 77a746c98e).

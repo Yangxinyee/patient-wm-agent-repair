@@ -1,0 +1,1 @@
+The inspection above leaves the current edit unchanged.

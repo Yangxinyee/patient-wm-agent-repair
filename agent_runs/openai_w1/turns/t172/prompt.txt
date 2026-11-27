@@ -1,0 +1,164 @@
+OUTPUT of Python run 157 of at most 300:
+```
+=== RECORD EFFECT ESTIMATES ===
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+
+=== POSTERIOR DECODER RESULTS ===
+feature  alpha           drug  active_n  active_r2  active_rmse  nonaction_rms
+ hidden    1.0        insulin       675   0.215164     0.531234       0.050934
+ hidden    1.0 norepinephrine       329  -0.008181     0.122982       0.005553
+ hidden   10.0        insulin       675   0.122394     0.561754       0.032072
+ hidden   10.0 norepinephrine       329  -0.001483     0.122573       0.005464
+ hidden  100.0        insulin       675   0.073232     0.577274       0.030997
+ hidden  100.0 norepinephrine       329   0.000515     0.122451       0.007299
+  input    1.0        insulin       675   0.648826     0.355351       0.054700
+  input    1.0 norepinephrine       329   0.048217     0.119493       0.005769
+  input   10.0        insulin       675   0.513987     0.418043       0.060418
+  input   10.0 norepinephrine       329   0.020785     0.121203       0.005903
+  input  100.0        insulin       675   0.383388     0.470872       0.065594
+  input  100.0 norepinephrine       329   0.015068     0.121556       0.005830
+Effect diagnostics: [('glucose_finger', 622, np.float64(0.5388645180060517), np.float64(-2.8090846149563298)), ('map_arterial', 709, np.float64(0.08398034451083497), np.float64(5.956418388535041)), ('glucose_lab', 157, np.float64(0.4488516035249422), np.float64(-2.7270076278764104)), ('map_cuff', 231, np.float64(0.08353618972887514), np.float64(15.586323289018258))]
+
+=== RELEVANT WEIGHT SHAPES ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+=== BASELINE ROLLOUT FILES ===
+/work/fwd_1 dose_edit_original.csv (2384, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour         edit  shift  shift_se  factual  reached
+2020000112    14   insulin_x2    0.0       0.0 124.3593    False
+2020000112    18   insulin_x2    0.0       0.0 126.3518    False
+2020000112    19   insulin_x2    0.0       0.0 127.6481    False
+2020000112    23   insulin_x2    0.0       0.0 125.9090    False
+2020000112    14 insulin_half    0.0       0.0 124.3593    False
+/work/fwd_5 dose_edit_original.csv (3168, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour       edit   shift  shift_se  factual  reached
+2020000144    15 insulin_x2  0.0000    0.0000 144.1460    False
+2020000144    16 insulin_x2 -0.0274    0.0124 146.0317     True
+2020000144    17 insulin_x2 -0.0075    0.0133 143.5540     True
+2020000144    18 insulin_x2 -0.1791    0.1804 143.7764     True
+2020000144    20 insulin_x2 -0.1585    0.1068 144.8376     True
+
+=== EARLY NOTEBOOK EVIDENCE ===
+# World-model weight repair
+
+## Initial plan
+- Infer drug effects exclusively from the supplied simulated records.
+- Separate dose assignment from subsequent physiological response; do not assume either effect's sign or magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+Counts: 4 Python runs, 1 forward passes.
+
+## Forward 2 / Run 5
+Exported original states for training stays 1010000000..1010000099 (all bundles). Checked held-out-stay dose decoding and residual-effect dose-range diagnostics. Past-change placebo here is raw, not separately residualized, and must not be treated as a definitive independence test.
+         event                range      n      beta       se
+glucose_finger               0.5..1  21312 -1.895856 0.144475
+glucose_finger                 1..2 134998 -2.042501 0.083923
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab                 1..2   6440 -1.674272 0.221519
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab prior_change_placebo   5781  0.010951      NaN
+  map_arterial           0.01..0.31  46952  2.808803 0.267351
+  map_arterial            0.31..0.7  48870  3.186511 0.130080
+  map_arterial               0.7..1  48494  3.503649 0.137606
+  map_arterial prior_change_placebo 298800  0.134794      NaN
+      map_cuff           0.01..0.21  24183  1.573456 0.905161
+      map_cuff           0.21..0.62  25354  2.622023 0.337926
+      map_cuff              0.62..1  24436  2.837563 0.321496
+      map_cuff prior_change_placebo 279926  0.482887      NaN
+ features  alpha           drug  test_r2  test_rmse
+      out    1.0        insulin 0.739124   0.663240
+      out    1.0 norepinephrine 0.790876   0.158897
+      out   30.0        insulin 0.690299   0.722644
+      out   30.0 norepinephrine 0.743011   0.176145
+      out  300.0        insulin 0.652943   0.764986
+      out  300.0 norepinephrine 0.697538   0.191095
+out_and_z    1.0        insulin 0.899701   0.411246
+out_and_z    1.0 norepinephrine 0.795638   0.157077
+out_and_z   30.0        insulin 0.890078   0.430523
+out_and_z   30.0 norepinephrine 0.777885   0.163758
+out_and_z  300.0        insulin 0.830641   0.534389
+out_and_z  300.0 norepinephrine 0.732674   0.179653
+all_state    1.0        insulin 0.899256   0.412158
+all_state    1.0 norepinephrine 0.7790
+[output cut at 10,000 characters]
+```

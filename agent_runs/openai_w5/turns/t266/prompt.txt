@@ -1,0 +1,145 @@
+OUTPUT of Python run 235 of at most 300:
+```
+=== IDENTIFICATION CHECKS ===
+ese remain conditional estimates.
+
+## Restart / run 13
+- Run 12's approximate value-head reconstruction retained meaningful mean and NLL errors; no edits are justified by that reconstruction yet.
+- Re-reading architecture and inspecting persistent analysis objects before correcting the reconstruction and checking causal estimates.
+
+## Reconstruction conventions / run 16
+- Tested schema-valid last-numeric features, last-status embeddings, type embeddings, activations, and prior/head gap scaling.
+- Best deterministic convention: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1}.
+- No tensor edits; sampling and register conventions still require validation.
+
+## Runs 17?18
+- Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+- Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+- No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+
+## Register search / run 19
+- Selected reconstruction convention: {'binside': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}.
+- Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+- Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+- No weight edits.
+
+## Restart after forward 5
+- Independent training states received in /work/fwd_5.
+- Rechecking architecture and reusable analysis objects before selecting an edit.
+- No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+
+## Run 23: head-only correction screening
+- Testing the selected register convention on original GPU predictions.
+- Preparing independent state samples for a no-gradient correction of treatment innovations.
+- Head-only edits would preserve the recurrent state and all other prediction heads directly.
+
+## Run 25: posterior-action ablation candidate
+- Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+- Latent sampling accounts for much of the local-vs-GPU head discrepancy.
+- Exploratory edit: zero z_post.0.weight[:,384:576], retaining direct action input.
+- Hypothesis: action-conditioned latent severity inference masks direct drug responses.
+- Requires paired factual and rollout tests; this is not yet a validated repair.
+- Earlier small-sample error-vs-innovation SE printouts include an intercept SE.
+
+## Forward 6 / run 26: failed posterior-action ablation
+- Removing z_post.0.weight[:,384:576] barely changed any dose-edit response.
+- Reverted the ablation; no tensors currently edited.
+- This does not support posterior action conditioning as the main cause of weak responses.
+- Reinspecting direct dose/state pathways before choosing another intervention.
+
+## Runs 27?33: local encoder reconstruction
+- Confirmed state layout: out = core.out_norm(mean of four h slots).
+- Drug-start latent reconstruction uses GELU, quality embedding row 0, and encoded empty measurement set.
+- Insulin: dose unit 3, rate unit 2; NE: dose unit 4, rate unit 3.
+- Recorded decimal doses resolve NE bin-boundary discrepancies; left-sided binning confirmed.
+- Measurement/empty-action and infusion-END conventions are being checked before any recurrence edit.
+- No tensors edited; 6 forward passes used.
+
+## Restart, runs 42?43
+- Re-read architecture. Doses enter recurrent state; value heads also use sensor-specific last-reading registers.
+- Run 42 inventory failed on a module's callable shape attribute, before any edit.
+- Best local recurrence remains approximate; current edits are empty, 6 forwards used.
+
+## Runs 45?48: dose representation and failed decoder
+- Dose encoder varies sharply and non-monotonically with rate; infusion END has no dose attributes and goes through the measurement encoder.
+- Ridge decoding of treatment innovations from posterior hidden features, including synthetic dose multipliers, failed held-out factual and dose-response tests. Do not use it.
+- Temporary diagnostic: action-encoder norm output fixed to the verified empty-action vector. Test paired factual NLL before deciding whether replacement is feasible.
+
+## Restart / forward 7
+- Empty-action ablation: factual NLL 1.65737 versus original 1.63933, +0.01804; fails the +0.005 constraint. Reverted all edits.
+
+## Restart, runs 55?59
+- Re-read architecture and inspected local recurrence.
+- Run 58 stopped on context tuple/tensor mismatch; no edit.
+- Run 5
+=== NOTEBOOK HEADINGS ===
+## Initial plan
+## Architecture inspection (run 1)
+## Record inspection (runs 2?3)
+## Preliminary causal analysis (run 4)
+## Original baseline / persistence analysis (forwards 1?3; run 5)
+## Sensor checks and correction (runs 8?9)
+## Local head reconstruction (run 10, forward 4)
+## Head reconstruction validation (run 11)
+## Restart / run 13
+## Reconstruction conventions / run 16
+## Runs 17?18
+## Register search / run 19
+## Restart after forward 5
+## Run 23: head-only correction screening
+## Run 25: posterior-action ablation candidate
+## Forward 6 / run 26: failed posterior-action ablation
+## Runs 27?33: local encoder reconstruction
+## Restart, runs 42?43
+## Runs 45?48: dose representation and failed decoder
+## Restart / forward 7
+## Restart, runs 55?59
+## Restart after run 61
+## Runs 65?66: reconstruction bookkeeping bug
+## Runs 67?68: provisional response reconstruction
+## Restart after run 68
+## Runs 74?75: response randomness audit
+## Restart after run 75
+## Run 80: corrected latent-response audit
+## Runs 84?88: action-path screening
+## Run 95: finite action-direction screening
+## Runs 97?99: information audit
+## Restart after run 99
+## Run 103: diagnostic state-coordinate clearing
+## Forward 8 / run 105: private-channel feasibility
+## Run 110: private-channel decoder audit
+## Run 116: isolated-channel capacity test
+## Forward 9 / run 117
+## Run 118: normalized analytic rate channel
+## Run 123: encoder candidate installed for factual validation
+## Run 125: isolated dose-transport candidate
+## Restart after run 125
+## Forward 11?12 / transport validation
+## Runs 130?134: restart and head audit
+## Run 135: clean-pair capacity candidate
+## Forward 15 / run 138: clean-channel factual validation
+## Restart after run 141
+## Runs 147?149: sensor-specific causal-head candidate
+## Forward 16?17: sensor-specific candidate GPU validation
+## Runs 153?155: asymmetry diagnosis
+## Runs 156?161: restart / finite-transport audit
+## Run 178: CPU/GPU recurrence audit
+## Run 182: checkpoint alignment
+## Runs 185?189: replay recovery
+## Run 191: diagnostic correction
+## Restart / run 193
+## Run 202: clean recovery after timeout
+## Restart after forward 18 / run 206
+## Runs 209?211: recovered finite-rate channels
+## Run 217: restart recovery and rollback snapshot
+## Runs 218?219: local-head validation failure
+## Runs 226?229: reconstruction audit
+## Runs 230?232: concrete diagnostic corrections
+## Run 233: bin-boundary audit
+## Run 234: restart and validation policy
+=== KERNEL NAMES ===
+A B BASE217 C F NAMES Path S SHAPES V VOCAB W W225 WO WO225 _ _a _a216 _a219 _atoms _audit217 _b _both _c _ce _ci218 _cm218 _coef _control _controls _d _d219 _db _df _diff _dm218 _dp _dr _drug _dw _dw217 _e217 _ev218 _event _ex _f _f217 _f219 _fn _folder _g _g217 _gate_table _group215 _groups215 _h218 _hb217 _hh219 _hist _hist_pred _ho217 _holdout _hw217 _inventory214 _ir _items215 _ix _ix218 _j _j219 _k _k219 _key _labels218 _ll219 _logits218 _logits219 _loss218 _losses218 _n215 _n216 _n217 _n218 _n219 _name _name214 _names _notes _notes214 _nr _obj214 _out_check _ow218 _p _p200 _p218 _p219 _pair_for_control _params216 _pen _preact _prev _r _rate _rates _reg _rows215 _s216 _s218 _s219 _section214 _sensor217 _si _sid _sig215 _signals _slope _spec _te _tname218 _tr _tr218 _u _ub _v _v215 _v216 _v219 _valid _x _x218 _xx219 _y218 a age231 avg232 avg233 b basewc231 bins233 brief224 buf c centres231 checks232 code_id codes225 comp comparison225 d defaultdict diff233 dis dose18 draw drop_edit drug drug_atom205 e edges edit232 edited encoder_audit eps ev f fields filename fn folder gen gpu gpu225 gpu231 gpu233 grid groups230 has231 head225 head_audit head_ln head_prev head_q head_rows head_vb head_wc head_zp history_audit idx ii ins ins223 insn inspect io ix ix231 j join join231 joined joins233 js json jx keep230 key keys label labels231 last last_bins232 layouts231 lin225 line line230 linear205 ln ln225 lname load load_original logits make_head_inputs212 mean means model n name nll nm nn noise norm205 norms notes np num_spec o ob obj obs225 observed ops ordinary ordinary_idx orig231 os p p231 path pd pp priv 
+[output cut at 10,000 characters]
+```

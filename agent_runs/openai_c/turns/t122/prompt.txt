@@ -1,0 +1,138 @@
+OUTPUT of Python run 86 of at most 300:
+```
+ble core.out_norm, rather than assuming c_out shear propagates unchanged through coda.
+- No new edits. Forward passes: 15.
+
+## Python run 30: direct NE reading-head pilot
+- Rejected large diagonal out_norm designs without applying them.
+- Applied numeric gain 4 plus a rank-one input shear of value_bin.0.weight, factored into allowed rank-one operations.
+- Sensor minimizes factual second moment with NE sensitivity 1, insulin sensitivity 0, and zero means in both reading-state samples. Output targets MAP +0.5, glucose 0; sensor/output orthogonality makes the shear nilpotent.
+- Head input also contains unobserved code/register terms; factual and rollout passes must validate the surrogate approximation.
+- Python runs: 30; forward passes: 15.
+
+## Restart / Python run 31
+- Forward 17: numeric gain 4 plus direct NE head pilot gives insulin -2.521/+1.720, NE +0.129/-0.077; little benefit over numeric gain alone.
+- Recovering architecture, factual result 16, causal identification evidence, and persistent variables before selecting the next edit.
+- Python runs: 31; forward passes: 17.
+
+## Python run 32
+- Architecture recovered; run 31 output truncated before the saved variables and factual result.
+- Retrieving compact evidence and candidate inventory. Edits unchanged; forward passes: 17.
+
+## Python run 33
+- Compact inspection of factual pass 16 and head edit design; no edits changed.
+- Python runs: 33; forward passes: 17.
+
+## Python run 34: numeric-value mixing pilot
+- Head NE pilot factual NLL 1.636318 vs original 1.634615 (+0.001703), but rollout benefit negligible; removed.
+- Retained numeric gain 4 and added a drug-dose/rate-to-numeric-value input shear with coefficient -2.
+- Measurement numeric inputs are unchanged; signs and factual safety require forward validation.
+- Candidate saved as numeric_value_mix_m2. Python runs: 34; forward passes: 17.
+
+## Python run 35 / forwards 18?19
+- Numeric-value mix -2 factual +0.00117, rollouts insulin -2.462/+1.646, NE +0.129/-0.072: rejected for no useful gain.
+- Restored numeric gain 4. Inspecting saved centered out_norm designs as an alternative to head-input shears.
+- Python runs: 35; forward passes: 19.
+
+## Python run 36
+- Direct NE head sensor has factual SD about 1.8 rate units, too noisy for a large extrapolation.
+- Inspecting world-state versus register contributions before considering a compensated query-gain edit.
+- Numeric gain 4 remains installed. Python runs: 36; forward passes: 19.
+
+## Python run 37: restart inspection
+- Numeric gain 4 remains installed. Recovering architecture and saved estimators before designing a latent-state correction.
+- Last diagnostic shows a strong NE signal in z but does not establish that amplifying it produces the correct MAP response.
+- Forward passes used: 19.
+
+## Python run 38: causal and pathway audit
+- Separating posterior z_in state updates from prior z_head readouts.
+- Recovering identification estimates and prior ablations; no edits changed. Forward passes: 19.
+
+## Python run 39: latent candidate preparation
+- Record-based identification supports approximately -2 insulin/glucose and +3 NE/MAP immediate effects, with persistence.
+- Current rollout responses remain far weaker; inspecting latent dose geometry for a small, factual-checked amplification test.
+- No edit changes; forward passes: 19.
+
+## Python run 40: latent-input gain pilot
+- Installed numeric gain 4 plus gain 21 on the low-factual-variance latent dose-sensor subspace of z_in.weight.
+- Direct z_head and observation inputs unchanged. This tests posterior-latent participation in recurrent dose effects.
+- Factual safety and rollout direction remain untested. Forward passes: 19.
+
+## Python run 41 / forwards 20-21: latent candidate rejected
+- z_in latent gain 21: factual increase +0.00122, rollouts insulin -2.494/+1.741 and NE +0.123/+0.017.
+- No material gain over numeric gain 4. Saved candidate and restored numeric gain 4 alone.
+- Inspecting direct out_norm diagonal designs. Forward passes used: 21.
+
+## Python runs 42-47: architecture recovery and centered diagonal pilot
+- Recovered independent threshold and cross-fitted causal evidence: insulin immediate effect about -2, NE about +3, both persistent.
+- The 1e-4-penalty diagonal design has lowest surrogate factual variance among saved designs.
+- Installed numeric gain 4 plus 10%-strength out_norm gamma change and compensating beta change.
+- Inferred gamma/beta reconstruct observed h-to-out mapping nearly exactly; no weight values were read.
+- Linear immediate response increments: insulin/glucose -0.15, NE/MAP +0.25 per rate unit.
+- Run 46 applied both edits but failed only while saving; run 47 saved the installed candidate.
+- Factual safety and rollout effects untested. Forward passes used: 21.
+
+## Forward 22 / Python run 48: diagonal pilot rejected
+- out_norm diagonal 0.10 factual NLL 1.70378 vs 1.63461, increase +0.06917; rejected without a rollout pass.
+- Restored numeric gain 4. Observational readout coefficients are not reliable intervention gradients.
+- Auditing factored input/output shears before selecting the next pathway.
+- Forward passes used: 22.
+
+## Restart / Python runs 49?50
+- Re-read the architecture. Only numeric gain 4 is installed.
+- Direct reading corrections tested so far have weak rollout benefit or violate factual fit.
+- Recovering previous gain tests and causal evidence before selecting a new pathway.
+- Forward passes used: 22.
+
+## Python run 52: stronger drug-numeric gain
+- Installed gain 16 on the joint dose/rate numeric direction; measurement numeric inputs unchanged.
+- Numeric gain 4 remains saved for rollback.
+- Hypothesis: larger drug-numeric signal strengthens causal rollout responses. Must check factual safety and saturation.
+- Forward passes used: 22.
+
+## Python run 53: query-state amplification pilot
+- Recovered existing gain-16 results: factual +0.00246, insulin -2.231/+1.531, NE +0.157/+0.085. No new forward pass spent; restored numeric gain 4.
+- Installed query_norm.weight scale 1.5, leaving its bias and reading registers unchanged.
+- Hypothesis: stronger state contribution at the reading head increases dose sensitivity. Factual safety is untested.
+- Forward passes used: 22.
+
+## Forward 23 / Python run 54: uniform query gain rejected
+- Query gamma x1.5 plu
+
+STATE ESTIMATOR CONTENTS
+dose_directions {'insulin': ['out', 'hmean', 'z'], 'norepinephrine': ['out', 'hmean', 'z']}
+direction_diagnostics {'glucose_finger': ['insulin', 'norepinephrine'], 'map_arterial': ['insulin', 'norepinephrine']}
+repair_candidates {'numeric_gain4': 'list', 'slot_shear_015': 'list', 'slot_shear_008': 'list', 'head_ne_pilot': 'list', 'numeric_value_mix_m2': 'list', 'latent_in_gain21': 'list', 'outnorm_diag_010': 'list', 'numeric_gain16': 'list'}
+dose_state_coeff (2, 992) norm 22.570658244810954
+dose_gain4_72 (2, 992) norm 72.46081003788694
+diag_gamma_new (192,) norm 14.104512606096048
+diag_beta_new (192,) norm 4.4100326320602985
+
+PAIRED-STATE RELATED VARIABLES
+P_sensor_null (192, 192)
+R_sensor (192, 2)
+_state_x (4035, 992)
+controls (780000, 44)
+delta_state (4035, 992)
+dose_state_coeff (2, 992)
+latent_sensor_matrix (32, 2)
+make_panel (df)
+out_states (4035, 192)
+panel (780000, 6)
+panel_tuning (10400, 6)
+predicted_dose_states (4035, 2)
+replay_ops (specifications)
+sensor_basis (192, 190)
+sensor_designs72 [1e-05, 0.0001, 0.001, 0.01]
+sensor_ne (192,)
+state24_edited ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+state24_original ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+state_C (4035, 240)
+state_correction_designs [0.01, 0.1, 1.0, 10.0]
+state_dose_coefficients (mask, ridge=20.0)
+state_for_reading (4510,)
+state_geom ['out', 'h0', 'h1', 'h2', 'h3', 'z']
+state_lookup59 [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005]
+states_original ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+
+```

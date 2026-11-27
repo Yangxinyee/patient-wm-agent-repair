@@ -1,0 +1,74 @@
+OUTPUT of Python run 273 of at most 300:
+```
+=== EXACT-COHORT RECORD-DERIVED TARGETS ===
+forward 29 {'insulin_half': {'stays': 60, 'hours': 554, 'target_stay_weighted': 5.679, 'target_hour_pooled': 6.793, 'model_stay_weighted': 3.008}, 'insulin_x2': {'stays': 60, 'hours': 554, 'target_stay_weighted': -11.358, 'target_hour_pooled': -13.586, 'model_stay_weighted': -9.559}, 'ne_half': {'stays': 26, 'hours': 281, 'target_stay_weighted': -2.341, 'target_hour_pooled': -2.439, 'model_stay_weighted': -0.85}, 'ne_x2': {'stays': 26, 'hours': 281, 'target_stay_weighted': 4.683, 'target_hour_pooled': 4.879, 'model_stay_weighted': 0.081}}
+forward 35 {'insulin_half': {'stays': 52, 'hours': 487, 'target_stay_weighted': 6.066, 'target_hour_pooled': 7.074, 'model_stay_weighted': 3.997}, 'insulin_x2': {'stays': 52, 'hours': 487, 'target_stay_weighted': -12.133, 'target_hour_pooled': -14.149, 'model_stay_weighted': -9.004}, 'ne_half': {'stays': 27, 'hours': 300, 'target_stay_weighted': -2.251, 'target_hour_pooled': -2.304, 'model_stay_weighted': -0.895}, 'ne_x2': {'stays': 27, 'hours': 300, 'target_stay_weighted': 4.502, 'target_hour_pooled': 4.607, 'model_stay_weighted': 0.57}}
+
+=== SAVED NE CANDIDATE SIZES ===
+ne_candidate82.npz [('feature', (192,), 1.0217), ('direction', (192,), 12.2812), ('x2_slope', (), 0.05268984731541728), ('choice', (3,), [1.0, 1.0, 300.0]), ('jacobian', (31, 192), 3.9472)]
+ne_candidate148.npz [('ne_delta', (192, 192), 448.0097), ('total_delta', (192, 192), 681.329), ('anchor', (), 10.0)]
+ne_candidate151.npz [('ne_delta', (192, 192), 411.6573), ('total_delta', (192, 192), 660.2035), ('gamma', (), 0.1)]
+ne_candidate154.npz [('baseline_delta', (192, 192), 500.6108), ('ne_delta', (192, 192), 365.6341), ('weight', (192, 192), 625.7006), ('gamma', (), 1.0)]
+ne_candidate155.npz [('weight', (192, 192), 533.1259), ('baseline_delta', (192, 192), 500.6108), ('ne_delta', (192, 192), 164.6629), ('strength', (), 0.4)]
+ne_candidate199.npz [('ne_delta', (192, 192), 720.8716), ('total_delta', (192, 192), 877.2088), ('feature', (192,), 73.3717), ('direction', (192,), 12.2812), ('beta', (), 0.8)]
+
+=== MEASURED NE FRONTIER ===
+ forward  NLL_delta  insulin_half  insulin_x2   ne_half    ne_x2
+      11   0.033388           NaN         NaN       NaN      NaN
+      12        NaN      3.326350  -12.511630 -3.791280 1.542715
+      13   0.017221           NaN         NaN       NaN      NaN
+      14   0.004018           NaN         NaN       NaN      NaN
+      15        NaN      4.182341  -12.555273 -1.281628 0.586828
+      16   0.094708           NaN         NaN       NaN      NaN
+      17   0.011068           NaN         NaN       NaN      NaN
+      18        NaN      4.921769  -11.960510 -1.633129 1.892552
+      19   0.011255           NaN         NaN       NaN      NaN
+      20   0.006513           NaN         NaN       NaN      NaN
+      21   0.004636           NaN         NaN       NaN      NaN
+      23   0.022695           NaN         NaN       NaN      NaN
+
+=== NE DIRECTION SELECTION NOTES ===
+## Run 148: verified multi-direction NE trial
+Mapping checks: {'sensitivity_map_max_error': 0.0, 'bundle_feature_max_error': 0.0, 'reading_feature_max_error': 0.0, 'admission_null_max_error': 2.5045925859745447e-14, 'weight_direction_gram_error': 7.742604430157619e-15, 'candidate_norm': 448.00969107579783, 'reported_norm': 448.0096910757974}. Installed=True. If installed, composition is original b_in + baseline77 + Bdir141 @ fits144[10] @ Binput142.T, replacing?not adding to?the old NE trial. Candidate remains unaccepted until GPU factual and paired-rollout tests. Python runs: 148; forwards: 15.
+
+
+## Run 150: constrain factual state changes
+Run149 showed pre-coda slot RMS=6.145 and bundle-mean RMS=6.094; large decoder-insensitive changes, not mainly slot cancellation. Recovered the prior normal equations and fit a closed-form frontier with an additional per-slot pre-coda state penalty. Frontier: {0.003: {'weight_norm': 428.91370664119006, 'heldout_state_rms': 0.6686766326230452, 'heldout_local_KL': 0.0008542789624243658, "('insulin', 2.0)_guard_rms": 0.015458623300037305, "('insulin', 0.5)_guard_rms": 0.011697419769045824, "('norepinephrine', 2.0)_slope": 1.70071021913493, "('norepinephrine', 0.5)_slope": 0.7711159807842108}, 0.01: {'w
+## Run 151: state-penalized NE candidate installed
+Installed original b_in + baseline77 + Bdir141 @ fits150[.1] @ Binput142.T. Anchored held-out incremental KL=0.0007436; this is a local diagnostic, not full factual NLL. GPU factual and dose validation pending. Python runs: 151; forwards: 16.
+
+
+## Run 152: restart recovery before GPU validation
+Recovered architecture, record definitions, earlier effect evidence, and factual-validation stay IDs. Candidate151 remains unaccepted; no weights changed. Python runs: 152; forwards: 16.
+
+
+## Run 153: compact validation and causal-target recovery
+Retrieved exact fixed tuning IDs and selected effect/baseline evidence after prior output truncation. No weights changed. Python runs: 153; forwards: 16.
+
+
+## Run 197: stay-held-out factual-null NE detector frontier
+Admission-null rank=180. Fitted auxiliary linear regressions on paired training dose contrasts, with factual and insulin guards; five-fold validation by stay. No model weights changed. Python runs: 197; forwards: 22.
+[{'fact_RMS': 2.1403074273748737, 'NE2_slope': 0.96632225567212, 'NE2_RMS': 1.3063971149349758, 'NEhalf_slope': 2.5242534426225802, 'NEhalf_RMS': 1.479528895867999, 'I2_slope': 0.34898270863077246, 'I2_RMS': 1.2543001826230467, 'Ihalf_slope': 0.4914400753544606, 'Ihalf_RMS': 1.0228269233198362, 'factual_weight': 3.0, 'insulin_weight': 1.0}, {'fact_RMS': 2.142704935396895
+## Run 198: audit overbroad admission guard
+Run197 used all pre-ICU bundles as exact-null constraints, consuming 180 directions. Audited event types and refitted with only initial pure admission bundles exactly protected; later factual bundles remain penalized. No weights changed. Python runs: 198; forwards: 22.
+[{'fact_RMS': 0.34829411574766594, 'NE2_slope': 0.9173670231273487, 'NE2_RMS': 0.7942391088808117, 'NEhalf_slope': 1.4048536289291862, 'NEhalf_RMS': 0.7797662957351102, 'I2_slope': 0.11380674003765975, 'I2_RMS': 0.586885320091798, 'Ihalf_slope': 0.22625859715391033, 'Ihalf_RMS': 0.48985175377057366, 'factual_weight': 30.0, 'insulin_we
+## Run 199: install training-contrast NE trial
+Corrected initial-admission guard leaves 188 input directions. Selected factual weight10 / insulin guard1: held-out factual RMS=.3713, NE x2 slope=.9139, half slope=1.1599, insulin slopes=.0352/.1324. Installed baseline77 plus .8*direction82 outer normalized feature. Saved ne_candidate199.npz; unaccepted pending GPU factual and rollout checks. Python runs: 199; forwards: 22.
+
+
+## Run 200: reject candidate199 factual fit
+Forward23: original NLL=1.63461, candidate199=1.65731; cost=.02270 exceeds .005. Candidate199 rejected. Recovering architecture, baseline schema, and prior causal/validation evidence before restoring validated weights. Python runs: 200; forwards: 23.
+
+
+## Run 201: restore insulin baseline
+Restored original core.b_in.weight plus baseline77 delta. Candidate199 remains archived but rejected for factual cost=.02270. Recovering prior validation trade-offs and persistent fitting objects. Python runs: 201; forwards: 23.
+
+
+
+=== CURRENT COMPOSITION BASES ===
+base268 (192, 192) 500.61075
+balanced268 (192, 192) 843.5965
+ne268 (192, 192) 411.65732
+original_b268 (192, 192) 11.49086
+
+```

@@ -1,0 +1,104 @@
+OUTPUT of Python run 124 of at most 300:
+```
+=== ROUTING AND READOUT TENSOR SHAPES ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.a_in (192,)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+core.slots (4, 192)
+encode.norm.bias (192,)
+encode.norm.weight (192,)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+
+=== RECURRENT RESIDUAL OUTPUTS ===
+core.blocks.0.0.attn.out.weight (192, 192)
+core.blocks.0.0.cross.out.weight (192, 192)
+core.blocks.0.0.ffn.2.bias (192,)
+core.blocks.0.0.ffn.2.weight (192, 768)
+core.blocks.0.1.attn.out.weight (192, 192)
+core.blocks.0.1.cross.out.weight (192, 192)
+core.blocks.0.1.ffn.2.bias (192,)
+core.blocks.0.1.ffn.2.weight (192, 768)
+
+=== ATTENTION IMPLEMENTATION ===
+36: LOAD_FAST memory | POP_JUMP_IF_NOT_NONE to 10 | LOAD_FAST x | JUMP_FORWARD to 12 | LOAD_FAST memory | STORE_FAST source
+37: LOAD_GLOBAL NULL + wm_lin | LOAD_FAST x | LOAD_FAST prefix | LOAD_CONST '.q' | BINARY_OP + | LOAD_FAST weights | CALL | STORE_FAST q
+38: LOAD_FAST memory | POP_JUMP_IF_NONE to 274
+39: LOAD_FAST prefix | LOAD_ATTR NULL|self + rsplit | LOAD_CONST '.' | LOAD_CONST 1 | CALL | LOAD_CONST 0 | BINARY_SUBSCR | LOAD_CONST '.norm2' | BINARY_OP + | STORE_FAST norm_prefix
+40: LOAD_GLOBAL wm_memory_mode | LOAD_CONST 'norm_then_age' | COMPARE_OP == | POP_JUMP_IF_FALSE to 142
+41: LOAD_GLOBAL NULL + wm_norm | LOAD_FAST source | LOAD_FAST norm_prefix | LOAD_FAST weights | CALL | STORE_FAST source
+42: LOAD_FAST agevec | POP_JUMP_IF_NONE to 166 | LOAD_FAST age_mode | LOAD_CONST 'input' | COMPARE_OP == | POP_JUMP_IF_FALSE to 166
+43: LOAD_FAST source | LOAD_FAST agevec | BINARY_OP + | STORE_FAST source
+44: LOAD_GLOBAL wm_memory_mode | LOAD_CONST 'age_then_norm' | COMPARE_OP == | POP_JUMP_IF_FALSE to 212
+45: LOAD_GLOBAL NULL + wm_norm | LOAD_FAST source | LOAD_FAST norm_prefix | LOAD_FAST weights | CALL | STORE_FAST source | JUMP_FORWARD to 274
+46: LOAD_GLOBAL wm_memory_mode | LOAD_CONST 'age_then_plainnorm' | COMPARE_OP == | POP_JUMP_IF_FALSE to 274
+47: LOAD_GLOBAL F | LOAD_ATTR NULL|self + layer_norm | LOAD_FAST source | LOAD_CONST (192,) | CALL | STORE_FAST source
+48: LOAD_FAST q | LOAD_ATTR shape | UNPACK_SEQUENCE | STORE_FAST batch | STORE_FAST nt | STORE_FAST _
+49: LOAD_FAST source | LOAD_ATTR shape | LOAD_CONST 1 | BINARY_SUBSCR | STORE_FAST ns
+50: LOAD_GLOBAL NULL + wm_lin | LOAD_FAST source | LOAD_FAST prefix | LOAD_CONST '.kv' | BINARY_OP + | LOAD_FAST weights | CALL | STORE_FAST kv
+51: LOAD_GLOBAL wm_kv_layout | LOAD_CONST 'global' | COMPARE_OP == | POP_JUMP_IF_FALSE to 574
+52: LOAD_FAST kv | LOAD_ATTR NULL|self + chunk | LOAD_CONST 2 | LOAD_CONST -1 | CALL | UNPACK_SEQUENCE | STORE_FAST k | STORE_FAST v
+53: LOAD_FAST k | LOAD_ATTR NULL|self + reshape | LOAD_FAST batch | LOAD_FAST ns | LOAD_CONST 4 | LOAD_CONST 48 | CALL | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL | STORE_FAST k
+54: LOAD_FAST v | LOAD_ATTR NULL|self + reshape | LOAD_FAST batch | LOAD_FAST ns | LOAD_CONST 4 | LOAD_CONST 48 | CALL | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL | STORE_FAST v | JUMP_FORWARD to 752
+56: LOAD_FAST kv | LOAD_ATTR NULL|self + reshape | LOAD_FAST batch | LOAD_FAST ns | LOAD_CONST 4 | LOAD_CONST 2 | LOAD_CONST 48 | CALL | STORE_FAST kv
+57: LOAD_FAST kv | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST 0 | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL | LOAD_FAST kv | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST Non
+
+=== TRANSFORMER LAYER IMPLEMENTATION ===
+35: LOAD_FAST x | LOAD_GLOBAL NULL + wm_attention | LOAD_GLOBAL NULL + wm_norm | LOAD_FAST x | LOAD_FAST prefix | LOAD_CONST '.norm1' | BINARY_OP + | LOAD_FAST weights | CALL
+36: LOAD_FAST prefix | LOAD_CONST '.attn' | BINARY_OP + | LOAD_FAST weights
+35: KW_NAMES ('weights',) | CALL | BINARY_OP + | STORE_FAST x
+37: LOAD_FAST memory | POP_JUMP_IF_NONE to 176 | LOAD_FAST memory | LOAD_ATTR shape | LOAD_CONST 1 | BINARY_SUBSCR | POP_JUMP_IF_FALSE to 176
+38: LOAD_FAST x | LOAD_GLOBAL NULL + wm_attention | LOAD_GLOBAL NULL + wm_norm | LOAD_FAST x | LOAD_FAST prefix | LOAD_CONST '.norm2' | BINARY_OP + | LOAD_FAST weights | CALL
+39: LOAD_FAST prefix | LOAD_CONST '.cross' | BINARY_OP + | LOAD_FAST memory | LOAD_FAST agevec | LOAD_FAST age_mode | LOAD_FAST weights
+38: CALL | BINARY_OP + | STORE_FAST x
+40: LOAD_FAST x | LOAD_GLOBAL NULL + wm_mlp | LOAD_GLOBAL NULL + wm_norm | LOAD_FAST x | LOAD_FAST prefix | LOAD_CONST '.norm3' | BINARY_OP + | LOAD_FAST weights | CALL
+41: LOAD_FAST prefix | LOAD_CONST '.ffn' | BINARY_OP + | LOAD_FAST weights
+40: CALL | BINARY_OP + | RETURN_VALUE
+
+=== PRELUDE DATA HELPER ===
+(action_u, rows=array([   1,    2,    3, ..., 4311, 4312, 4313], shape=(4214,)))
+10: LOAD_GLOBAL np | LOAD_ATTR NULL|self + asarray | LOAD_FAST rows | LOAD_GLOBAL int | KW_NAMES ('dtype',) | CALL | STORE_FAST rows
+11: LOAD_GLOBAL torch | LOAD_ATTR NULL|self + as_tensor | LOAD_GLOBAL s4 | LOAD_CONST 'x' | BINARY_SUBSCR | LOAD_FAST rows | LOAD_CONST 1 | BINARY_OP - | LOAD_CONST 192 | LOAD_CONST 960 | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | CALL | LOAD_ATTR NULL|self + reshape | LOAD_CONST -1 | LOAD_CONST 4 | LOAD_CONST 192 | CALL | STORE_FAST hh
+12: LOAD_GLOBAL np | LOAD_ATTR NULL|self + round | LOAD_GLOBAL s4 | LOAD_CONST 'hour' | BINARY_SUBSCR | LOAD_FAST rows | BINARY_SUBSCR | LOAD_GLOBAL s4 | LOAD_CONST 'hour' | BINARY_SUBSCR | LOAD_FAST rows | LOAD_CONST 1 | BINARY_OP - | BINARY_SUBSCR | BINARY_OP - | LOAD_CONST 60 | BINARY_OP * | CALL | LOAD_CONST 60 | BINARY_OP * | STORE_FAST dt
+13: LOAD_FAST hh | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + exp | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + as_tensor | LOAD_FAST dt | LOAD_GLOBAL torch | LOAD_ATTR float32 | KW_NAMES ('dtype',) | CALL | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE | LOAD_CONST None | LOAD_CONST None | BUILD_TUPLE | BINARY_SUBSCR | UNARY_NEGATIVE
+14: LOAD_GLOBAL torch | LOAD_ATTR NULL|self + exp | LOAD_GLOBAL W0 | LOAD_CONST 'core.flow.a' | BINARY_SUBSCR | CALL
+13: BINARY_OP * | CALL | BINARY_OP * | STORE_FAST hh
+15: LOAD_GLOBAL wm_e4 | LOAD_FAST rows | BINARY_SUBSCR | STORE_FAST ee
+16: LOAD_GLOBAL torch | LOAD_ATTR NULL|self + as_tensor | LOAD_FAST action_u | CALL | LOAD_FAST rows | BINARY_SUBSCR | STORE_FAST uu
+17: LOAD_GLOBAL torch | LOAD_ATTR NULL|self + as_tensor | LOAD_GLOBAL s4 | LOAD_CONST 'x' | BINARY_SUBSCR | LOAD_FAST rows | LOAD_CONST 960 | LOAD_CONST 992 | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | CALL | STORE_FAST zz
+18: LOAD_GLOBAL torch | LOAD_ATTR NULL|self + 
+
+=== STATE FILE LAYOUT ===
+{'x': (4141, 992), 'stay_id': (4141,), 'hour': (4141,), 'has_insulin': (4141,), 'has_norepinephrine': (4141,), 'n_atoms': (4141,)}
+
+```

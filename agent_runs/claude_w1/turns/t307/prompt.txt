@@ -1,0 +1,22 @@
+OUTPUT of Python run 266 of at most 300:
+```
+54 | ## Heads: predicting bundle k+1 from what is known before it
+55 | 
+56 | **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+57 | - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+58 | - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+59 | 
+65 | - **Attributes.** They are read from:
+66 | 
+67 |       with_code = q + embed.code[code]
+68 |                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+69 |                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+70 | 
+71 |   The "last" fields are a register: the most recent earlier value of the same code in this stay.
+72 |   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+73 |     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+74 |     (`vocab.json["value_bin_centres"]`).
+75 |   - **rate:** `rate_bin` works the same way for drug rates.
+[('embed.code.weight', (13, 192)), ('last_numeric.bias', (192,)), ('last_numeric.weight', (192, 8)), ('z_head.bias', (192,)), ('z_head.weight', (192, 32))]
+
+```

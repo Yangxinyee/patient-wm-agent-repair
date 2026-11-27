@@ -1,0 +1,149 @@
+OUTPUT of Python run 100 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+RELEVANT KERNEL VARIABLES
+baseline Series (780000,)
+baseline_factual DataFrame (4751, 6)
+baseline_nll float None
+  1.63461
+baseline_rollouts dict None
+bin_contrast_gain float None
+  3.0
+bin_contrasts ndarray (15, 17)
+bin_gain3_ops list None
+dose_gain4_72 ndarray (2, 992)
+effective_transform function None
+gain4_transform ndarray (6, 6)
+gain4_transition72 ndarray (4035, 992)
+ids72 ndarray (100,)
+install_latent_gain function None
+probe_ids list None
+  [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007, 2020000008, 2020000009, 2020000010, 2020000011, 2020000012, 2020000013, 2020000014, 2020000015, 2020000016, 2020000017, 2020000018, 2020000019, 2020000020, 2020000021, 2020000022, 2020000023, 2020000024, 2020000025, 2020000026, 2020000027, 2020000028, 2020000029, 2020000030, 2020000031, 2020000032, 2020000033, 2020000034, 2020000035, 2020000036, 2020000037, 2020000038, 2020000039, 2020000040, 2020000041, 2020000042, 2020000043, 2020000044, 2020000045, 2020000046, 2020000047, 2020000048, 2020000049, 2020000050, 2020000051, 2020000052, 2020000053, 2020000054, 2020000055, 2020000056, 2020000057, 2020000058, 2020000059, 2020000060, 2020000061, 2020000062, 2020000063, 2020000064, 2020000065, 2020000066, 2020000067, 2020000068, 2020000069, 2020000070, 2020000071, 2020000072, 2020000073, 2020000074, 2020000075, 2020000076, 2020000077, 2020000078, 2020000079, 2020000080, 2020000081, 2020000082, 2020000083, 2020000084, 2020000085, 2020000086, 2020000087, 2020000088, 2020000089, 2020000090, 2020000091, 2020000092, 2020000093, 2020000094, 2020000095, 2020000096, 2020000097, 2020000098, 2020000099]
+q_probe DataFrame (4751, 6)
+q_probe_base DataFrame (4751, 6)
+q_probe_edited DataFrame (4751, 6)
+q_probe_original DataFrame (4751, 6)
+target str None
+  map_arterial
+target73 ndarray (192, 192)
+target_probe dict None
+target_train dict None
+v_bin ndarray (17,)
+validation_ids list None
+  [2020000200, 2020000201, 2020000202, 2020000203, 2020000204, 2020000205, 2020000206, 2020000207, 2020000208, 2020000209, 2020000210, 2020000211, 2020000212, 2020000213, 2020000214, 2020000215, 2020000216, 2020000217, 2020000218, 2020000219, 2020000220, 2020000221, 2020000222, 2020000223, 2020000224, 2020000225, 2020000226, 2020000227, 2020000228, 2020000229, 2020000230, 2020000231, 2020000232, 2020000233, 2020000234, 2020000235, 2020000236, 2020000237, 2020000238, 2020000239, 2020000240, 2020000241, 2020000242, 2020000243, 2020000244, 2020000245, 2020000246, 2020000247, 2020000248, 2020000249, 2020000250, 2020000251, 2020000252, 2020000253, 2020000254, 2020000255, 2020000256, 2020000257, 2020000258, 2020000259, 2020000260, 2020000261, 2020000262, 2020000263, 2020000264, 2020000265, 2020000266, 2020000267, 2020000268, 2020000269, 2020000270, 2020000271, 2020000272, 2020000273, 2020000274, 2020000275, 2020000276, 2020000277, 2020000278, 2020000279, 2020000280, 2020000281, 2020000282, 2020000283, 2020000284, 2020000285, 2020000286, 2020000287, 2020000288, 2020000289, 2020000290, 2020000291, 2020000292, 2020000293, 2020000294, 2020000295, 2020000296, 2020000297, 2020000298, 2020000299]
+
+NOTEBOOK: EARLY EVIDENCE AND TESTS
+# World-model repair notebook
+
+## Initial inspection
+- Python runs: 1; forward passes: 0.
+- No weight edits made.
+- Read architecture, record definitions, vocabulary and tensor shapes first.
+- Drug effects are unknown. No medical assumptions will be used.
+- Plan: establish effects from treatment variation in the records, inspect the model's corresponding predictions, then test targeted weight edits against both dose rollouts and the factual NLL constraint.
+
+## Inspection, run 2
+- First output was truncated after the vocabulary; loaded records and requested compact summaries.
+- Architecture separates action encoding from observation encoding. Candidate edits must still be justified by estimated drug effects.
+- No weight edits; no forward passes.
+
+## Run 3: hourly panels and preliminary regressions
+- Infusions begin at hour + 0.0833, after readings, and run one hour.
+- Built complete -1..24 panels; absent infusion means rate zero.
+- Preliminary adjusted slopes are associations, not yet established causal effects. Need nonlinear adjustment and independent checks.
+- Sensor/dose summaries printed. Preliminary estimates: {('glucose_finger', 'insulin'): {'n': 400154, 'raw_slope': np.float64(27.415433254830994), 'adjusted_slope': np.float64(-0.813008629750258), 'cluster_se': np.float64(0.04208575715363863), 'residual_rmse': np.float64(13.420845287662623)}, ('glucose_lab', 'insulin'): {'n': 143791, 'raw_slope': np.float64(30.153346410333576), 'adjusted_slope': np.float64(-0.7489972769612019), 'cluster_se': np.float64(0.06732977710214152), 'residual_rmse': np
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,37 @@
+OUTPUT of Python run 275 of at most 300:
+```
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+--
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+--
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+--
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+--
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+rf_fit() summ() Vl0(3182, 4, 5) ub(12728,) UNITS(80,) LAM=15 W1n(768, 192) b1x(768,) W2n(192, 768) dd{11} prelude_out() Hu(3182, 4, 768) QE(192, 192) GE=0.05 DOUT{2} Eh(12728, 193) Vt(12728, 6) Rt(12728, 2) ideal(12728,) actual(12728,) vr(193,) DECL{2} Lna(12728,) kap=5.072 B=13 aR(2,) a0=-0.01412 lin_w(192,) lin_b=1.885 sgn=-1 Hf(12728, 768) gpn_(192,) bpn_(192,) tvec(192,) MY(5301, 192) evY(192,) QY(192, 192) ay(192,) tne(192,) TY{2} Cout(192, 192) Bin(192, 192) AY=10 Bin2(192, 192) vEn(192,) a_d(192,) evv(48,) evec_(48, 48) NF5(48, 5) W5(192, 5) KVn(384, 192) Won(192, 192) EDIT{6} ORIG{6} apply_local() sq=1010001088 dec_b{2} dH(54, 192) dO(54, 192) pi(54,) offt(54,) Wh0(192, 192) bh0(192,) ONw_(192,) ONb_(192,) LNn() wc_of() T32() pick() wc_full() WC(1694, 192) TIDX(1694,) DQ{2} preWC(1694, 192) RD{2} Dm(192, 2) Ec(13, 192) Rsp(40, 192) Pq(192, 40) GD{2}
+
+```

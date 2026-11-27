@@ -1,0 +1,32 @@
+OUTPUT of Python run 146 of at most 300:
+```
+arch lines 92
+4: Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+10: **atom**. An atom has:
+13: - an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+14: - its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+16: **Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+17: - code: `embed.code[code]`;
+18: - kind: `embed.kind`, `embed.ekind`;
+19: - unit: the `embed.categorical.*` tables;
+20: - fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+21: - numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+23: Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+25: **Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+27: - Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+61: - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+62: - **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+64: - **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+67:       with_code = q + embed.code[code]
+68:                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+69:                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+71:   The "last" fields are a register: the most recent earlier value of the same code in this stay.
+72:   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+73:     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+74:     (`vocab.json["value_bin_centres"]`).
+75:   - **rate:** `rate_bin` works the same way for drug rates.
+83: 2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+85: 3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+86:    embedding. All other events are as recorded.
+
+```

@@ -1,0 +1,92 @@
+OUTPUT of Python run 98 of at most 300:
+```
+attr_heads.rate_bin.0.bias (192,)
+attr_heads.rate_bin.0.weight (192, 192)
+attr_heads.rate_bin.2.bias (17,)
+attr_heads.rate_bin.2.weight (17, 192)
+attr_heads.status.0.bias (192,)
+attr_heads.status.0.weight (192, 192)
+attr_heads.status.2.bias (2,)
+attr_heads.status.2.weight (2, 192)
+code_bias (13,)
+cont_head.0.bias (192,)
+cont_head.0.weight (192, 192)
+cont_head.2.bias (3,)
+cont_head.2.weight (3, 192)
+count_head.bias (15,)
+count_head.weight (15, 192)
+count_head_action.bias (15,)
+count_head_action.weight (15, 192)
+delay_head.0.bias (192,)
+delay_head.0.weight (192, 192)
+delay_head.2.bias (12,)
+delay_head.2.weight (12, 192)
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+embed.ekind.weight (5, 192)
+embed.kind.weight (3, 192)
+embed.kq.weight (4, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+embed.text.weight (2, 192)
+exec_delay_head.0.bias (192,)
+exec_delay_head.0.weight (192, 192)
+exec_delay_head.2.bias (8,)
+exec_delay_head.2.weight (8, 192)
+exec_head.0.bias (192,)
+exec_head.0.weight (192, 192)
+exec_head.2.bias (5,)
+exec_head.2.weight (5, 192)
+monitor_head.0.bias (192,)
+monitor_head.0.weight (192, 192)
+monitor_head.2.bias (2,)
+monitor_head.2.weight (2, 192)
+pending_mlp.0.bias (192,)
+pending_mlp.0.weight (192, 192)
+pending_mlp.2.bias (192,)
+pending_mlp.2.weight (192, 192)
+time_head.0.bias (192,)
+time_head.0.weight (192, 192)
+time_head.2.bias (12,)
+time_head.2.weight (12, 192)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+{'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'} {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'} z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins. The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1].
+
+```

@@ -1,0 +1,142 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 349 replies happened before. Forward passes used: 36 of 50; Python runs used: 298 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.2.bias', 'core.prelude.0.ffn.2.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_36', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+-prelude-only regression without installation: held-out dose contrast errors 0.79-0.96 and excessive weight norms. Replayed current repaired factual and all x0/.5/2/3 dose cases for one step to distinguish local response error from rollout feedback. Results: {(0, 0.0): (array([-0.24033356,  0.42668152, -0.00966644,  0.46125793], dtype=float32), array([-0.        ,  1.99742813, -0.        ,  1.96731562])), (0, 0.5): (array([-0.24108124,  0.14408875, -0.03879547,  0.16142273], dtype=float32), array([-0.        ,  0.99871406, -0.        ,  0.98365781])), (0, 2.0): (array([ 0.5097122 , -0.27095032,  0.09243774, -0.4105072 ], dtype=float32), array([ 0.        , -1.99742813,  0.        , -1.96731562])), (0, 3.0): (array([ 0.90943146, -0.65922546,  0.10076904, -0.95158386], dtype=float32), array([ 0.        , -3.99485625,  0.        , -3.93463125])), (1, 0.0): (array([-0.4339447 ,  0.13146973, -0.31063843, -0.2071228 ], dtype=float32), array([-0.89625001, -0.        , -0.95361001, -0.        ])), (1, 0.5): (array([-0.30703735,  0.04785156, -0.13989258, -0.10696411], dtype=float32), array([-0.448125, -0.      , -0.476805, -0.      ])), (1, 2.0): (array([ 0.63018036, -0.38453674,  0.2515564 , -0.20501709], dtype=float32), array([0.89625001, 0.        , 0.95361001, 0.        ])), (1, 3.0): (array([ 1.170723  , -0.81484985,  0.45667267, -0.377594  ], dtype=float32), array([1.79250001, 0.        , 1.90722001, 0.        ]))}. Validated checkpoint273 remains installed.
+
+Python run 281; forwards 24. Latest one-step response is weak and cross-contaminated despite oversized insulin rollout effect. Recovering exact transition and record-only identification evidence before testing accumulated feedback. No weights changed.
+
+Python run 282; forwards 24. Architecture confirms generated-value feedback through recurrence and last-value registers. Run281 output truncated; recovering bounded helper and identification inventory. No weights changed.
+
+Python run 283; forwards 24. Bounded recovery of exact replay interface, physiological coefficients and changed-dose caches. Prelude edits are substantial; off-record instability remains a hypothesis, not an established cause. No weights changed.
+
+Python run 284; forwards 24. Installed reversible output-residual scale 0.02: attention out and FFN output deltas scaled relative to validated checkpoint273; posterior, z_in, q/kv unchanged. checkpoint284 preserves prior validated edit. Test whether strong contraction changes normalized off-record behavior; factual safeguard required. Hash ac68d64743844898.
+
+Forwards 25-26: output scale .02 factual delta +.00175; dose shifts (-15.750,+1.310,+.744,-1.195), versus record references (-12.9555,+6.4778,+4.2797,-2.1398). Scale improves main readout but does not solve asymmetry.
+Python run 285; forwards 26. Preserved contracted candidate in checkpoint285. Installed retained total-response FFN candidate gamma=10.0, with all other weights restored from checkpoint273. Stronger total-response constraint tested next with factual safeguard. Hash 70258d9b5c6102c7.
+
+Python run 286; forwards 26. Restart recovery: reread architecture, recovered exact tuning IDs and recent candidate/checkpoint inventory. Gamma=10 total-response candidate remains installed; no weights changed. Factual safeguard is next.
+
+Python run 287; forwards 28. Gamma=10 passes factual (+.00049 nats), but rollout shifts (-19.716,+1.096,+2.232,-.820) remain asymmetric. Saved as checkpoint287. Recovering carrier implementation; no new weights installed.
+
+Python run 288; forwards 28. Recovering exact dose-carrier and total-response regression helpers to examine off-record robustness. No weights changed; checkpoint287 remains the gamma=10 candidate.
+
+Python run 289; forwards 28. Installed reversible output-residual contraction alpha=.005 relative to checkpoint273; posterior, z_in and q/kv remain unchanged. Previous alpha=.02 passed factual (+.00175) and improved insulin x2 to -15.750 but left other readouts weak. Testing stronger contraction with factual safeguard, then paired rollout. checkpoint287 preserves gamma=10; checkpoint285 preserves alpha=.02.
+
+Python run 290; forwards 30. Alpha=.005 rollout (-8.092,+1.383,+.104,-1.119) confirms contraction alone cannot repair all dose directions. Recovering earlier validated candidates and exact editing helpers before selecting a drug-specific reversible test. No weights changed.
+
+Python run 291; forwards 30. Recovery output from run290 was truncated before helper inventory. Reading bounded retained-function/checkpoint inventory and earlier numerical validations. Record-derived signs and persistent effects are supported; no weights changed.
+
+Python run 292; forwards 30. Preserved alpha=.005 in checkpoint292 and installed alpha=.01 relative to checkpoint273 for attention-out and FFN-output deltas; other checkpoint273 weights unchanged. This brackets tested alpha=.005/.02 and is a fallback calibration, not a resolution of dose asymmetry. Recovering dose-channel/readout helpers alongside factual pass29. Next factual safeguard and paired rollout.
+
+Python run 293; forwards 32. Alpha=.01 factual delta +.00185; rollouts (-12.385,+1.361,+.415,-1.193). Main insulin result is close to record-derived reference, but other directions remain weak. Investigating whether engineered posterior policy/context coupling reinterprets generated outcome changes as dose-selection information; this is a hypothesis, not established. No weights changed; checkpoint_alpha01 retains current validated fallback.
+
+Python run 294; forwards 32. Preserved validated alpha=.01 in checkpoint294. Estimated a local two-drug context-response subspace by central finite differences through the exact frozen recurrence (no gradients). Removed that subspace from engineered context-policy rows31(insulin)/93(NE), centering each on its active-drug training contexts. Gates, physical-dose decoder and all other weights unchanged. This tests treatment-induced policy feedback as a cause of rollout asymmetry; candidate checkpoint_policy294 requires factual and rollout validation. Singular values: [0.673505929901084, 0.28008316753851964].
+
+Python run 295; forwards 32. Restart recovery of architecture, tuning IDs, checkpoints and record-derived evidence. No weights changed. Centered policy-context decoupling from run294 remains installed and requires factual and paired-rollout validation.
+
+Forwards 33-34: centered context projection passed factual on 100 tuning stays (1.64168 versus 1.63982; delta +.00186). Dose shifts (-12.318,+1.412,+.418,-1.203): negligible change from alpha=.01, arguing against the tested local feedback subspace as the main cause of asymmetry.
+Python run 296; forwards 34. Preserved current validated weights in checkpoint296; bounded recovery of carrier/policy implementation and record-only evidence. No weights changed.
+
+Python run 297; forwards 34. Installed reversible flat-policy candidate from checkpoint294 (validated alpha=.01). Zeroed context columns of posterior policy rows31/93 and adjusted biases to preserve their active-drug training-context mean activations. Dose decoders, gates, and all other weights unchanged. checkpoint_flat297 preserves candidate; checkpoint296 and checkpoint294 preserve validated fallbacks. Factual and rollout tests required; no improvement assumed.
+
+Forwards 35-36: flat-policy candidate factual delta +.00187; rollout shifts (-12.342,+1.391,+.408,-1.229). Removing all context dependence did not resolve asymmetry; rejected.
+Python run 298; forwards 36. Restored checkpoint294 and installed a reversible drug-specific output graft. For attention-out and FFN-output weight/bias, added the NE-direction component of (checkpoint287 minus checkpoint294), using the dual of the two finite-difference-calibrated raw-state drug directions. Other weights unchanged. checkpoint_ne298 preserves candidate and ne_graft_deltas298 preserves increments. Requires factual and paired-rollout validation; no improvement assumed.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 298 of at most 300:
+```
+Direction condition number: 2.764747330360211
+NE projector norm: 1.1530006270344888
+Insulin-direction leakage: 1.0536342000662945e-14
+NE-direction reconstruction error: 1.0327544974941517e-13
+core.prelude.0.attn.out.weight strong-minus-base norm 963.6978277712933 two-direction explained norm fraction 0.8749517930638995 NE graft norm 873.0530635797647
+core.prelude.0.ffn.2.weight strong-minus-base norm 16111.675994298676 two-direction explained norm fraction 0.9219431087210097 NE graft norm 13344.469014209526
+core.prelude.0.ffn.2.bias strong-minus-base norm 998.4189233889597 two-direction explained norm fraction 0.8316154536190927 NE graft norm 747.0229649098887
+
+```

@@ -1,0 +1,64 @@
+OUTPUT of Python run 141 of at most 300:
+```
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+NOTES LEN 10745
+# Notebook
+
+## Run 1-2: orientation
+- Read ARCHITECTURE.md and README. Dose enters via encode_action (u_k), embed.numeric (z_dose,z_rate), embed.bins.dose/rate.
+
+## Runs 3-10: data structure & dosing policy (train.csv)
+- All stays 25.17h. Readings at integer hours (-1..24); infusions at h+0.0833, each 1h. Insulin dose==rate; NE dose=4.8*rate.
+- Glucose finger/lab intermittent; map_arterial hourly in ~48% stays (art line); map_cuff ~60% hours.
+- INSULIN POLICY (uses the reading taken that hour, finger; lab if no finger): ON if G>160 (always); 140-160 depends on prev on (0.68 vs 0.23); <140 ~off.
+  Base rate steps on recorded finger value: ~1.05 (<180), ~2.08 (180-220), ~3.15 (220-260?), higher above; sharp jump AT the recorded value
+  (at exactly 180 mean 1.56 -> threshold on unrounded reading). Multiplicative noise, rounded to 0.5 (sd ~0.37 at base1, ~0.65 at base2).
+- NE POLICY: start if MAP<65 (art if available else cuff); titrate: MAP<65 up (log ratio +0.07..0.15), 65-75 hold, >75 down (-0.2..-0.28);
+  log-ratio noise sd ~0.29; cap 1.0. Thresholds sharp at 65/75.
+- IDEA: dose noise given recorded reading = natural experiment; thresholds (180,220; 65,75) allow regression discontinuity (RD) check vs hidden confounding.
+
+## Runs 11-23: causal effect estimates (train.csv), using exogenous dose noise
+- Insulin noise log(rate/base) iid: corr with prev noise 0.000, with G/MAP/NE/h ~0.01. NE innovation (log ratio resid) corr prev -0.014, MAP -0.04.
+- Measurement: finger vs lab same hour: no bias, sd diff ~5.5% of G (multiplicative). cuff - arterial = +3.0 mmHg, sd 6.7.
+- No cross effects: NE->glucose ~0, insulin->MAP ~0.
+- Insulin -> glucose: local projection total effect per +1 u/h shock: k=1..6: -2.08,-2.29,-1.87,-1.37,-0.76,-0.45 (->0 by 12).
+  Linear in dose (shock^2 ~0). Mildly larger at high G: -1.83 (G~164), -2.07 (196), -2.21 (234), -2.43 (272) at k=1.
+  Feedback on later doses small: -0.06 u/h. Deconvolved fixed-dose impulse response h_ins(k):
+  -2.08,-2.41,-2.16,-1.79,-1.26,-0.95,-0.77,-0.63,-0.55,-0.43,-0.33,-0.30 (cum -13.7 at 12h)  [tail uncertain]
+- NE -> MAP_arterial: total per +1 mcg/kg/min innovation: 3.4,5.1,5.4,5.1,4.4,3.8,...; dose persistence 0.73,0.56,0.44,...
+  Deconvolved h_ne(k): 3.40,2.60,1.62,0.94,0.41,0.33,0.0,... (cum ~9.3). Linear in rate (k=1 effect 3.3-3.6 across rate levels).
+- Model-side caution: NE rate>1.0 / dose>4.8 -> bins 13-16 never seen in training (x2 edit hits them).
+
+## Run 24-29 + fwd 1 (dose_edit original, tuning setA = /work/setA.json, 100 stays)
+- RD at insulin thresholds 180/220 agrees with noise-based estimates (-1.9..-2.6 per u/h at k=1) -> no hidden confounding.
+- dose_edit rows = stay-hours 13-24 where the record HAS the outcome reading (finger glucose / map_arterial); reached = hour > first dose hour>=12.
+  mean_shift = POOLED mean over reached stay-hours.
+- ORIGINAL model on setA: ins x2 -1.448, ins x1/2 +0.824, ne x2 +0.152, ne x1/2 -0.411.
+- My estimated TRUTH on same rows (deconvolved h): ins x2 -14.17, ins x1/2 +7.09, ne x2 +4.82, ne x1/2 -2.41.
+  => model's effects ~10x (insulin) and ~30x (NE) too small.
+
+## Runs 30-41 (after restart)
+- fwd_2 = factual ORIGINAL on tuning setA: value NLL/r
+FUNCS: GroupKFold L LN LNf LNn M2 Ridge RidgeCV Wt add_pol atom_e atom_e_full atom_e_side atom_e_unit atom_vec atoms_of_stay avec base_ins block_stats build_panel bundles_of_stay cinfo core_step cross_val_predict ctrl_ins ctrl_ne ctx_of cvp cvr cvr2 cvr2g cvres deconv drop_edit edited enc_set enc_set2 encode_set encset erf eval2 eval3 eval_det eval_det2 eval_head f_at fb_ fbin ffn fit_dec fn fn_ gel gelu gen_many gen_samples gf head_P head_P2 head_mean head_value head_value2 init_ctx lagm lagmat lastbin_of lin linn ln load load_original lp lp_series mha mlp mlp2n mvdr ne_expect nu_of obj ols ols_cl panel pmat prelude_attn rd regr relerr run_head run_stay save_edit show softplus true_shift truth_rows u_grid vdiff vfun wc_vec zb zpost_batch zpost_batch2 zpost_batch3 zpost_batch4 zpost_err zpost_of zpost_rows zs_ zsc
+
+```

@@ -1,0 +1,507 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 8 replies happened before. Forward passes used: 2 of 50; Python runs used: 6 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+inger_observed",
+      "bandwidth": 5,
+      "adjusted": true,
+      "n": 92540,
+      "dose_jump": 0.6791,
+      "effect_per_unit": 0.2774,
+      "cluster_se": 0.0054,
+      "ci95": [
+        0.2667,
+        0.2881
+      ]
+    },
+    {
+      "outcome": "next_finger",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 162730,
+      "dose_jump": 0.7679,
+      "effect_per_unit": -1.9114,
+      "cluster_se": 0.1745,
+      "ci95": [
+        -2.2535,
+        -1.5694
+      ]
+    },
+    {
+      "outcome": "next_glucose_combined",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 167103,
+      "dose_jump": 0.7909,
+      "effect_per_unit": -1.9249,
+      "cluster_se": 0.1574,
+      "ci95": [
+        -2.2333,
+        -1.6165
+      ]
+    },
+    {
+      "outcome": "past_glucose_PLACEBO",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 168455,
+      "dose_jump": 0.8416,
+      "effect_per_unit": 0.0146,
+      "cluster_se": 0.0449,
+      "ci95": [
+        -0.0735,
+        0.1027
+      ]
+    },
+    {
+      "outcome": "next_finger_observed",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 184729,
+      "dose_jump": 0.8458,
+      "effect_per_unit": 0.2728,
+      "cluster_se": 0.0035,
+      "ci95": [
+        0.266,
+        0.2796
+      ]
+    },
+    {
+      "outcome": "next_finger",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 227614,
+      "dose_jump": 0.836,
+      "effect_per_unit": -1.9368,
+      "cluster_se": 0.1364,
+      "ci95": [
+        -2.2041,
+        -1.6694
+      ]
+    },
+    {
+      "outcome": "next_glucose_combined",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 233566,
+      "dose_jump": 0.8548,
+      "effect_per_unit": -1.9341,
+      "cluster_se": 0.1233,
+      "ci95": [
+        -2.1757,
+        -1.6925
+      ]
+    },
+    {
+      "outcome": "past_glucose_PLACEBO",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 234179,
+      "dose_jump": 0.8938,
+      "effect_per_unit": -0.0501,
+      "cluster_se": 0.036,
+      "ci95": [
+        -0.1206,
+        0.0204
+      ]
+    },
+    {
+      "outcome": "next_finger_observed",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 257262,
+      "dose_jump": 0.8981,
+      "effect_per_unit": 0.271,
+      "cluster_se": 0.0029,
+      "ci95": [
+        0.2652,
+        0.2768
+      ]
+    },
+    {
+      "outcome": "next_glucose_combined",
+      "bandwidth": 5,
+      "adjusted": false,
+      "n": 83728,
+      "dose_jump": 0.5986,
+      "effect_per_unit": -2.6227,
+      "cluster_se": 0.3245,
+      "ci95": [
+        -3.2587,
+        -1.9867
+      ]
+    },
+    {
+      "outcome": "next_MAP_cross_drug_PLACEBO",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 172018,
+      "dose_jump": 0.8467,
+      "effect_per_unit": 0.0128,
+      "cluster_se": 0.0793,
+      "ci95": [
+        -0.1426,
+        0.1681
+      ]
+    }
+  ]
+}
+
+## Run 5: recording-policy falsification
+Initial insulin RD was accompanied by a large discontinuity in future finger-reading availability, threatening identification. Rounded threshold values have half-jumps, so this audit uses cuts at 150/180/220/260 and excludes exact cut values. Testing lab outcomes and their availability separately, and unadjusted past-outcome placebos rather than treating history-adjusted placebos as decisive.
+[
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 5,
+    "adjusted": true,
+    "n": 18414,
+    "dose_jump": 1.033,
+    "effect_per_unit": -1.5496,
+    "cluster_se": 0.3235,
+    "ci95": [
+      -2.1836,
+      -0.9155
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 5,
+    "adjusted": true,
+    "n": 80147,
+    "dose_jump": 1.0508,
+    "effect_per_unit": -1.8271,
+    "cluster_se": 0.2196,
+    "ci95": [
+      -2.2576,
+      -1.3967
+    ]
+  },
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 36529,
+    "dose_jump": 1.0337,
+    "effect_per_unit": -1.5257,
+    "cluster_se": 0.2116,
+    "ci95": [
+      -1.9405,
+      -1.1108
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 161183,
+    "dose_jump": 1.0415,
+    "effect_per_unit": -1.7381,
+    "cluster_se": 0.1439,
+    "ci95": [
+      -2.0202,
+      -1.456
+    ]
+  },
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 14,
+    "adjusted": true,
+    "n": 51089,
+    "dose_jump": 1.0281,
+    "effect_per_unit": -1.5708,
+    "cluster_se": 0.1784,
+    "ci95": [
+      -1.9205,
+      -1.2211
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 14,
+    "adjusted": true,
+    "n": 225930,
+    "dose_jump": 1.0422,
+    "effect_per_unit": -1.8228,
+    "cluster_se": 0.1194,
+    "ci95": [
+      -2.0569,
+      -1.5888
+    ]
+  },
+  {
+    "outcome": "next_LAB_observed",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 183867,
+    "dose_jump": 1.043,
+    "effect_per_unit": 0.0017,
+    "cluster_se": 0.0039,
+    "ci95": [
+      -0.0059,
+      0.0092
+    ]
+  },
+  {
+    "outcome": "next_FINGER_observed",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 183867,
+    "dose_jump": 1.043,
+    "effect_per_unit": 0.2702,
+    "cluster_se": 0.0032,
+    "ci95": [
+      0.2639,
+      0.2765
+    ]
+  },
+  {
+    "outcome": "next_CUFF_cross_drug",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 112798,
+    "dose_jump": 1.0442,
+    "effect_per_unit": 0.0713,
+    "cluster_se": 0.0959,
+    "ci95": [
+      -0.1168,
+      0.2594
+    ]
+  },
+  {
+    "outcome": "next_CUFF_observed",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 183867,
+    "dose_jump": 1.043,
+    "effect_per_unit": 0.0005,
+    "cluster_se": 0.0038,
+    "ci95": [
+      -0.0069,
+      0.0078
+    ]
+  },
+  {
+    "outcome": "past_LAB_unadjusted_PLACEBO",
+    "bandwidth": 10,
+    "adjusted": false,
+    "n": 39744,
+    "dose_jump": 1.0326,
+    "effect_per_unit": -0.0321,
+    "cluster_se": 0.2233,
+    "ci95": [
+      -0.4697,
+      0.4056
+    ]
+  },
+  {
+    "outcome": "past_GLUCOSE_unadjusted_PLACEBO",
+    "bandwidth": 10,
+    "adjusted": false,
+    "n": 167164,
+    "dose_jump": 1.0431,
+    "effect_per_unit": -0.1191,
+    "cluster_se": 0.1328,
+    "ci95": [
+      -0.3793,
+      0.1412
+    ]
+  }
+]
+
+## Run 6: independent effect checks
+Clean threshold RD supports insulin next-hour effect about -1.55/unit on lab readings. Lab availability is smooth at thresholds; unadjusted past-outcome placebos are null. Finger availability jumps, and its effect estimate is more negative. Fitting stay-crossfitted history-adjusted effects and two-sensor transition models.
+{
+  "DML": [
+    {
+      "label": "insulin_next_lab",
+      "drug": "insulin",
+      "n": 80365,
+      "effect_per_rate_unit": -1.9687,
+      "cluster_se": 0.0734,
+      "ci95": [
+        -2.1127,
+        -1.8248
+      ],
+      "dose_residual_sd": 0.4903,
+      "outcome_residual_sd": 8.957,
+      "seconds": 1.0
+    },
+    {
+      "label": "NE_next_cuff_both_current_MAP",
+      "drug": "norepinephrine",
+      "n": 29293,
+      "effect_per_rate_unit": 3.4255,
+      "cluster_se": 0.442,
+      "ci95": [
+        2.5591,
+        4.2918
+      ],
+      "dose_residual_sd": 0.0935,
+      "outcome_residual_sd": 6.7848,
+      "seconds": 0.7
+    },
+    {
+      "label": "NE_next_cuff_any_current_MAP",
+      "drug": "norepinephrine",
+      "n": 240000,
+      "effect_per_rate_unit": 2.7802,
+      "cluster_se": 0.2277,
+      "ci95": [
+        2.334,
+        3.2265
+      ],
+      "dose_residual_sd": 0.0659,
+      "outcome_residual_sd": 7.0783,
+      "seconds": 1.6
+    }
+  ],
+  "transitions": [
+    {
+      "drug": "insulin",
+      "n": 15905,
+      "sensor_coefficients": [
+        0.1525,
+        0.8854
+      ],
+      "sum_sensor_coefficients": 1.0378,
+      "drug_coefficient": -1.9235,
+      "cluster_se": 0.1052,
+      "intercept": -4.6136
+    },
+    {
+      "drug": "norepinephrine",
+      "n": 29293,
+      "sensor_coefficients": [
+        0.7326,
+        0.19
+      ],
+      "sum_sensor_coefficients": 0.9226,
+      "drug_coefficient": -2.0861,
+      "cluster_se": 0.1752,
+      "intercept": 8.5973
+    }
+  ]
+}
+
+```
+Continue from here.
+
+Last result:
+Forward pass 2 of 50 done (factual); files in /work/fwd_2/. Summary:
+```
+{
+ "type": "factual",
+ "model": "original",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.57499,
+   "n_values": 4839,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1481,
+     "nll": 1.444,
+     "mean_abs_error": 10.251
+    },
+    "glucose_lab": {
+     "n": 544,
+     "nll": 1.2385,
+     "mean_abs_error": 8.454
+    },
+    "map_arterial": {
+     "n": 1325,
+     "nll": 1.4709,
+     "mean_abs_error": 3.748
+    },
+    "map_cuff": {
+     "n": 1489,
+     "nll": 1.9209,
+     "mean_abs_error": 6.006
+    }
+   },
+   "file": "factual_original.csv"
+  }
+ },
+ "seconds": 2.4
+}
+```
+Forward passes left: 48.

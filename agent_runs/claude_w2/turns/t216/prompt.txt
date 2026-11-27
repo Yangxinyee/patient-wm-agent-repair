@@ -1,0 +1,136 @@
+OUTPUT of Python run 210 of at most 300:
+```
+===== dec.py =====
+
+def lag_abs(DG,a,si,tau,L=12):
+    X=np.zeros((len(si),L))
+    for k in range(1,L+1):
+        ix=tau-k+3; ok=ix>=0
+        X[ok,k-1]=DG[a[ok],si[ok],ix[ok]]
+    return X
+def wc_hidden(D_, W, idx):
+    base=D_['base'][idx]; codes=torch.as_tensor(D_['code'][idx],dtype=torch.long)
+    lg,wc=head_value_logits(base,codes,D_['f8'][idx],D_['lb'][idx],torch.zeros(len(idx),dtype=torch.long),W,D_['zmu'][idx],1)
+    h1=F.gelu(F.linear(wc,W['attr_heads.value_bin.0.weight'],W['attr_heads.value_bin.0.bias']))
+    return wc,h1,lg
+def lag_feats(R_, D_, arms, pfn, idx, L=12, drug='insulin'):
+    DG=dose_stack(R_, arms, drug)
+    hk=make_dev_oracle(R_, DG, np.zeros(L), t_hide=1e9, pf=pfn)
+    si=D_['si'][idx]; a=D_['arm'][idx]; tau=np.round(D_['t'][idx]).astype(int)
+    dev=hk.devs(D_['n'][idx], si, a, tau, np.zeros((1,1),int), L)
+    d=lag_abs(DG, a, si, tau, L)
+    return d, d-dev, dev
+
+===== evalh.py =====
+
+def eval_arms(res, arms, R, K=None, drug='insulin', outcome='glucose_finger'):
+    K=Kins if K is None else K
+    DG=dose_stack(R, arms, drug); outl=[]
+    key={'insulin':'ins','norepinephrine':'ne'}[drug]
+    for ai in range(1,len(arms)):
+        t0=arms[ai].get(key+'_from',12.0)
+        rows,reached,o=readout(R,res,arms,drug,outcome,t0=t0,lo=int(t0)+1,hi=24)
+        sh=np.nanmean(o[ai]-o[0],1)[reached]; tr_=truth_rows(R,DG,ai,rows[reached],K)
+        lag=np.round(R['A'].t.values[rows[reached]]).astype(int)-int(t0)
+        prof=[(np.nanmean(sh[lag==l]), np.mean(tr_[lag==l])) for l in [1,3,6,9,12] if (lag==l).any()]
+        outl.append((str({k:v for k,v in arms[ai].items() if not isinstance(v,np.ndarray)}), round(float(np.nanmean(sh)),2), round(float(np.mean(tr_)),2), len(sh), [(round(a,1),round(b,1)) for a,b in prof]))
+    return outl
+
+===== states_ins.py =====
+
+def collect_states_ins(R_, arms, W, idsel=None):
+    A_=R_['A']; codeA=A_.code.values; kindA=A_.kind.values
+    insS=np.where((codeA==CODE['insulin'])&(kindA==0))[0]
+    sk2j={(int(A_.si.values[j]),int(A_.bidx.values[j])):j for j in insS}
+    store=[]
+    def hs(k,act_n,h,out,ctx):
+        s=ctx['seq_si'][act_n]; m=np.array([(int(x),k) in sk2j for x in s])
+        if not m.any(): return
+        mi=np.where(m)[0]; n=act_n[mi]
+        js=np.array([sk2j[(int(x),k)] for x in s[mi]])
+        store.append(dict(n=n,j=js,arm=ctx['seq_arm'][n],si=s[mi],u=ctx['u'][mi].clone(),Ep=ctx['Ep'][mi].mean(1).clone(),
+                          hn=ctx['hn'][mi].reshape(len(mi),-1).clone(),y=h[n].reshape(len(mi),-1).clone(),out=out[n].clone()))
+    res_=run_rollout_h(R_,W,arms,n_paths=1,seed=0,t_hide=1e9,hook_state=hs)
+    C={k_:(np.concatenate([d[k_] for d in store]) if not torch.is_tensor(store[0][k_]) else torch.cat([d[k_] for d in store]).numpy()) for k_ in store[0]}
+    return C
+
+===== tf.py =====
+
+def teacher_forced(df, ids, W, chunk=500):
+    outs=[]
+    for i in range(0,len(ids),chunk):
+        R=prep_rollout(df, ids[i:i+chunk]); res=run_rollout(R,W,[{}],n_paths=1,seed=0,t_hide=1e9,want_nll=True)
+        A=R['A']; meas=np.where(np.isin(A.code.values,[CODE[c] for c in MEAS]))[0]
+        key=meas.astype(np.int64)+0  # n = si (one arm one path) -> n*10**7+j
+        n_=A.si.values[meas]
+        pm=np.array([res['pm'].get(int(n*10**7+j),np.nan) for n,j in zip(n_,meas)])
+        nl=np.array([res['nll'].get(int(n*10**7+j),np.nan) for n,j in zip(n_,meas)])
+        o=pd.DataFrame({'stay_id':R['stays'][n_],'t':A.t.values[meas],'code':A.code.values[meas],'value':A.value.values[meas],'pm':pm,'nll':nl})
+        outs.append(o)
+    return pd.concat(outs,ignore_index=True)
+
+===== policy.py =====
+
+def build_policy_table(df):
+    g=df[df.event.isin(['glucose_finger','glucose_lab'])&(np.abs(df.hour-np.round(df.hour))<1e-6)][['stay_id','hour','event','value']]
+    gp=g.pivot_table(index=['stay_id','hour'],columns='event',values='value',aggfunc='first')
+    gsel=gp['glucose_finger'].where(gp['glucose_finger'].notna(),gp.get('glucose_lab'))
+    ins=df[df.event=='insulin'][['stay_id','hour','rate']].copy(); ins['h']=np.floor(ins.hour+1e-6)
+    ir=ins.groupby(['stay_id','h']).rate.sum()
+    G=pd.DataFrame({'g':gsel}).reset_index(); G['rate']=ir.reindex(pd.MultiIndex.from_arrays([G.stay_id,G.hour])).fillna(0).values
+    G['gi']=np.clip(np.round(G.g).astype(int),0,600)
+    tab=G.groupby('gi').rate.agg(['mean','count'])
+    return G,tab
+def make_pf(tab):
+    xs=np.arange(0,601); m=tab['mean'].reindex(xs); c=tab['count'].reindex(xs).fillna(0)
+    # smooth within +-3 mg/dL weighted by counts, but keep step at 150
+    num=(m.fillna(0)*c).values; den=c.values; out=np.zeros(601)
+    for i in xs:
+        lo,hi=max(0,i-3),min(600,i+3)
+        if i<150: hi=min(hi,149)
+        else: lo=max(lo,150)
+        out[i]=num[lo:hi+1].sum()/max(den[lo:hi+1].sum(),1)
+    out[:150]=0.0
+    def pf(x):
+        x=np.asarray(x,dtype=float); return np.interp(x,xs,out)
+    return pf,out
+
+def make_pf(tab,minc=30):
+    xs=np.arange(0,601); m=tab['mean'].reindex(xs); c=tab['count'].reindex(xs).fillna(0)
+    m[c<minc]=np.nan; m[:150]=0.0
+    m=m.ffill().bfill().values; m[:150]=0.0
+    def pf(x):
+        x=np.asarray(x,dtype=float); return np.interp(x,xs,m)
+    return pf,m
+
+def make_pf(tab,minc=30):
+    xs=np.arange(0,601); m=tab['mean'].reindex(xs).copy(); c=tab['count'].reindex(xs).fillna(0)
+    m[c.values<minc]=np.nan; m.iloc[:150]=0.0
+    m=m.ffill().bfill().to_numpy(copy=True); m[:150]=0.0
+    def pf(x):
+        x=np.asarray(x,dtype=float); return np.interp(x,xs,m)
+    return pf,m
+
+def make_pf_band(tab,edges=(150,180,220,250,260,300),minc=200):
+    xs=np.arange(0,601); m=tab['mean'].reindex(xs); c=tab['count'].reindex(xs).fillna(0).values; mv=np.nan_to_num(m.values)
+    out=np.zeros(601); E=list(edges)+[601]
+    for i in range(150,601):
+        b=max(j for j in range(len(E)-1) if E[j]<=i); lo_b,hi_b=E[b],E[b+1]-1
+        w=0
+        while True:
+            lo,hi=max(lo_b,i-w),min(hi_b,i+w)
+            if c[lo:hi+1].sum()>=minc or (lo==lo_b and hi==hi_b): break
+            w+=1
+        out[i]=(mv[lo:hi+1]*c[lo:hi+1]).sum()/max(c[lo:hi+1].sum(),1)
+    def pf(x):
+        x=np.asarray(x,dtype=float); return np.interp(x,xs,out)
+    return pf,out
+
+VARS: NAMES[list 181] SHAPES[dict 181] VOCAB[dict 8] V[dict 8] k=3 s=
+GLC=[CODE['glucose_finger'],C n=15885 nm=scl tr[df (1999838, 10)] tu[df (26629, 9)] drug=norepinephrine d= st[stat_result 10] ne[df (235970, 10)] w[df (670613, 21)] notes=# Notebook
+## Setup facts (run gt[df (10400, 8)] gg[df (780000, 96)] c=5 x=400 y(48797,) tab[df (61, 4)] z[df (7659, 19)] b[list 131] X(83940, 192) t1[df (115, 3)] prevon=True ww[df (214260, 21)] t2(76925,) v= vv(5448,) b2(23,) bnd=5.0 dd(4,) m(15385,) bm(12,) both[df (106469, 96)] col=gf_l6 s2=
+import numpy as np, torch, to R[dict 7] RN[list 11] RM[list 10] K[list 10] val=-0.4090410880399825 on[df (214260, 100)] Fn[list 11] Rn_ma[list 10] Rn_mc[list 10] Rn_gf[list 10] Fi[list 0] rb(14742,) di[df (259839, 96)] bd=5.0 lo=3.25 hi=20 ss[df (221, 96)] gt2[df (10400, 8)] ti[df (400, 2)] both_ids[list 76] ins_only[list 134] nor_only[list 79] none_ids[list 111] sel1[list 100] de[df (3200, 7)] Kins(12,) Knor(12,) gtt[df (10400, 6)] res[dict 6] ed=ne_half mult=0.5 Kv(12,) r[tuple 3] fa(192,) gtt2[df (10400, 15)] gfm[df (1297, 21)] mam[df (1064, 20)] fa_(192,) t=str nw(192, 6) lw(192, 8) tti[df (30000, 2)] tr_both[list 3891] selT[list 100] st_ids(5345,) hrs(5345,) nat(5345,) sid0=1010007977 mask(5345,) code_id[dict 13] ek_id[dict 4] trs[df (1999838, 9)] bad=0 sid=1010003646 A[df (142, 8)] m_(817,) tool[df (190, 7)] T(192, 192) W[dict 181] NUM[dict 8] ACTS[dict 4] names[dict 13] cands[list 28] idx(54,) mins(5345,) a[list 179] best[list 288] act=silu unit_row=5 side=right gapmode=log half=1 errs[list 15] dt=3300.0 ctx(5764, 192) e(192,) zo(5764, 64) zm(5245, 32) act_z(59, 32) variant=e_zero P(5764, 17) err(5245,) corr=0.4216570861578729 o[dict 5] hh=3 eps=1e-06 pred_o(5345, 192) perm[list 2] blocks[list 3] wz(192, 576) by[dict 72] nm_=g-1.2,-0.4 top=z_prior.2 kk=z_prior.2 fn=stay_atoms hi_=24 v_(192,) G[df (780000, 4)] ok(6971,) pf(14267,) T2[df (10400, 20)] L_=10 q_[df (1297, 14)] qq[df (1297, 14)] cols[list 8] Z(2210, 4) yv(2289,) b_(192,) res_(83940,) se_(4,) xs(5345, 992) sidS(5345,) hrS(5345,) A1[df (2000, 9)] nm2=out sl[list 5] Xf(6971, 193) tgt(5764,) pr(83940,) A2[df (2289, 8)] ok_(2289,) f_(83940,) Wc[dict 181] I_(192, 192) notes_add=
+## Restart 5 (runs 134-141):  fa4[df (5764, 31)] vc_[dict 4] t0_=1794490970.746524 Wd[dict 181] M(800, 54, 192) X_(5345, 992) OUT(5345, 192) HH(5345, 4, 192) hS(5345,) sS(5345,) num_[dict 8] cen[dict 4] P_(5764,) dt_(5245,) dec(192,) hfl(5764, 4, 192) base0(5764, 192) codes_t(5764,) lb_t(5764,) cenmat(5764, 16) gm=log10 ty=3 lay=C au=60.0 pm_(5764,) r2_=0.9231388407541514 gc=log gv(29792,) hc[tuple 3] pp_(5764, 17) la_h(5764,) feats[dict 8] assign[list 8] stat_opts[dict 3] best_s[tuple 2] sk=nohas sv(45031,) e_(5245,) it_=1 c_=one cand[list 7] fk=zl2 a2[list 8] nm3=C_s asg[list 8] sdm=half gl_b[df (551, 3)] ev=glucose_finger d4[df (1739, 21)] fC(5764, 8) kq=3 nmg=log_min out6[list 24] fs[list 42] gu=60.0 cu=60.0 o_(800, 192) vm=no_gap ZP(5345, 32) R_(5764,) ob_(5764,) zs_=prior gd=1.0 pm8(5764,) p8(5764, 17) nl8(5764,) AF[dict 3] o9[list 16] cg=log vg=log10 ag(5764,) az=gelu av=gelu a_=0.06850305944681168 nz=32 p_(29792,) nl_(5764,) pair[dict 4] rows_[list 12] s_=3 g_[df (132264, 11)] d_=fwd_4 hrs_(817,) vals_(48797,) i_=17 j_=1 sh(245,) mode=shared_lastcode out12[list 36] gname=log1p10 nmA=both addv(192,) part[dict 4] gsub[df (780000, 6)] q4[df (5764, 37)] av_(192,) r_[tuple 5] scl=1.5 pmS(5764,) nlS(5764,) lbL(5764,) obL(5764,) nmv=ztrue lbt(5764,) obb(5764,) pmv(5764,) nlv(5764,) feats2[dict 9] asg2[list 8] cur[list 8] best_c[tuple 2] f_m(5764, 8) best_ty[dict 4] ns[dict 299] fns[list 125] txt=# Notebook
+## Setup facts (run fnm=run13 core[list 84] n_=core.flow.a tau(208096,) dl(192,) ai(192,) sp(192,) abar(192,) Hs(5345, 4, 192) sd(4, 192) lo_dims(12,) others[list 27] b0[df (6971, 3)] grp(48797,) k_=rand
+[output cut at 10,000 characters]
+```

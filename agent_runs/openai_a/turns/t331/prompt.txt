@@ -1,0 +1,277 @@
+OUTPUT of Python run 281 of at most 300:
+```
+=== FORWARD 35 EXACT SUMMARY ===
+{
+  "ok": true,
+  "type": "dose_edit",
+  "split": "tuning",
+  "n_stays": 100,
+  "results": {
+    "original": {
+      "edits": {
+        "insulin_x2": {
+          "what": "insulin x2 -> glucose_finger",
+          "mean_shift": -1.847,
+          "n_stay_hours": 554,
+          "n_stays": 60
+        },
+        "insulin_half": {
+          "what": "insulin x1/2 -> glucose_finger",
+          "mean_shift": 0.777,
+          "n_stay_hours": 554,
+          "n_stays": 60
+        },
+        "ne_x2": {
+          "what": "norepinephrine x2 -> map_arterial",
+          "mean_shift": -0.498,
+          "n_stay_hours": 281,
+          "n_stays": 26
+        },
+        "ne_half": {
+          "what": "norepinephrine x1/2 -> map_arterial",
+          "mean_shift": -0.6,
+          "n_stay_hours": 281,
+          "n_stays": 26
+        }
+      },
+      "file": "dose_edit_original.csv",
+      "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+    },
+    "edited": {
+      "edits": {
+        "insulin_x2": {
+          "what": "insulin x2 -> glucose_finger",
+          "mean_shift": -9.067,
+          "n_stay_hours": 554,
+          "n_stays": 60
+        },
+        "insulin_half": {
+          "what": "insulin x1/2 -> glucose_finger",
+          "mean_shift": 3.952,
+          "n_stay_hours": 554,
+          "n_stays": 60
+        },
+        "ne_x2": {
+          "what": "norepinephrine x2 -> map_arterial",
+          "mean_shift": -0.516,
+          "n_stay_hours": 281,
+          "n_stays": 26
+        },
+        "ne_half": {
+          "what": "norepinephrine x1/2 -> map_arterial",
+          "mean_shift": -0.617,
+          "n_stay_hours": 281,
+          "n_stays": 26
+        }
+      },
+      "file": "dose_edit_edited.csv",
+      "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+    }
+  },
+  "edited_tensors": [
+    "attr_heads.value_bin.0.bias",
+    "attr_heads.value_bin.0.weight",
+    "attr_heads.value_bin.2.bias",
+    "attr_heads.value_bin.2.weight"
+  ],
+  "edit_hash": "47b2083699",
+  "seconds": 260.5,
+  "gpu_peak_mib": 1364
+}
+=== STAY-WEIGHTED REACHED-HOUR SHIFTS ===
+original {'insulin_half': 0.5806765104617606, 'insulin_x2': -1.4999805672198174, 'ne_half': -0.5773706497668998, 'ne_x2': -0.5059877156177156}
+edited {'insulin_half': 3.091300823232323, 'insulin_x2': -7.16474440993266, 'ne_half': -0.5941335984848485, 'ne_x2': -0.522809254079254}
+=== CHECKPOINT AUDIT ===
+sharp240 {'attr_heads.value_bin.0.bias': 0.0, 'attr_heads.value_bin.0.weight': 0.0, 'attr_heads.value_bin.2.bias': 0.0, 'attr_heads.value_bin.2.weight': 0.0}
+validated_gated8 {'attr_heads.value_bin.0.bias': 3.4391517639160156, 'attr_heads.value_bin.0.weight': 2.9416866302490234, 'attr_heads.value_bin.2.bias': 0.0, 'attr_heads.value_bin.2.weight': 0.0}
+attr_heads.value_bin.0.bias max change: 42.51669692993164
+attr_heads.value_bin.0.weight changed hidden indices: [41, 109] max change: 15.00958251953125
+attr_heads.value_bin.2.bias max change: 0.0007821433246135712
+attr_heads.value_bin.2.weight changed hidden indices: [41, 109] max change: 60.18525314331055
+=== IDENTIFICATION NOTES CONTINUED ===
+)": {
+    "persistence": 0.55224068979847,
+    "effect": 9.765249075734024,
+    "se_persistence": 0.2031452415734852,
+    "se_effect": 3.822496587192125,
+    "n": 6907
+  },
+  "('map_cuff', 'norepinephrine', 'differenceIV')": {
+    "persistence": 0.09308982432128969,
+    "effect": -1.4392193870006853,
+    "se_persistence": 0.2550564286432103,
+    "se_effect": 4.71176168711688,
+    "n": 6890
+  },
+  "('glucose_finger', 'insulin', 'differenceIV')": {
+    "persistence": 0.6225459139836054,
+    "effect": -2.750197720426045,
+    "se_persistence": 0.5273550439334205,
+    "se_effect": 3.422934062742969,
+    "n": 1885
+  }
+}
+
+## More efficient dynamic checks; Python 6, forward 2
+- Replicate-sensor NE estimates are positive but rely on dose/error independence.
+- Insulin replicate-sensor level estimates are invalid if dosing uses finger noise; the negative sensor-difference IV is more defensible for insulin.
+- Enlarged first-difference samples using own-sensor instruments at lags >=2, which avoid overlapping current measurement errors.
+{
+  "('map_arterial', 'admission')": {
+    "coefficients": [
+      0.9825267853113245,
+      0.5165933079110422,
+      0.029677058825007888
+    ],
+    "se": [
+      0.006061144800747398,
+      0.1349655273885699,
+      0.006965149985368135
+    ],
+    "n": 25283
+  },
+  "('map_cuff', 'admission')": {
+    "coefficients": [
+      0.9736397009521174,
+      0.4870228377565288,
+      0.04526212305580476
+    ],
+    "se": [
+      0.014298533258265632,
+      0.39942899381697966,
+      0.01616727199739762
+    ],
+    "n": 7995
+  },
+  "('glucose_finger', '(2, 3)', False)": {
+    "persistence": 1.0636624817043296,
+    "effect": -20.50967480255291,
+    "se_persistence": 0.6011473477865716,
+    "se_effect": 14.10406179320535,
+    "n": 187065,
+    "condition": 4278.111074394605
+  },
+  "('glucose_finger', '(2, 3)', True)": {
+    "persistence": 1.6853771922182748,
+    "effect": -28.31022511468185,
+    "se_persistence": 0.5252171736929621,
+    "se_effect": 16.30187699616657,
+    "n": 151972,
+    "condition": 4146.207612178202
+  },
+  "('glucose_finger', '(2, 3, 4)', False)": {
+    "persistence": 1.7622489453213448,
+    "effect": -32.365447466632254,
+    "se_persistence": 0.4640301018640856,
+    "se_effect": 14.770938349276275,
+    "n": 170139,
+    "condition": 3163.075474062332
+  },
+  "('glucose_finger', '(2, 3, 4)', True)": {
+    "persistence": 1.9119603835647734,
+    "effect": -30.143412757950454,
+    "se_persistence": 0.457167597898931,
+    "se_effect": 14.832568278064965,
+    "n": 140261,
+    "condition": 4231.202488567382
+  },
+  "('map_arterial', '(2, 3)', False)": {
+    "persistence": 0.56601743744358,
+    "effect": 2.7506419331801824,
+    "se_persistence": 0.07126114745990335,
+    "se_effect": 0.3355457823113206,
+    "n": 223342,
+    "condition": 112.63924108944546
+  },
+  "('map_arterial', '(2, 3)', True)": {
+    "persistence": 0.5766677284650158,
+    "effect": 2.1253207072251303,
+    "se_persistence": 0.07454238978195318,
+    "se_effect": 0.6283698960977526,
+    "n": 212970,
+    "condition": 268.15917645613507
+  },
+  "('map_arterial', '(2, 3, 4)', False)": {
+    "persistence": 0.49069634893724623,
+    "effect": 3.0574728886354428,
+    "se_persistence": 0.0461088749782071,
+    "se_effect": 0.3461294557797029,
+    "n": 201643,
+    "condition": 163.09105288561636
+  },
+  "('map_arterial', '(2, 3, 4)', True)": {
+    "persistence": 0.4968152626735331,
+    "effect": 2.366824568449006,
+    "se_persistence": 0.04891121747249014,
+    "se_effect": 0.5944101362422026,
+    "n": 192271,
+    "condition": 354.87191394661596
+  },
+  "('map_cuff', '(2, 3)', False)": {
+    "persistence": 0.6268160682431204,
+    "effect": 6.790448718802579,
+    "se_persistence": 0.23618181454957313,
+    "se_effect": 2.3593492092276183,
+    "n": 183795,
+    "condition": 190.83738903656888
+  },
+  "('map_cuff', '(2, 3)', True)": {
+    "persistence": 0.7342361832419435,
+    "effect": 12.700388178520777,
+    "se_persistence": 0.23291547909078456,
+    "se_effect": 4.609211211457707,
+    "n": 165686,
+    "condition": 576.8037490840541
+  },
+  "('map_cuff', '(2, 3, 4)', False)": {
+    "persistence": 0.5018208037686507,
+    "effect": 6.631520491739785,
+    "se_per
+=== EARLY NOTEBOOK HEADINGS ===
+## Initial inspection
+## Architecture inspected; Python 2, forward 0
+## Record transition analysis; Python 3, forward 0
+## Original rollout and identification checks; Python 4, forward 1
+## Factual baseline and dynamic identification; Python 5, forward 2
+## More efficient dynamic checks; Python 6, forward 2
+## Restart: Python 7, forward 2
+## Sensor-contrast local projections; Python 9, forward 2
+## Dynamic identification; Python 10, forward 2
+## Representation inspection; Python 12, forward 3
+## Kernel recovery; Python 18, forward 4
+## Recovery and threshold identification; Python 23, forward 4
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+## Restart recovery; Python 26, forward 4
+## CPU head diagnostics; Python 32, forward 4
+## Restart after Python 32
+## Head recovery after Python 36
+## Register layout test; Python 38, forward 4
+## Restart diagnostics; Python 44, forward 4
+## Recovery; Python 50, forward 4
+## Cross-stay dose-policy fitting; Python 51, forward 4
+## Residual-dose decoder; Python 52, forward 4
+## Restart after Python 52; forward 4/50
+## Decoder unit check; Python 56, forward 4
+## Additional training states; Python 57, forward 5/50
+## First reversible insulin head probe; Python 58, forward 5/50
+## Rank-one probe rejected; Python 60, forward 7/50
+## Raw-input decoder recovery; Python 64, forward 7/50
+## Gated raw-input insulin graft; Python 65, forward 7/50
+## Graft failure localization; Python 70, forward 7/50
+## Latent-robust gated graft; Python 72, forward 7/50
+## GPU validation of latent-robust graft; Python 73, forwards 8?9
+## Stronger reversible insulin trial; Python 77
+## Stronger insulin probe rejected; Python 80, forwards 10?11
+## Restart recovery; Python 84, forwards 11/50
+## Feedback diagnosis; Python 87, forwards 11/50
+## Local-step encoding check; Python 89, forwards 11/50
+## Posterior reconstruction diagnosis; Python 90
+## Recovery; Python 91?95, forward 11/50
+## Empty-world/time reconstruction search; Python 96
+## Safe inventory; Python 100, forward 11/50
+## Transition reconstruction preparation; Python 101, forward 11/50
+## World-embedding preparation; Python 102, forward 11/50
+## Measurement-embedding validation; Python 103, forward 11/50
+## Empty-action diagnostic; Python 108, forward 11/50
+
+```

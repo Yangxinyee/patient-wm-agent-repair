@@ -1,0 +1,179 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 238 replies happened before. Forward passes used: 12 of 50; Python runs used: 215 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ion. No edits saved; forward passes 4/50.
+
+## Reconstruction-only attention edit staged
+Saved original keys plus Vnew125 and Wrepair125. No causal injection or value-head change. Next: paired factual audit; undo if reconstruction harms fit. CPU cache remains original.
+
+## Run 133 / reconstruction factual audit
+Forward 5 (files fwd_6): 100 tuning stays, 4,751 values. Original and reconstruction-only edited NLL both 1.63164; all reported event NLL/MAE match. Reconstruction accepted provisionally. Recovering fitted controller/wire interfaces before causal injection. Forward passes 5/50; only attention kv/out tensors edited.
+
+## Runs 139–145 / recovered controller identities
+Recovered architecture and causal kernels; rejected SSM remains excluded. P125 decodes flowed private-state perturbations with RMS≈0.012; original private persistence is near zero. T125 satisfies P125.T@T125=I and is a write right-inverse, not an original-core inverse. SP125 equals QE125/core.prelude_norm.weight. Attention dose channels have factual SD≈0.688/0.180. Restored controller is Ccontroller145; clean and regularized write routes are routes145. No additional weights saved; reconstruction-only attention edit remains factual-NLL neutral.
+
+## Runs 146–152 / recovered repair geometry
+Ccontroller145 = Cperp145 + R118@P125.T; Cperp is the original c_out outside the four private directions. Uexact145 satisfies Cperp@U=0 and P.T@U=I, allowing an exact private write through b_in. No new weights saved. Fitting two-state record-kernel approximations and calibrating the attention wire locally.
+
+## Run 159 / factual-anchored controller
+Recovery found controllers153 used centered factual covariance but had large unpenalized means (about 30 in one channel). They are not safe to submit. Refit private c_out correction relative to the original mapping using complete raw factual slot states. controllers159 and routes159 contain the new candidates. No additional weights saved.
+
+## Run 160 / controller and dose wire staged
+Used factual-anchored controllers159[.01]; private states receive one raw-rate unit in both poles for each drug. Saved c_out, b_in, and wire_out152, retaining the reconstruction kv edit. Value head is untouched. Pending paired factual audit; these are not yet validated causal predictions.
+
+## Run 162 / staged controller rejected
+Forward 6 (fwd_7), 100 tuning stays: original value NLL 1.63164; controller+wire edited NLL 1.76833, delta +0.13669. Rejected before causal readout. Dropped b_in/c_out edits and restored the previously NLL-neutral reconstruction-only attention out Wrepair125; reconstruction kv retained. Need diagnose recurrent/off-manifold leakage.
+
+## Run 165 / controller isolation
+Staged c_out=C160 alone alongside neutral attention reconstruction; b_in original, no dose wire or readout. This isolates recurrent-controller drift.
+
+## Run 166 / controller-only rejected
+Forward 7 (fwd_8): c_out controller alone gives value NLL 1.71495 vs 1.63164 (+.08331). Dropped c_out. Large factual degradation is not solely dose-wire magnitude. Investigating omitted context/posterior feedback and multi-bundle controller stability; only neutral reconstruction remains.
+
+## Run 167 / one-step quiet write, no persistence controller
+Abandoned harmful c_out controller. Original c_out retained; analytical right-inverse U=solve(C_original,R118) writes a 0.1-scale dose feature after recurrent blocks via b_in. Staged B167 and wire_out152 with reconstruction kv. Value head untouched. Pending factual isolation audit.
+
+## Run 168 / restart recovery
+One-step b_in write remains unvalidated. Recovering architecture, causal evidence, and the existing 100-stay audit set before the paired factual test. No additional weights changed.
+
+## Forward 8 / quiet write factual audit
+100 tuning stays, 4751 readings: original NLL 1.63164, edited 1.63170 (delta about +0.00006). Quiet b_in write accepted provisionally. No causal value readout exists yet; next recover decoder features and fit a factual-anchored dose correction.
+
+## Run 173 / edited training-state decoder recovery
+Forward 9 supplied 4491 edited states on the original 100-stay training feature sample. Aligned by stay/hour; CPU cache now uses the three current edits. Recovering factual decoder features and x1/x2 one-step contrasts. No new weights saved.
+
+## Run 174 / decoder recovery
+Quiet dose write remains factual-neutral on the prior audit (+~0.00006 NLL). Recovered architecture, empirical-effect evidence, and live helper interfaces before fitting a factual-anchored value readout. No new edits.
+
+## Run 178 / generalized contrast features
+Collected current quiet-write decoder features for both drugs at x0, x0.5, x1.5, x2, and x3. Retained record kernels19; no new weights edited. Next fit a factual-anchored, code-selective final value readout.
+
+## Runs 179–180 / reject final-layer-only fit
+Closed-form final value-layer candidates could not attain accepted effects within factual +0.005 NLL. Lambda 1 gave validation +0.00184 but slopes only I~−1.03/NE~+0.39 at x2; stronger edits violated fit. No weights saved. Captured all dose contrasts before the value GELU to diagnose the private wire.
+
+## Run 185 / conservative value-readout staged
+Recovered original rollout: I x2 -3.680, I half +2.018; NE x2 +0.465, NE half -0.871. Accepted records-based hour-12 targets remain approximately -12.77,+6.38,+4.50,-2.25; rejected early SSM targets are not used. Staged readout179[1.0] in value_bin.2 weight and bias on top of the three quiet-wire edits, pending paired factual GPU validation. No upstream controller or other head was changed.
+
+## Forward 10 / full-strength readout fails factual limit
+100 tuning stays, 4751 readings: original NLL 1.63164, edited 1.63710 (+0.00546), so readout179[1] is rejected at full strength. Run 186 stages 0.70 times that correction, retaining the prior factual-neutral quiet wire, pending a new paired audit.
+
+## Run 187 / restarted recovery
+Forward 11 (fwd_12): reduced readout at 0.70 strength gives factual NLL 1.63427 vs original 1.63164, delta +0.00263 on 100 tuning stays / 4751 readings. Within the limit on this sample; causal rollout benefit remains unvalidated. Recovering architecture, live interfaces and stay IDs before paired rollouts.
+
+## Forward 12 / weak causal benefit
+Paired rollout on the 100-stay audit: original shifts [-3.680, +2.018, +0.465, -0.871]; current shifts [-4.302, +2.434, +0.496, -0.912] for I x2/half, NE x2/half. Current factual delta +0.00263. Final-layer-only repair is insufficient, especially for NE. Investigating selective head-feature construction rather than increasing its scale.
+
+## Run 192 / pre-GELU feature diagnosis
+Fitting factual-anchored linear dose decoders across x0, half, x1.5, x2, x3 and a dose-invariant sensor-family gate. No new weights saved; current conservative edit retained.
+
+## Runs 194–200 / nonlinear-head recovery
+Recovered architecture and current quiet-wire feature caches. Sensor-family gate is nearly exact. Audited raw dose units: contrasts are correct physical rates; targets179 are logit corrections, not full logits (the apparent huge target means in run 193 were a misinterpretation). Rebuilt canonical dose directions directly from verified head inputs. No model weights changed during recovery.
+
+## Runs 201–207 / verified raw-head geometry
+Recovered exact raw head inputs (hidden reconstruction RMS 2.9e-7). Sensor-family gate is nearly exact (+1 glucose, -1 MAP). Canonical cases are paired intervened/factual raw inputs; their factual cache differs by only 3e-5 RMS from X200. Using paired differences and fitting family-specific dose directions. No weights changed; conservative five-tensor edit retained.
+
+## Runs 208–212 / nonlinear repair setup
+Recovered canonical paired raw head inputs, family masks and dose directions. No additional weights changed. Next fit analytically with a few replaced GELU units, preserving original factual logits while enforcing record-derived dose contrasts.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 215 of at most 300:
+```
+
+ARCHITECTURE: linear2 replaced units [170, 89] row norms [213.72 421.55]
+eta 0.1 train/validation NLL deltas 4.9e-05 -0.000972 held-out slopes {"('insulin', 0.5)": -1.058, "('insulin', 2.0)": -1.061, "('norepinephrine', 0.5)": 1.397, "('norepinephrine', 2.0)": 0.631}
+eta 1.0 train/validation NLL deltas 0.004807 0.001778 held-out slopes {"('insulin', 0.5)": -1.715, "('insulin', 2.0)": -1.712, "('norepinephrine', 0.5)": 2.135, "('norepinephrine', 2.0)": 1.465}
+eta 10.0 train/validation NLL deltas 0.041037 0.035009 held-out slopes {"('insulin', 0.5)": -2.076, "('insulin', 2.0)": -2.056, "('norepinephrine', 0.5)": 2.921, "('norepinephrine', 2.0)": 2.346}
+
+ARCHITECTURE: pair4 replaced units [170, 89, 118, 84] row norms [213.66 213.74 421.45 422.59]
+eta 0.1 train/validation NLL deltas 0.000129 0.001694 held-out slopes {"('insulin', 0.5)": -1.23, "('insulin', 2.0)": -1.289, "('norepinephrine', 0.5)": 1.28, "('norepinephrine', 2.0)": 1.21}
+eta 1.0 train/validation NLL deltas 0.002774 0.00998 held-out slopes {"('insulin', 0.5)": -2.147, "('insulin', 2.0)": -1.865, "('norepinephrine', 0.5)": 1.775, "('norepinephrine', 2.0)": 1.988}
+eta 10.0 train/validation NLL deltas 0.030123 0.04084 held-out slopes {"('insulin', 0.5)": -2.432, "('insulin', 2.0)": -1.996, "('norepinephrine', 0.5)": 2.506, "('norepinephrine', 2.0)": 2.439}
+No weights changed.
+
+```

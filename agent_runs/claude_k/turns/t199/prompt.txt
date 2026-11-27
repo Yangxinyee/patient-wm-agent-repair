@@ -1,0 +1,67 @@
+OUTPUT of Python run 184 of at most 300:
+```
+8512
+# Notebook
+## Setup (run 1-4)
+- Model: event-stream world model, actions (insulin, norepi) enter via encode_action -> u_k, used in z_post and prelude token.
+- Records: readings at integer hours; infusion records start at hour+0.0833, run 1h. Dose chosen after hour-t readings precedes hour t+1 readings.
+- Clinicians chose doses (confounded).
+
+## Data facts (runs 3-19)
+- All stays 25.17h; readings at integer hours -1..24; infusions at h+5min for h=0..24, 1h each.
+- finger vs lab glucose: same quantity (paired diff -0.02, sd 9). arterial MAP ~3 mmHg below cuff (sd 6.7).
+- INSULIN POLICY: off if last glucose<140, on if >160, random (hysteresis) 140-160. Rate = base(band)*mult noise (CV .33), round 0.5:
+  base 1 (<180), 2 (180-220), 3 (220-260), ~4.3 (>260). Noise ~iid (no stay persistence, uncorrelated w/ lab@t, past glucose).
+- INSULIN EFFECT (within-band dose noise): next-hr finger glucose -2.0/unit/h, linear across bands & rates 0.5-7.
+  lag response to dose shock at t: k=1..6: -2.01,-2.25,-1.81,-1.30,-0.73,-0.45 ; dose feedback on later doses only -0.03..-0.05.
+- NOREPI POLICY: titration on log rate, uses arterial MAP if present at t else cuff else last; <=64 up ~+0.15, 66-74 hold, >=76 down ~-0.25,
+  noise sd ~0.3 log; capped at 1.0 (13% of records at cap), step 0.01.
+- NOREPI EFFECT (crude shock, maybe biased): MAP resp k=1..7: 3.3,5.4,6.4,6.5,6.0,5.6,4.9 per +1 mcg/kg/min shock; shock persists in rate .85,.73,.64...
+  crude deconvolved impulse: 3.3,2.6,1.8,0.9,0.4,0.3 (~9 mmHg per sustained unit).
+
+## Effect estimates (runs 20-26): cross-fitted double-ML with GBM on history feats, deconvolved by first stage
+- INSULIN -> glucose impulse h_k (k=1..12, per unit/h for 1h): -1.99,-2.39,-2.11,-1.72,-1.22,-0.95,-0.69,-0.55,-0.35,-0.15,-0.12,-0.05
+  ~ -1.99*k*0.6^(k-1); sum ~ -12.3 per sustained unit/h. Homogeneous across subgroups (ne on/off, art, time, glucose band). Linear in dose.
+- NOREPI -> MAP impulse h_k: 3.35,2.60,1.75,1.03,0.42,0.27, ~0 after (sum ~9.6 per sustained 1 mcg/kg/min).
+  Heterogeneity: lag-1 effect lower (~2.5-3.4) when MAP<60; ~3.6-4 otherwise; no clear rate saturation in other strata.
+- Cross effects ~0 (insulin->MAP 0; norepi->glucose +0.6+-0.25 lag1 only).
+- Tuning: 217 stays insulin>=12, 153 norepi>=12, 87 both, 96 norepi>=12 w/ arterial line.
+
+## Model vs truth (fwd 1, original, 100 tuning stays: 87 both drugs + 13 norepi/art)
+- readout rows = stay-hours 13-24 with the readout reading recorded, 'reached' = hour > first dose hour (>=12).
+- model: ins x2 -2.15, ins half +1.23, ne x2 +0.34, ne half -0.06
+- my truth (impulse h applied to recorded doses): ins x2 -13.8, half +6.9, ne x2 +4.6, half -2.3
+- model direct (lag-1) sensitivity: insulin -0.35/unit (x2), -0.62 (half); norepi +0.11/unit. Truth: -2.0 and +3.35.
+- data conditional kernel (DML, holding 4h readings): insulin c_l = -2.01,-1.45,-0.47,+0.22,+0.73,+1.09 ; norepi 3.30,0.99,-0.25,-0.99,-1.09,-1.45
+  (positive late terms = baseline-correction / partly truncation confounding) -> calibrate empirically instead.
+- fwd 2: states (original) on 99 train stays (sel_states.json).
+
+## Architecture facts (run 40-41)
+- value_bin head: Linear192->192, act, Linear192->17 (shared by all reading codes); embed_transition.value_bin (13*17 x 17) bias by code x last bin.
+- z_post.0 (192x576) on [ctx,e,u]; dose reaches heads only via u_k -> z_post/prelude -> state -> view -> q.
+- Plan: code-gated linear correction term in value head hidden layer, reading a dose direction in q.
+
+## Reconstruction findings (runs 42-67)
+- ALL MLPs are GELU (not ReLU). LayerNorm eps 1e-5. type_emb row 1 for value atoms. gap input log(dt_s)/10. Time flow exp(-dt_s*exp(flow.a)) applies for heads view.
+- z_post order [ctx,e,u]; unit table rows: glucose 4, MAP 2; my posterior recon corr ~0.85 (not exact).
+- value head recon: last_numeric layout fitted (A2, 8x4 on [1,has,age,zlast]); held-out MAE 1.3 vs tool predicted means.
+- fwd3: factual 3 stays (mistake). fwd4: factual original on 99 states stays (value NLL 1.520).
+- State after insulin bundle encodes dose residual (dose - band-expected) with CV R2 ~0.42 (out/slotmean/h).
+- Model factual error regressed on dose shocks: insulin lag1 -1.47(.29), lag2 -1.43(.30), lag3-4 ~0 ; norepi lags1-4 2.5,2.5,1.4,2.5 (+-0.9) (shock persists in rates).
+- PLAN: repurpose never-active value-head hidden units (GELU) as gated linear units reading a probe of q for dose-minus-readings-implied-dose; calibrate gains with dose_edit.
+
+## Restart after run 73
+- run 73: no dead value-head units (most negative max pre -1.99 unit 35; 53 -1.84, 125/24 -1.66, 180 -1.47).
+- gate direction: glucose readings proj 1.16-1.26 (codes 6,10 emb 1.44), MAP -1.46..-1.57 (codes 5,7 emb -1.28), other codes 8,9,11,12 in [-0.33,0.21].
+- idea: paired units sharing the gate (one reads the probe) so gate variation cancels; needs cost check of repurposing.
+
+## Restart 2 (after run 121; runs 74-121 were NOT logged - recovered from kernel vars)
+- fwd5-7 = states(original) for new300.json stays (3x100) -> S5,S6,S7 / D5,D6,D7. errs[300]: some recon check, mean err .056.
+- Kernel arrays for 99 sel_states stays (5521 readings): Q99 (q), WC99 (with_code), PRE (value-head p
+=====
+FUNCS 137
+load(name); load_original(name); save_edit(name, tensor); drop_edit(name); edited(); panel(df); col(hr); ffill_last(A); ols(y, X, names); band_of(g); L(n); mband(m); hist_feats(t); crossfit_resid(X, y, n_splits=3, seed=0); build(drug); deconv(tot, f); dml_sub(B, X, rd, ycol, masks); safe(A, s, j); build12(drug); stay_doses(Pd, sid_list, drug); true_shift(D, h, mult, start=12); first_dose(sid, ed); build_cond(drug, L=6); lin(x, p); relu(x); mlp(x, p); zsc(code, attr, x); fbin(code, attr, x); predict(gscale, typ, lnopt, stat, age_div, zmode='mean'); predict2(typ=1, view_gscale=0.1, ctx_gscale=0.1, zmode='me; report(pr, tag); predict3(drop_rate0=False, drop_vbin=False, feats_fn=None,; fn_(h_, a_, z_); least_squares(fun, x0, jac='2-point', bounds=(-inf, inf), metho; preds_A(A); cross_val_predict(estimator, X, y=None, *, groups=None, cv=None, n_; atom_vec(code, kind=0, ekind=1, unit_row=None, vbin=0, zv=; set_enc(vecs, p); ctx_of(row_prev, dt); zpost_err(unit_map); zpost_variants(); zerr_fn(make_vec, use_prior_ctx=True); base_mk(e_, v_, **kw); corr_shift(A_, shift); enc_variant(vecs, p, mode); ctx_var(row_prev, dt, gfun, flow=True, use_on=True); gfun(d_); gelu(x); mlp_a(x, p, act); enc_a(vecs, p, act, size_mode); enc_act(x); z_act(x); post_err(mk); mk(e_, v_, ug=5, um=5); mk_noclip(e_, v_); mk_hv0(e_, v_); mk_best(e_, v_); post_err_g(gval, fmul); ctx_best(ip, gval=0.6); fbin_le(code, attr, x); post_err2(mk); head_pred(typ=1, flow=True, gmode='log(s)/10', gval=None, f; head_means(A, idx=None, ret_logits=False); lastmap(r_, t_); lagmat(E_, L=4); build_set(Xs_, stay_, hour_); lags(D_, E_, L=3); probe_r2(Ds, evs_, E_, combo); probe_r2_mask(Ds, evs_, E_, combo, need_prev_drug=True); L64(n_); gelu_np(x); probs_from(Hact, TR); lagged(Mx, lag); cv_probe(mask, y, alpha=10.0); nll_of(lg, yb); cov_tilt(pp, cen, tilt); eval_decoder(nm_, y, mask_c, rows99, kgrid, tilt, covx, alpha=; cvr2(X_, y_, g_, alpha=1.0); lsm(x); T2N(t); pan(P, lag); ctrl(); resid(y, X); cvr2_(X, y, grp); fn(js, att); panA(P, t); LN(x, w, b, eps=1e-05); lin_(x, n); mlp_(x, n); setenc(V, pre); zsc_(code, att, x); fb_(code, att, x, le=False); ctx_from(prev, dt); zmean(ctx, e, u); test(embf, rows=[(np.int64(110), np.float64(2.0)), (np; zerrs(embf, ctxf=<function ctx_from at 0x79f4c6a1ccc0>,; g0(r); ctx_nogap(prev, dt); ctx_noflow(prev, dt); cf(prev, dt); zmean_o(ctx, e, u, order); e_empty(); run_var(order, efn, le); efn(); drug_atoms(i, t, end_mode, mult=(1.0, 1.0)); z_action_err(end_mode, js); comp(i, t); end_atom(c, nm, r, kind, att, ex); err_end(kind, att, ex); err_route(att, ex_name='none', js=[np.int64(51), np.int64(1; err_route2(exs, js=[np.int64(51), np.int64(105), np.int64(15; err_route3(js, u_empty); err_route4(js, att); meas_atoms(s, h); binof(x, e, side); build_wc(side, agemode); mean_of(wc, tr); lsm_(z); lagres(E, l); lagarr(E, l); gls_study(msk_, eps_, dose_, lab); oof_ridge(Xm, y, grp, al=10.0); tilt_nll(delta); LNf(x, w, b, eps=1e-05); mlpf(x, pre); view_from(prev, dt, zmode='prior'); setenc_my(V, pre); ginv_(y); ins_atom(r_, uu, rr, aa, ro, stt, kind=0); ne_atom(r_, uu, rr, aa, ro, stt, kind=0, f32=False); datom(code, r_, kind=0, attrs='full', cats=True); u_rec(ri_, rn_, mi=1.0, mn=1.0); u_c(a, b, mi=1.0, mn=1.0); add(u_, yi, yn, w); wridge(X, y, w, al); fn__(x, w, b, eps=1e-05); qrows(Xs__, kk__, dts__)
+ARRS 668
+s:int64[]; tr[5521, 17]; tu:DataFrame[26251, 10]; adm:DataFrame[30000, 2]; d[5521, 17]; x[1, 64]; H[28]; ins[30000, 28]; ne[30000, 28]; on:DataFrame[178174, 13]; onn[30000, 25]; gf[30000, 28]; ma[30000, 28]; mc[30000, 28]; glast[30000, 28]; mlast[30000, 28]; D[400, 25]; on_[2371]; tab:DataFrame[12, 8]; mid:DataFrame[137909, 10]; D2:DataFrame[720000, 11]; icc:float64[]; both[30000, 28]; bm[30000, 28]; dm[106563]; R:DataFrame[5521, 17]; Rv:DataFrame[298450, 13]; gb[298450, 14]; on2:DataFrame[255998, 13]; gbest[30000, 28]; X[5244, 992]; F:DataFrame[263668, 17]; r1:DataFrame[6, 2]; r2:float64[]; sb:DataFrame[3097, 14]; N:DataFrame[171776, 26]; ry[121221]; rf:DataFrame[12, 2]; Lb:DataFrame[263668, 17]; Nb:DataFrame[171776, 27]; Q:DataFrame[174162, 8]; bothq:DataFrame[34217, 8]; onlyc:DataFrame[49094, 8]; none:DataFrame[9704, 8]; B:DataFrame[121221, 31]; se[5]; md[222826]; rdk[117482]; fb:float64[]; Bi:DataFrame[254361, 34]; Xi:DataFrame[254361, 16]; rdi[254361]; Bn:DataFrame[222826, 37]; Xn:DataFrame[222826, 16]; rdn[222826]; m0[5244]; ryn1[222826]; hi[5244]; yy[254361]; mbest[30000, 28]; se_[9]; ins_t[400, 25]; ne_t[400, 25]; has_ins12[400]; has_ne12[400]; art_t[400]; h_ins[12]; h_ne[12]; fw:DataFrame[3384, 8]; gf_t[400, 28]; ma_t[400, 28]; chk[342, 2]; A[400, 28]; summ:DataFrame[4, 3]; v:int64[]; fr:DataFrame[314, 12]; RI[121221, 6]; XtX_inv[6, 6]; meat[6, 6]; ins_all[30000, 25]; ne_all[30000, 25]; maxins[30000]; ma
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,44 @@
+OUTPUT of Python run 189 of at most 300:
+```
+BASELINE MATCH ERROR 0.0
+
+NE ARCHIVE SUMMARY
+ne_reduced107.npz [('delta', (192, 192)), ('ne_delta', (192, 192)), ('scale', ())]
+norm 1104.404 sv [1104.404052734375, 0.0, 0.0]
+ne_candidate151.npz [('ne_delta', (192, 192)), ('total_delta', (192, 192)), ('gamma', ())]
+norm 411.657 sv [361.54400634765625, 144.9199981689453, 83.6729965209961]
+ne_candidate154.npz [('baseline_delta', (192, 192)), ('ne_delta', (192, 192)), ('weight', (192, 192)), ('gamma', ())]
+norm 365.634 sv [342.176, 111.105, 41.01]
+ne_candidate155.npz [('weight', (192, 192)), ('baseline_delta', (192, 192)), ('ne_delta', (192, 192)), ('strength', ())]
+norm 164.663 sv [144.618, 57.968, 33.469]
+
+PAIRED TRAINING STATE SCHEMA
+original [('x', (4035, 992)), ('stay_id', (4035,)), ('hour', (4035,)), ('has_insulin', (4035,)), ('has_norepinephrine', (4035,)), ('n_atoms', (4035,))]
+edited [('x', (4035, 992)), ('stay_id', (4035,)), ('hour', (4035,)), ('has_insulin', (4035,)), ('has_norepinephrine', (4035,)), ('n_atoms', (4035,))]
+
+RECONSTRUCTION ENTRY POINTS
+('r2_score', ('args', 'kwargs', 'global_skip_validation', 'func_sig', 'params', 'p', 'to_ignore'), ('get_config', 'signature', 'bind', 'apply_defaults', 'parameters', 'values', 'kind', 'VAR_POSITIONAL', 'VAR_KEYWORD', 'name', 'arguments', 'items'))
+('recon_lin', ('x', 'p'), ('F', 'linear', 'W0', 'get'))
+('recon_mlp', ('x', 'p', 'act', 'fn'), ('F', 'gelu', 'relu', 'silu', 'recon_lin'))
+('recon_norm', ('x', 'p'), ('F', 'layer_norm', 'W0'))
+('recon_ctx', ('indices', 'act', 'gap_style', 'previous', 'dt', 'hh', 'lg'), ('np', 'asarray', 'int', 'torch', 'as_tensor', 'S0', 'float32', 'reshape', 'exp', 'W0', 'log1p', 'log'))
+('recon_single_set', ('atoms', 'prefix', 'pooled'), ('recon_mlp', 'recon_lin', 'torch', 'full', 'shape', 'np', 'log', 'float32', 'recon_norm'))
+('recon_atom', ('drug', 'records', 'unit_id', 'rate_unit_id', 'kq_id', 'numeric', 'bins'), ('np', 'zeros', 'len', 'float32', 'array', 'getattr', 'NUM_SPEC', 'clip', 'searchsorted', 'W0', 'CODE_ID', 'F'))
+('recon_record_atom', ('row', 'kind', 'end_numeric', 'end_units', 'drug', 'numeric', 'bin_terms'), ('event', 'torch', 'zeros', 'getattr', 'np', 'isfinite', 'NUM_SPEC', 'get', 'float', 'clip', 'int', 'searchsorted'))
+('recon_sets', ('atom_lists', 'prefix', 'empty_zero', 'x', 'counts', 'width', 'packed'), ('torch', 'tensor', 'len', 'float32', 'max', 'zeros', 'enumerate', 'stack', 'recon_mlp', 'sum', 'clamp_min', 'sqrt'))
+('single_encode_batch', ('atoms', 'prefix', 'n', 'size', 'mid'), ('len', 'torch', 'full', 'float', 'np', 'log', 'float32', 'recon_mlp', 'recon_lin', 'recon_norm'))
+('core_lin', ('x', 'p'), ('F', 'linear', 'W0', 'get'))
+('core_norm', ('x', 'p'), ('F', 'layer_norm', 'W0'))
+('core_ffn', ('x', 'p'), ('core_lin', 'F', 'gelu'))
+('core_attn', ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode'), ('core_lin', 'chunk', 'shape', 'reshape', 'transpose', 'F', 'scaled_dot_product_attention'))
+('core_layer', ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode'), ('core_attn', 'core_norm', 'core_ffn'))
+('make_core_memory', ('include_current', 'histories', 'rr', 'sid', 'end', 'hist', 'length'), ('core_rows', 'state_df', 'iloc', 'stay_id', 'int', 'np', 'flatnonzero', 'to_numpy', 'append', 'max', 'map', 'len'))
+('core_update_local', ('z', 'config', 'h_flow', 'e', 'u', 'memory_data', 'nheads'), ('core_h_flow', 'core_E_obs', 'core_U_actions', 'core_memories', 'core_ffn', 'torch', 'log1p', 'clamp_min', 'cat', 'W0', 'core_lin', 'core_layer'))
+('prelude46', ('h', 'e', 'u', 'z', 'batch', 'pieces', 'start'), ('range', 'len', 'min', 'torch', 'cat', 'W0', 'core_lin', 'core_layer', 'append', 'core_norm'))
+('old_core_lin46', ('x', 'p'), ('F', 'linear', 'W0', 'get'))
+('capturing_core_lin46', ('x', 'prefix'), ('clone', 'capture46', 'old_core_lin46'))
+('prelude_hidden93', ('h', 'e', 'u', 'z', 'batch', 'hidden_parts', 'raw_parts'), ('range', 'len', 'min', 'torch', 'cat', 'W0', 'core_lin', 'core_attn', 'core_norm', 'F', 'gelu', 'append'))
+('bundle_target115', ('key', 'y'), ('np115', 'Y81', 'astype', 'np', 'float64', 'reshape', 'size', 'ncf115', 'mean', 'ValueError', 'shape'))
+Total matching helpers: 22
+
+```

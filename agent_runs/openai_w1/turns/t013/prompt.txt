@@ -1,0 +1,193 @@
+OUTPUT of Python run 8 of at most 300:
+```
+=== HEAD / CORE SHAPES ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+embed_transition.value_bin.weight (221, 17)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+
+=== VOCABULARY ===
+Top-level keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+
+=== RECONSTRUCTION HELPERS ===
+
+ activation
+ 22           0 RESUME                   0
+
+ 23           2 LOAD_FAST                1 (kind)
+              4 LOAD_CONST               1 ('silu')
+              6 COMPARE_OP              40 (==)
+             10 POP_JUMP_IF_FALSE       21 (to 54)
+             12 LOAD_GLOBAL              1 (NULL + TF)
+             22 LOAD_ATTR                2 (silu)
+             42 LOAD_FAST                0 (x)
+             44 CALL                     1
+             52 RETURN_VALUE
+        >>   54 LOAD_GLOBAL              1 (NULL + TF)
+             64 LOAD_ATTR                4 (gelu)
+             84 LOAD_FAST                0 (x)
+             86 CALL                     1
+             94 RETURN_VALUE
+
+ lin
+ 18           0 RESUME                   0
+
+ 19           2 LOAD_GLOBAL              1 (NULL + TF)
+             12 LOAD_ATTR                2 (linear)
+             32 LOAD_FAST                0 (x)
+             34 LOAD_GLOBAL              4 (W)
+             44 LOAD_FAST                1 (prefix)
+             46 LOAD_CONST               1 ('.weight')
+             48 BINARY_OP                0 (+)
+             52 BINARY_SUBSCR
+             56 LOAD_GLOBAL              4 (W)
+             66 LOAD_ATTR                7 (NULL|self + get)
+             86 LOAD_FAST                1 (prefix)
+             88 LOAD_CONST               2 ('.bias')
+             90 BINARY_OP                0 (+)
+             94 CALL                     1
+            102 CALL                     3
+            110 RETURN_VALUE
+
+ norm
+ 20           0 RESUME                   0
+
+ 21           2 LOAD_GLOBAL              1 (NULL + TF)
+             12 LOAD_ATTR                2 (layer_norm)
+             32 LOAD_FAST                0 (x)
+             34 LOAD_FAST                0 (x)
+             36 LOAD_ATTR                4 (shape)
+             56 LOAD_CONST               1 (-1)
+             58 BINARY_SUBSCR
+             62 BUILD_TUPLE              1
+             64 LOAD_GLOBAL              6 (W)
+             74 LOAD_FAST                1 (prefix)
+             76 LOAD_CONST               2 ('.weight')
+             78 BINARY_OP                0 (+)
+             82 BINARY_SUBSCR
+             86 LOAD_GLOBAL              6 (W)
+             96 LOAD_FAST                1 (prefix)
+             98 LOAD_CONST               3 ('.bias')
+            100 BINARY_OP                0 (+)
+            104 BINARY_SUBSCR
+            108 CALL                     4
+            116 RETURN_VALUE
+
+ mlp
+ 24           0 RESUME                   0
+
+ 25           2 LOAD_GLOBAL              1 (NULL + lin)
+             12 LOAD_GLOBAL              3 (NULL + activation)
+             22 LOAD_GLOBAL              1 (NULL + lin)
+             32 LOAD_FAST                0 (x)
+             34 LOAD_FAST                1 (prefix)
+             36 LOAD_CONST               1 ('.0')
+             38 BINARY_OP                0 (+)
+             42 CALL                     2
+             50 LOAD_FAST                2 (kind)
+             52 CALL                     2
+             60 LOAD_FAST                1 (prefix)
+             62 LOAD_CONST               2 ('.2')
+             64 BINARY_OP                0 (+)
+             68 CALL                     2
+             76 RETURN_VALUE
+
+ fine_bin
+ 29           0 RESUME                   0
+
+ 30           2 LOAD_CONST               1 (1)
+              4 LOAD_GLOBAL              0 (np)
+             14 LOAD_ATTR                3 (NULL|self + searchsorted)
+             34 LOAD_GLOBAL              4 (numeric_meta)
+             44 LOAD_FAST                0 (event)
+             46 LOAD_FAST                2 (attr)
+             48 BUILD_TUPLE              2
+             50 BINARY_SUBSCR
+             54 LOAD_CONST               2 ('fine_bin_edges')
+             56 BINARY_SUBSCR
+             60 LOAD_FAST                1 (value)
+             62 LOAD_CONST               3 ('left')
+             64 KW_NAMES                 4 (('side',))
+             66 CALL                     3
+             74 BINARY_OP                0 (+)
+             78 RETURN_VALUE
+
+=== RECORD AND STATE ALIGNMENT ===
+['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+   stay_id  hour          event  value  rate rate_unit  dose dose_unit  end_hour
+1010000000  -1.0 glucose_finger  205.0   NaN       NaN   NaN       NaN       NaN
+1010000000  -1.0       map_cuff   88.0   NaN       NaN   NaN       NaN       NaN
+1010000000   0.0 glucose_finger  215.0   NaN       NaN   NaN       NaN       NaN
+1010000000   0.0       map_cuff   87.0   NaN       NaN   NaN       NaN       NaN
+1010000000   1.0 glucose_finger  214.0   NaN       NaN   NaN       NaN       NaN
+1010000000   1.0       map_cuff   88.0   NaN       NaN   NaN       NaN       NaN
+1010000000   2.0 glucose_finger  217.0   NaN       NaN   NaN       NaN       NaN
+1010000000   2.0       map_cuff   84.0   NaN       NaN   NaN       NaN       NaN
+   stay_id  hour          event  observed  predicted_mean    nll
+1010000000  -1.0       map_cuff      88.0         78.6854 2.2975
+1010000000  -1.0 glucose_finger     205.0        158.0673 2.4034
+1010000000   0.0       map_cuff      87.0         89.0170 2.0711
+1010000000   0.0 glucose_finger     215.0        200.4369 0.7810
+1010000000   1.0       map_cuff      88.0         84.5626 1.8812
+1010000000   1.0 glucose_finger     214.0        206.8385 0.6783
+1010000000   2.0       map_cuff      84.0         87.5277 2.0342
+1010000000   2.0 glucose_finger     217.0        207.5955 1.3674
+State keys/shapes: [('x', (4116, 992)), ('stay_id', (4116,)), ('hour', (4116,)), ('has_insulin', (4116,)), ('has_norepinephrine', (4116,)), ('n_atoms', (4116,))]
+stay_id [1010000000 1010000000 1010000000 1010000000 1010000000 1010000000
+ 1010000000 1010000000 1010000000 1010000000 1010000000 1010000000
+ 1010000000 1010000000 1010000000 1010000000 1010000000 1010000000]
+hour [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833  3.
+  3.0833  4.      4.0833  5.      5.0833  6.      6.0833  7.      7.0833]
+has_insulin [False False False  True False  True False  True False  True False  True
+ False  True False  True False  True]
+has_norepinephrine [False False False False False False False False False False False False
+ False False False False False False]
+n_atoms [1 2 3 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2]
+lastnum first rows: [[0.         0.         0.         0.         0.         0.
+  0.         0.        ]
+ [0.         0.         0.         0.         0.         0.
+  0.         0.        ]
+ [1.         0.81889665 0.7735849  0.         0.         1.
+  0.         0.        ]
+ [1.         0.81889665 0.4117647  0.         0.         1.
+  0.         0.        ]
+ [1.         0.81889665 0.9622642  0.         0.         1.
+  0.         0.        ]
+ [1.         0.81889665 0.3529412  0.         0.         1.
+  0.         0.        ]
+ [1.         0.81889665 0.9433962  0.         0.         1.
+  0.         0.        ]
+ [1.         0.81889665 0.4117647  0.         0.         1.
+  0.         0.        ]]
+HM first rows: [[0.00000000e+00 3.60000000e+03 6.00000000e+00 0.00000000e+00
+  0.00000000e+00 0.00000000e+00 0.00000000e+00 1.20000000e+01]
+ [0.00000000e+00 3.60000000e+03 5.00000000e+00 0.00000000e+00
+  0.00000000e+00 0.00000000e+00 0.00000000e+00 1.10000000e+01]
+ [1.00000000e+00 3.60000000e+03 6.00000000e+00 1.00000000e+00
+  3.60000000e+03 7.73584906e-01 1.20000000e+01 1.20000000e+01]
+ [1.00000000e+00 3.60000000e+03 5.00000000e+00 1.00000000e+00
+  3.60000000e+03 4.11764706e-01 1.10000000e+01 1.00000000e+01]
+ [3.00000000e+00 3.30012000e+03 6.00000000e+00 1.00000000e+00
+  3.60000000e+03 9.62264151e-01 1.20000000e+01 1.20000000e+01]
+ [3.00000000e+00 3.30012000e+03 5.00000000e+00 1.00000000e+00
+  3.60000000e+03 3.52941176e-01 1.00000000e+01 1.10000000e+01]
+ [5.00000000e+00 3.30012000e+03 6.00000000e+00 1.00000000e+00
+  3.60000000e+03 9.43396226e-01 1.20000000e+01 1.30000000e+01]
+ [5.00000000e+00 3.30012000e+03 5.00000000e+00 1.00000000e+00
+  3.60000000e+03 4.11764706e-01 1.10000000e+01 9.00000000e+00]]
+Las
+[output cut at 10,000 characters]
+```

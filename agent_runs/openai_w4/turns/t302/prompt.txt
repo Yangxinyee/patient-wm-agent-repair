@@ -1,0 +1,149 @@
+OUTPUT of Python run 260 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+RELEVANT RETAINED VARIABLES
+A192 ndarray (4059, 577)
+D192 ndarray (1126, 577)
+D_parts192 [array([[ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00, ...,
+         1.70699900e+00,  3.69086185e+00,  0.00000000e+00],
+       [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00, ...,
+         6.48637965e-02,  2.10519593e-02,  0.00000000e+00],
+       [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00, ...,
+         6.48637965e-02,  2.10519593e
+Enew186 ndarray (4059, 4, 192)
+Eold186 ndarray (4059, 4, 192)
+W_repair DICT 181 keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'code_bias', 'cont_head.0.bias', 'cont_head.0.weight', 'cont_head.2.bias', 'cont_head.2.weight', 'core.a_in']
+Znew186 ndarray (4059, 32)
+Zold186 ndarray (4059, 32)
+act_repair FUNCTION (x, kind) names ('F', 'gelu', 'silu', 'torch', 'tanh', 'relu')
+action_atom_vectors_repair DICT 2 keys ['insulin', 'norepinephrine']
+action_ctx_repair Tensor (133, 192)
+action_fixture_repair DataFrame
+active192 ndarray (4059,)
+active_ne180 ndarray (4059,)
+atom_embedding_repair FUNCTION (event, values=None, rates=None, doses=None, unit=0, rate_unit=0, kind=0, ekind=None, side='left') names ('len', 'np', 'atleast_1d', 'zeros', 'float32', 'int64', 'asarray', 'float', 'reshape', 'isfinite', 'numeric_specs_repair', 'clip', 'searchsorted', 'rW', 'code_ids_repair', 'NAMES', 'startswith', 'endswith', 'split', 'rp_linear', 'torch', 'from_numpy', 'items')
+atom_recipe_repair DICT 2 keys ['insulin', 'norepinephrine']
+axis_ne186 ndarray (32,)
+b259 ndarray (192,)
+base_coef192 ndarray (577,)
+base_q192 ndarray (4059,)
+basis186 ndarray (192, 185)
+best_nll_repair ndarray (4903,)
+best_pred_repair ndarray (4903,)
+best_trial_key_repair ('silu', 1.0, 'mean', 3, 'zero', 'gelu')
+best_trial_repair Series
+bin_t_repair Tensor (4903,)
+c180 100.0
+c250 code
+calibrations192 DICT 8 keys [(0.001, 1.0), (0.001, 10.0), (0.001, 100.0), (0.001, 1000.0), (0.01, 1.0), (0.01, 10.0), (0.01, 100.0), (0.01, 1000.0)]
+candidate258 FUNCTION (gain, gate_shift) names ('base257', 'items', 'clone258', 'like258', 'np258', 'ins_dw257', 'ins_gain_db257', 'ins_gate_db257')
+candidates258 DICT 7 keys [(1.25, 28.0), (1.5, 28.0), (1.75, 30.0), (2.0, 32.0), (2.25, 34.0), (2.5, 36.0), (3.0, 40.0)]
+capture_transition102 FUNCTION (indices, action_override=None) names ('sys', 'getprofile', 'setprofile', 'transition73')
+carrier_ne186 ndarray (192,)
+check258 DICT 181 keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'code_bias', 'cont_head.0.bias', 'cont_head.0.weight', 'cont_head.2.bias', 'cont_head.2.weight', 'core.a_in']
+check_detail_repair DataFrame
+clone258 FUNCTION (x) names ('torch', 'is_tensor', 'detach', 'clone', 'np', 'asarray', 'copy')
+code_ids_repair DICT 13 keys ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff', 'glucose_finger', 'map_arterial', 'insulin', 'norepinephrine', 'glucose_lab', 'hospital_admission', 'icu_admission']
+code_lookup_repair DICT 13 keys ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff', 'glucose_finger', 'map_arterial', 'insulin', 'norepinephrine', 'glucose_lab', 'hospital_admission', 'icu_admission']
+code_t_repair Tensor (4903,)
+coef_ne186 ndarray (577,)
+collect_channel186 FUNCTION () names ('range', 'len', 'indices102', 'capture_transition102', 'append', 'as_np184', 'np', 'concatenate')
+constraints186 ndarray (7, 192)
+context_base_repair Tensor (4903, 192)
+controlled_action_repair DICT 2 keys ['insulin', 'norepinephrine']
+core_trial_cache_repair DICT 240 keys [('silu', 1.0, 'mean', 3, 'zero', 'silu'), ('silu', 1.0, 'mean', 3, 'zero', 'gelu'), ('silu', 1.0, 'mean', 3, 'seen', 'silu'), ('silu', 1.0, 'mean', 3, 'seen', 'gelu'), ('silu', 1.0, 'mean', 4, 'zero', 'silu'), ('silu', 1.0, 'mean', 4, 'zero', 'gelu'), ('silu', 1.0, 'mean', 4, 'seen', 'silu'), ('silu', 1.0, 'mean', 4, 'seen', 'gelu'), ('silu', 1.0, 'mean', 5, 'zero', 'silu'), ('silu', 1.0, 'mean', 5, 'zero', 'gelu'), ('silu', 1.0, 'mean', 5, 'seen', 'silu'), ('silu', 1.0, 'mean', 5, 'seen', 'gelu'), ('silu', 1.0, 'mean', 6, 'z
+[output cut at 10,000 characters]
+```

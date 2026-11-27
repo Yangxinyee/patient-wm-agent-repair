@@ -1,0 +1,15 @@
+Run 24 lists the tensors. The value head `attr_heads.value_bin` is a two-layer MLP: 192 → 192 hidden units → 17 bins. Its input is with_code = query_norm(view + type) + code embedding + last-value registers. The posterior `z_post` reads [ctx, e_k, u_k] directly, so the dose reaches the state through z_post and the prelude's u token.
+
+The model barely uses the dose for one-step glucose prediction. So I'm considering two kinds of edit:
+- (a) a head-level correction that reads a dose signal from the state and shifts the glucose/MAP bin distribution;
+- (b) an input/core-level change.
+
+Both require knowing whether the state at the next prediction actually carries the dose. They also require that I can reproduce the heads on CPU from states.
+
+Next I'll request states for the same 100 training stays (sel2) whose factual predictions I already have. With those I can:
+1. validate a CPU reimplementation of the view and value head against the reported predicted means;
+2. test how well the within-tier dose can be linearly decoded from the state.
+
+```forward
+{"type": "states", "model": "original", "split": "train", "stays": [1010000522, 1010000773, 1010000900, 1010001059, 1010001616, 1010001786, 1010001815, 1010002442, 1010002623, 1010003205, 1010003210, 1010003338, 1010003362, 1010003681, 1010003921, 1010004246, 1010004553, 1010005762, 1010006178, 1010006919, 1010007176, 1010007385, 1010007455, 1010007594, 1010007850, 1010007886, 1010008345, 1010008388, 1010008580, 1010008743, 1010009250, 1010009381, 1010009878, 1010010264, 1010010488, 1010010749, 1010011374, 1010011452, 1010011922, 1010012046, 1010012184, 1010012326, 1010012971, 1010013059, 1010013241, 1010013317, 1010013383, 1010013403, 1010014040, 1010014498, 1010014542, 1010014598, 1010015111, 1010015137, 1010015150, 1010015469, 1010015471, 1010015690, 1010015738, 1010016138, 1010017266, 1010017499, 1010018021, 1010018254, 1010018579, 1010018939, 1010019973, 1010021332, 1010021467, 1010021923, 1010022022, 1010022081, 1010022126, 1010022646, 1010023168, 1010023201, 1010023243, 1010023973, 1010024229, 1010024245, 1010024530, 1010024606, 1010025001, 1010025136, 1010025140, 1010025335, 1010025770, 1010026356, 1010027104, 1010027179, 1010027339, 1010027351, 1010028106, 1010028473, 1010028573, 1010028751, 1010029160, 1010029313, 1010029623, 1010029698], "bundles": "all"}
+```

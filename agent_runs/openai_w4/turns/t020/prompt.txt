@@ -1,0 +1,98 @@
+OUTPUT of Python run 15 of at most 300:
+```
+=== VIEW AND REGISTER TENSORS ===
+core.a_in (192,)
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.b_in.weight (192, 192)
+core.c_out.weight (192, 192)
+core.delta_in (192,)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+core.slots (4, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+numeric_note: z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+last_numeric column norms: [3.0018 3.0208 2.7363 3.2639 2.8263 2.8572 3.6374 4.4424]
+
+=== PREVIOUS BEST CANDIDATES ===
+zcol                6
+agecol              3
+flags            (0,)
+head_act         silu
+mean_RMSE    2.769747
+nll_RMSE     0.290933
+core_act              silu
+gap_factor             1.0
+latent                mean
+value_flag_col           3
+status                zero
+head_act              gelu
+mean_RMSE         7.656681
+nll_RMSE          0.556231
+mean_nll          1.729388
+check_detail columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll', 'reconstructed', 'mean_error']
+   stay_id  hour          event  observed  predicted_mean    nll  reconstructed  mean_error
+2020000000  -1.0       map_cuff      95.0         75.8877 2.9406      81.883492    5.995792
+2020000000   0.0    glucose_lab     108.0        129.6761 1.9101     121.984032   -7.692068
+2020000000   0.0       map_cuff      88.0         89.8653 1.5032      94.516144    4.650844
+2020000000   0.0 glucose_finger     113.0        128.8972 1.0818     123.806831   -5.090369
+2020000000   1.0       map_cuff      89.0         87.5879 1.6150      92.160576    4.572676
+
+=== INPUT ALIGNMENT ===
+   stay_id  hour          event  observed  predicted_mean    nll  prev_state_index     dt  has_last      age    last_z  last_bin  state_hour
+2020000000  -1.0       map_cuff      95.0         75.8877 2.9406                 0 3600.0       0.0 0.000000  0.000000         0        -2.0
+2020000000   0.0    glucose_lab     108.0        129.6761 1.9101                 1 3600.0       0.0 0.000000  0.000000         0        -1.0
+2020000000   0.0       map_cuff      88.0         89.8653 1.5032                 1 3600.0       1.0 0.818897  0.823529        12        -1.0
+2020000000   0.0 glucose_finger     113.0        128.8972 1.0818                 1 3600.0       0.0 0.000000  0.000000         0        -1.0
+2020000000   1.0       map_cuff      89.0         87.5879 1.6150                 2 3600.0       1.0 0.818897  0.411765        11         0.0
+2020000000   1.0 glucose_finger     112.0        112.2823 0.6619                 2 3600.0       1.0 0.818897 -0.943396         5         0.0
+2020000000   2.0    glucose_lab     124.0        110.8012 2.8872                 3 3600.0       1.0 0.888198 -0.622642         5         1.0
+2020000000   2.0       map_cuff      84.0         90.4948 2.4009                 3 3600.0       1.0 0.818897  0.470588        11         1.0
+2020000000   3.0       map_cuff      91.0         88.2188 1.4453                 4 3600.0       1.0 0.818897  0.176471         9         2.0
+2020000000   4.0       map_cuff      89.0         88.2844 1.5306                 5 3600.0       1.0 0.818897  0.588235        11         3.0
+2020000000   4.0 glucose_finger     121.0        118.2863 0.5293                 5 3600.0       1.0 0.928739 -0.962264         5         3.0
+2020000000   5.0    glucose_lab     124.0        122.5613 0.9981                 6 3600.0       1.0 0.928739 -0.320755         7         4.0
+
+=== SEARCH-INPUT CONVENTIONS ===
+sample indices: [2773 2981 2656   27  244  181]
+sample_has [1. 1. 1. 1. 1. 0.]
+sample_age [0.8188967 0.9287394 0.8188967 0.8188967 0.8188967 0.       ]
+sample_z [-0.6666667 -0.5471698  0.0754717  0.1764706  0.4716981  0.       ]
+raw has: [1. 1. 1. 1. 1. 0.]
+raw age: [0.81889669 0.9287394  0.81889669 0.81889669 0.81889669 0.        ]
+raw z: [-0.66666667 -0.54716981  0.0754717   0.17647059  0.47169811  0.        ]
+log1p(age)/10: [0.05982301 0.06568666 0.05982301 0.05982301 0.05982301 0.        ]
+
+=== REPRODUCED BEST REGISTER CANDIDATE ===
+mean RMSE: 2.769746751263416
+NLL RMSE: 0.2909334193527782
+               mean_error         nll_error        
+                     mean     std      mean     std
+event                                              
+glucose_finger    -0.8664  3.4117    0.0194  0.2367
+glucose_lab       -1.1241  3.4870   -0.0122  0.2211
+map_arterial       0.6826  1.2863    0.0555  0.2666
+map_cuff           0.8652  2.1059    0.0121  0.3710
+
+Largest NLL discrepancies:
+   stay_id  hour        event  observed  predicted_mean    nll  mean_error  nll_error
+2020000063  20.0     map_cuff      81.0         87.2401 2.0125    2.962842   0.940234
+2020000056   7.0 map_arterial      83.0         90.4216 2.5773    1.427323   0.947593
+2020000039   9.0 map_arterial      98.0         88.9021 3.2444    2.008369  -1.010210
+2020000027   7.0     map_cuff      85.0         95.9548 2.9294    3.818966   1.045473
+2020000087   1.0 map_arterial      79.0         89.8194 2.8864    0.040364   1.080413
+2020000032  -1.0 map_arterial      85.0         67.6494 3.2034    5.726050  -1.082298
+2020000078  15.0     map_cuff     113.0         92.9790 3.4072    6.243565  -1.465142
+2020000001   7.0     map_cuff      53.0         45.8837 2.0144   -3.719771   1.508288
+
+```

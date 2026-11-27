@@ -1,0 +1,165 @@
+OUTPUT of Python run 254 of at most 300:
+```
+EARLY IDENTIFICATION NOTES
+ active  52643 -2.101326    0.073338
+   glucose_lab           hour 0   1868 -1.747917    0.457723
+   glucose_lab        hours 1-5   9655 -1.874173    0.178218
+   glucose_lab       hours 6-11  12707 -2.138924    0.153661
+   glucose_lab      hours 12-23  28413 -2.175754    0.097108
+   glucose_lab both sensors now  10073 -1.942218    0.157055
+  map_arterial       all active 152923  3.104719    0.088675
+  map_arterial           hour 0   6367  1.343762    0.313113
+  map_arterial        hours 1-5  32415  3.520649    0.224280
+  map_arterial       hours 6-11  38900  2.879506    0.178614
+  map_arterial      hours 12-23  75241  3.387522    0.116377
+  map_arterial both sensors now  43223  3.164128    0.159062
+      map_cuff       all active 111949  2.788186    0.172623
+      map_cuff           hour 0   4596 -2.065359    0.630626
+      map_cuff        hours 1-5  23444  2.883714    0.451089
+      map_cuff       hours 6-11  28356  3.309199    0.350870
+      map_cuff      hours 12-23  55553  3.324056    0.234617
+      map_cuff both sensors now  13489  3.439605    0.434051
+
+## Identification checks ? Python 5; forward 2
+- Crossfit estimates support insulin approximately -2 per unit/hour on both glucose sensors. NE approximately +3 after startup; hour-0 disagreement remains unresolved.
+- Checked empirically located insulin dose-policy discontinuities with local linear IV and a pre-dose lab placebo. Discrete running variables and smoothness assumptions limit RD certainty.
+     n  dose_jump  outcome_jump  IV_effect  cluster_se               sensor  bandwidth    sample
+ 91629   0.694895     -1.559407  -2.244089    0.276843       glucose_finger          6 all hours
+  3367   0.763631      0.576171   0.754515    1.301074       glucose_finger          6    hour 0
+153610   0.809845     -1.787755  -2.207528    0.185199       glucose_finger         10 all hours
+  5545   0.755502    -16.388754 -21.692545    1.639247       glucose_finger         10    hour 0
+231106   0.875574     -1.808918  -2.065978    0.141024       glucose_finger         15 all hours
+  8375   0.895406      0.897508   1.002348    0.716953       glucose_finger         15    hour 0
+ 21552   0.639749     -1.000271  -1.563536    0.445901          glucose_lab          6 all hours
+   821   0.707822      6.401902   9.044512    2.478909          glucose_lab          6    hour 0
+ 35587   0.770971     -1.167060  -1.513754    0.288337          glucose_lab         10 all hours
+  1330   0.767100     -5.183869  -6.757750    1.718301          glucose_lab         10    hour 0
+ 52759   0.854804     -1.315024  -1.538392    0.213385          glucose_lab         15 all hours
+  1970   0.803874     -7.337967  -9.128259    1.419479          glucose_lab         15    hour 0
+ 21320   0.661996     -0.005302  -0.008010    0.330877 PRE-DOSE lab placebo          6 all hours
+ 35407   0.796182     -0.021624  -0.027159    0.215680 PRE-DOSE lab placebo         10 all hours
+ 52842   0.866616     -0.000792  -0.000914    0.164007 PRE-DOSE lab placebo         15 all hours
+        sensor                 state      n      beta  cluster_se
+glucose_finger  lower predicted dose 133548 -1.918558    0.088033
+glucose_finger higher predicted dose 130120 -2.000873    0.051147
+   glucose_lab  lower predicted dose  26723 -1.740929    0.147544
+   glucose_lab higher predicted dose  25920 -2.181734    0.083418
+  map_arterial  lower predicted dose  71430  2.979233    0.177470
+  map_arterial higher predicted dose  81493  3.146841    0.099880
+      map_cuff  lower predicted dose  60748  1.591780    0.337326
+      map_cuff higher predicted dose  51201  3.240350    0.199530
+
+## Resumed investigation ? Python 6; forward 2
+- Re-reading architecture, tensor inventory, and retained analysis objects before designing an edit.
+- No weights changed. Insulin ~-2 and post-startup NE ~+3 remain provisional record-based estimates.
+
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.090980
+  map_arterial        1 146556            3.288830                0.091241
+  map_arterial        2 140386            2.619413                0.108577
+  map_arterial        3 134227            1.746272                0.119747
+  map_arterial        4 128040            0.978531                0.129902
+  map_arterial        5 121841            0.413443                0.143354
+  map_arterial        6 115642            0.262312                0.152404
+  map_arterial        7 109414            0.015095                0.165928
+  map_arterial        8 103125            0.023246                0.179389
+
+## Local head reconstruction ? Python 9; forward 4
+- Captured original states and factual predictions for 100 training stays (original NLL 1.63805).
+age_unit      layout  status  type_index  gap_scale  mean_abs_difference  rms_difference
+   hours interleaved       0           1        0.1             3.061518        5.090333
+ seconds interleaved       0           1        0.1             3.371605        5.700936
+   hours     grouped       0           1        0.1             5.040884        8.075172
+ seconds     grouped       0           1        0.1             5.345762        8.810462
+   hours interleaved      
+
+IMPORTANT LATER SECTIONS
+## Python 186 ? install alpha-1 direct-head candidate
+- Verified cached features exactly reconstruct final-layer logits.
+- Installed rank-one ordinal corrections to value_bin.2 weight and bias only; saved candidate186.npz.
+- Approximate held dNLL +.00387 is not certification. Next: matched GPU factual and rollout tests.
+
+
+## Python 188; forwards 15?16 ? establish fallback, inspect stronger pathway
+- Gain .6 head edit: tuning dNLL +.00277; insulin x2 -2.250, half +1.301; NE x2 +.383, half -.039.
+- This is safe on the first 100 tuning stays but too weak to constitute a sufficient repair.
+- Saved fallback188.npz and restored original weights to isolate further experiments.
+
+
+## Python 203?204 ? correct private routing geometry
+- Run 203 installed a zero-effect candidate but failed on an output-file lookup. The innovation readout exposed a unit-vector scaling error.
+- Removed that candidate, corrected anchor/key/value scaling, and numerically checked innovation transport before reinstalling.
+- Neutral204 is saved; drug-response columns are still zero. Next decision requires actual factual NLL on 100 tuning stays.
+
+
+## Python 215 ? forward-only token-response regression
+- Measured sensor-mean finite differences for every latent-token coordinate on 258 anchored action contexts.
+- Fitted ridge response directions against record-derived proximal effects, subtracting native dose response.
+- Stay-held checks and explicit x0?x3 innovation scaling are diagnostics, not rollout certification.
+- Saved token_directions215.npz; installed neutral weights unchanged.
+
+
+## Python 216 ? finite-dose private-token calibration checks
+- Local rowwise regression underdelivered because many original states ignore the latent token.
+- Compared rowwise and minimum-norm mean-response directions with actual x0, half, x2 and x3 action encodings.
+- Testing saturation, cross-sensor leakage and factual proxy shifts before installation.
+- Neutral209 remains the only installed edit.
+
+
+## Python 220 ? closed-form neutral-routing compensation
+- Fitted only a final-FFN linear correction; no gradients or optimizer used.
+- Uncompensated held slot RMS 0.768128; best compensated held RMS 0.600247, ridge 0.001.
+- Saved compensated220.npz but did not install it. GPU factual validation remains necessary.
+
+
+## Python 222 ? small-signal, anchor-free routing candidate
+- Built isolated innovation axes; latent-token selector uses no anchor.
+- Best held attention RMS 0.219222; best held final-slot RMS 0.319911.
+- Saved small_route222.npz with zero response output columns. Not installed yet; requires factual validation.
+
+
+
+HELPERS
+load (name)
+load_original (name)
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+linear136 (x, prefix)
+norm136 (x, prefix)
+mlp136 (x, prefix)
+attention136 (x, memory, prefix, key_add=None, mask=None)
+block136 (x, prefix, memory=None, ages=None, age_mode='key', mask=None)
+core_step136 (h_before, dt_seconds, e, u, z, memory, ages, age_mode='key', mask=None)
+atom137 (row, unit_index=0, rate_unit_index=0, end=False, end_ekind=None)
+pool137 (atoms, prefix, zero_empty=False)
+posterior137 (indices, e, u)
+atom138 (row, unit_index=0, rate_unit_index=0, end=False, end_ekind=None, bin_side='left')
+mlp138 (x, prefix, activation='gelu')
+_f (indices, e, u)
+_fn (x, prefix)
+measurement_atom143 (r)
+atom145 (r, unit=0, add_absent_bins=True)
+singleton_encoder145 (atoms)
+obs_atom146 (r)
+fn (scales)
+encode_rows152 (rows, groups, ends, prefix, units=True, ru=(2, 3), end_ekind=1, zero_empty=False)
+centres153 (event)
+readout153 (h, out, stay, current_hour, event, type_index=1)
+centres16_156 (event)
+readout_capture156 (h, out, stay, hour, event, type_index)
+capture159 (h, out, stay, hour, event)
+fn160 (h_before, dt_seconds, e, u, z, memory, ages, age_mode='key', mask=None)
+replay_inputs161 (i, include_current=False, age_scal
+[output cut at 10,000 characters]
+```

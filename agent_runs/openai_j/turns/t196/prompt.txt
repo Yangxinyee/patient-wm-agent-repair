@@ -1,0 +1,99 @@
+OUTPUT of Python run 176 of at most 300:
+```
+=== RESPONSE-KERNEL EVIDENCE ===
+## Fixed-dose response-kernel estimates
+- Fit geometric kernels to instrument/outcome moments, including subsequent recorded doses.
+- Insulin instrument: paired-sensor noise difference with past-only controls.
+- NE instrument: cross-fitted policy innovation with measured-history controls; stronger sequential-unconfoundedness assumption.
+- insulin: rho=0.82939, beta=-2.30803
+- norepinephrine: rho=0.63511, beta=3.55456
+          drug  factor   first100     all400
+       insulin     0.0  10.528802  11.082850
+       insulin     0.5   5.264401   5.541425
+       insulin     1.5  -5.264401  -5.541425
+       insulin     2.0 -10.528802 -11.082850
+       insulin     3.0 -21.057603 -22.165700
+norepinephrine     0.0  -3.808429  -3.969327
+norepinephrine     0.5  -1.904215  -1.984664
+norepinephrine     1.5   1.904215   1.984664
+norepinephrine     2.0   3.808429   3.969327
+norepinephrine     3.0   7.616858   7.938655
+- Python runs: 12. Forward passes: 3. No edits yet.
+
+## Head reconstruction setup
+- Original factual training first 100: value NLL 1.64546 (4,510 readings).
+- Saved states matched to preceding bundles; testing numerical head conventions before any edit.
+- Insulin long-horizon kernel remains weakly identified; NE evidence is more stable.
+- Python runs: 16. Forward passes: 4. No edits.
+
+## Reconstruction diagnostics
+- Best initial conventions: GELU, type 1, interleaved last numeric, status 0, seconds/10.
+- Reconstruction scaled mean RMSE ~0.115; expected four-prior-draw noise ~0.0475.
+- Bin boundary, centre-value, and latent averaging checks did not explain the remaining error.
+- Performing a bounded query/context convention check; no edits.
+- Python runs: 19. Forward passes: 4.
+
+## Restart diagnostics
+- Runs 20?22: recovering head helpers and checking saved-state chronology and register dimensions. No weight edits; four forward passes used.
+
+- Run 23: saved out equals layer-normalized mean h to 7.3e-8 RMSE. Current helpers use seconds-based flow, log1p(seconds)/10, interleaved last-number fields and measurement query type 1. These still give scaled-mean RMSE 0.114; no edits.
+
+- Run 24 and forward 5: chronology is exact; absent-bin and status embeddings add zero here. Tested separate prior/world contexts and latent packing without resolving reconstruction error. Repeated original factual pass on 25 reordered training stays to quantify noise. No edits.
+
+- Run 25: repeated factual predictions differ by scaled mean RMSE 0.07198 and NLL RMSE 0.24980, implying single-pass sampling noise ~0.051. Reconstruction has larger systematic positive bias. All matched state IDs are correct. Insulin kernel bootstrap is very weak (rho often reaches bounds); NE kernel is substantially more stable. Treat long-horizon insulin targets as uncertain. No edits; five forward passes.
+
+- Run 26: fresh reconstruction exactly reproduced existing inputs. Documented flow still gives scaled mean RMSE 0.114 and bias 0.054; doubled flow improves RMSE to 0.097 but is not yet justified. No edits. Re-reading architecture and recovering
+=== MAP CANDIDATE ===
+(1.0, 1.0) ndarray (193,) 
+(3.0, 1.0) ndarray (193,) 
+(0.3, 1.0) ndarray (193,) 
+ cross   fw  ridge  weight_norm   cv_dNLL  tuning_dNLL  tuning_tilt_rms  latent_tilt_sd  I_to_M0.5  I_to_M2.0     N0.5     N2.0
+   0.0  0.1 0.0001    19.458761  0.001165     0.004434         0.256759        0.018741   0.274717   0.309813 1.287568 0.558229
+   0.0  0.1 0.0010    10.213549  0.000695     0.003226         0.271918        0.046894   0.228780   0.258422 1.128767 0.480210
+   0.0  0.3 0.0001    19.850594  0.000431     0.002225         0.190155        0.008188   0.257258   0.288565 1.220884 0.521413
+   0.0  0.3 0.0010     8.811506 -0.000131     0.001041         0.172343        0.019126   0.208276   0.233599 1.056151 0.442743
+   0.0  1.0 0.0001    19.136514  0.000016     0.000767         0.127417        0.004629   0.219410   0.247280 1.101285 0.463606
+   0.0  1.0 0.0010     7.408413 -0.000231     0.000264         0.101855        0.006221   0.175504   0.198500 0.957794 0.396352
+   0.0  3.0 0.0001    16.760015 -0.000113     0.000066         0.075310        0.002764   0.173214   0.198374 0.963089 0.400672
+   0.0  3.0 0.0010     5.746683 -0.000187     0.000058         0.057495        0.002301   0.143430   0.165354 0.865619 0.354837
+   0.0 10.0 0.0001    12.083329 -0.000115    -0.000108         0.034464        0.001280   0.129083   0.151902 0.831401 0.341695
+   0.0 10.0 0.0010     3.847541 -0.000099    -0.000025         0.026398        0.000931   0.115403   0.136570 0.785262 0.319448
+   0.3  0.1 0.0001    15.776245  0.000637     0.003731         0.201859        0.011561   0.198826   0.238833 1.110900 0.488069
+   0.3  0.1 0.0010     7.862136  0.000196     0.002719         0.220414        0.035507   0.183537   0.215883 1.024366 0.437670
+   0.3  0.3 0.0001    16.264573  0.000093     0.001913         0.144412        0.006246   0.195670   0.229993 1.073553 0.463032
+   0.3  0.3 0.0010     7.067559 -0.000276     0.000961         0.139093        0.014834   0.175798   0.202771 0.978618 0.411215
+   0.3  1.0 0.0001    15.842998 -0.000123     0.000708         0.098573        0.003779   0.180827   0.209914 1.005584 0.425438
+   0.3  1.0 0.0010     6.262857 -0.000247     0.0002
+=== INSULIN CONSTRUCTION ===
+trial158_H (72160, 192)
+trial158_K (72160, 191)
+trial158_W0 (192, 192)
+trial158_W2 (17, 192)
+trial158_Y (72160, 17)
+trial158_b0 (192,)
+trial158_b2 (17,)
+trial158_c (193,)
+trial158_coef (193,)
+trial158_comp (191, 17)
+trial158_cov (191, 191)
+trial158_event map_cuff
+trial158_free (2,)
+trial158_gain 1.4
+trial158_gate (193,)
+trial158_gate_strength 200.0
+trial158_keep (190,)
+trial158_mask (4751,)
+trial158_mean (4751,)
+trial158_name tuning
+trial158_nll (4, 4751)
+trial158_rhs (191, 17)
+trial158_sel (4751,)
+=== STOCHASTIC INPUTS ===
+train [('inputs0', (4510, 192)), ('inputs', (16, 4510, 192)), ('hidden', (16, 4510, 192)), ('logits', (16, 4510, 17)), ('probs', (16, 4510, 17)), ('centres', (4510, 17)), ('target', (4510,)), ('mean', (4510,)), ('nll', (4, 4510)), ('noise', (16, 4510, 32))]
+tuning [('inputs0', (4751, 192)), ('inputs', (16, 4751, 192)), ('hidden', (16, 4751, 192)), ('logits', (16, 4751, 17)), ('probs', (16, 4751, 17)), ('centres', (4751, 17)), ('target', (4751,)), ('mean', (4751,)), ('nll', (4, 4751)), ('noise', (16, 4751, 32))]
+=== GATE ALGEBRA ===
+unit 170 coef/gate [  1.00000002 199.99999957] reconstruction RMS 5.053299837524776e-07 bias 43.700992584228516 output_axis_RMS 0.2352941334247589
+unit 89 coef/gate [7.38886298e-09 1.99999998e+02] reconstruction RMS 3.990625464012317e-07 bias 52.80631637573242 output_axis_RMS 0.2352941334247589
+gate bias tensor(0.2640) correction bias -9.105323110541734
+
+```

@@ -1,0 +1,191 @@
+OUTPUT of Python run 230 of at most 300:
+```
+=== RECORD IDENTIFICATION ===
+## Run 9
+Threshold evidence: insulin at 179.5 gives beta -2.04 (cluster SE .26, width12); at219.5 -2.28 (.48). Pre-dose lab jumps near zero; first150.5 threshold changes monitoring, so do not use that finger estimate alone. Implemented independent SSM with explicit observations -1..24 and action a[h] only in transition h->h+1, to test whether the old opposite-sign estimates arose from time alignment. No edits.
+
+## Run 10
+Explicitly aligned random-baseline SSM still conflicts with threshold evidence (glucose rho at .9999, beta -.033; MAP beta -.377). Therefore timing alone does not explain it. Fitting a separate profiled fixed-effect SSM with unrestricted stay-specific intercept and initial state; random-effect independence from adaptively selected treatments is suspect. This is a small record model, not world-model training.
+
+## Run 11
+Profiled fixed-effect SSM also gives incompatible effects (I -.419,rho .772; NE .435,rho .602), so neither simple SSM is accepted as a causal model. Insulin dose/base SD .343 overall and .330 within stay provides substantial within-stay variation. Built pre-action history features only and ran two-fold stay-separated flexible residualization (small statistical regressions, not world-model training), comparing all/active/both-current subsets and both sensors.
+
+## Run 12 / second restart
+Recovered architecture and persistent-variable inventory after original state export. No edits; insulin threshold evidence remains provisional, and neither conflicting SSM is accepted as causal truth. Next: inspect flexible residualization results and state/head pathways.
+
+## Run 14
+Recomputed cross-fitted two-treatment residual regressions with stay-clustered uncertainty and observation/active-treatment subsets; retained results in effects14. Inspecting NE policy support before accepting its effect.
+
+## Run 15 / alignment audit
+Run 14 subset masks mistakenly used columns 1:25 although P/A hour labels are 0:25. All-row residual coefficients were unaffected. Audited cross-fitted target reconstruction against offsets and recomputed masks with current hours 0:24; results retained in audit15 and effects15. No edits.
+
+## Run 16
+Alignment audit reconstructed dose at h and reading at h+1 exactly. Corrected DML: finger I=-1.936(.045), lab=-1.968(.079), arterial NE=3.049(.088), cuff=2.529(.172); arterial active/both-current=3.150(.158), cuff active/both-current=3.297(.428). Running independent insulin/NE threshold and pre-dose/monitoring-placebo checks. No edits.
+
+## Run 17
+Independent RD confirms finger insulin effect around -2 with pre-dose lab and monitoring placebos near zero. NE has no strong threshold first stage, so its RD ratios are NOT evidence. Estimated persistence using cross-fitted current-dose innovations, future outcomes, and future-dose residuals; models are separate record regressions, not world-model training. Results: {'glucose_finger': {'beta_anchor': -1.95, 'rho_h2': 1.1843901657922165, 'rho_h2_SE': 0.026718364441588156, 'kernel_lag2': -2.005241875550968, 'lag2_over_beta': 1.0283291669492143, 'rho_squared': 1.402780064825314}, 'glucose_lab': {'beta_anchor': -1.95, 'rho_h2': 1.1479572271952263, 'rho_h2_SE': 0.04674336033365004, 'kernel_lag2': -2.0225015960408346, 'lag2_over_beta': 1.0371803056619664, 'rho_squared': 1.3178057954697524}, 'map_arterial': {'beta_anchor': 3.1, 'rho_h2': 0.798530224335335, 'rho_h2_SE': 0.033821931868103325, 'kernel_lag2': 1.6581693284572787, 'lag2_over_beta': 0.5348933317604124, 'rho_squared': 0.6376505191770405}, 'map_cuff': {'beta_anchor': 3.1, 'rho_h2': 0.6343387617013322, 'rho_h2_SE': 0.059850520019256566, 'kernel_lag2': 1.3711487169076348, 'lag2_over_beta': 0.4423060377121403, 'rho_squared': 0.4023856645967795}}
+
+## Run 18
+Innovation-based persistence is not accepted as AR(1): I rho_h2=1.18 finger/1.15 lab but lag2/beta about1.03, inconsistent with rho^2; NE rho_h2=.80 arterial/.63 cuff, lag2/beta .535/.442. Running independent dynamic insulin RD and recovering exact head/vocab details. Dynamic RD kernels: {(179.5, 6, 'glucose_finger'): [-2.0, -2.2825629333444692, -1.6380767005368395, -0.6685756287878758, -0.43570675678634363], (179.5, 6, 'glucose_lab'): [-2.0, -2.6244192897242735, -1.323730803946258, -1.4465038671483337, -2.1328354352011347], (179.5, 12, 'glucose_finger'): [-2.0, -1.9286691838699255, -1.6655095667832636, -0.9973050809961331, -0.6217251413445759], (179.5, 12, 'glucose_lab'): [-2.0, -2.3843194891872472, -1.3381192860764797, -2.1112451007967996, -2.196939803863609], (219.5, 6, 'glucose_finger'): [-2.0, -2.439939771849313, -2.022240566690555, -1.8954732634405942, -1.6554350153186228], (219.5, 6, 'glucose_lab'): [-2.0, -4.207667644651504, -0.3301466973805788, 0.39552693719183585, -0.4555459557852317], (219.5, 12, 'glucose_finger'): [-2.0, -2.541688071630246, -1.9149790440306946, -2.185962256105463, -2.0262692223068313], (219.5, 12, 'glucose_lab'): [-2.0, -2.833701932078345, -2.2939384626089256, -1.5662332544028423, -1.9974355933520223]}
+
+## Run 19
+Independent dynamic RD shows delayed and declining insulin response, suggesting testing AR2 rather than forcing AR1. Higher-horizon innovation kernels and out-of-horizon AR2 predictions reta
+
+=== FUNCTIONS ===
+act22(x, activation)
+action_embedding66(drugs, rates, doses)
+action_embedding67(drugs, rates, doses)
+activation37(x, name='gelu')
+affine42(x, prefix)
+aligned_ssm_nll(theta, obs, inputs, get_innovations=False)
+arr142(x)
+arr192(x)
+array131(x)
+array179(x)
+atom_embedding49(drugs, rates, doses, kind=0, ekind=1, units='native', attributes='full', action_category=0)
+attention63(qin, kin, vin, prefix, mask=None)
+attention_backup117(qin, kin, vin, prefix, mask=None)
+attention_features116(ids, action_u)
+attention_inject117(qin, kin, vin, prefix, mask=None)
+brief156(obj)
+brief218(obj, depth=0)
+brief_dis129(f, limit=1600)
+bundle_inputs73(indices)
+bundle_inputs74(indices)
+capture_norm103(x, prefix)
+capture_pre123(x, prefix)
+capture_pre125(x, prefix)
+clustered_residual_fit(X, y, mask, groups)
+compact41(obj)
+compact_bytecode136(name)
+compact_bytecode71(f, limit=2200)
+compact_recovery135(name, cap)
+context64(out, h, dt)
+contexts37(states, indices)
+crossfit17(key, target)
+decode67(ctx, const, trans, centres, eps, return_features=False)
+decoder_backup96(ctx, const, trans, centres, eps, return_features=False)
+decoder_base180(ctx, const, trans, centres, eps, return_features=False)
+decoder_capture180(ctx, const, trans, centres, eps, return_features=False)
+decoder_capture96(ctx, const, trans, centres, eps, return_features=False)
+describe196(name, value)
+describe210(obj, depth=0)
+describe_code130(f, limit)
+discontinuity(x, y, a, cutoff, width)
+drop_edit(name)
+edited()
+encode_set50(emb, owners, counts, prefix, zero_if_empty=False)
+eval_emb59(emb)
+evaluate56(**kw)
+evaluate58(gu=1, mu=2, me=1, side='left', ie=4, he=3)
+evaluate83(coef)
+evaluate_observations51(gu=1, mu=2, me=1, ie=4, he=3)
+f121(ctx, const, eps)
+f122(drugs, rates, doses)
+f176(events, last_values, ages_hours)
+f177(events, last_values, ages_hours)
+f218(arch, eta, ridge)
+f221(x, prefix)
+f55(states, indices)
+fit_arch215(arch, eta, ridge)
+fixed_ssm_nll(theta, obs, inputs, return_fixed=False, reml=True)
+fn(arch, eta, ridge)
+fn64(x, name, activation)
+forward_fill(a, fallback)
+fun108(out, h, dt)
+fun109(drug, factor, batch_size=96)
+func(seconds)
+func115(name)
+function107(ids)
+future17(mat, lag)
+gelu214(x)
+head_inputs96(ctx, const, eps)
+hist_fit_predict(y, fold, observed=None)
+interface171(name, max_lines=16)
+kalman_nll(theta, data, drug, return_filter=False)
+latent_probe88(addition)
+latent_probe93(addition)
+layer63(x, prefix, memory=None, age=None, mask=None, age_mode='both', act='gelu')
+lin22(x, prefix)
+linear37(x, prefix)
+linear63(x, prefix)
+linear_backup118(x, prefix)
+linear_before123(x, prefix)
+linear_before125(x, prefix)
+linear_capture118(x, prefix)
+ln42(x, prefix)
+load(name)
+load_original(name)
+make_arch215(style, lam=0.1)
+make_cf81(drug, factor, batch_size=96)
+mean_tilt179(logits, centres, target)
+mlp22(x, prefix, activation)
+mlp37(x, prefix, activation='gelu')
+mlp63(x, prefix, act='gelu')
+net42(x, prefix, activation='gelu')
+nll179(logits)
+nll228(logits, bins)
+norm22(x, prefix)
+norm37(x, prefix)
+norm63(x, prefix)
+norm_backup103(x, prefix)
+np191(x)
+np212(x)
+np225(x)
+o(ctx, const, trans, centres, eps, return_features=False)
+ob53(rows)
+obj115(name)
+observation_embeddings51(glucose_unit=1, map_unit=2, measurement_ekind=1, icu_ekind=4, hospital_ekind=3)
+observation_embeddings56(gu=1, mu=2, me=1, ie=4, he=3, boundary32=True, side='left')
+ols_cluster(X, y, groups, within=False)
+pool_actions49(emb, owners, counts)
+pooled_start42(drug, activation='gelu', side='left', extra=None)
+posterior50(e, u)
+prediction179(case, correction)
+prelude_features102(ctx, hf, e, u)
+prepare103(ids)
+probs214(l)
+probs228(logits)
+projected_flow153(seconds)
+r30_act(x, name)
+r30_lin(x, name)
+r30_mlp(x, name, activation)
+r30_norm(x, name)
+r30_w(name)
+r32_features(spec)
+rd16(running, treatment, outcome, cutoff, width, extra_mask=None)
+register67(events, last_values, ages_hours)
+residual_effect(ra, ry, mask)
+save_edit(name, tensor)
+show91(f, limit=3000)
+show_function157(func, cap=5000)
+skeleton149(func, limit=1800)
+slopes179(correction, drug, factor, sensor, use_validation=True)
+start_u43(layout, unitmap, kq=None, act1='gelu', act2='gelu')
+summary184(v)
+target_logits83(c, drug)
+token_probe110(addition)
+transition64(hflow, e, u, z, memory, ages, mask)
+unpack49(rows)
+v106(x, prefix)
+w22(name)
+w63(name)
+wc37(name)
+wt42(name)
+
+=== RECENT OBJECTS ===
+B179: array (4828,) int64
+B225: array (4751,) int64
+C179: array (4828, 17) float64
+CD179: array (193, 193) float64
+CF179: array (193, 193) float64
+Fcandidate225: array (8, 4751, 193) float64
+Fcheck219: array (8, 20, 193) float64
+Forig225: array (8, 4751, 193) float64
+H179: array (8, 4828, 192) float64
+H225: array (8, 4751, 192) float32
+Ho225: array (8, 4751, 192) float32
+L179: array (8, 4828, 17) float64
+Lcandidate225: ar
+[output cut at 10,000 characters]
+```

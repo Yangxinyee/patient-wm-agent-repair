@@ -1,0 +1,155 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 314 replies happened before. Forward passes used: 13 of 50; Python runs used: 291 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.weight', 'embed_transition.value_bin.weight']. Files in /work: ['decoders.npz', 'drugctx.npz', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'new300.json', 'notes.md', 'p_ins.npy', 'p_ne.npy', 'sel1.json', 'sel_states.json'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+; NE lam5 .004) for tiny cf response (-0.44/unit at lam1). -> REJECTED.
+- NEW PLAN (run138): clean dose channel via quiet z dims (18 sd.046, 28 sd.058, 27): repurpose 1 z_post hidden unit per drug: pre=p.u + B (B big, linear GELU regime; u=0 for no-drug bundles -> exactly 0), z_post.2 row 18 col j = lam, bias -= lam*B.
+  Then measure delta-q via tool states 'both', build value-head paired-unit readout + last-bin table compensation; calibrate with dose_edit.
+- run140: q rebuild exact (view_from(prev_row=S2 row k, dt), z=prior mean) == Q99. u_k rebuild: setenc_my(drug_atoms(i,t,'both',mult)) (empty->0); z_post recon err .05 (ctx-side).
+- run144-145: linear decoders of rate from u_k (no intercept, ridge a=.01, trained on dose-edit-augmented encodings): INS |p|379 ratios ~1 at x0..x3; NE |p|142. saved /work/p_ins.npy p_ne.npy
+- run147: WRITER EDIT SAVED (z_post.0/.2 w,b): repurposed dead z_post units 55 (ins) & 109 (ne): pre=5+p.u, out col -> z18 (lam .3/unit/h) / z28 (lam 2 per mcg/kg/min), bias -lam*gelu(5). offline: dz18=.29*rate, dz28=1.83*rate, others 0.
+  NEXT: fwd states both on sel_states (99) -> measure delta-q at readings; then value-head paired-unit readout.
+
+## Restart 3 (after run 149)
+- fwd8 = states BOTH (writer edit z_post 55->z18 ins, 109->z28 ne) on sel_states 99 train stays.
+- ARCH recap: state update uses z POSTERIOR MEAN; heads use z drawn from PRIOR (4 draws, probs averaged). value head = 17-class softmax (0 none, 1..16 fine bins), mean=sum p*centre.
+- run150-167: WRITER BUG FOUND. (1) empty-action u = U_EMPTY (not 0): p_ins.U_EMPTY=-19.2, p_ne.U_EMPTY=-0.51 -> fwd8 had const dz18=-1.5, dz28=-1.02 on all non-drug bundles.
+  (2) TRUE u = encode_action over START atoms only (END atoms excluded although n_atoms counts them); drug atoms include categorical rows: insulin unit 3, rate_unit 2, route 1; NE unit 4, rate_unit 3, route 1; action 0, status 0. bins = 1+#edges<x (strict). z clip +-10 (insulin rate>11.5 saturates).
+  corrected recon u_rec(ri,rn) matches tool-implied projections: rmseI .047 (|p|379), rmseN .012. Functions datom(), u_rec(), u_c() in kernel.
+
+## Restart 4 (after run 183)
+- runs 168-183 not logged; run 184 = inventory of kernel state + notes head.
+- Design principle: correction = sum_l kappa_l * dose_innovation_{t+1-l} (innovation = dose - policy-expected dose given readings/prev dose),
+  kappa from regressing model factual error on innovations; written via clean z channel; then rollout handles propagation. Verify with dose_edit.
+- run 189-190: insulin rate linearly decodable from ctx at drug bundle (cvR2 .71, resid .65 vs policy .62). NE: ctx R2 .59 vs policy-features R2 .87 (innov sd .128); prev NE rate in ctx only R2 .62.
+- run 191-198: fwd8 z18/z28 writes barely reach heads: dctx .04, dout .03 (natural 1.55); dh ~1.4 per slot common (natural 76). GLS SNR of dq on lagged doses per unit^2: NE lag1 ~1.2 (gluc rows), .5 (map); insulin ~.01. => z-channel as built is USELESS (signal buried). view_from(prev,dt)[0] = q exactly; R.k/R.dt index fwd2/fwd8 rows.
+- every drug bundle has START atoms for both drugs (rate 0 when off); dose edit keeps atoms, scales rate&dose (x0 -> rate 0).
+
+## Restart 5 (after run 202)
+- run 202 failed (means_from shape bug, 64 vs 17). Writer edit (z_post 55/109) still saved but judged useless. Re-reading ARCHITECTURE.md (state update / slots / decay) to design a stronger dose pathway.
+
+- runs 205-233: c_out not identity, abar~.35: no linear SSM channel. Drug bundles at h+0.083 (action-only); END atoms are encoded in e (attrs none). Readings never in drug bundles.
+- vG/vM = z-surprise directions (corr .76/.58 with glucose/MAP surprise); next-pred gain .54/.66.
+- ctx decoders of rate: ins cvR2 .70 (innov sd .66), ne .58 (sd .23) saved /work/decoders.npz.
+- model factual err ~ ctx-innovation lags: gluc_finger -2.04,-1.43,~0; map_art +4.05,+.76.
+- dead z_post units 12,88,105 (max pre <-4.4). WRITER v2: j0=12 gate, jA=88 ins innov, jB=105 ne innov (u-decoders pg,pA,pB fitted on realistic+edited rates, lam1e-4), dz=lam*innov*dir. saved lamA=-.18 lamB=.6.
+
+## Restart 6 (runs 272-279)
+- fwd9 factual both (writer v2): no change; fwd10 states both: z write ~.03, h diff .03 vs natural 10.6 -> z-token route dead (prelude LN). fwd11 dose_edit both tuning: writer v2 ~no effect (ins x2 -2.07 vs -2.15).
+- a_bar .29-.43 all dims: no slow linear memory. DROPPED all writer edits (run 278).
+- NEW APPROACH: amplify the drug-rate-induced deviation of the action encoder output u (model own dose pathway) per drug: encode_action.mlp2.2 += (k-1)*ridge map hid->deviation; deviation in LN-normalised coords (x sd) relative to ref rates (tuning means ins 1.70, ne 0.49); empty bundle pinned 0. Fit R2~1. set_amp2(kI,kN) in kernel. T must stay the tensor dict (helpers use it); TT = converter.
+- tuning.csv: drug rows only when running (no rate 0); ins rate median 1.5 p95 3.5; ne median .45 p95 1.0.
+- run279: saved kI=5,kN=8 -> next: dose_edit both + factual both to calibrate.
+- run279: u-amplification k=(5,8): insulin u already saturated (x2 |du| 8.2 vs natural spread 8.8; amp ratio only 1.6), factual distortion 5.2 -> REJECTED. NE x2 |du| .49 (amp ratio ~5).
+  => insulin bottleneck is DOWNSTREAM (model sees dose, barely maps to glucose).
+- run280: EMULATION edit: encoder last layer maps hid(r)->s(2r) both drugs (ridge, exact-ish) to get direct dq response at readings via states both on sel_states 99. Plan: GLS readout dirs in q, paired gated value-head units (insulin->glucose codes, NE->MAP codes), calibrate with dose_edit.
+- run283: KERNEL OOM RESTART (all vars/helpers lost). run284: dropped emulation edit (model = original). Lesson: never rebind single-letter globals; read train.csv in chunks.
+- run284 (out-space GLS from fwd12 emulation): INSULIN dose barely in out at glucose readings: SNR .11/unit^2 (noise 3 units) -> insulin readout NOT viable; info lost in drug-bundle step (prelude). NE strongly in out at MAP readings: SNR 14.8/unit^2 (noise .26) but value head ignores it.
+  Readings bundles at integer hours, drug bundles at h+.083, so the next reading follows the drug bundle directly.
+- run285: INPUT-LEVEL dose amplification (shared): embed.numeric cols 2,4 (z_dose,z_rate) x k, bins.rate/dose rows 1..16 expanded around row 8 (median bin for both drugs) by k. set_inamp(k). Testing k=6 (dose_edit tuning + factual).
+
+## Restart 7 (run 286)
+- fwd13 dose_edit both tuning100, input-amp k=6: ins x2 -1.70 (orig -2.15), half 1.43 (orig 1.23); ne x2 .10 (orig .34), half -.105 (orig -.057) -> input amp USELESS, REVERTED (no edits now).
+- run287: ARCH re-read: dose reaches value head only via core state (prelude tokens [h+slots,e,u,z_in(z)] -> E -> blocks/b_in -> coda -> out_norm); view=out+out_norm(mean h_flow)+gap+z_head(z_prior draw); q=query_norm(view+type_emb); with_code adds per-code registers only.
+- run288: TARGETS (tuning100): ins x2 -13.8, half +6.9; ne x2 +4.6, half -2.3. orig -2.15/+1.23/+.34/-.06.
+  WRITER v3 saved: z_post.0 unit 88 pre=8+pI.u (ins), 105 pre=8+40*pN.u (ne), 12 pre=-8-pI.u (on only at U_EMPTY, ~11.2); z_post.2 rows 18/28 := rate_I / rate_N (+nat mean) with unit-12 compensation; z_in cols 18/28 x FI,FN (0.5/2.0 normalized-token per unit rate), bias compensated. NEXT: states both on sel_states -> check z18/z28 = rates, measure dq at readings; then value-head reader (rate minus E[rate|last bin] via embed_transition).
+- run289-290: z route dead (z token sd .18; prior writes already saturating). q rebuilt from emulation states: dq per unit rate |b| ins .028 (eta_nat .06, contaminated by NE 9x) -> INSULIN READER IMPOSSIBLE; NE lag1 |b| .286, perp-reader eta_nat 5.6, cost est ~.003 at kappa 1.5.
+- run291: NE READER SAVED in attr_heads.value_bin: paired units 120 (gate+readout) / 110 (gate), gate on MAP codes 5,7 only (s=22.5), readout w (perp registers, w.bN1=1), tilt lam*(centre-70), kappa=1.5/VarP35; old units' per-code mean absorbed in embed_transition. NEXT: dose_edit+factual both tuning100, rescale lam.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 291 of at most 300:
+```
+VC dict len 16 [ 35.   41.   46.5  53.   61.   67.5  72.5  76.5  79.5  82.5  86.   89.5
+  93.5  97.5 100.5 105. ]
+v.q sd 0.292 range -1.051..0.372 ve [-0.11 -0.11 -0.08 -0.13 -0.1   0.94 -1.37  1.38 -0.02  0.05 -1.83  0.09
+  0.08] gmin -0.11 gmax_all 0.46 gmax_val -1.00
+gate s 22.48; MAP pre min 10.0, others pre max -10.0 | reader sd 0.693 w.b [ 0.091  0.007  1.    -0.128]
+units 120 110 scores [0.01314 0.02271 0.02533 0.03335 0.03352 0.03466] median 0.41798
+edited ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.weight', 'embed_transition.value_bin.weight']
+
+```

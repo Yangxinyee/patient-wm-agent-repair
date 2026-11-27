@@ -1,0 +1,131 @@
+OUTPUT of Python run 63 of at most 300:
+```
+1 ['dose_edit_original.csv', 'summary.json']
+2 ['factual_edited.csv', 'factual_original.csv', 'summary.json']
+3 ['dose_edit_edited.csv', 'dose_edit_original.csv', 'summary.json']
+4 ['factual_edited.csv', 'factual_original.csv', 'summary.json']
+
+== dose_edit_edited.csv (2112, 7)
+      stay_id  hour        edit  shift  shift_se   factual  reached
+0  2020000016    18  insulin_x2    0.0       0.0  127.3766    False
+1  2020000016    19  insulin_x2    0.0       0.0  127.9613    False
+2  2020000016    21  insulin_x2    0.0       0.0  131.0505    False
+3  2020000016    24  insulin_x2    0.0       0.0  128.6461    False
+                  mean        std           min           max
+stay_id   2.020000e+09  42.594731  2.020000e+09  2.020000e+09
+hour      1.855871e+01   3.464151  1.300000e+01  2.400000e+01
+shift     0.000000e+00   0.000000  0.000000e+00  0.000000e+00
+shift_se  0.000000e+00   0.000000  0.000000e+00  0.000000e+00
+factual   1.371167e+02  65.194994  5.058790e+01  3.299108e+02
+
+== dose_edit_original.csv (2112, 7)
+      stay_id  hour        edit  shift  shift_se   factual  reached
+0  2020000016    18  insulin_x2    0.0       0.0  127.3766    False
+1  2020000016    19  insulin_x2    0.0       0.0  127.9613    False
+2  2020000016    21  insulin_x2    0.0       0.0  131.0505    False
+3  2020000016    24  insulin_x2    0.0       0.0  128.6461    False
+                  mean        std           min           max
+stay_id   2.020000e+09  42.594731  2.020000e+09  2.020000e+09
+hour      1.855871e+01   3.464151  1.300000e+01  2.400000e+01
+shift    -1.910223e-02   0.297408 -2.001000e+00  2.796700e+00
+shift_se  9.345412e-02   0.252042  0.000000e+00  2.184300e+00
+factual   1.372040e+02  65.356528  5.058180e+01  3.299615e+02
+
+== summary.json {
+ "ok": true,
+ "type": "dose_edit",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": 0.052,
+     "n_stay_hours": 397,
+     "n_stays": 39
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": -0.152,
+     "n_stay_hours": 397,
+     "n_stays": 39
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.008,
+     "n_stay_hours": 56,
+     "n_stays": 5
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.023,
+     "n_stay_hours": 56,
+     "n_stays": 5
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": 0.0,
+     "n_stay_hours": 397,
+     "n_stays": 39
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.0,
+     "n_stay_hours": 397,
+     "n_stays": 39
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.0,
+     "n_stay_hours": 56,
+     "n_stays": 5
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": 0.0,
+     "n_stay_hours": 56,
+     "n_stays": 5
+    }
+   },
+   "file": "dose_edit_edited.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  }
+ },
+ "edited_tensors": [
+  "embed.bins.dose.weight",
+  "embed.bins.rate.weight",
+  "embed.numeric.weight"
+ ],
+ "edit_hash": "782adcc636",
+ "seconds": 63.4,
+ "gpu_peak_mib": 964
+}
+
+
+--- ARCH lines mentioning action/dose/rate/numeric/bins ---
+14 - its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+20 - fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+21 - numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+23 Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+27 - Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+42    - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+45    - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+58 - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+62 - **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+68                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+69                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+73     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+75   - **rate:** `rate_bin` works the same way for drug rates.
+79 ## How a dose edit is read
+85 3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+
+VOCAB keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+
+```

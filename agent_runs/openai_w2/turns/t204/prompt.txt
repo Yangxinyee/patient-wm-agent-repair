@@ -1,0 +1,324 @@
+OUTPUT of Python run 176 of at most 300:
+```
+Rollout columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour         edit  shift  shift_se  factual  reached
+2020000000    13   insulin_x2    0.0       0.0 126.3829    False
+2020000000    18   insulin_x2    0.0       0.0 123.8472    False
+2020000000    24   insulin_x2    0.0       0.0 123.0177    False
+2020000000    13 insulin_half    0.0       0.0 126.3829    False
+
+Per-stay aggregated rollout shifts:
+                   mean       std  count
+edit                                    
+insulin_half   5.453503  6.962745     55
+insulin_x2   -12.109165  9.457000     55
+ne_half       -2.266165  2.594275     28
+ne_x2          5.356961  5.168405     28
+
+Previous target-alignment columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached', 'target', 'eligible', 'original_shift']
+   stay_id  hour       edit  shift  shift_se  factual  reached  target  eligible  original_shift
+2020000000    13 insulin_x2    0.0       0.0 126.3184    False     0.0     False             0.0
+2020000000    18 insulin_x2    0.0       0.0 123.8494    False     0.0     False             0.0
+2020000000    24 insulin_x2    0.0       0.0 122.8694    False     0.0     False             0.0
+
+Independent factual cohort IDs:
+[2020000054, 2020000100, 2020000101, 2020000102, 2020000103, 2020000104, 2020000105, 2020000106, 2020000107, 2020000108, 2020000109, 2020000110, 2020000111, 2020000112, 2020000113, 2020000114, 2020000115, 2020000116, 2020000117, 2020000118, 2020000119, 2020000120, 2020000121, 2020000122, 2020000123, 2020000124, 2020000125, 2020000126, 2020000127, 2020000128, 2020000129, 2020000130, 2020000131, 2020000132, 2020000133, 2020000134, 2020000135, 2020000136, 2020000137, 2020000138, 2020000139, 2020000140, 2020000141, 2020000142, 2020000143, 2020000144, 2020000145, 2020000146, 2020000147, 2020000148, 2020000149, 2020000150, 2020000151, 2020000152, 2020000153, 2020000154, 2020000155, 2020000156, 2020000157, 2020000158, 2020000159, 2020000160, 2020000161, 2020000162, 2020000163, 2020000164, 2020000165, 2020000166, 2020000167, 2020000168, 2020000169, 2020000170, 2020000171, 2020000172, 2020000173, 2020000174, 2020000175, 2020000176, 2020000177, 2020000178, 2020000179, 2020000180, 2020000181, 2020000182, 2020000183, 2020000184, 2020000185, 2020000186, 2020000187, 2020000188, 2020000189, 2020000190, 2020000191, 2020000192, 2020000193, 2020000194, 2020000195, 2020000196, 2020000197, 2020000198]
+
+EARLY RECORD-BASED EVIDENCE
+# World-model weight repair
+
+## Constraints
+- Infer drug effects solely from the supplied simulated records.
+- No model gradients or weight optimiser.
+- Preserve factual value NLL within +0.005 nats of original.
+- Maximum 300 Python runs and 50 forward requests.
+
+## Initial plan
+Read architecture and schema; examine treatment assignment and temporal variation; estimate effects with falsification checks; construct a targeted weight edit; validate factual fit and the exact rollout.
+
+## Run 1
+Inspecting architecture, tensor shapes, vocabulary, and sample records. No effect estimates or edits yet.
+
+## Run 2
+Architecture has separate observation and action encoders, with actions entering the latent posterior and recurrent prelude. Attribute heads also use last-value registers. This offers targeted editing routes, but no drug-effect conclusion has been drawn. Loaded both record files and inspected schema, vocabulary, distributions, and event timing.
+
+## Run 3
+Constructed complete hourly panels (-1 through 24), aligning infusions at hour+0.0833 to that hour's pre-dose measurements. Missing infusion records mean zero exposure. Auditing paired measurement channels, dose-assignment rules, and next-hour associations before estimating causal effects. No edits yet.
+
+## Original rollout, forward 1
+100 tuning stays: insulin x2 -3.226; insulin half +1.825; NE x2 +1.373; NE half -0.846. These are predictions, not truth.
+
+## Run 4: dose-threshold identification
+{
+  "thresholds": [
+    151.0,
+    181.0,
+    220.0,
+    260.0
+  ],
+  "RD": [
+    {
+      "outcome": "next_finger",
+      "bandwidth": 5,
+      "adjusted": true,
+      "n": 81498,
+      "dose_jump": 0.5672,
+      "effect_per_unit": -2.5211,
+      "cluster_se": 0.3321,
+      "ci95": [
+        -3.172,
+        -1.8702
+      ]
+    },
+    {
+      "outcome": "next_glucose_combined",
+      "bandwidth": 5,
+      "adjusted": true,
+      "n": 83728,
+      "dose_jump": 0.5985,
+      "effect_per_unit": -2.4588,
+      "cluster_se": 0.2953,
+      "ci95": [
+        -3.0375,
+        -1.8801
+      ]
+    },
+    {
+      "outcome": "past_glucose_PLACEBO",
+      "bandwidth": 5,
+      "adjusted": true,
+      "n": 84494,
+      "dose_jump": 0.6753,
+      "effect_per_unit": 0.0984,
+      "cluster_se": 0.0776,
+      "ci95": [
+        -0.0537,
+        0.2505
+      ]
+    },
+    {
+      "outcome": "next_finger_observed",
+      "bandwidth": 5,
+      "adjusted": true,
+      "n": 92540,
+      "dose_jump": 0.6791,
+      "effect_per_unit": 0.2774,
+      "cluster_se": 0.0054,
+      "ci95": [
+        0.2667,
+        0.2881
+      ]
+    },
+    {
+      "outcome": "next_finger",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 162730,
+      "dose_jump": 0.7679,
+      "effect_per_unit": -1.9114,
+      "cluster_se": 0.1745,
+      "ci95": [
+        -2.2535,
+        -1.5694
+      ]
+    },
+    {
+      "outcome": "next_glucose_combined",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 167103,
+      "dose_jump": 0.7909,
+      "effect_per_unit": -1.9249,
+      "cluster_se": 0.1574,
+      "ci95": [
+        -2.2333,
+        -1.6165
+      ]
+    },
+    {
+      "outcome": "past_glucose_PLACEBO",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 168455,
+      "dose_jump": 0.8416,
+      "effect_per_unit": 0.0146,
+      "cluster_se": 0.0449,
+      "ci95": [
+        -0.0735,
+        0.1027
+      ]
+    },
+    {
+      "outcome": "next_finger_observed",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 184729,
+      "dose_jump": 0.8458,
+      "effect_per_unit": 0.2728,
+      "cluster_se": 0.0035,
+      "ci95": [
+        0.266,
+        0.2796
+      ]
+    },
+    {
+      "outcome": "next_finger",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 227614,
+      "dose_jump": 0.836,
+      "effect_per_unit": -1.9368,
+      "cluster_se": 0.1364,
+      "ci95": [
+        -2.2041,
+        -1.6694
+      ]
+    },
+    {
+      "outcome": "next_glucose_combined",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 233566,
+      "dose_jump": 0.8548,
+      "effect_per_unit": -1.9341,
+      "cluster_se": 0.1233,
+      "ci95": [
+        -2.1757,
+        -1.6925
+      ]
+    },
+    {
+      "outcome": "past_glucose_PLACEBO",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 234179,
+      "dose_jump": 0.8938,
+      "effect_per_unit": -0.0501,
+      "cluster_se": 0.036,
+      "ci95": [
+        -0.1206,
+        0.0204
+      ]
+    },
+    {
+      "outcome": "next_finger_observed",
+      "bandwidth": 14,
+      "adjusted": true,
+      "n": 257262,
+      "dose_jump": 0.8981,
+      "effect_per_unit": 0.271,
+      "cluster_se": 0.0029,
+      "ci95": [
+        0.2652,
+        0.2768
+      ]
+    },
+    {
+      "outcome": "next_glucose_combined",
+      "bandwidth": 5,
+      "adjusted": false,
+      "n": 83728,
+      "dose_jump": 0.5986,
+      "effect_per_unit": -2.6227,
+      "cluster_se": 0.3245,
+      "ci95": [
+        -3.2587,
+        -1.9867
+      ]
+    },
+    {
+      "outcome": "next_MAP_cross_drug_PLACEBO",
+      "bandwidth": 10,
+      "adjusted": true,
+      "n": 172018,
+      "dose_jump": 0.8467,
+      "effect_per_unit": 0.0128,
+      "cluster_se": 0.0793,
+      "ci95": [
+        -0.1426,
+        0.1681
+      ]
+    }
+  ]
+}
+
+## Run 5: recording-policy falsification
+Initial insulin RD was accompanied by a large discontinuity in future finger-reading availability, threatening identification. Rounded threshold values have half-jumps, so this audit uses cuts at 150/180/220/260 and excludes exact cut values. Testing lab outcomes and their availability separately, and unadjusted past-outcome placebos rather than treating history-adjusted placebos as decisive.
+[
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 5,
+    "adjusted": true,
+    "n": 18414,
+    "dose_jump": 1.033,
+    "effect_per_unit": -1.5496,
+    "cluster_se": 0.3235,
+    "ci95": [
+      -2.1836,
+      -0.9155
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 5,
+    "adjusted": true,
+    "n": 80147,
+    "dose_jump": 1.0508,
+    "effect_per_unit": -1.8271,
+    "cluster_se": 0.2196,
+    "ci95": [
+      -2.2576,
+      -1.3967
+    ]
+  },
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 36529,
+    "dose_jump": 1.0337,
+    "effect_per_unit": -1.5257,
+    "cluster_se": 0.2116,
+    "ci95": [
+      -1.9405,
+      -1.1108
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 10,
+    "adjusted": true,
+    "n": 161183,
+    "dose_jump": 1.0415,
+    "effect_per_unit": -1.7381,
+    "cluster_se": 0.1439,
+    "ci95": [
+      -2.0202,
+      -1.456
+    ]
+  },
+  {
+    "outcome": "next_LAB",
+    "bandwidth": 14,
+    "adjusted": true,
+    "n": 51089,
+    "dose_jump": 1.0281,
+    "effect_per_unit": -1.5708,
+    "cluster_se": 0.1784,
+    "ci95": [
+      -1.9205,
+      -1.2211
+    ]
+  },
+  {
+    "outcome": "next_FINGER",
+    "bandwidth": 14,
+    "adjusted": true,
+    "n": 225930,
+    "dose_jump": 1.0422,
+    "effect_per_unit": -1.8228,
+    "cluster_se": 0.1194,
+    "ci95": [
+  
+
+```

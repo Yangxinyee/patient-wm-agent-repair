@@ -1,0 +1,205 @@
+OUTPUT of Python run 231 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+NOTEBOOK HEADINGS
+# Weight-repair notebook
+## Initial plan
+## Inspection
+## Hourly panel and preliminary associations
+## Baseline rollout and flexible residualisation
+## Factual baseline and latent dynamics
+## Causal identification checks
+## Dose-innovation local projections
+## Sensor-proxy dynamic check
+## Fixed-dose response-kernel estimates
+## Head reconstruction setup
+## Reconstruction diagnostics
+## Restart diagnostics
+## Runs 34?36: restart recovery
+## Run 37: dose-feature feasibility
+## Run 38: readout vs state information
+## Run 39: first reversible weight probe
+## Forward 6 and run 40
+## Forward 7 and run 42: rejected input-gain probe
+## Restart recovery, runs 47?48
+## Run 49: reversible dose-bin gain probe
+## Forward passes 8?9; run 50: rejected bin gain
+## Run 53: restart recovery
+## Run 57: posterior counterfactual features
+## Runs 58?59: posterior dose-contrast feasibility
+## Run 64: reversible posterior-only probe
+## Forward 10?11; run 65: rejected posterior probe
+## Restart after run 65
+## Run 73: restart recovery
+## Run 78: completed local dose/readout probe
+## Run 79: cross-stay value-head contrast feasibility
+## Run 80: reversible value-head contrast candidate
+## Forward 12: rejected value-head candidate
+## Run 88: reconstruction audit resumed
+## Runs 90?93: head equivalence audit
+## Restart after run 95
+## Runs 96?102: restart audit
+## Runs 103?107: reconstruction recovery
+## Runs 107?109: register breakthrough
+## Run 115: corrected local contrast reconstruction
+## Run 117: anchored paired-action contrasts
+## Restart audit, runs 126?127
+## Runs 128?131: gated insulin correction candidate
+## Forward 13: insulin candidate rejected and rolled back
+## Runs 133?138: matched-state audit
+## Run 139: stochastic-head fingerprint
+## Runs 140?144: stochastic audit resolved
+## Runs 145?146: complete stochastic reconstruction
+## Run 151: stochastic final-layer frontier
+## Run 152: stochastic glucose-only raw-input frontier
+## Restart audit, run 154
+## Run 158: stochastic glucose-head candidate audit
+## Run 159: installed glucose-only stochastic candidate
+## Restart, run 160: GPU factual check passed
+## Forward 16 and run 162: working insulin repair
+## Forward 17 and run 163: independent factual check
+## Run 164: MAP-only stochastic ridge frontier
+## Run 165: sensor-specific MAP feasibility
+## Restart audit, runs 166?168
+## Restart, run 173
+## Run 177: modest MAP extension installed for validation
+## Restart audit, run 179
+## Forward 19: modest MAP rollout improvement
+## Run 182: evidence and calibration audit
+## Restart audit, run 186
+## Run 190: conditional MAP calibration experiment
+## Run 191: conditional glucose calibration
+## Run 192: calibrated linear MAP frontier
+## Restart audit, runs 193?196
+## Run 197: calibrated MAP candidate installed
+## Restart audit after forward 21
+## Restart inspection, run 211
+## Runs 212?215: recovered local fitting machinery
+## Run 216: reject response candidate 208
+## Runs 217?218: moment-fit screening
+## Run 219: restart inspection
+## Run 224: exact-head MAP gain frontier
+## Run 225: gain-8 MAP candidate installed
+## Restart audit, runs 226?227
+## Forward 23 and independent factual validation
+
+EARLY EVIDENCE
+# Weight-repair notebook
+## Initial plan
+- Inspect architecture and data before choosing an edit.
+- Infer drug effects solely from the supplied simulated-ICU records.
+- Distinguish treatment-selection associations from treatment effects.
+- Use statistical fits and algebraic weight edits only; no gradients or optimiser.
+- Validate factual value NLL and rollout effects, including cross-sensor consistency.
+- No findings or edits yet.
+
+## Inspection
+- Architecture: drug action embeddings affect the recurrent state shared by all heads.
+- Value heads also have code-specific last-reading transitions.
+- Broad action edits may affect all-output log loss; prefer selective, evidence-based edits.
+- Python runs: 2. Forward passes: 0. No edits yet.
+
+## Hourly panel and preliminary associations
+- Infusions begin at hour t+0.0833, after hour-t measurements.
+        sensor          controls      n   insulin  insulin_se  norepinephrine  norepinephrine_se  residual_sd
+glucose_finger  current readings 298450 -2.098636    0.042771       -0.243935           0.140247    13.540091
+glucose_finger full past history 298450 -2.169121    0.039892       -0.064443           0.280626    12.713684
+   glucose_lab  current readings  28483 -1.108132    0.095744        0.520534           0.234678     7.135888
+   glucose_lab full past history  28483 -1.475258    0.104063        0.347124           0.488524     7.053169
+  map_arterial  current readings 312563  0.021053    0.016460       -0.616412           0.050659     4.727718
+  map_arterial full past hi
+[output cut at 10,000 characters]
+```

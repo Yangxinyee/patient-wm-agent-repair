@@ -1,0 +1,139 @@
+OUTPUT of Python run 274 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+DATA DOCUMENTATION
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+EARLY NOTEBOOK
+# World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights without gradients while preserving factual value NLL within +0.005 nats.
+No medical-effect assumptions. No edits made yet.
+First step: read architecture, data schema, vocabulary, and tensor shapes.
+
+Python runs: 3; forward requests: 0. Loaded 1,998,495 training rows (30,000 stays), 400 tuning stays. Measurements are hourly; drug records start at hour+0.0833, last one hour. Insulin rates in 0.5 increments; norepinephrine rates in 0.01 increments, capped at 1.0. Run 2 tensor summary failed because load returns torch tensors; fixed with as_numpy. Constructed hourly arrays A/AT, times -1..24.
+
+Python runs: 4; forward requests: 1. Original rollout on tuning IDs 2020000000..99: insulin x2=-0.422, half=+0.213 glucose units; NE x2=-0.742, half=-0.238 MAP units. Created Xhist (recorded pre-dose history), stay-separated twofold histogram-regression residual estimates of immediate dose effects. Results: {"('insulin', 'glucose_finger')": {'beta': -1.9117976582589598, 'se': 0.04643702514945556}, "('norepinephrine', 'map_arterial')": {'beta': 3.2284108103034193, 'se': 0.09160659418894486}}
+
+Python runs: 5; forwards: 1. Stronger 350-iteration, twofold history-adjusted estimates on all four sensors; also residualized dose-squared to check nonlinearity. {"('insulin', 'glucose_finger')": {'beta': -1.93686465753238, 'se': 0.045618852592945285, 'quadratic': [-1.9721614199729816, 0.006519443110720444], 'quadratic_se': [0.10001575970918698, 0.01835970138120731]}, "('insulin', 'glucose_lab')": {'beta': -1.9077086863023527, 'se': 0.07546108816200746, 'quadratic': [-2.1349505733834957, 0.043098195029487404], 'quadratic_se': [0.178045837967501, 0.035021676061520214]}, "('norepinephrine', 'map_arterial')": {'beta': 3.1919950557110304, 'se': 0.09112374089621184, 'quadratic': [1.6021787887032015, 1.2276868502178129], 'quadratic_se': [0.30275496930303175, 0.22235442673524064]}, "('norepinephrine', 'map_cuff')": {'beta': 2.6932493742117205, 'se': 0.17140609404668736, 'quadratic': [-1.6426030664176126, 3.4223180731807608], 'quadratic_se': [0.572236102544827, 0.4254051172466354]}}
+
+Python runs: 6; forward requests: 1. Robust immediate estimates: insulin finger -1.9369, lab -1.9077; little quadratic evidence. NE arterial +3.192, paired pre-dose sensors +3.329, high expected rates +3.407; cuff +2.693 with confounding near treatment onset. Estimated controlled impulse kernels by sequentially removing later dose contributions, using cross-fitted baseline treatment innovations. Kernels: {"('insulin', 'glucose_finger')": [-1.917764, -2.287755, -1.986765, -1.581741, -1.23612, -0.906992, -0.6303, -0.489408, -0.329701, -0.199948, -0.288551, -0.267519], "('insulin', 'glucose_lab')": [-1.972058, -2.386697, -2.017123, -1.797053, -1.249801, -0.946148, -0.647348, -0.623698, -0.385423, -0.467155, -0.216104, 0.05464], "('norepinephrine', 'map_arterial')": [3.195033, 2.710725, 1.587524, 1.030973, 0.377504, 0.218539, 0.359975, -0.138514, 0.138292, -0.039861, 0.393475, -0.090408]}
+
+Python runs: 9; forwards: 2. Recovered architecture and variables. Original factual value NLL on first 100 tuning stays is 1.63982. No weights edited. Preparing record-derived rollout targets.
+
+Python runs: 10; forwards: 3. Original training states acquired (100 stays, 4313 bundles). Record-derived reference shifts matched to original rollout reading rows: {"insulin_x2": -12.95553151488211, "insulin_half": 6.477765757441055, "ne_x2": 4.279678475624698, "ne_half": -
+[output cut at 10,000 characters]
+```

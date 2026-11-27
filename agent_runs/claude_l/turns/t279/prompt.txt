@@ -1,0 +1,134 @@
+OUTPUT of Python run 257 of at most 300:
+```
+
+import json, math, numpy as np, pandas as pd, torch
+import torch.nn.functional as F
+exec(open('/work/wm.py').read())
+V=json.load(open('/model/vocab.json'))
+NUMV={(d['code'],d['attribute']):d for d in V['numeric']}
+CODE_ID={c['name']:c['id'] for c in V['codes']}
+UM={'mg/dL':2,'mmHg':5,'units':3,'mg':4}; RUM={'units/hour':2,'mcg/kg/min':3}
+def zsc(code,attr,x):
+    d=NUMV[(code,attr)]; return float(np.clip((x-d['median'])/d['iqr'],-10,10))
+def fbin(code,attr,x):
+    return 1+int(np.searchsorted(np.array(NUMV[(code,attr)]['fine_bin_edges']),x,side='left'))
+def build_bundles(ds, adm_end=('hospital_admission','icu_admission')):
+    ev=[]
+    for r in ds.itertuples():
+        t=round(r.hour*60)
+        if r.event in ('glucose_finger','glucose_lab','map_arterial','map_cuff'):
+            ev.append((t,dict(code=CODE_ID[r.event],kind=0,ekind=1,unit=UM['mg/dL' if 'glucose' in r.event else 'mmHg'],rate_unit=0,
+                vb=fbin(r.event,'value',r.value),db=0,rb=0,num=(zsc(r.event,'value',r.value),1,0,0,0,0),act=False)))
+        elif r.event in ('insulin','norepinephrine'):
+            a=dict(code=CODE_ID[r.event],kind=0,ekind=2,unit=UM[r.dose_unit],rate_unit=RUM[r.rate_unit],vb=0,
+                   db=fbin(r.event,'dose',r.dose),rb=fbin(r.event,'rate',r.rate),num=(0,0,zsc(r.event,'dose',r.dose),1,zsc(r.event,'rate',r.rate),1),act=True)
+            ev.append((t,a)); b=dict(a); b['kind']=2; ev.append((round(r.end_hour*60),b))
+        elif r.event in ('hospital_admission','icu_admission'):
+            a=dict(code=CODE_ID[r.event],kind=0,ekind=3 if r.event=='hospital_admission' else 4,unit=0,rate_unit=0,vb=0,db=0,rb=0,num=(0,0,0,0,0,0),act=False)
+            ev.append((t,a))
+            if r.event in adm_end and not pd.isna(r.end_hour):
+                b=dict(a); b['kind']=2; ev.append((round(r.end_hour*60),b))
+    ev.sort(key=lambda x:x[0])
+    out=[]
+    for t,a in ev:
+        if out and out[-1][0]==t: out[-1][1].append(a)
+        else: out.append((t,[a]))
+    return [(t/60.0,al) for t,al in out]
+tu=pd.read_csv('/data/tuning.csv')
+npz=np.load('/work/fwd_2/states_original.npz'); X=npz['x'].astype(np.float64); sid_arr=npz['stay_id']; hr_arr=npz['hour']
+stays=list(dict.fromkeys(sid_arr.tolist()))
+row_of={s:np.where(sid_arr==s)[0] for s in stays}
+W0=getW(load_original, NAMES)
+
+-----rollout
+
+DRUGN={8:'insulin',9:'norepinephrine'}
+def edit_atom(a, f):
+    nm=DRUGN[a['code']]
+    dm,di=NUMV[(nm,'dose')]['median'],NUMV[(nm,'dose')]['iqr']; rm,ri=NUMV[(nm,'rate')]['median'],NUMV[(nm,'rate')]['iqr']
+    dose=a['num'][2]*di+dm; rate=a['num'][4]*ri+rm
+    b=dict(a); b['num']=(0,0,zsc(nm,'dose',dose*f),1,zsc(nm,'rate',rate*f),1)
+    b['db']=fbin_f32(nm,'dose',dose*f); b['rb']=fbin_f32(nm,'rate',rate*f); return b
+def u_for(atoms, t, cond, t_edit):
+    ua=[a for a in atoms if a['act'] and a['kind']==0]
+    if not ua: return u_empty
+    if cond is not None and t>=t_edit:
+        dcode,f=cond; ua=[edit_atom(a,f) if a['code']==dcode else a for a in ua]
+    return set_enc(W0c[0], [fix_atom2(a) for a in ua], 'encode_action')
+W0c=[W0]
+def rollout(W, B_, conds, npaths=20, seed=0, t_edit=12.0, t_hide=13.0, nz=4):
+    W0c[0]=W
+    C=len(conds); Bt=C*npaths; gen=torch.Generator().manual_seed(seed)
+    times=[b[0] for b in B_]
+    k0=next(k for k,t in enumerate(times) if t>t_edit-1e-9 and any(a['act'] for a in B_[k][1]) or t>=t_hide)
+    out=None; h=None; Ms=[]; ts=[]
+    for k in range(k0):
+        e,u=enc_eu2(B_[k][1]) if W is W0 else (None,None)
+        if W is not W0:
+            ea,ua=split_fix(B_[k][1]); e=set_enc(W,ea,'encode'); u=set_enc(W,ua,'encode_action') if ua else u_empty
+        if k==0:
+            out=torch.tensor(Xs[0,:192],dtype=T)[None] if False else None
+        if k>0:
+            Mt=torch.stack(Ms+[e])[None]; ages=torch.tensor([(times[k]-tj)*3600.0 for tj in ts+[times[k]]],dtype=T)
+            out,h,_=bstep(W,out,h,(times[k]-times[k-1])*3600.0,e[None],u[None],Mt,ages)
+        else:
+            out=torch.tensor(X0row[:192],dtype=T)[None]; h=torch.tensor(X0row[192:960],dtype=T).reshape(1,4,192)
+        Ms.append(e); ts.append(times[k])
+    # registers per code from prefix
+    reg={}
+    for k in range(k0):
+        for a in B_[k][1]:
+            if a['code'] in MEASC and a['kind']==0: reg[a['code']]=(times[k], a['num'][0], a['vb'])
+    out=out.repeat(Bt,1); h=h.repeat(Bt,1,1); M=torch.stack(Ms)[None].repeat(Bt,1,1)
+    RG={c:(torch.full((Bt,),v[0],dtype=T), torch.full((Bt,),v[1],dtype=T), torch.full((Bt,),v[2],dtype=torch.long)) for c,v in reg.items()}
+    rec={}
+    for k in range(k0,len(B_)):
+        t=times[k]; dt=(t-times[k-1])*3600.0; atoms=B_[k][1]
+        ea,ua=split_fix(atoms)
+        meas=[i for i,a in enumerate(ea) if a['code'] in MEASC and a['kind']==0]
+        rows=(atom_matrix(W,ea) if ea else torch.zeros(0,192,dtype=T))[None].repeat(Bt,1,1)
+        if t>=t_hide and meas:
+            eps=torch.randn(npaths,nz,32,generator=gen,dtype=T).repeat(C,1,1)
+            views=bview(W,out,h,dt,zs=eps)
+            U=torch.rand(npaths,len(meas),generator=gen,dtype=T).repeat(C,1)
+            for j,i in enumerate(meas):
+                c=ea[i]['code']
+                if c in RG: tl,zl,vl=RG[c]; has=torch.ones(Bt,dtype=T); age=(t-tl)*3600.0
+                else: has=torch.zeros(Bt,dtype=T); age=torch.zeros(Bt,dtype=T); zl=torch.zeros(Bt,dtype=T); vl=torch.zeros(Bt,dtype=torch.long)
+                p=bvalue_probs(W,views,c,has,age,zl,vl)
+                pm=(p[:,1:]*torch.tensor(CENd[c],dtype=T)).sum(1)
+                rec[(round(t),c)]=pm.reshape(C,npaths).numpy()
+                q=p[:,1:]/p[:,1:].sum(1,keepdim=True); cdf=torch.cumsum(q,1)
+                b=(U[:,j:j+1]>cdf).sum(1).clamp(max=15)+1
+                x=torch.tensor(CENd[c],dtype=T)[b-1]
+                md,iq=MED[c]; zv=((x-md)/iq).clamp(-10,10)
+                rows[:,i,:]=rows[:,i,:]+W['embed.bins.value.weight'][b]-W['embed.bins.value.weight'][ea[i]['vb']]+(zv-ea[i]['num'][0])[:,None]*W['embed.numeric.weight'][:,0]
+                RG[c]=(torch.full((Bt,),t,dtype=T), zv, b)
+        else:
+            for i in meas:
+                c=ea[i]['code']; RG[c]=(torch.full((Bt,),t,dtype=T), torch.full((Bt,),ea[i]['num'][0],dtype=T), torch.full((Bt,),ea[i]['vb'],dtype=torch.long))
+        e=bset_enc(W,rows,'encode') if ea else set_enc(W,[],'encode')[None].repeat(Bt,1)
+        u=torch.cat([u_for(atoms,t,cd,t_edit)[None].repeat(npaths,1) for cd in conds],0)
+        M=torch.cat([M,e[:,None]],1); ts.append(t)
+        ages=torch.tensor([(t-tj)*3600.0 for tj in ts],dtype=T)
+        out,h,_=bstep(W,out,h,dt,e,u,M,ages)
+    return rec
+
+W0 dict 181 
+BUN dict 100 
+Dtr dict 6 
+Dtu dict 6 
+stays ndarray 32389 
+pol dict 2 
+Ptu dict 2 
+X0row ndarray 992 
+u_empty Tensor 192 
+MEASC dict 4 
+CENd dict 4 
+DRUGN dict 2 
+tb ndarray 53 
+th ndarray 54 
+sidx_tu dict 400 
+['z_head.bias', 'z_head.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight', 'z_prior.0.bias', 'z_prior.0.weight', 'z_prior.2.bias', 'z_prior.2.weight']
+
+```

@@ -1,0 +1,223 @@
+OUTPUT of Python run 161 of at most 300:
+```
+=== PREDICTION HELPER ===
+predictions119 globals: ('torch', 'tensor', 'np', 'asarray', 'reshape', 'float32', 'features119', 'T', 'proj118', 'numproj118', 'F', 'gelu', 'linear', 'W0', 'tr118', 'softmax', 'mean', 'centres104', 'sum', 'numpy', 'log', 'arange', 'len', 'labels118', 'clamp_min')
+ 12           0 RESUME                   0
+
+ 13           2 LOAD_GLOBAL              0 (torch)
+             12 LOAD_ATTR                3 (NULL|self + tensor)
+             32 LOAD_GLOBAL              4 (np)
+             42 LOAD_ATTR                7 (NULL|self + asarray)
+             62 LOAD_FAST                0 (parameters)
+             64 CALL                     1
+             72 LOAD_ATTR                9 (NULL|self + reshape)
+             92 LOAD_CONST               1 (8)
+             94 LOAD_CONST               2 (3)
+             96 CALL                     2
+            104 LOAD_GLOBAL              0 (torch)
+            114 LOAD_ATTR               10 (float32)
+            134 KW_NAMES                 3 (('dtype',))
+            136 CALL                     2
+            144 STORE_FAST               2 (B)
+
+ 14         146 LOAD_GLOBAL             12 (features119)
+            156 LOAD_FAST                1 (rows)
+            158 BINARY_SUBSCR
+            162 LOAD_FAST                2 (B)
+            164 LOAD_ATTR               14 (T)
+            184 BINARY_OP                4 (@)
+            188 STORE_FAST               3 (numeric)
+
+ 15         190 LOAD_GLOBAL             16 (proj118)
+            200 LOAD_FAST                1 (rows)
+            202 BINARY_SUBSCR
+            206 LOAD_FAST                3 (numeric)
+            208 LOAD_GLOBAL             18 (numproj118)
+            218 LOAD_ATTR               14 (T)
+            238 BINARY_OP                4 (@)
+            242 LOAD_CONST               0 (None)
+            244 LOAD_CONST               0 (None)
+            246 BUILD_SLICE              2
+            248 LOAD_CONST               0 (None)
+            250 LOAD_CONST               0 (None)
+            252 LOAD_CONST               0 (None)
+            254 BUILD_SLICE              2
+            256 BUILD_TUPLE              3
+            258 BINARY_SUBSCR
+            262 BINARY_OP                0 (+)
+            266 STORE_FAST               4 (pre)
+
+ 16         268 LOAD_GLOBAL             20 (F)
+            278 LOAD_ATTR               23 (NULL|self + gelu)
+            298 LOAD_FAST                4 (pre)
+            300 CALL                     1
+            308 STORE_FAST               5 (hidden)
+
+ 17         310 LOAD_GLOBAL             20 (F)
+            320 LOAD_ATTR               25 (NULL|self + linear)
+            340 LOAD_FAST                5 (hidden)
+            342 LOAD_GLOBAL             26 (W0)
+            352 LOAD_CONST               4 ('attr_heads.value_bin.2.weight')
+            354 BINARY_SUBSCR
+
+ 18         358 LOAD_GLOBAL             26 (W0)
+            368 LOAD_CONST               5 ('attr_heads.value_bin.2.bias')
+            370 BINARY_SUBSCR
+
+ 17         374 CALL                     3
+
+ 18         382 LOAD_GLOBAL             28 (tr118)
+            392 LOAD_FAST                1 (rows)
+            394 LOAD_CONST               0 (None)
+            396 LOAD_CONST               0 (None)
+            398 LOAD_CONST               0 (None)
+            400 BUILD_SLICE              2
+            402 BUILD_TUPLE              3
+            404 BINARY_SUBSCR
+
+ 17         408 BINARY_OP                0 (+)
+            412 STORE_FAST               6 (logits)
+
+ 19         414 LOAD_GLOBAL              0 (torch)
+            424 LOAD_ATTR               31 (NULL|self + softmax)
+            444 LOAD_FAST                6 (logits)
+            446 LOAD_CONST               6 (-1)
+            448 CALL                     2
+            456 LOAD_ATTR               33 (NULL|self + mean)
+            476 LOAD_CONST               7 (1)
+            478 CALL                     1
+            486 STORE_FAST               7 (p)
+
+ 20         488 LOAD_FAST                7 (p)
+            490 LOAD_GLOBAL             34 (centres104)
+            500 LOAD_FAST                1 (rows)
+            502 BINARY_SUBSCR
+            506 BINARY_OP                5 (*)
+            510 LOAD_ATTR               37 (NULL|self + sum)
+            530 LOAD_CONST               6 (-1)
+            532 CALL                     1
+            540 LOAD_ATTR               39 (NULL|self + numpy)
+            560 CALL                     0
+            568 STORE_FAST               8 (means)
+
+ 21         570 LOAD_GLOBAL              0 (torch)
+            580 LOAD_ATTR               41 (NULL|self + log)
+            600 LOAD_FAST                7 (p)
+            602 LOAD_GLOBAL              0 (torch)
+            612 LOAD_ATTR               43 (NULL|self + arange)
+            632 LOAD_GLOBAL             45 (NULL + len)
+            642 LOAD_FAST                1 (rows)
+            644 CALL                     1
+            652 CALL                     1
+            660 LOAD_GLOBAL             46 (labels118)
+            670 LOAD_FAST                1 (rows)
+            672 BINARY_SUBSCR
+            676 BUILD_TUPLE              2
+            678 BINARY_SUBSCR
+            682 LOAD_ATTR               49 (NULL|self + clamp_min)
+            702 LOAD_CONST               8 (1e-12)
+            704 CALL                     1
+            712 CALL                     1
+            720 LOAD_ATTR               39 (NULL|self + numpy)
+            740 CALL                     0
+            748 UNARY_NEGATIVE
+            750 STORE_FAST               9 (nlls)
+
+ 22         752 LOAD_FAST                8 (means)
+            754 LOAD_FAST                9 (nlls)
+            756 BUILD_TUPLE              2
+            758 RETURN_VALUE
+
+=== HEAD-RECONSTRUCTION NOTES ===
+
+## Run 99: restart after label audit
+- Run 98 found 2250 incorrect old target bins; direct labels reduce but do not resolve the local/external NLL gap.
+- Recovering architecture and identical-reading diagnostics before any weight edit.
+- Python runs: 99; forward passes: 4; no submitted edits.
+
+
+## Run 100: compact alignment recovery
+- Architecture uses a recurrent state plus code-specific last-reading registers.
+- Retrieving recent diagnostic objects and function names without the previous output truncation.
+- Python runs: 100; forward passes: 4; no submitted edits.
+
+
+## Run 101: head reconstruction audit
+- Record-derived immediate effects remain approximately insulin -2 and NE +3, with persistence.
+- Inspecting exact matched-reading errors and head/feature implementations before trusting local edit scores.
+- Python runs: 101; forward passes: 4; no submitted edits.
+
+
+## Run 102: timing and register audit
+- Local errors are systematic, especially arterial MAP; next-time rounding and register construction are under examination.
+- Python runs: 102; forward passes: 4; no submitted edits.
+
+
+## Run 103: original-weight and worst-row audit
+- Extreme errors on low readings are inconsistent with ordinary prior-sampling differences.
+- Checking scratch weights, active hooks, exact registers, and predictions from external states.
+- Python runs: 103; forward passes: 4; no submitted edits.
+
+
+## Run 104: head convention experiment
+- All scratch tensors are original and registers match raw records at the largest-error rows.
+- Testing type/status indices and register age units against external factual predictions.
+- Python runs: 104; forward passes: 4; no submitted edits.
+
+
+## Run 105: last-numeric layout experiment
+- Type/status and age-unit changes did not resolve the local/external prediction mismatch.
+- Testing last-reading numeric field positions and head activations, without editing weights.
+- Python runs: 105; forward passes: 4; no submitted edits.
+
+
+## Run 106: exact reconstruction recovery
+- Last-numeric layout changes reduced but did not eliminate the external mismatch.
+- Re-reading the architecture and recovering local reconstruction interfaces before trusting any edit score.
+- Python runs: 106; forward passes: 4; no submitted edits.
+
+
+## Run 107: register interface inspection
+- Architecture recovered; checking actual last-reading tensor dimensions and local head implementation.
+- No submitted edits. Python runs: 107; forward passes: 4.
+
+
+## Run 108: compact readout recovery
+- last_numeric has 8 actual inputs versus 4 documented fields; previous output was truncated.
+- Retrieving only readout bytecode and identification summary. No edits.
+- Python runs: 108; forward passes: 4.
+
+
+## Run 109: head-gap and alignment recovery
+- Local readout shares the prior gap scaling; architecture specifies a distinct readout scaling.
+- Checking exact matched-reading inputs before testing this candidate reconstruction fix.
+- No edits. Python runs: 109; forward passes: 4.
+
+
+## Run 110: explicit head-gap assay
+- Best matched-reading convention: {'gap': 0.1, 'value_col': 6, 'flag_col': 3, 'activation': 'relu', 'nll': 2.025536060333252, 'mean_mae': 3.719050198109944, 'nll_mae': 0.722525797879013}
+- Tested preprocessing only; no weights edited.
+- Python runs: 110; forward passes: 4.
+
+
+## Run 111: query-type and no-value audit
+- Head gap scaling 1 versus .1 worsens reconstruction; rejected as the sole mismatch.
+- Tested all 15 query types and inspected no-value mass; no model edits.
+- Python runs: 111; forward passes: 4.
+
+
+## Runs 112?113: fine-bin boundary assay
+- Run 112 stopped at a tuple-key lookup error before scoring.
+- Completed assay; best result: {'last_side': 'right', 'target_side': 'left', 'value_col': 6, 'activation': 'relu', 'nll': 2.0230093002319336, 'mean_mae': 3.722056214761734, 'nll_mae': 0.7211385927983249}
+- No edits. Python runs: 113; forward passes: 4.
+
+
+## Run 114: restart and evidence recovery
+- Fine-bin conventions do not explain the factual reconstruction gap.
+- Recovering architecture, early identification evidence, and available forward artifacts before selecting a repair.
+- No edits. Python runs: 114; forward passes: 4.
+
+
+
+[output cut at 10,000 characters]
+```

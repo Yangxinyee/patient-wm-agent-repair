@@ -1,0 +1,228 @@
+OUTPUT of Python run 126 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RECORD SCHEMA ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== RETAINED FUNCTIONS ===
+approximate_edit_cost ('meta0', 'feature_tuple')
+as_numpy ('x',)
+brief_structure ('obj',)
+causal_shift_table ('panel_array', 'ids', 'outcome', 'drug', 'beta', 'rho')
+compact_panel ('df',)
+cpu_head_parts ('meta', 'states')
+cpu_head_probs ('parts', 'n_samples', 'seed')
+drop_edit ('name',)
+edited ()
+eigh ()
+empty_set_vector ('prefix', 'batch')
+fn ('meta', 'states')
+fn0 ('panel_array', 'ids', 'outcome', 'drug', 'beta', 'rho')
+fn1 ('parts', 'n_samples', 'seed')
+fnx ('beta',)
+func0 ('x', 'trans', 'tensors')
+graft_probs ('x', 'trans', 'tensors')
+head_average_probs3 ('tensors', 'hidden')
+head_dose_data ('meta', 'panel', 'ids', 'predicted_policy')
+head_score ('mean', 'nll')
+head_unit_target ('meta0', 'logits0', 'dose_data0')
+insulin_rd ('horizon', 'bandwidth', 'degree', 'history')
+least_squares ()
+lin ('x', 'prefix', 'weights')
+ln ('x', 'prefix', 'weights')
+load ('name',)
+load_original ('name',)
+logsumexp ('a', 'axis', 'b', 'keepdims', 'return_sign')
+make_head_features ('meta', 'states', 'gap_style', 'register_style', 'status', 'type_id', 'age_style', 'view_style')
+make_insulin_graft ('beta',)
+make_ne_data ('n_lags',)
+make_policy_data ('panel',)
+mlp ('x', 'prefix', 'weights')
+np32 ('x',)
+r101_fn ('size_n', 'atom')
+r2_score ()
+r96_empty_world ('size_n', 'atom')
+rd_dynamic_residual ('par',)
+reading_metadata ('records', 'states')
+rec_attention ('query', 'key', 'value', 'prefix')
+rec_attn_apply ('x', 'prefix', 'memory', 'ages', 'mask', 'age_mode')
+rec_context ('prev', 'dt_seconds')
+rec_layer ('x', 'prefix', 'memory', 'ages', 'mask', 'age_mode')
+rec_memory ('indices', 'embeddings')
+rec_step_with_z ('prev', 'dt', 'e_world', 'u_action', 'z', 'memory', 'ages', 'mask')
+reconstruction_mlp ('x', 'prefix', 'activation')
+repair_feature_sets ('meta', 'sf')
+repair_head_features ('meta', 'states')
+rm_insulin_atoms ('unit_id', 'rate_unit_id', 'side', 'use_kq', 'activation')
+rm_lin ('x', 'prefix')
+rm_ln ('x', 'prefix')
+rm_mlp ('x', 'prefix', 'activation')
+rm_set ('atom_vectors', 'prefix', 'activation')
+rr_f ('records', 'states')
+save_edit ('name', 'tensor')
+shifted_col ('col', 'horizon')
+short_stats ('x',)
+softmax ('x', 'axis')
+state_matrix ('obj',)
+tensor_prefix ('ending',)
+
+=== RETAINED ARRAYS / TABLES / SMALL CONFIGURATIONS ===
+A array (1696, 192)
+B array (1803, 192)
+C array (1868, 192)
+HTX array (4751, 192)
+HX array (4510, 192)
+P array (30000, 26, 6)
+TP array (400, 26, 6)
+U array (192, 192)
+U0 array (192, 192)
+Ureg array (192, 8)
+X array (208459, 31)
+Zextra array (4758, 192)
+Zfirst array (4510, 192)
+Ztuning array (4751, 192)
+a3 array (17,)
+ar array (192,)
+arr array (4035,)
+arr0 array (4751, 192)
+b table (2, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+base_rd array (780000,)
+c array (4510,)
+centres_np array (4751, 17)
+chunk table (197441, 5) ['stay_id', 'hour', 'event', 'value', 'rate']
+cm array (4751, 17)
+coef array (35, 3)
+controls array (1024, 33)
+correct array (4751,)
+cross array (192,)
+design array (1024, 35)
+diag table (4751, 8) ['event', 'hour', 'has_last', 'last_z', 'error', 'nll_diff', 'period', 'last_range']
+dirs0 array (192, 41)
+distance array (780000,)
+dose array (208459,)
+dose_baseline table (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+dr array (208459,)
+eligible_extra array (4758,)
+eligible_first array (4510,)
+eligible_tuning array (4751,)
+events3 array (4751,)
+examples array (4,)
+extra_mask0 array (4758,)
+factual_baseline table (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+features array (4751, 192)
+fi
+[output cut at 10,000 characters]
+```

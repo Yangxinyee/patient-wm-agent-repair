@@ -1,0 +1,125 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 173 replies happened before. Forward passes used: 16 of 50; Python runs used: 151 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['baseline77.npz', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate58.npz', 'insulin_candidate63.npz', 'ne_candidate148.npz', 'ne_candidate151.npz', 'ne_candidate82.npz', 'ne_detector81.npz', 'ne_reduced107.npz', 'ne_trial103.npz', 'ne_trial83.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ features, corrected dose contrasts, raw NE units, orthonormalized output directions and the exact b_in-to-coda linear map. Preparing stay-held-out distributional and dose-response constraints. No weights changed. Python runs: 141; forwards: 15.
+
+## Run 142: resolve projection and recurrent-scale discrepancies
+Historical basis matches: [(0.6591837780527738, 'Binput141'), (0.6591837780527738, 'basis100')]. Recurrent scale-map errors: {0.0: 0.016722026857412767, 0.0001: 0.01669264353017717, 0.001: 0.01645320152044087, 0.01: 0.016746425362764362}. Unchanged-dose contrast maxima: {('insulin', 2.0): 0.0, ('insulin', 0.5): 0.0, ('norepinephrine', 2.0): 2.384185791015625e-07, ('norepinephrine', 0.5): 2.384185791015625e-07}. Fresh initial-prelude null rank=4; ready=False. No weights changed. Python runs: 142; forwards: 15.
+
+## Run 143: fresh weight-mapped output sensitivities
+Historical XF95 and prebasis136 discrepancies were not explained; they are not used in the new regression. Recomputed 14 central finite-difference reading sensitivities using original softplus(delta_in), c_out, exact GPU coda anchors, and fresh admission-null features. No gradients and no weights changed. Python runs: 143; forwards: 15.
+
+## Run 144: closed-form multi-direction NE correction frontier
+Fit 14-output admission-null regressions with factual Fisher-distribution penalties and insulin/glucose guards, using stay-held-out local validation. Increment targets are NE beta 3.0 for doubling and 1.6 for halving, reflecting record-derived schedule effects minus the insulin-only baseline's existing responses. Local frontier: {"0.3": {"norm": 393.110627084638, "heldout_KL_linear": 0.0036458427863599575, "heldout_mean_rms": {"map_arterial": 0.5150886924851277, "map_cuff": 0.6659633958782601, "glucose_finger": 0.6670685079851056, "glucose_lab": 0.6185929507439407}, "NE_2.0_slope": 1.8788694042602, "NE_0.5_slope": 0.681538400195289}, "1.0": {"norm": 400.6469834745396, "heldout_KL_linear": 0.0021595751709915967, "heldout_mean_rms": {"map_arterial": 0.42534579535691136, "map_cuff": 0.5104261884933562, "glucose_finger": 0.44675928853128655, "glucose_lab": 0.39942645733123244}, "NE_2.0_slope": 1.8215252401670186, "NE_0.5_slope": 0.6631651527006814}, "3.0": {"norm": 416.3004391787182, "heldout_KL_linear": 0.0014984963280380347, "heldout_mean_rms": {"map_arterial": 0.3663539325051326, "map_cuff": 0.4275398678065313, "glucose_finger": 0.3123446398400817, "glucose_lab": 0.3115476462227195}, "NE_2.0_slope": 1.734090526029308, "NE_0.5_slope": 0.6291098592700494}, "10.0": {"norm": 448.0096910757974, "heldout_KL_linear": 0.000992679519734656, "heldout_mean_rms": {"map_arterial": 0.2983948761299037, "map_cuff": 0.35560194375192394, "glucose_finger": 0.23175761052245827, "glucose_lab": 0.268588589587403}, "NE_2.0_slope": 1.5639196438540544, "NE_0.5_slope": 0.5589914665712908}, "30.0": {"norm": 483.5945024053507, "heldout_KL_linear": 0.0006166961611151329, "heldout_mean_rms": {"map_arterial": 0.22825575863993616, "map_cuff": 0.2932282040446467, "glucose_finger": 0.18151368008106197, "glucose_lab": 0.22230568957495833}, "NE_2.0_slope": 1.3143725955672914, "NE_0.5_slope": 0.45828919181978955}}. No weights changed; local metrics are not rollout validation. Python runs: 144; forwards: 15.
+
+## Run 145: restart recovery
+Recovered architecture, early record-evidence notes, and live regression objects before any new candidate installation. Run144 local frontier is not a rollout or factual-NLL validation. No weights changed. Python runs: 145; forwards: 15.
+
+## Run 146: bounded candidate recovery
+Retrieved regression object names, saved-candidate tensor layouts, and selected earlier validation notes. No weights changed. Python runs: 146; forwards: 15.
+
+## Run 147: candidate weight-map verification
+Audited admission-null basis candidates, output-direction orthogonality, readout helper interface, and current baseline/NE composition. No weights changed. Python runs: 147; forwards: 15.
+
+## Run 148: verified multi-direction NE trial
+Mapping checks: {'sensitivity_map_max_error': 0.0, 'bundle_feature_max_error': 0.0, 'reading_feature_max_error': 0.0, 'admission_null_max_error': 2.5045925859745447e-14, 'weight_direction_gram_error': 7.742604430157619e-15, 'candidate_norm': 448.00969107579783, 'reported_norm': 448.0096910757974}. Installed=True. If installed, composition is original b_in + baseline77 + Bdir141 @ fits144[10] @ Binput142.T, replacing—not adding to—the old NE trial. Candidate remains unaccepted until GPU factual and paired-rollout tests. Python runs: 148; forwards: 15.
+
+## Forward 16 / Run 149: reject multi-direction mean-feature trial
+Candidate148 factual NLL=1.72932 vs original=1.63461 (+0.09471), decisively failing the +0.005 limit. Restored the previous feasible edit, original + baseline77 + .35*ne_trial103 NE delta. Examined per-slot pre-coda perturbations because uniform-slot/mean-feature local penalties are insufficient. Python runs: 149; forwards: 16.
+
+## Run 150: constrain factual state changes
+Run149 showed pre-coda slot RMS=6.145 and bundle-mean RMS=6.094; large decoder-insensitive changes, not mainly slot cancellation. Recovered the prior normal equations and fit a closed-form frontier with an additional per-slot pre-coda state penalty. Frontier: {0.003: {'weight_norm': 428.91370664119006, 'heldout_state_rms': 0.6686766326230452, 'heldout_local_KL': 0.0008542789624243658, "('insulin', 2.0)_guard_rms": 0.015458623300037305, "('insulin', 0.5)_guard_rms": 0.011697419769045824, "('norepinephrine', 2.0)_slope": 1.70071021913493, "('norepinephrine', 0.5)_slope": 0.7711159807842108}, 0.01: {'weight_norm': 423.18641215140457, 'heldout_state_rms': 0.4668712257297878, 'heldout_local_KL': 0.0008241641121953357, "('insulin', 2.0)_guard_rms": 0.015285532823205042, "('insulin', 0.5)_guard_rms": 0.011489992188461785, "('norepinephrine', 2.0)_slope": 1.654820834142511, "('norepinephrine', 0.5)_slope": 0.758067167721415}, 0.03: {'weight_norm': 418.62879545736405, 'heldout_state_rms': 0.3264494337344484, 'heldout_local_KL': 0.0008040053892774829, "('insulin', 2.0)_guard_rms": 0.015315308888588784, "('insulin', 0.5)_guard_rms": 0.011292338296060836, "('norepinephrine', 2.0)_slope": 1.5945855467149777, "('norepinephrine', 0.5)_slope": 0.7391673575480172}, 0.1: {'weight_norm': 411.65730560977664, 'heldout_state_rms': 0.22832601755075485, 'heldout_local_KL': 0.0007625981011846209, "('insulin', 2.0)_guard_rms": 0.015505659082560928, "('insulin', 0.5)_guard_rms": 0.011024688799199274, "('norepinephrine', 2.0)_slope": 1.501458251334809, "('norepinephrine', 0.5)_slope": 0.7062199156830888}, 0.3: {'weight_norm': 401.20178499282537, 'heldout_state_rms': 0.17384379537979164, 'heldout_local_KL': 0.0006663793125684548, "('insulin', 2.0)_guard_rms": 0.015585903083009375, "('insulin', 0.5)_guard_rms": 0.010654924920337393, "('norepinephrine', 2.0)_slope": 1.367982021346044, "('norepinephrine', 0.5)_slope": 0.6554258462857017}, 1.0: {'weight_norm': 365.6340651223584, 'heldout_state_rms': 0.12626966402947493, 'heldout_local_KL': 0.00047920815430987186, "('insulin', 2.0)_guard_rms": 0.014960330759871026, "('insulin', 0.5)_guard_rms": 0.009788718137169288, "('norepinephrine', 2.0)_slope": 1.122494639273152, "('norepinephrine', 0.5)_slope": 0.5582436692015808}, 3.0: {'weight_norm': 282.82599706058056, 'heldout_state_rms': 0.08421291565285338, 'heldout_local_KL': 0.00026462005348530806, "('insulin', 2.0)_guard_rms": 0.012617830729508587, "('insulin', 0.5)_guard_rms": 0.008031805591134377, "('norepinephrine', 2.0)_slope": 0.794259372118808, "('norepinephrine', 0.5)_slope": 0.42411980317044834}}. No weights changed. Python runs: 150; forwards: 16.
+
+## Run 151: state-penalized NE candidate installed
+Installed original b_in + baseline77 + Bdir141 @ fits150[.1] @ Binput142.T. Anchored held-out incremental KL=0.0007436; this is a local diagnostic, not full factual NLL. GPU factual and dose validation pending. Python runs: 151; forwards: 16.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 151 of at most 300:
+```
+NONLINEAR ANCHORED NE-INCREMENT CHECK {'heldout_KL': 0.0007436079576526487, 'heldout_mean_shift_rms': 0.23938953449998793, 'NE_weight_norm': 411.657305609777, 'pre_coda_state_rms': 1.3901537953757135}
+INSTALLED baseline77 + state-penalized NE correction, gamma=.1
+Saved-weight maximum error 0.0
+
+```

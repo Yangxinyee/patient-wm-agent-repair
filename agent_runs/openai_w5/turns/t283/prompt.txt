@@ -1,0 +1,118 @@
+OUTPUT of Python run 247 of at most 300:
+```
+=== CHANNEL AND HEAD DESIGN NOTES ===
+## Run 103: diagnostic state-coordinate clearing
+- Reserved coordinates [61, 21, 15, 66] by zeroing their c_out and coda residual-output rows.
+- This is only a capacity diagnostic, not a causal repair. No dose signal has been installed.
+- Original rollout responses are near zero despite record-derived insulin/NE effects.
+- Next: paired factual test; reject this route if clearing alone consumes the +.005 NLL budget.
+
+## Forward 8 / run 105: private-channel feasibility
+- Clearing four state coordinates costs only +.00034 factual value NLL on tuning A.
+- Prepared, but did not install, frozen-feature rate regressions: {'alpha': 1e-05, 'rmse_I_NE': [0.40887, 0.13455], 'absent_rmse_I_NE': [0.043429, 0.024621], 'max_abs_I_NE': [10.9567, 2.4564]}.
+- Fixed input representation saturation limits: [11.52, 3.0].
+- This rate-encoding fit uses no model gradients and makes no new causal-effect claim.
+
+## Run 110: private-channel decoder audit
+- Audited the final-layer decoder by treatment configuration.
+- Tested direct-atom and first-hidden rate/identity recovery on independent continuous doses.
+- No additional weight edits; encoding accuracy alone is not causal or factual validation.
+
+## Run 116: isolated-channel capacity test
+- Refit rate and drug-presence decoding on original first-hidden action features; no gradients.
+- Temporarily zeroed one prelude attention-head output (minimum output-weight norm), in addition to the four cleared state coordinates.
+- This is an ablation diagnostic, not a causal repair. Paired factual testing determines whether its capacity cost is acceptable.
+
+## Forward 9 / run 117
+- Freeing prelude head 3 costs +0.00246 factual value NLL on tuning A (1.64179 versus 1.63933).
+- Prepared an analytic first-hidden rate channel and linear encoder distillation; not installed.
+- Encoder validation report: {'alpha': 0.001, 'rate_rmse_I_NE': [0.136104, 0.056676], 'rate_max_error_I_NE': [4.05774, 0.82129], 'ordinary_u_rmse': 4.050224742968567e-05, 'absent_rate_rmse': [0.0, 0.0]}
+
+## Run 118: normalized analytic rate channel
+- Tested exact GELU-pair rate arithmetic with normalized-output distillation to avoid q times unknown layer-normalization scale.
+- Best local report: {'alpha': 0.001, 'rate_rmse_I_NE': [0.004566, 0.001215], 'typical_rate_rmse_I_NE': [0.003383, 0.000982], 'max_rate_error_I_NE': [0.09879, 0.03036], 'ordinary_u_rmse': 0.0021985468920320272, 'raw_sigma_min_max': '0.98269 / 1.00664'}
+- No encoder candidate installed yet.
+
+## Run 123: encoder candidate installed for factual validation
+- Independent rate RMSE I/NE: [0.004455155805703784, 0.0014733773277843163].
+- Ordinary action-feature RMSE: 0.0027597.
+- Installed the best normalized analytic encoder; no causal readout coupling yet.
+- Existing coordinate/head ablations remain. GPU factual validation is required.
+
+## Run 125: isolated dose-transport candidate
+- Routed head 3 to the action token using a carrier discriminator and exact constant query.
+- Private state coordinates receive paired rate signals and decay before subsequent updates.
+- No causal value-head correction installed. This is a transport/capacity test only.
+- Must pass GPU factual NLL and saved-state rate-transport checks before use.
+
+## Restart after run 125
+- Transport routing passed the local action-token selection check only.
+- No causal readout coupling is installed; factual and temporal transport validation remain required before retaining this candidate.
+
+## Forward 11?12 / transport validation
+- Tuning A paired factual value NLL: original 1.63933, transport candidate 1.64142, increase 0.00209.
+- This passes the constraint but leaves only 0.00291 for the causal readout correction.
+- Paired states saved in /work/fwd_13; dose recovery and temporal behavior are being audited before coupling.
+
+## Runs 130?134: restart and head audit
+- Re-read architecture and earlier record-derived effects. Dynamic targets remain conditional on identification and response-form assumptions.
+- Run 133 stopped on a layout-dictionary/tuple mismatch; no weights changed.
+- Run 134 rebuilt reading features using explicitly edited weights and aligned readings with preceding-hour exposures. No causal head edit yet.
+
+## Run 135: clean-pair capacity candidate
+- Equalized paired coordinates in out/query normalization and additive head inputs; removed incidental old value-head pair sensitivity.
+- Amplified private dose transport by 400. This is not a causal calibration.
+- Compensated both atom encoders by linear algebra to preserve primitive embedding preactivations. No gradients or optimizer used.
+- Candidate requires paired GPU factual validation; retain only if the +.005 value-NLL constraint holds with room for a causal correction.
+
+## Forward 15 / run 138: clean-channel factual validation
+- Clean-pair candidate value NLL on tuning A: 1.64123 versus original 1.63933; +0.00190.
+- Passes the +0.005 constraint on this sample; approximately 0.00310 budget remains.
+- Saved-state ordinary out RMS difference is 0.03842. Pair differences are small and require timing/rate auditing.
+- No causal value-head coupling installed yet; factual fit alone is not a causal validation.
+
+## Restart after run 141
+- Four-neuron head distillation has negligible local likelihood cost; no causal head edit was installed in run 141.
+- Dose-proxy error and heterogeneous local tilt sensitivity remain unresolved.
+- Recovering architecture, record-derived identification results, and persistent calibration objects before another edit.
+
+- Run 145 inspection failed on a module's shape attribute; no weights changed.
+
+## Runs 147?149: sensor-specific causal-head candidate
+- Run 147's zero insulin tilt was a constrained-fit sign bug, corrected in run 148; it is not evidence of an absent insulin effect.
+- Freed eight low-energy value-head neurons by frozen-feature ridge distillation; no model gradients.
+- Separate, clean sensor gates; smooth monotone logit tilts calibrated to record-derived one-step effects.
+- Centered decoded exposure using independent-stay-validated ordinary-feature regressions.
+- Installed insulin strength 1 and NE strength .5 to reserve factual-loss budget.
+- Float32 local holdout NLL increment 0.001359 above clean transport; GPU factual and finite-dose tests still required.
+
+
+
+=== RESERVED HEAD MAPPING ===
+_pair_for_control: {7: 107, 171: 74, 10: 109, 124: 64}
+private_pairs: [(21, 61), (15, 66)]
+_gate_table:
+                      7         171       10        124
+glucose_finger -7.961988  7.961298 -8.084925 -7.912485
+glucose_lab     8.026621 -8.030035 -8.080666 -7.913679
+map_arterial   -7.955771 -8.044720 -8.085472  8.088691
+map_cuff       -7.960251 -8.039650  7.909326 -7.907842
+
+=== LARGEST FIRST-LAYER EDITS ===
+74 bias -10.65944 delta_norm 2768.09595 private [-1957.3262939453125, 1957.3262939453125, 0.0, 0.0] largest_inputs [6, 2, 13, 17, 21, 61]
+107 bias -0.34594 delta_norm 2768.02197 private [-1957.3262939453125, 1957.3262939453125, 0.0, 0.0] largest_inputs [64, 33, 59, 17, 21, 61]
+109 bias 1.05967 delta_norm 591.35284 private [0.0, 0.0, 417.9787902832031, -417.9787902832031] largest_inputs [33, 160, 22, 9, 66, 15]
+64 bias -6.83229 delta_norm 591.16437 private [0.0, 0.0, 417.9787902832031, -417.9787902832031] largest_inputs [49, 9, 13, 62, 66, 15]
+171 bias -9.92898 delta_norm 14.35121 private [0.0, 0.0, 0.0, 0.0] largest_inputs [45, 5, 6, 2, 13, 17]
+124 bias -6.33523 delta_norm 12.84507 private [0.0, 0.0, 0.0, 0.0] largest_inputs [149, 160, 49, 13, 9, 62]
+10 bias 0.69999 delta_norm 11.81429 private [0.0, 0.0, 0.0, 0.0] largest_inputs [17, 62, 33, 160, 22, 9]
+7 bias -0.43579 delta_norm 11.65235 private [0.0, 0.0, 0.0, 0.0] largest_inputs [89, 2, 64, 33, 59, 17]
+146 bias 0.03893 delta_norm 0.29975 private [0.0377499982714653, 0.0377499982714653, -0.09470999985933304, -0.09470999985933304] largest_inputs [157, 33, 105, 93, 97, 146]
+114 bias -0.00165 delta_norm 0.20975 private [-0.0282600000500679, -0.0282600000500679, -0.12501999735832214, -0.12501999735832214] largest_inputs [142, 39, 144, 89, 56, 130]
+119 bias 0.04414 delta_norm 0.20232 private [-0.0026000000070780516, -0.0026000000070780516, -0.15273000299930573, -0.15273000299930573] largest_inputs [50, 125, 93, 144, 130, 33]
+185 bias -0.04015 delta_norm 0.19401 private [-0.06735999882221222, -0.06735999882221222, 0.019339999184012413, 0.019339999184012413] largest_inputs [105, 119, 40, 129, 86, 150]
+
+=== OTHER AVAILABLE OBJECT NAMES ===
+A B BASE217 C Cbase238 Ctest238 F H237 Hb Hw NAMES O237 Ow S SHAPES V VOCAB W W225 WO WO225 _ _a _a216 _a219 _atoms _audit217 _b _both _c _ce _ci218 _cm218 _coef _control _controls _d _d219 _db _df _diff _dm218 _dp _dr _drug _dw _dw217 _e217 _ev218 _event _ex _f _f217 _f219 _fn _folder _g _g217 _gate_table _group215 _groups215 _h218 _hb217 _hh219 _hist _hist_pred _ho217 _holdout _hw217 _inventory214 _ir _items215 _ix _ix218 _j _j219 _k _k219 _key _labels218 _ll219 _logits218 _logits219 _loss218 _losses218 _n215 _n216 _n217 _n218 _n219 _name _name214 _names _notes _notes214 _nr _obj214 _out_check _ow218 _p _p200 _p218 _p219 _pair_for_control _params216 _pen _preact _prev _r _rate _rates _reg _rows215 _s216 _s218 _s219 _section214 _sensor217 _si _sid _sig215 _signals _slope _spec _te _tname218 _tr _tr218 _u _ub _v _v215 _v216 _v219 _valid _x _x218 _xx219 _y218 a age231 avg232 avg233 axis b b237 basewc231 bins233 bounded_definition brief224 buf c centres231 checkpoint238 checks232 code_id codes225 comp comparison225 cur d defaultdict df237 diff233 dis dose18 draw drop_edit drug drug_atom205 e edges edit232 edited encoder_audit energy eps ev f fields filename files fn folder gen gpu gpu225 gpu231 gpu233 grid groups230 has231 head225 head_audit head_ln head_prev head_q head_rows head_vb head_wc head_zp hi history_audit i ids237 idx ii ind ins ins223 insn install_strength238 io ix ix231 j join join231 joined joins233 js json jx k keep230 key keys ks label labels231 last last_bins23
+
+```

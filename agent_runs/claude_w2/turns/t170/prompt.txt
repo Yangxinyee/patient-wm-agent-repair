@@ -1,0 +1,103 @@
+OUTPUT of Python run 164 of at most 300:
+```
+ndex_add_(0,torch.as_tensor(pos_p[maskp]),torch.ones(int(maskp.sum())))
+            pooled=s_/torch.sqrt(cnt.clamp(min=1))[:,None]+F.linear(torch.log1p(cnt)[:,None],W[pre+'.size.weight'],W[pre+'.size.bias'])
+            return LN(mlp(pooled,W,pre+'.mlp2'),W,pre+'.norm')
+        e=pool(~isa,'encode'); u=pool(isa,'encode_action')
+        # ---- core step
+        hp=h[act_n]; op=out[act_n]
+        hf=hp*torch.exp(-dt_s[:,None,None]*flowa)
+        ctx=op+LN(hf.mean(1),W,'core.out_norm')+mlp(torch.log(dt_s)[:,None]/10,W,'gap')
+        z=mlp(torch.cat([ctx,e,u],-1),W,'z_post')[:,:32]
+        Xt=torch.cat([hf+W['core.slots'][None],e[:,None],u[:,None],F.linear(z,W['z_in.weight'],W['z_in.bias'])[:,None]],1)
+        Xt=layer_sa(Xt,W,'core.prelude.0'); Ep=LN(Xt[:,:4],W,'core.prelude_norm')
+        ages=np.where(np.arange(Kmax)[None,:k+1]<=k,(tk[:,None]-tb[seq_si[act_n],:k+1])*3600.0,0.0)
+        agee=mlp(torch.log1p(torch.as_tensor(ages,dtype=torch.float32))[...,None],W,'core.age')
+        x=hf+Ep
+        for l in L:
+            Wkv=W[l+'.cross.kv.weight']
+            Mk[l][act_n,k]=F.linear(e,Wkv[:192]); Mv[l][act_n,k]=F.linear(e,Wkv[192:])
+            xn=LN(x,W,l+'.norm1'); x=x+attn_(xn,xn,W,l+'.attn')
+            xn=LN(x,W,l+'.norm2')
+            kk_=Mk[l][act_n,:k+1]+F.linear(agee,Wkv[:192]); vv_=Mv[l][act_n,:k+1]+F.linear(agee,Wkv[192:])
+            x=x+attn_kv(xn,kk_,vv_,W,l+'.cross',None)
+            x=x+mlp(LN(x,W,l+'.norm3'),W,l+'.ffn')
+        hn=abar*hf+sp*F.linear(Ep,W['core.b_in.weight'])+(x-(hf+Ep))
+        y=layer_sa(F.linear(hn,W['core.c_out.weight']),W,'core.coda.0')
+        h[act_n]=y; out[act_n]=LN(y.mean(1),W,'core.out_norm')
+        # ---- registers
+        mp=ismeas[pj]
+        if mp.any():
+            n_=pn[mp]; j_=pj[mp]; c_=code[j_]
+            hdm=hidden[j_]
+            bb=np.where(hdm,drawn[n_,A['loc'].values[j_]],bfact[j_])
+            zz=np.where(hdm,_z_vec(c_,CENT[c_,np.maximum(bb,1)-1]),zfact[j_])
+            ok=~np.isnan(val[j_])|hdm
+            reg_has[n_[ok],c_[ok]]=True; reg_t[n_[ok],c_[ok]]=tt[j_[ok]]; reg_z[n_[ok],c_[ok]]=zz[ok]; reg_b[n_[ok],c_[ok]]=bb[ok]
+    return dict(pm=pm_rec,nll=nll_rec,seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p,drawn=drawn)
+def _z_vec(c,x):
+    med=np.array([NUMD[(CNAME[ci],'value')]['median'] if (CNAME[ci],'value') in NUMD else 0 for ci in range(13)])
+    iqr=np.array([NUMD[(CNAME[ci],'value')]['iqr'] if (CNAME[ci],'value') in NUMD else 1 for ci in range(13)])
+    return np.clip((x-med[c])/iqr[c],-10,10)
+def readout(R,res,arms,drug='insulin',outcome='glucose_finger',t0=12.0,arm_ids=None,lo=13,hi=24):
+    A=R['A']; code=A.code.values; tt=A.t.values
+    rows=np.where((code==CODE[outcome])&(tt>=lo)&(tt<=hi+1e-9))[0]
+    dr=A[(A.code==CODE[drug])&(A.kind==0)&(A.t>=t0)]
+    first_dr=dr.groupby('si').t.min()
+    reached=np.array([ (A.si.values[j] in first_dr.index) and (first_dr[A.si.values[j]]<tt[j]) for j in rows])
+    pm=res['pm']; seq_si=res['seq_si']; seq_arm=res['seq_arm']; seq_p=res['seq_p']
+    nP=seq_p.max()+1; nA=seq_arm.max()+1
+    out={}
+    for a in range(nA):
+        vals=np.full((len(rows),nP),np.nan)
+        for ri,j in enumerate(rows):
+            s=A.si.values[j]
+            for p in range(nP):
+                n=(s*nA+a)*nP+p
+                vals[ri,p]=pm.get(n*10**7+j,np.nan)
+        out[a]=vals
+    return rows,reached,out
+
+===== head.py
+
+import numpy as np, torch, torch.nn.functional as F, math
+def CEN_of(code_ids):
+    cm=np.zeros((13,16))
+    for nm,arr in V['value_bin_centres'].items(): cm[CODE[nm]]=np.array(arr)
+    return torch.as_tensor(cm[np.asarray(code_ids)],dtype=torch.float32)
+def head_base(out_p,h_p,dt_s,W,gdiv=10.0):
+    hf=h_p*torch.exp(-dt_s[:,None,None]*torch.exp(W['core.flow.a']))
+    return out_p+LN(hf.mean(1),W,'core.out_norm')+mlp(torch.log(dt_s)[:,None]/gdiv,W,'gap')
+def head_value_logits(base,codes,f8,lastbin,status,W,z,ty=3):
+    view=base+F.linear(z,W['z_head.weight'],W['z_head.bias'])
+    q=LN(view+W['type_emb.weight'][ty],W,'query_norm')
+    wc=(q+W['embed.code.weight'][codes]+F.linear(f8,W['last_numeric.weight'],W['last_numeric.bias'])
+        +W['embed.bins.value.weight'][lastbin]+W['embed.bins.rate.weight'][0]+W['last_status.weight'][status])
+    return mlp(wc,W,'attr_heads.value_bin')+W['embed_transition.value_bin.weight'][codes*17+lastbin], wc
+def head_probs_mc(base,codes,f8,lastbin,status,W,ty=3,nz=0,seed=0):
+    pr=mlp(base,W,'z_prior'); zmu,zls=pr[:,:32],pr[:,32:]
+    if nz==0:
+        lg,_=head_value_logits(base,codes,f8,lastbin,status,W,zmu,ty); return lg.softmax(-1)
+    g=torch.Generator().manual_seed(seed); P=0
+    for i in range(nz):
+        z=zmu+torch.exp(zls)*torch.randn(zmu.shape,generator=g)
+        lg,_=head_value_logits(base,codes,f8,lastbin,status,W,z,ty); P=P+lg.softmax(-1)
+    return P/nz
+
+===== tf.py
+
+def teacher_forced(df, ids, W, chunk=500):
+    outs=[]
+    for i in range(0,len(ids),chunk):
+        R=prep_rollout(df, ids[i:i+chunk]); res=run_rollout(R,W,[{}],n_paths=1,seed=0,t_hide=1e9,want_nll=True)
+        A=R['A']; meas=np.where(np.isin(A.code.values,[CODE[c] for c in MEAS]))[0]
+        key=meas.astype(np.int64)+0  # n = si (one arm one path) -> n*10**7+j
+        n_=A.si.values[meas]
+        pm=np.array([res['pm'].get(int(n*10**7+j),np.nan) for n,j in zip(n_,meas)])
+        nl=np.array([res['nll'].get(int(n*10**7+j),np.nan) for n,j in zip(n_,meas)])
+        o=pd.DataFrame({'stay_id':R['stays'][n_],'t':A.t.values[meas],'code':A.code.values[meas],'value':A.value.values[meas],'pm':pm,'nll':nl})
+        outs.append(o)
+    return pd.concat(outs,ignore_index=True)
+
+
+```

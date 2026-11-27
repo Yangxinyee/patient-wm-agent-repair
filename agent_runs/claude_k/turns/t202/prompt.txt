@@ -1,0 +1,41 @@
+OUTPUT of Python run 187 of at most 300:
+```
+S5 files: [('x', (5380, 992), dtype('float32')), ('stay_id', (5380,), dtype('int64')), ('hour', (5380,), dtype('float64')), ('has_insulin', (5380,), dtype('bool')), ('has_norepinephrine', (5380,), dtype('bool')), ('n_atoms', (5380,), dtype('int64'))]
+S2 files: [('x', (5244, 992)), ('stay_id', (5244,)), ('hour', (5244,)), ('has_insulin', (5244,)), ('has_norepinephrine', (5244,)), ('n_atoms', (5244,))]
+D5 keys: {'R': ('DataFrame', (5921, 15)), 'Q': ('ndarray', (5921, 192)), 'WCb': ('ndarray', (5921, 192)), 'code': ('ndarray', (5921,)), 'lb': ('ndarray', (5921,)), 'kk': ('ndarray', (5921,))}
+stay_id [1010000128 1010000128 1010000128 1010000128 1010000128 1010000128
+ 1010000128 1010000128 1010000128 1010000128 1010000128 1010000128]
+hour [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833  3.
+  3.0833  4.      4.0833]
+has_insulin [False False False  True False  True False  True False  True False  True]
+has_norepinephrine [False False False  True False  True False  True False  True False  True]
+n_atoms [1 4 4 2 2 4 2 4 2 4 4 4]
+glast (30000, 28) [ nan 165. 168. 175. 169. 150. 151. 146. 146. 139.]
+gbest (30000, 28) [ nan 165. 168. 175. 169. 150. 151. 146.  nan 139.]
+gf [ nan 165. 168. 175. 169. 150. 151. 146.  nan  nan]
+ins [0.  0.  1.  0.5 1.  1.  1.  0.  0.  0. ]
+ne [0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+ids [np.int64(1010000000), np.int64(1010000001), np.int64(1010000002)]
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+```

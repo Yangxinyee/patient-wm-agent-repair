@@ -1,0 +1,153 @@
+OUTPUT of Python run 180 of at most 300:
+```
+EARLY CAUSAL NOTES
+ # Weight-repair notebook
+## Initial plan
+- Inspect architecture and data before choosing an edit.
+- Infer drug effects solely from the supplied simulated-ICU records.
+- Distinguish treatment-selection associations from treatment effects.
+- Use statistical fits and algebraic weight edits only; no gradients or optimiser.
+- Validate factual value NLL and rollout effects, including cross-sensor consistency.
+- No findings or edits yet.
+
+## Inspection
+- Architecture: drug action embeddings affect the recurrent state shared by all heads.
+- Value heads also have code-specific last-reading transitions.
+- Broad action edits may affect all-output log loss; prefer selective, evidence-based edits.
+- Python runs: 2. Forward passes: 0. No edits yet.
+
+## Hourly panel and preliminary associations
+- Infusions begin at hour t+0.0833, after hour-t measurements.
+        sensor          controls      n   insulin  insulin_se  norepinephrine  norepinephrine_se  residual_sd
+glucose_finger  current readings 298450 -2.098636    0.042771       -0.243935           0.140247    13.540091
+glucose_finger full past history 298450 -2.169121    0.039892       -0.064443           0.280626    12.713684
+   glucose_lab  current readings  28483 -1.108132    0.095744        0.520534           0.234678     7.135888
+   glucose_lab full past history  28483 -1.475258    0.104063        0.347124           0.488524     7.053169
+  map_arterial  current readings 312563  0.021053    0.016460       -0.616412           0.050659     4.727718
+  map_arterial full past history 312563 -0.001370    0.016657        1.982264           0.085269     4.380650
+      map_cuff  current readings 333382 -0.035490    0.031285       -6.659195           0.153377     7.988392
+      map_cuff full past history 333382 -0.035838    0.027808       -0.664094           0.218828     7.302487
+- These are conditional associations, not established causal effects.
+- Python runs: 3. Forward passes: 0. No edits yet.
+
+## Baseline rollout and flexible residualisation
+- Original tuning first 100: insulin x2 -3.68; half +2.018; NE x2 +0.465; half -0.871.
+- Two-fold cross-fitting by stay; flexible history controls and treatment-presence indicators.
+        sensor                  sample      n   insulin  insulin_se  norepinephrine  norepinephrine_se
+glucose_finger       all next readings 400154 -2.009795    0.045709        0.385314           0.264109
+glucose_finger current sensor observed 298450 -2.018225    0.046122        0.520053           0.302609
+   glucose_lab       all next readings 143791 -2.090995    0.076287       -0.342455           0.364291
+   glucose_lab current sensor observed  28483 -1.846260    0.158770       -0.031431           0.581099
+  map_arterial       all next readings 328940  0.008857    0.021188        3.121313           0.089562
+  map_arterial current sensor observed 312563  0.001712    0.021342        3.150740           0.090147
+      map_cuff       all next readings 439865 -0.049094    0.029712        2.723798           0.176977
+      map_cuff current sensor observed 333382 -0.044717    0.033971        2.787206           0.228032
+- Residualised estimates still require overlap, placebo and stability checks.
+- Python runs: 4. Forward passes: 1. No edits yet.
+
+## Factual baseline and latent dynamics
+- Original factual first 100 tuning: value NLL 1.63164, 4,751 readings.
+          drug      rho      beta  process_sd  baseline_walk_sd  sensor1_sd  sensor2_sd  sensor2_offset      nll  success   seconds
+       insulin 0.967881 -1.272755    4.758194          0.205145    8.921139    3.537458       -0.042686 3.852165    False 10.802939
+norepinephrine 0.900838  0.295787    1.766206          0.241436    3.263101    6.086621        3.147190 3.188606     True  4.784169
+          drug  factor  mean_shift_all400  mean_shift_first100
+       insulin     0.0          10.068514             9.670204
+       insulin     0.5           5.034257             4.835102
+       insulin     1.5          -5.034257            -4.835102
+       insulin     2.0         -10.068514            -9.670204
+       insulin     3.0         -20.137027           -19.340408
+norepinephrine     0.0          -0.692790            -0.655035
+norepinephrine     0.5          -0.346395            -0.327518
+norepinephrine     1.5           0.346395             0.327518
+norepinephrine     2.0           0.692790             0.655035
+norepinephrine     3.0           1.385581             1.310070
+- Targets above are provisional statistical e
+
+RECENT VARIABLE NAMES
+A177 G177 H177 K177 P177 W0177 W2177 Y177 alpha170 arr_inventory166 b0177 b170 b2177 base_mu172 bias170 cal170_base_train cal170_base_tune cal170_biases cal170_nll cal170_rows cal170_train_events cal170_tune_events cf172 cmu172 coef172 cohort178 cohort178b comp177 counts170 cov177 ctau172 dict_inventory166 dn170 dn172 dr172 dy172 early171 end168 ev170 expected170 f168 factor172 file171 fn168 func_inventory166 fw169 fw172 gain170 gain172 h177 head177_base head177_base_mu head177_coef head177_compressed head177_eval head177_free head177_keep head177_make head177_names head177_weights headings166 k168 label169 label170 m170 map164_C_i map164_C_ne map164_F map164_K map164_X map164_b_ne map164_fact map164_fits map164_frontier map164_mask map164_mean map164_rows map164_scale map164_train_mask map164_tune_mask map172_MAP_train map172_MAP_tune map172_candidates map172_frontier map172_glucose_train map172_glucose_tune map172_mean map172_rows map172_tau mc169 mc170 meta169 n171 nm168 nm169 o171 ob168 p0170 row172 score177 sel172 sensor165_fits sensor165_frontier sensor165_gates sensor165_labels sensor165_rows sensor165_tune_events sensor169 sensor170 snapshot166 start168 tab171 tau172 tbias170 tdn170 tdn172 tm170 ttau172 v168 w169 wc177
+
+RELEVANT FUNCTION SIGNATURES
+audit_head_logits (inputs, weights, transition)
+corrected_register_head (meta, base)
+estimate_response_kernel (dj, horizons=(1, 2, 3, 4, 6, 8))
+fit_post_contrast (drug, dj, mode, factual_weight, alpha, fitting_mask)
+head177_eval (mc, weights, centres=None)
+head177_make (map_coef)
+kernel_readout (doses, hours, rho, beta, factor=2.0, start=12)
+map164_mean (mc, raw_coef, mask, centres)
+map172_mean (mc, tau, centres)
+map172_tau (mc, insulin_coef, map_coef, glucose_mask)
+reconstruct_reading_head (meta, state_array=array([[-3.1031222 ,  2.4628353 , -3.1275604 , ...,  1.5799756 ,
+         1.2654448 ,  0.91540396],
+       [-2.9218984 ,  2.4659085 , -2.9161408 , ..., -0.1078293 ,
+         0.03942061,  0.0623443 ],
+       [-3.3016415 ,  2.7476857 , -2.9719825 , ...,  0.08902255,
+         0.24196434,  0.02744032],
+       ...,
+       [-3.2405238 ,  2.5461254 , -3.163888  , ...,  0.07773641,
+         0.25894296,  0.0514848 ],
+       [-3.2277315 ,  2.6187406 , -3.086891  , ...,  0.1073805 ,
+         0.29092997,  0.03112966],
+       [-3.2234786 ,  2.608361  , -2.9977047 , ...,  0.59644383,
+         1.3295591 ,  0.00493577]], shape=(4035, 992), dtype=float32), flow_factor=1.0, age_before_bundle=False, norm_mode='query', head_activation='gelu')
+score_head_variant (label, query_input, reg=tensor([[ 6.7328e-01,  3.7667e-01,  7.0553e-02,  ...,  7.8308e-01,
+         -1.2106e-01, -5.5778e-02],
+        [ 4.9467e-01, -3.5991e-01,  1.3226e-01,  ...,  5.2632e-01,
+          8.5851e-03,  9.9943e-01],
+        [ 6.8977e-01,  3.6976e-01,  1.9964e-01,  ...,  6.9390e-01,
+         -1.0291e-01, -1.2156e-01],
+        ...,
+        [ 6.5764e-01, -3.3699e-01,  1.6929e-01,  ...,  6.2040e-01,
+         -1.3343e-01,  8.7914e-01],
+        [ 6.5539e-01,  3.0464e-01,  2.4743e-01,  ...,  7.9342e-01,
+          1.2713e-01,  6.9661e-02],
+        [ 5.6891e-01, -5.1747e-01,  1.1977e-01,  ...,  7.9028e-01,
+          4.1950e-04,  5.3998e-01]]), normalize=True)
+
+HEAD177 OBJECTS
+A177 (72160, 193)
+G177 (193, 193)
+H177 (16, 4510, 192)
+K177 (72160, 191)
+P177 (193, 193)
+W0177 (192, 192)
+W2177 (17, 192)
+Y177 (72160, 17)
+b0177 (192,)
+b2177 (17,)
+comp177 (191, 17)
+cov177 (191, 191)
+h177 (72160, 192)
+head177_base {'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.2.bias': (17,), 'attr_heads.value_bin.2.weight': (17, 192)}
+head177_base_mu (4510,)
+head177_coef (193,)
+head177_compressed {'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.2.bias': (17,), 'attr_heads.value_bin.2.weight': (17, 192)}
+head177_free (2,)
+head177_keep (190,)
+head177_names ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+head177_weights {'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.2.bias': (17,), 'attr_heads.value_bin.2.weight': (17, 192)}
+score177 (192,)
+wc177 (17, 192)
+
+ sensor_iv.csv (16, 9)
+   drug         sensor  horizon     n          beta           se  dose_slope  outcome_slope  instrument_sd
+insulin glucose_finger       -1 59658 -2.900440e-16 1.359502e-15    0.025037  -7.261830e-18       9.619352
+insulin    glucose_lab       -1 16645  2.946754e-16 1.589862e-15    0.025007   7.368935e-18       8.919728
+insulin glucose_finger        1 57409 -2.410023e+00 2.985937e-01    0.022646  -5.457654e-02       9.522533
+insulin    glucose_lab        1 15153 -1.715024e+00 4.951145e-01    0.024521  -4.205451e-02       8.924684
+insulin glucose_finger        2 53033 -1.708150e+00 3.171375e-01    0.023817  -4.068272e-02       9.567950
+insulin    glucose_lab        2 14515 -2.052610e+00 5.841835e-01    0.023332  -4.789084e-02       8.983525
+
+ kernel_targets.csv (10, 4)
+          drug  factor   first100     all400
+       insulin     0.0  10.528802  11.082850
+       insulin     0.5   5.264401   5.541425
+       insulin     1.5  -5.264401  -5.541425
+       insulin     2.0 -10.528802 -11.082850
+       insulin     3.0 -21.057603 -22.165700
+norepinephrine     0.0  -3.808429  -3.969327
+
+ map_raw_frontier.csv (20, 12)
+ cross  fw  ridge  weight_norm   cv_dNLL  tuning
+[output cut at 10,000 characters]
+```

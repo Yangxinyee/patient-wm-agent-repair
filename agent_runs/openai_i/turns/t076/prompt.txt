@@ -1,0 +1,96 @@
+OUTPUT of Python run 67 of at most 300:
+```
+=== EARLY IDENTIFICATION NOTES ===
+
+# Weight-repair investigation
+## Initial inspection ? Python 1; forward 0
+- No weights changed and no drug effects assumed.
+- Inspect architecture, vocabulary, and record schema first.
+- Establish effects from training records, accounting for dose selection.
+- Validate any edit against paired rollouts and the factual NLL limit (original + 0.005 nats per reading).
+
+## Inspection ? Python 2; forward 0
+- Architecture read: separate action encoder; recurrent action pathways; shared attribute embeddings and same-code last-value registers.
+- Initial output truncated before vocabulary and sample rows; reprinted compact metadata and loaded records.
+- Reserved fixed tuning subsets for development, independent checking, and final validation. No weights changed.
+
+## Hourly analysis ? Python 3; forward 0
+- Measurements are at integer hours; infusions begin at hour + 0.0833.
+- Built chronological panels with zero rate when no infusion is recorded.
+- Preliminary associations below are diagnostic, not established effects; linear adjustment and dynamic fixed effects can be biased.
+        sensor           drug            method      n  beta_per_rate  cluster_se
+glucose_finger        insulin             naive 263668      17.929280    0.115173
+glucose_finger        insulin  history-adjusted 263668      -1.889789    0.042105
+glucose_finger        insulin history + stay FE 263668      -1.939217    0.041457
+   glucose_lab        insulin             naive  52643      17.885480    0.164865
+   glucose_lab        insulin  history-adjusted  52643      -1.973027    0.068524
+   glucose_lab        insulin history + stay FE  52643      -2.059826    0.070363
+  map_arterial norepinephrine             naive 152923     -14.511075    0.241974
+  map_arterial norepinephrine  history-adjusted 152923       2.094215    0.085729
+  map_arterial norepinephrine history + stay FE 152923       2.621544    0.085211
+      map_cuff norepinephrine             naive 111949     -15.371100    0.234747
+      map_cuff norepinephrine  history-adjusted 111949      -0.673979    0.181196
+      map_cuff norepinephrine history + stay FE 111949       1.578414    0.174600
+
+## Nonlinear identification ? Python 4; forward 2
+- Original development factual NLL 1.66206; limit 1.66706.
+- Original rollouts (99 stays): insulin x2 -1.864, half +0.975; NE x2 +0.342, half -0.032.
+- Crossfit dose and outcome nuisance models by stay, using only pre-dose history. Active-dose estimates still require exchangeability and attention to observation selection and nuisance-model error.
+        sensor           subset      n      beta  cluster_se
+glucose_finger       all active 263668 -1.986075    0.044771
+glucose_finger           hour 0   9307 -2.004139    0.243609
+glucose_finger        hours 1-5  48376 -1.811866    0.104447
+glucose_finger       hours 6-11  63523 -1.945429    0.091394
+glucose_finger      hours 12-23 142462 -2.052531    0.059515
+glucose_finger both sensors now  51056 -1.872719    0.095800
+   glucose_lab       all active  52643 -2.101326    0.073338
+   glucose_lab           hour 0   1868 -1.747917    0.457723
+   glucose_lab        hours 1-5   9655 -1.874173    0.178218
+   glucose_lab       hours 6-11  12707 -2.138924    0.153661
+   glucose_lab      hours 12-23  28413 -2.175754    0.097108
+   glucose_lab both sensors now  10073 -1.942218    0.157055
+  map_arterial       all active 152923  3.104719    0.088675
+  map_arterial           hour 0   6367  1.343762    0.313113
+  map_arterial        hours 1-5  32415  3.520649    0.224280
+  map_arterial       hours 6-11  38900  2.879506    0.178614
+  map_arterial      hours 12-23  75241  3.387522    0.116377
+  map_arterial both sensors now  43223  3.164128    0.159062
+      map_cuff       all active 111949  2.788186    0.172623
+      map_cuff           hour 0   4596 -2.065359    0.630626
+      map_cuff        hours 1-5  23444  2.883714    0.451089
+      map_cuff       hours 6-11  28356  3.309199    0.350870
+      map_cuff      hours 12-23  55553  3.324056    0.234617
+      map_cuff both sensors now  13489  3.439605    0.434051
+
+## Identification checks ? Python 5; forward 2
+- Crossfit estimates support insulin approximately -2 per unit/hour on both glucose sensors. NE approximately +3 after startup; hour-0 disagreement remains unresolved.
+- Checked empirically located insulin dose-policy discontinuities with local linear IV and a pre-dose lab placebo. Discrete running variables and smoothness assumptions limit RD certainty.
+     n  dose_jump  outcome_jump  IV_effect  cluster_se               sensor  bandwidth    sample
+ 91629   0.694895     -1.559407  -2.244089    0.276843       glucose_finger          6 all hours
+  3367   0.763631      0.576171   0.754515    1.301074       glucose_finger          6    hour 0
+153610   0.809845     -1.787755  -2.207528    0.185199       glucose_finger         10 all hours
+  5545   0.755502    -16.388754 -21.692545    1.639247       glucose_finger         10    hour 0
+231106   0.875574     -1.808918  -2.065978    0.141024       glucose_finger         15 all hours
+  8375   0.895406      0.897508   1.002348    0.716953       glucose_finger         15    hour 0
+ 21552   0.639749     -1.000271  -1.563536    0.445901          glucose_lab          6 all hours
+   821   0.707822      6.401902   9.044512    2.478909          glucose_lab          6    hour 0
+ 35587   0.770971     -1.167060  -1.513754    0.288337          glucose_lab         10 all hours
+  1330   0.767100     -5.183869  -6.757750    1.718301          glucose_lab         10    hour 0
+ 52759   0.854804     -1.315024  -1.538392    0.213385          glucose_lab         15 all hours
+  1970   0.803874     -7.337967  -9.128259    1.419479          glucose_lab         15    hour 0
+ 21320   0.661996     -0.005302  -0.008010    0.330877 PRE-DOSE lab placebo          6 all hours
+ 35407   0.796182     -0.021624  -0.027159    0.215680 PRE-DOSE lab placebo         10 all hours
+ 52842   0.866616     -0.000792  -0.000914    0.164007 PRE-DOSE lab placebo         15 all hours
+        sensor                 state      n      beta  cluster_se
+glucose_finger  lower predicted dose 133548 -1.918558    0.088033
+glucose_finger higher predicted dose 130120 -2.000873    0.051147
+   glucose_lab  lower predicted dose  26723 -1.740929    0.147544
+   glucose_lab higher predicted dose  25920 -2.181734    0.083418
+  map_arterial  lower predicted dose  7
+
+=== STATE / FEATURE OBJECT INVENTORY ===
+[('naive_x', (111949, 2)), ('adjusted_x', (111949, 32)), ('distances', (780000, 3)), ('irf_features', (780000, 48)), ('state_x', (4035, 992)), ('local_probs', (4510, 17)), ('local_hidden', (4510, 192)), ('hidden21', (650, 192)), ('probability23', (4510, 17)), ('hidden23', (4510, 192)), ('features27', (4510, 192)), ('state_read28', (4510, 992)), ('feature28', (4510, 32)), ('base_ctx', (24, 192)), ('ctx', (24, 192)), ('expanded_ctx', (48, 24, 192)), ('post', (48, 24, 64)), ('repair_posterior_search', 'list', 288), ('repair_posterior_best', 'dict', ['insulin', 'norepinephrine']), ('latent_state', (4035, 992)), ('latent_starts', 'dict', [(1010000000, 0.0833), (1010000000, 1.0833), (1010000000, 2.0833), (1010000000, 3.0833), (1010000000, 4.0833), (1010000000, 16.0833), (1010000000, 17.0833), (1010000000, 19.0833)]), ('latent_ends', 'dict', [(1010000000, 1.0833), (1010000000, 2.0833), (1010000000, 3.0833), (1010000000, 4.0833), (1010000000, 5.0833), (1010000000, 17.0833), (1010000000, 18.0833), (1010000000, 20.0833)]), ('latent_bundles', 'list', 1312), ('end_ctx41', (64, 192)), ('atom_hidden41', (64, 192)), ('end_ctx42', (40, 192)), ('case_ctx44', (24, 192)), ('action_context50', (1191, 192)), ('action_u50', (1191, 192)), ('action_hidden50', (1191, 192)), ('clean_ctx50', (110, 192)), ('end_test_ctx50', (64, 192)), ('rates50', (1191, 2)), ('features', (1191, 192)), ('ctx63', (1, 192)), ('bundle_lookup65', 'dict', [(1010000000, -120), (1010000000, -60), (1010000000, 0), (1010000000, 5), (1010000000, 60), (1010000000, 65), (1010000000, 120), (1010000000, 125)]), ('bundle_rows65', 'list', 4035), ('e_all65', (4035, 192)), ('u_all65', (4035, 192)), ('contexts65', (3935, 192)), ('target_z65', (3935, 32)), ('ee65', (4035, 192)), ('uu65', (4035, 192)), ('hidden65', (3935, 192)), ('pred65', (3935, 32)), ('hidden_all65', (3935, 192))]
+
+Current edits: []
+
+```

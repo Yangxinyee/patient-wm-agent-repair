@@ -1,0 +1,232 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 317 replies happened before. Forward passes used: 34 of 50; Python runs used: 277 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'encode_action.mlp1.2.bias', 'encode_action.mlp1.2.weight']. Files in /work: ['action_extrap_candidate277.npz', 'action_extrapolation_frontier273.csv', 'best_combined_v1.npz', 'best_insulin_v1.npz', 'calibrated_candidate268.npz', 'calibration_strength_frontier265.csv', 'dml_results.csv', 'dynamic_iv.csv', 'edited', 'frozen_hidden_betas263.npz', 'frozen_hidden_frontier263.csv', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'glucose_calibration_frontier.csv', 'head_contrast_cv.csv', 'hidden_geometry259.npz', 'independent_candidate243.npz', 'independent_strength_frontier242.csv', 'kernel_targets.csv', 'local_action_probe.csv', 'local_projections.csv', 'map_cal_candidate_v2.npz', 'map_calibrated_frontier.csv', 'map_calibration_frontier.csv', 'map_gain8_candidate225.npz', 'map_gain_frontier224.csv', 'map_moment_frontier.csv', 'map_nonlinear_frontier.csv', 'map_pooled_moment_frontier.csv', 'map_raw_frontier.csv', 'map_sensor_frontier.csv', 'notes.md', 'posterior_contrast_cv.csv', 'pre_action_extrap_backup277.npz', 'proxy_iv.csv', 'safer_candidate247.npz', 'sensor_iv.csv', 'soft_hidden_betas264.npz', 'soft_hidden_frontier264.csv', 'validated_combined_backup.npz', 'validated_forward21.npz', 'validated_gain8_backup243.npz', 'validated_safe_backup268.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+independent validation IDs.
+
+## Run 251: independent factual pass and nonlinear review
+- Forward 29 / fwd_30: current safer edit value dNLL +0.00342 on tuning stays 300–399.
+- Current edit has passed both second-half tuning batches; first-half checks and current rollout still needed.
+- No weights changed. Reviewing saved nonlinear MAP candidates for selective doubling gains within the factual budget.
+
+## Run 252: nonlinear candidate ranking
+- No weights changed. Ranking saved nonlinear candidates by held-out MAP doubling response and checking exact cached feature definitions.
+- A candidate requires factual safety and actual paired rollout benefit; local sensitivity alone is insufficient.
+
+## Run 253: restart and safety audit
+- Forward 31 / fwd_32 factual value dNLL +0.00278 on 100 tuning stays.
+- Current four-tensor safer edit remains installed; no weights changed.
+- Recovering architecture, exact construction, and nonlinear candidate diagnostics.
+
+## Run 254: compact recovery
+- No weights changed. Avoided printing large helper defaults.
+- Recovering causal evidence, current-edit factual batches, and nonlinear frontier.
+
+## Run 255: bounded diagnostics
+- No weights changed. Collected current-edit pooled factual validation.
+- Recovering nonlinear rankings and independent-strength construction without large namespace dumps.
+
+## Runs 256–257: nonlinear rejection and causal audit
+- Forward 32 / fwd_33 current edit: insulin -10.251/+5.482; NE +0.899/-1.573.
+- Current pooled tuning factual dNLL +0.00357436 across 400 stays.
+- Saved nonlinear scalar candidates provide negligible held-out doubling improvement; not installed.
+- Run 256 failed only in diagnostic printing; no weights changed.
+- Reviewing identification and prior action-path attempts before choosing a distinct experiment.
+
+## Run 258: independent nonlinear-feature feasibility
+- NE kernel target requires sequential-unconfoundedness assumptions; it is not observed intervention truth.
+- Prior posterior-only probe was ineffective and restored.
+- Inspecting existing value-head hidden features for an independent low-rank output correction.
+- No weights changed.
+
+## Run 259: frozen-hidden statistical geometry
+- Computed factual score/curvature and paired dose-response moments in the current head's hidden features.
+- No gradients through the world model and no weights changed.
+- This is a feasibility screen, not intervention evidence.
+
+## Run 260: likelihood audit before further edits
+- Run 259 likelihood reconstruction differed by up to 0.9695 nats; do not trust its factual-loss approximation until reconciled.
+- Reading architecture and recovering saved hidden geometry/helpers. No weights changed.
+
+## Run 261: cached likelihood dimensions
+- Inspecting cached sample axes and the trusted mixture-likelihood helper before fitting an output correction. No weights changed.
+
+## Run 262: corrected likelihood audit
+- Correctly averaged reconstruction max error: 0.
+- Inspecting event-specific moment directions and factual budget. No weights changed.
+
+## Run 263: frozen-feature moment projection
+- Likelihood reconstruction is exact after averaging sample groups.
+- Fit closed-form, regularized moment projections in frozen hidden features: raise NE doubling, constrain other dose responses and factual event means. Exact cached likelihood and held-out moments screened; results saved in frozen_hidden_frontier263.csv.
+- No weights changed; local sensitivity is not rollout validation.
+
+## Run 264: soft frozen-feature screen
+- Exact moment constraints failed badly on held-out factual loss; those candidates were not installed.
+- Screened regularized statistical moment regressions with soft constraints; results saved in soft_hidden_frontier264.csv.
+- No weights changed.
+
+## Calibration/strength combination screen
+- Screening statistical hidden-feature calibration combined with independent insulin/MAP strengths; exact cached factual likelihood.
+- Results saved in calibration_strength_frontier265.csv. No weights changed; candidates require GPU validation.
+
+## Run 266: restart recovery
+- Run 265 found locally feasible calibration/strength combinations; none was installed.
+- Recovering architecture, candidate builders, and cached features before GPU validation.
+- Current safer four-tensor edit remains unchanged; 32 forward passes used.
+
+## Run 267: bounded candidate recovery
+- Architecture confirms the current edit is confined to the value head.
+- Recovering recent candidate variables and builders with bounded output.
+- No weights changed; cached factual improvements still require rollout validation.
+
+## Run 268: calibrated gain-8.5 candidate installed
+- Installed i0.9_g8.5_soft_low from the closed-form statistical screen.
+- Insulin strength remains 0.90; MAP gain rises from 7 to 8.5, with frozen-feature calibration.
+- Previous GPU-validated edit saved as validated_safe_backup268.npz.
+- Only four value-head tensors changed; GPU factual and paired rollout validation pending.
+
+## Run 269: calibrated rollout and action-path audit
+- Forward 33 / fwd_34: calibrated candidate factual dNLL +0.00541 on tuning 200–299; not yet pooled-validated.
+- Forward 34 / fwd_35: insulin -10.190/+5.661; NE +1.166/-1.765 on first 100 tuning stays.
+- NE improves over the fallback, but doubling remains below the assumption-dependent kernel estimate.
+- Reviewing earlier action-path probes and factual dose support; no weights changed.
+- 34 forward passes used.
+
+## Run 270: off-support dose-path feasibility
+- Training NE rates have a hard maximum of 1.0; doubling often exceeds observed support.
+- This is a possible explanation for under-response, not identification of extrapolated effects.
+- Plain numeric gain previously failed. Inspecting a compensated embedding path that minimizes factual perturbations.
+- No weights changed; the calibrated gain-8.5 candidate remains installed.
+
+## Run 271: compensated-encoder recovery
+- Read architecture and record schema; recovered earlier causal and action-encoder evidence.
+- Off-support categorical saturation is a hypothesis about model behavior, not evidence of the simulator's intervention effects.
+- No weights changed. Current calibrated candidate remains installed.
+- Counts: 271 Python runs, 34 forward passes.
+
+## Run 272: full action-support audit
+- Collected all training infusion rate/dose pairs and inspected action-encoder dimensions and cached reconstruction helpers.
+- Investigating a constrained statistical extrapolation correction; no weights changed.
+- Counts: 272 Python runs, 34 forward passes.
+
+## Run 273: constrained action-extrapolation screen
+- Training support: insulin 26 rate/dose pairs, maximum 14.5; NE 100 pairs, maximum rate 1.0.
+- Fitting a closed-form action-MLP correction, preserving factual atoms and within-support intervention atoms. No edits installed.
+- Counts: 273 Python runs, 34 forward passes.
+
+## Runs 274–275: encoder interface correction
+- Run 274 stopped because mlp requires an explicit activation kind; no weights changed.
+- Recovering the kind directly from repair_set_encode, not guessing.
+- Counts entering run 275: 274 Python runs, 34 forward passes.
+
+## Run 275: verified constrained extrapolation fit
+- Encoder activation gelu; full MLP reconstruction error 1.2544064e-05.
+- Constraint rank 73; frontier saved.
+- No weights changed; local response and GPU validation still needed.
+- Counts: 275 Python runs, 34 forward passes.
+
+## Runs 276–277: verified action extrapolation installed
+- Run 276 stopped before editing because wt is a function.
+- Run 277 used a temporary loader wrapper, restored in finally.
+- Installed closed-form action-MLP output correction: ridge 10, scale 1; existing calibrated value head unchanged.
+- Complete factual action-encoder max error 7.8082085e-06.
+- Previous edit saved in pre_action_extrap_backup277.npz; new six-tensor edit in action_extrap_candidate277.npz.
+- GPU factual and paired rollout validation pending.
+- Counts: 277 Python runs, 34 forward passes.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 277 of at most 300:
+```
+Weight-loader signature: (name)
+Edits before test: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+Complete action-encoder factual max error: 7.808208465576172e-06
+Original doubled-dose action contrast mean norm: 6.954954147338867
+Candidate doubled-dose action contrast mean norm: 6.733770370483398
+INSTALLED EDITS: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'encode_action.mlp1.2.bias', 'encode_action.mlp1.2.weight']
+
+```

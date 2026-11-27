@@ -1,0 +1,186 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 40 replies happened before. Forward passes used: 4 of 50; Python runs used: 35 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+o weights edited.
+
+## Runs 23–26: posterior validation and edit preparation
+- Lab glucose requires unit code 5, not kq 5. The attempted kq correction failed without changing model weights.
+- Posterior layers are z_post.0 and z_post.2, not core.z_post.*.
+- Full noninitial posterior RMS after correcting the unit is 6.052e-5 (median 9.70e-7; p95 2.225e-5; max 7.016e-4).
+- Run 25's composition-print failure occurred after successful reconstruction. Inspecting core layout and dynamic causal objects next.
+- Python runs: 26; forward passes: 4; no weights edited.
+
+## Run 27: local core reconstruction
+- Full posterior reconstruction passed in run 25; its later grouping print failed because bundle entries are (record, kind) pairs.
+- Core convention results (out/h RMS): {(1.0, False): (0.2553735375404358, 11.284152030944824), (1.0, True): (0.09784771502017975, 5.188462734222412), (0.1, False): (0.08613714575767517, 4.496523857116699), (0.1, True): (0.09909460693597794, 5.37593936920166)}.
+- Testing a conditionally centered dose-residual correction in posterior means; no edit until the transfer path is validated.
+- Python runs: 27; forward passes: 4; no weights edited.
+
+## Run 28: restart recovery
+- Core reconstruction in run 27 remains unvalidated; no edit is justified from it yet.
+- Recovering architecture, prior causal evidence, and persistent kernel objects.
+- Python runs: 28; forward passes: 4; no weights edited.
+
+## Run 29: targeted restart recovery
+- Architecture recovered; separate action encoder and posterior latent pathway are candidate edit boundaries.
+- Recovering dynamic identification results and reconstruction objects before selecting an edit.
+- Python runs: 29; forward passes: 4; no weights edited.
+
+## Run 30: recurrent-path audit
+- Record-derived impulses suggest persistent insulin effects and faster MAP-effect decay.
+- Recovering exact recurrent tensor layout and existing helpers to resolve state mismatch.
+- Python runs: 30; forward passes: 4; no weights edited.
+
+## Run 31: attention and memory-age convention search
+- Tested attention head counts and age scaling against saved states; no model weights changed.
+- Best configurations: [(0.07499662786722183, 3.5020477771759033, 16, 0.0, False), (0.0754963830113411, 3.4932687282562256, 4, 0.0, False), (0.07576201111078262, 3.512948989868164, 8, 0.0, False), (0.07583940774202347, 3.5057852268218994, 12, 0.0, False), (0.07744330167770386, 3.554762125015259, 6, 0.0, False)]
+- Python runs: 31; forward passes: 4; no weights edited.
+
+## Run 32: exact update audit
+- Head-count/age search failed to validate reconstruction; documented head count is four.
+- Inspecting helper operations and input scales rather than selecting an inaccurate best fit.
+- Python runs: 32; forward passes: 4; no weights edited.
+
+## Run 33: memory convention audit
+- Tested prior/current memory inclusion, memory sources and normalization, age units, and FFN activations.
+- Best configurations: [(1.760388840921223e-05, 0.001290809945203364, 'world', True, 'none', 'seconds', False, 'gelu'), (0.011621134355664253, 0.49570149183273315, 'world', True, 'plain', 'seconds', False, 'gelu'), (0.015962664037942886, 0.6960696578025818, 'world', True, 'block', 'seconds', False, 'gelu'), (0.022953249514102936, 1.1055859327316284, 'world', True, 'none', 'seconds', False, 'silu'), (0.022979507222771645, 1.1062058210372925, 'world', True, 'plain', 'seconds', False, 'silu')]
+- No weights edited; approximate state agreement is not treated as validation.
+- Python runs: 33; forward passes: 4.
+
+## Run 34: recurrent reconstruction resolved
+- The current WORLD bundle is appended to memory BEFORE cross-attention.
+- Age uses log1p(seconds), GELU; age embedding is added to both key and value inputs.
+- General validated helper: repaired_core_local(h,e,u,z,prior_memory,mask,ages).
+- Full 64-probe RMS: out=1.5349868e-05, h=0.0012857548.
+- Candidate posterior dose features are dose_feature_coef (192x2) and dose_feature_bias (2), from original post_hidden_audit.
+- Cross-validation results: [(0.07894215323415066, 0.1, [np.float64(0.16810365627480106), np.float64(-0.010219349806499745)], [0.04194379194232444, 0.005418331957492828]), (0.06945217493440081, 0.01, [np.float64(0.165801251589079), np.float64(-0.026896901720277366)], [0.05694890089996388, 0.008196133134592972]), (0.06497856057120077, 1.0, [np.float64(0.13067348422924696), np.float64(-0.0007163630868454174)], [0.02645280981870855, 0.003836276132245168]), (0.06386291275502637, 0.001, [np.float64(0.1639971682870226), np.float64(-0.03627134277696986)], [0.0647197671207628, 0.009968171918089554]), (0.04419821465809565, 10.0, [np.float64(0.0869670342183152), np.float64(0.001429395097876096)], [0.016603358854153788, 0.0030243071437987337]), (0.0364293107035788, 100.0, [np.float64(0.07227933743306214), np.float64(0.000579283974095457)], [0.013722652597279974, 0.0021343280758726376])]
+- These are diagnostic statistical fits, not edits; next test off-policy feature responses and choose physiological transfer directions.
+- Python runs: 34; forward passes: 4; no weights edited.
+
+## Run 35: off-policy dose-feature assay
+- Existing posterior features had active-dose CV R2 .168 (insulin) and -.010 (NE); no edit yet.
+- Scaled-action helper rr35_scaled_action_encoding reconstructs factor-one actions before multiplier tests.
+- Counterfactual scalar responses: {'insulin': {0.0: {'mean_feature_change': [-0.21067474782466888, 0.003608871717005968], 'mean_rate_change': -1.5648148148148149, 'own_feature_slope': 0.16174676016095055, 'own_delta_quantiles': [-0.6670417726039887, -0.024058356881141663, -0.0003611899912357361]}, 0.5: {'mean_feature_change': [-0.16906307637691498, 0.002442043973132968], 'mean_rate_change': -0.7824074074074074, 'own_feature_slope': 0.2425542240259639, 'own_delta_quantiles': [-0.6484986573457718, -0.0014237985014915466, 0.009099964052438726]}, 1.5: {'mean_feature_change': [0.1165228933095932, 0.00027755642076954246], 'mean_rate_change': 0.7824074074074074, 'own_feature_slope': 0.10830405529257241, 'own_delta_quantiles': [-0.02571732550859451, 0.0007392913103103638, 0.6735776156187057]}, 2.0: {'mean_feature_change': [0.3485238254070282, 0.001979737775400281], 'mean_rate_change': 1.5648148148148149, 'own_feature_slope': 0.125960810505725, 'own_delta_quantiles': [-0.046000044047832485, 0.5259648859500885, 0.7823596537113184]}, 3.0: {'mean_feature_change': [0.336784303188324, 0.0022918665781617165], 'mean_rate_change': 3.1296296296296298, 'own_feature_slope': 0.06075495195463642, 'own_delta_quantiles': [-0.05757236182689666, 0.5198003053665161, 0.7388702988624567]}}, 'norepinephrine': {0.0: {'mean_feature_change': [0.002092755166813731, 0.0002958528930321336], 'mean_rate_change': -0.43416434540389975, 'own_feature_slope': -0.0004505283900178966, 'own_delta_quantiles': [-0.0004786699078977108, 0.00025813281536102295, 0.0011574702803045511]}, 0.5: {'mean_feature_change': [0.0002709237451199442, 2.7596717700362206e-05], 'mean_rate_change': -0.21708217270194988, 'own_feature_slope': 0.00022719093186169593, 'own_delta_quantiles': [-0.0006400971207767725, -5.83035871386528e-05, 0.0008708017412573098]}, 1.5: {'mean_feature_change': [0.0005914452485740185, 0.00012170652917120606], 'mean_rate_change': 0.21708217270194988, 'own_feature_slope': 0.0009654526247335035, 'own_delta_quantiles': [-0.0005291061010211706, 5.771522410213947e-05, 0.001099053071811795]}, 2.0: {'mean_feature_change': [0.0044122664257884026, 0.0007710559875704348], 'mean_rate_change': 0.43416434540389975, 'own_feature_slope': 0.0025260932755774034, 'own_delta_quantiles': [-0.0005615878850221634, 0.00012414529919624329, 0.005414054635912179]}, 3.0: {'mean_feature_change': [0.023111050948500633, 0.002157476730644703], 'mean_rate_change': 0.8683286908077995, 'own_feature_slope': 0.0031339260917329103, 'own_delta_quantiles': [-0.0007757513783872127, 0.0002228235825896263, 0.010614319751039146]}}}
+- Python runs: 35; forward passes: 4; no weights edited.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 35 of at most 300:
+```
+
+ insulin n = 702 mean rate = 1.5648148148148149 action reconstruction RMS = 0.0
+factor 0.0 {'mean_feature_change': [-0.21067474782466888, 0.003608871717005968], 'mean_rate_change': -1.5648148148148149, 'own_feature_slope': 0.16174676016095055, 'own_delta_quantiles': [-0.6670417726039887, -0.024058356881141663, -0.0003611899912357361]}
+factor 0.5 {'mean_feature_change': [-0.16906307637691498, 0.002442043973132968], 'mean_rate_change': -0.7824074074074074, 'own_feature_slope': 0.2425542240259639, 'own_delta_quantiles': [-0.6484986573457718, -0.0014237985014915466, 0.009099964052438726]}
+factor 1.5 {'mean_feature_change': [0.1165228933095932, 0.00027755642076954246], 'mean_rate_change': 0.7824074074074074, 'own_feature_slope': 0.10830405529257241, 'own_delta_quantiles': [-0.02571732550859451, 0.0007392913103103638, 0.6735776156187057]}
+factor 2.0 {'mean_feature_change': [0.3485238254070282, 0.001979737775400281], 'mean_rate_change': 1.5648148148148149, 'own_feature_slope': 0.125960810505725, 'own_delta_quantiles': [-0.046000044047832485, 0.5259648859500885, 0.7823596537113184]}
+factor 3.0 {'mean_feature_change': [0.336784303188324, 0.0022918665781617165], 'mean_rate_change': 3.1296296296296298, 'own_feature_slope': 0.06075495195463642, 'own_delta_quantiles': [-0.05757236182689666, 0.5198003053665161, 0.7388702988624567]}
+
+ norepinephrine n = 718 mean rate = 0.43416434540389975 action reconstruction RMS = 0.0
+factor 0.0 {'mean_feature_change': [0.002092755166813731, 0.0002958528930321336], 'mean_rate_change': -0.43416434540389975, 'own_feature_slope': -0.0004505283900178966, 'own_delta_quantiles': [-0.0004786699078977108, 0.00025813281536102295, 0.0011574702803045511]}
+factor 0.5 {'mean_feature_change': [0.0002709237451199442, 2.7596717700362206e-05], 'mean_rate_change': -0.21708217270194988, 'own_feature_slope': 0.00022719093186169593, 'own_delta_quantiles': [-0.0006400971207767725, -5.83035871386528e-05, 0.0008708017412573098]}
+factor 1.5 {'mean_feature_change': [0.0005914452485740185, 0.00012170652917120606], 'mean_rate_change': 0.21708217270194988, 'own_feature_slope': 0.0009654526247335035, 'own_delta_quantiles': [-0.0005291061010211706, 5.771522410213947e-05, 0.001099053071811795]}
+factor 2.0 {'mean_feature_change': [0.0044122664257884026, 0.0007710559875704348], 'mean_rate_change': 0.43416434540389975, 'own_feature_slope': 0.0025260932755774034, 'own_delta_quantiles': [-0.0005615878850221634, 0.00012414529919624329, 0.005414054635912179]}
+factor 3.0 {'mean_feature_change': [0.023111050948500633, 0.002157476730644703], 'mean_rate_change': 0.8683286908077995, 'own_feature_slope': 0.0031339260917329103, 'own_delta_quantiles': [-0.0007757513783872127, 0.0002228235825896263, 0.010614319751039146]}
+
+=== FACTUAL OUTPUT SCHEMA ===
+/work/fwd_2/factual_original.csv ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        148.5525 2.2732
+2020000000  -1.0    map_cuff      58.0         81.4299 3.1916
+/work/fwd_4/factual_original.csv ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour          event  observed  predicted_mean    nll
+1010000000  -1.0   map_arterial      73.0         74.3559 2.0686
+1010000000  -1.0 glucose_finger     165.0        162.2361 2.6379
+
+=== NUMERIC SPECIFICATION SCHEMA ===
+num_spec0 keys: [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_lab', 'value'), ('glucose_finger', 'value'), ('insulin', 'dose'), ('norepinephrine', 'dose'), ('insulin', 'rate'), ('norepinephrine', 'rate')]
+('map_arterial', 'value') {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 77.0, 81.0, 84.0, 88.0, 92.0, 95.0, 98.0]}
+('map_cuff', 'value') {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [40.0, 46.0, 52.0, 60.0, 69.0, 74.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}
+action_empty_mode_audit: encoded
+
+```

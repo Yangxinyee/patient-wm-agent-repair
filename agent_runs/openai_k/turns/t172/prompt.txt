@@ -1,0 +1,47 @@
+OUTPUT of Python run 156 of at most 300:
+```
+=== EARLY IDENTIFICATION NOTES ===
+# Weight-repair notebook
+
+## Run 1: initial inspection
+- Read architecture, data schema, tensor shapes, vocabulary, and a record sample.
+- No drug-effect conclusion or weight edit yet.
+- All causal conclusions will come from the supplied records.
+- Python runs: 1; forward passes: 0.
+
+## Run 2: records and vocabulary
+- Architecture has a dedicated action encoder; this is a candidate edit boundary, not evidence of drug effects.
+- Loaded all training and tuning records and inspected event timing and dose distributions.
+- Python runs: 2; forward passes: 0.
+
+## Run 3: hourly panel and preliminary associations
+- Doses occur at hour + 0.0833, after same-hour measurements; next-hour outcomes are post-treatment.
+- Constructed complete hourly histories, with zero rates for absent infusion records.
+- Computed raw and flexible history-adjusted one-hour slopes; these remain provisional because treatment and observation selection may confound them.
+- Preliminary estimates: {'glucose_finger': {'n': 298450, 'beta': array([-1.9552787 , -0.00447367]), 'se': array([0.04175153, 0.27588974]), 'residual_dose_sd': array([0.62089111, 0.08481478])}, 'glucose_lab': {'n': 28483, 'beta': array([-1.61143064,  0.23353193]), 'se': array([0.10999966, 0.47828202]), 'residual_dose_sd': array([0.44313316, 0.08471139])}, 'map_arterial': {'n': 312563, 'beta': array([-0.01420961,  2.50709245]), 'se': array([0.01662592, 0.08518661]), 'residual_dose_sd': array([0.46802037, 0.10263334])}, 'map_cuff': {'n': 333382, 'beta': array([0.00668627, 0.46524658]), 'se': array([0.028022  , 0.21911062]), 'residual_dose_sd': array([0.46792872, 0.06450492])}}
+- Python runs: 3; forward passes: 0.
+
+## Run 4 / forwards 1?2: baseline and dose-policy models
+- Original tuning-100 rollout: insulin x2 -2.016; insulin half +1.051; NE x2 +0.309; NE half -0.070.
+- Original factual value NLL: 1.63155 over 4,751 readings.
+- Fit two-fold, stay-held-out flexible dose-policy models using only pre-dose histories.
+- These models are for identification diagnostics, not weight training.
+- Python runs: 4; forward passes: 2.
+
+## Run 5: cross-fitted next-hour effects
+- Dose-policy out-of-stay R2: insulin 0.8660, NE 0.9351; residual SD 0.3678 and 0.07559 respectively.
+- Used two-fold, stay-held-out nonlinear outcome models and clustered residual-on-residual regressions.
+- Checked sensor, positive-dose, and early/late subgroups; estimates still require confounding and dynamics checks.
+- DML results: {'glucose_finger': {'beta': array([-1.93474217,  0.33946561]), 'se': array([0.04454258, 0.26229829]), 'n': 400154}, 'glucose_lab': {'beta': array([-2.01483673, -0.33459203]), 'se': array([0.0747496 , 0.35865811]), 'n': 143791}, 'map_arterial': {'beta': array([0.01574776, 3.05259229]), 'se': array([0.02054298, 0.0887042 ]), 'n': 328940}, 'map_cuff': {'beta': array([-0.03133786,  2.52816442]), 'se': array([0.02915835, 0.17344546]), 'n': 439865}}
+- Python runs: 5; forward passes: 2.
+
+## Run 6: dynamic identification
+- Cross-fitted immediate effects: glucose finger -1.9347 (SE .0445), lab -2.0148 (.0747); arterial MAP +3.0526 (.0887), cuff +2.5282 (.1734).
+- Estimated treatment impulse responses using dose innovations and removed their induced future-dose changes by moment deconvolution.
+- Used independent/randomly sampled glucose_lab for glucose dynamics and arterial MAP for pressure dynamics, with stay-cluster bootstrap.
+- Impulse estimates: {'glucose_lab': array([-2.07283356, -2.23466817, -2.14515517, -1.43875875, -1.280
+Traceback (most recent call last):
+  File "<run>", line 16, in <module>
+AssertionError
+
+```

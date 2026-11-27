@@ -1,0 +1,117 @@
+OUTPUT of Python run 2 of at most 300:
+```
+=== RELEVANT TENSORS ===
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+
+=== VOCABULARY ===
+Top-level keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config: {"d_model": 192, "n_heads": 4, "ff_mult": 4, "n_prelude": 1, "n_recurrent": 2, "n_coda": 1, "n_loops": 1, "n_slots": 4, "n_memory": 128, "n_time_mix": 4, "z_dim": 32, "z_eval_samples": 4, "tau_out_range_s": [600.0, 63115200.0], "tau_max_s": 63115200.0}
+codes: [{"id": 0, "name": "(padding)"}, {"id": 1, "name": "(unknown measurement)"}, {"id": 2, "name": "(unknown drug_admin)"}, {"id": 3, "name": "(unknown visit)"}, {"id": 4, "name": "(unknown visit_detail)"}, {"id": 5, "name": "map_cuff", "event_kind": "measurement", "unit": "mmHg", "is_action": false}, {"id": 6, "name": "glucose_finger", "event_kind": "measurement", "unit": "mg/dL", "is_action": false}, {"id": 7, "name": "map_arterial", "event_kind": "measurement", "unit": "mmHg", "is_action": false}, {"id": 8, "name": "insulin", "event_kind": "drug_admin", "unit": "units/hour", "is_action": true}, {"id": 9, "name": "norepinephrine", "event_kind": "drug_admin", "unit": "mcg/kg/min", "is_action": true}, {"id": 10, "name": "glucose_lab", "event_kind": "measurement", "unit": "mg/dL", "is_action": false}, {"id": 11, "name": "hospital_admission", "event_kind": "visit", "unit": null, "is_action": false}, {"id": 12, "name": "icu_admission", "event_kind": "visit_detail", "unit": null, "is_action": 
+event_kinds: {"1": "measurement", "2": "drug_admin", "3": "visit", "4": "visit_detail"}
+atom_kinds: {"0": "WORLD (the event happened)", "1": "REVEAL (a result becomes known; not used in this data)", "2": "END (an infusion record ends)"}
+numeric: [{"code": "map_arterial", "attribute": "value", "median": 74.0, "iqr": 20.0, "fine_bin_edges": [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 77.0, 81.0, 84.0, 88.0, 92.0, 95.0, 98.0]}, {"code": "map_cuff", "attribute"
+numeric_note: "z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins."
+value_bin_centres: {"map_arterial": [33.0, 38.0, 43.0, 49.0, 56.0, 63.0, 68.0, 73.0, 76.0, 79.0, 83.0, 86.0, 90.0, 94.0, 97.0, 101.0], "map_cuff": [37.0, 44.0, 50.0, 57.0, 66.0, 72.0, 77.0, 80.0, 83.0, 86.0, 89.0, 93.0, 97.0, 101.0, 104.0,
+value_bin_note: "The value head has 17 classes: 0 = no value, 1..16 = the fine bins. The model's predicted mean of a reading is sum over b = 1..16 of p(b) * centre[b - 1]."
+
+=== RECORD SUMMARY ===
+train rows: 1997441 stays: 30000 ID examples: [1010000000, 1010000001, 1010000002, 1010000003, 1010000004, 1010000005, 1010000006, 1010000007]
+event
+map_cuff              476457
+glucose_finger        431057
+map_arterial          356379
+insulin               276181
+norepinephrine        241638
+glucose_lab           155729
+hospital_admission     30000
+icu_admission          30000
+Hours: -2.0 24.0833
+tuning rows: 26251 stays: 400 ID examples: [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007]
+event
+map_cuff              6392
+glucose_finger        5594
+map_arterial          4665
+insulin               3520
+norepinephrine        3277
+glucose_lab           2003
+hospital_admission     400
+icu_admission          400
+Hours: -2.0 24.0833
+
+First 12 training rows:
+   stay_id    hour              event  value  rate  rate_unit  dose dose_unit  end_hour
+1010000000 -2.0000 hospital_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000 -1.0000     glucose_finger  165.0   NaN        NaN   NaN       NaN       NaN
+1010000000 -1.0000       map_arterial   73.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000     glucose_finger  168.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000      icu_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000  0.0000       map_arterial   67.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000           map_cuff   70.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0833            insulin    NaN   1.0 units/hour   1.0     units    1.0833
+1010000000  1.0000     glucose_finger  175.0   NaN        NaN   NaN       NaN       NaN
+1010000000  1.0000        glucose_lab  167.0   NaN        NaN   NaN       NaN       NaN
+1010000000  1.0000       map_arterial   70.0   NaN        NaN   NaN       NaN       NaN
+1010000000  1.0833            insulin    NaN   0.5 units/hour   0.5     units    2.0833
+
+=== DRUG DISTRIBUTIONS ===
+insulin rows: 276181 treated stays: 18335
+              hour         rate         dose
+count  276181.0000  276181.0000  276181.0000
+mean       12.7528       1.7012       1.7012
+std         7.1526       0.9751       0.9751
+min         0.0833       0.5000       0.5000
+1%          0.0833       0.5000       0.5000
+10%         2.0833       1.0000       1.0000
+50%        13.0833       1.5000       1.5000
+90%        22.0833       3.0000       3.0000
+99%        24.0833       5.0000       5.0000
+max        24.0833      14.5000      14.5000
+norepinephrine rows: 241638 treated stays: 13174
+              hour         rate         dose
+count  241638.0000  241638.0000  241638.0000
+mean       11.9897       0.4991       2.3959
+std         7.1868       0.3275       1.5720
+min         0.0833       0.0100       0.0480
+1%          0.0833       0.0300       0.1440
+10%         2.0833       0.0800       0.3840
+50%        12.0833       0.4600       2.2080
+90%        22.0833       1.0000       4.8000
+99%        24.0833       1.0000       4.8000
+max        24.0833       1.0000       4.8000
+
+```

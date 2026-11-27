@@ -1,0 +1,238 @@
+OUTPUT of Python run 260 of at most 300:
+```
+=== EARLY RECORD-BASED FINDINGS (bounded) ===
+# Weight-repair notebook
+
+## Objective and constraints
+- Infer this simulated ICU's drug effects from the provided records only.
+- Repair the four dose-rollout readouts while increasing factual value NLL by no more than 0.005 nats per reading.
+- No model gradients or weight optimiser; statistical fits and computed weight edits only.
+- Limits: 300 Python runs and 50 forward requests.
+
+## Run 1
+Requested architecture, data schema, vocabulary, and tensor shapes. No causal conclusions or weight edits yet.
+
+## Run 2
+Architecture: actions have a separate DeepSets encoder, then enter the posterior and recurrent prelude. Reading heads also have same-code last-reading registers and transition logits. No drug effects inferred yet. Loaded train/tuning records and inspected schedule and drug encodings.
+
+## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+## Forward requests 1 and 2
+Original factual NLL (tuning IDs 2020000000..99): 1.63461; provisional maximum 1.63961.
+Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours >=12": [
+      -2.04868,
+      0.05966,
+      0.61587,
+      142454
+    ],
+    "lower half of doses": [
+      -1.94372,
+      0.07221,
+      0.40383,
+      158100
+    ],
+    "upper half of doses": [
+      -2.01779,
+      0.05771,
+      0.73907,
+      95763
+    ],
+    "away from maximum": [
+      -1.99092,
+      0.04556,
+      0.59868,
+      253862
+    ],
+    "current primary observed": [
+      -1.99783,
+      0.0459,
+      0.60385,
+      246971
+    ]
+  },
+  "norepinephrine": {
+    "all active": [
+      3.29011,
+      0.09111,
+      0.13328,
+      146556
+    ],
+    "hours >=12": [
+      3.38311,
+      0.11624,
+      0.13967,
+      75241
+    ],
+    "lower half of doses": [
+      3.50921,
+      0.15079,
+      0.10196,
+      74248
+    ],
+    "upper half of doses": [
+      3.17119,
+      0.11255,
+      0.14585,
+      72308
+    ],
+    "away from maximum": [
+      3.29965,
+      0.10114,
+      0.1253,
+      124482
+    ],
+    "current primary observed": [
+      3.29235,
+      0.09268,
+      0.13325,
+      139375
+    ]
+  }
+}
+
+## Run 5
+Estimated 1..12 hour local projections using held-out history models. Subtracted subsequent-treatment feedback using future-dose residual covariances to estimate controlled impulse responses. Geometric summaries are tentative; long-lag selection and recursive estimation can amplify error. No weight edits yet.
+{
+  "insulin": {
+    "rows": [
+      {
+        "lag": 1,
+        "total_LP": -1.9915,
+        "controlled_impulse": -1.9915,
+        "total_LP_SE": 0.04557,
+        "next_dose_feedback": 0,
+        "n": 253863
+      },
+      {
+        "lag": 2,
+        "total_LP": -2.2912,
+        "controlled_impulse": -2.3867,
+        "total_LP_SE": 0.05054,
+        "next_dose_feedback": -0.0479,
+        "n": 227223
+      },
+      {
+        "lag": 3,
+        "total_LP": -1.8451,
+        "controlled_impulse": -2.0916,
+        "total_LP_SE": 0.05563,
+        "next_dose_feedback": -0.0497,
+        "n": 210298
+      },
+      {
+        "lag": 4,
+        "total_LP": -1.3483,
+        "controlled_impulse": -1.7057,
+        "total_LP_SE": 0.05969,
+        "next_dose_feedback": -0.0503,
+        "n": 196607
+      },
+      {
+        "lag": 5,
+        "total_LP": 
+
+=== RECENT PAIRED FACTUAL DELTAS ===
+(30, 4664, (np.int64(2020000100), np.int64(2020000199)), 'nll', 0.004780124356775328)
+(32, 4664, (np.int64(2020000100), np.int64(2020000199)), 'nll', 0.0047103987993142304)
+(34, 4751, (np.int64(2020000000), np.int64(2020000099)), 'nll', 0.00919057040623028)
+(35, 4751, (np.int64(2020000000), np.int64(2020000099)), 'nll', 0.006705619869501245)
+(36, 4751, (np.int64(2020000000), np.int64(2020000099)), 'nll', 0.006259019153862289)
+(37, 4664, (np.int64(2020000100), np.int64(2020000199)), 'nll', 0.0036658233276158914)
+(38, 4563, (np.int64(2020000200), np.int64(2020000299)), 'nll', 0.00623116370808674)
+
+=== AVAILABLE FUNCTION NAMES ===
+load, load_original, save_edit, drop_edit, edited, lstsq, partial_linear, residual_effect, least_squares, crossfit_predict, make_plain_panel, response_arrays, softmax, wlin, wnorm, actfn, wmlp, rc_lin, rc_norm, rc_act, rc_mlp, fn, rh_register, rh_eval, fun, r2_score, roc_auc_score, trial_gelu_np, brief, as_t, fn64, rep_linear, rep_norm, rep_mlp, cpu_tensor, function, r85_linear, r85_norm, r85_mlp, r85_age_feature, r85_bins, r89_v, r91_lin, r91_norm, r91_mlp, lin96, act96, mlp96, norm96, balanced_accuracy_score, summary102, local104, f117, r124_lin, r124_mlp, r124_norm, r124_context, r126_desc, func, r129_queries, r131_numpy, obj136, activation136, r137_np, r138_nll, r138_pair, fn_here, r144_np, r144_nll, r145_t, r145_hidden, r145_head, logsumexp, r151_gelu, r156_short, r157_np, r159_pair, describe_small, c180_np, c180_brief, c181_fn, np186, f188, f189, mean190, o193, o195, numpy196, o197, r201_lin, r201_mlp, r201_norm, r201_ctx, r201_queries, r201_fixed, r201_eval, c207_tensor_weights, c210_eval, c211_logits, c211_moment_calibration, c211_cal_eval, r216_np, r217_eval, make_pipeline, r224_calibration, r225_np, rc_brief_obj, null_space, r240_prepare, r240_loss, r245_summary, r246_candidate, r246_loss, bounded_print, function_text, r252_nll, r252_fit_table, r252_table_rows, r253_value_vectors, r253_features, r255_describe
+
+=== RECENT CANDIDATE VARIABLE NAMES ===
+r235_safe, r237_caches, r237_W0, r237_b0, r237_W2, r237_common, r237_signal, r237_cb, r237_sb, r237_tilt, r239_keys, r239_orig, r239_safe, r239_rows, r239_result, r239_notes, r239_sections, r239_selected, r240_ne_rows, r240_keep, r240_q, r240_probe, r240_ids, r240_fit, r240_val, r240_prepare, r240_pre, r240_Hfit, r240_Yfit, r240_mu, r240_sd, r240_Z, r240_ymu, r240_C, r240_cross, r240_Xd, r240_wkeep, r240_bkeep, r240_vp, r240_eps, r240_D, r240_ev, r240_dmeans, r240_evals, r240_evecs, r240_loss, r240_baselines, r240_regressions, r240_results, r240_table, r241_results, r241_table, r241_reg, r241_funcs, r242_reg, r242_factor, r242_trial, r242_verified, r242_hash, r244_current, r245_summary, r246_keys, r246_safe_np, r246_reg, r246_ins_rows, r246_candidate, r246_reconstruction, r246_check, r246_loss, r246_orig, r246_base, r246_candidates, r246_results, r246_table, r247_trial, r252_head, r252_orig, r252_logits, r252_base, r252_train_ids, r252_fit, r252_val, r252_dmean, r252_nll, r252_fit_table, r252_table_rows, r252_tables, r252_results, r252_screen, r253_base_table, r253_base_rows, r253_lt
+
+=== SAVED CANDIDATE KEYS ===
+safe_6288c226d6.npz [('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192))]
+cancellation50_f33.npz [('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192))]
+lastbin80_scale4.npz [('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192)), ('embed_transition.value_bin.weight', (221, 17))]
+
+```

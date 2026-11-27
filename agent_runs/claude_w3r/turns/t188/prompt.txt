@@ -1,0 +1,32 @@
+OUTPUT of Python run 175 of at most 300:
+```
+core_step ('hprev', 'outprev', 'dt', 'e', 'u', 'zk', 'Mem', 'Mage', 'var') defaults None | names: torch exp Wt cat T LNt mha ffn age_emb F softplus mean
+core_step_v ('hprev', 'dt', 'e', 'u', 'zk', 'Mem', 'Mage', 'dec_mode') defaults ('std',) | names: torch exp Wt ones float64 cat T LNt mha ffn age_emb scs F softplus mean
+core_step_m ('hprev', 'outprev', 'dt', 'e', 'u', 'zk', 'Mem', 'Mage', 'var', 'use_e', 'use_u') defaults (True, True) | names: torch exp Wt T cat LNt mha ffn age_emb F softplus mean
+core_step_p ('hprev', 'dt', 'e', 'u', 'zk', 'Mem', 'Mage', 'pv') defaults None | names: torch exp Wt clone LNt F layer_norm cat T mha ffn age_emb scs softplus mean
+step_parts ('k', 'du', 'dE') defaults (None, None) | names: rows0 torch tensor SX reshape float64 B0 EU0 list range stack exp Wt cat T LNt mha ffn clone age_emb scs F softplus mean
+step_at ('B', 'rows', 'EU', 'k', 'du', 'de') defaults (None, None) | names: torch tensor SX reshape float64 list range stack core_step_v
+run_stay ('B', 'rows', 'EU', 'var', 'mask_prelude', 'mem_obs_only', 'ret') defaults (False, False, False) | names: range len torch tensor SX reshape float64 any stack core_step_m core_step append float abs median np array
+stay_data ('s',) defaults None | names: recs stay_id sort_values build_bundles OPTS np where SST enc_eu
+head_feats ('s', 'hour', 'code', 'zmode') defaults ('mean',) | names: bidx np searchsorted torch tensor SX reshape SHR HD ctx zprior L LN W LASTREG get round nan zeros fbin float math log max zsc CODE numpy hidden
+head_inputs ('stay', 'hour', 'event') defaults None | names: key_k int np where isclose recs stay_id event hour len float value iloc
+pred_mean_gf ('y', 'o', 'dt_next', 'lv', 'age_s', 'code_name') defaults ('glucose_finger',) | names: torch exp Wt LNt mean mlp_t tensor math log float64 T CODE zeros fbin zsc softmax isinstance VOCAB dict float sum
+pred ('ctx', 'mu', 'ls', 'lv', 'age', 'typ', 'status', 'age_unit', 'renorm', 'num3') defaults (1, None, 60.0, True, 1.0) | names: torch exp EPS HD L LN W CODE zeros fbin math log zsc softmax logits hidden sum float cen mean
+pred_c ('ctx', 'mu', 'ls', 'lv', 'age', 'c1') defaults None | names: pred math exp
+pred_v ('ctx', 'mu', 'ls', 'lv', 'age', 'sdfun', 'E') defaults None | names: HD L LN W CODE torch zeros fbin math log zsc softmax logits hidden sum cen
+u_of ('ins', 'ne') defaults (None, None) | names: append atom_vec torch zeros float64 stack len mlp_t sum math sqrt tensor log Wt T LNt
+s_of ('ins', 'ne') defaults (None, None) | names: append atom_vec torch stack len mlp_t sum math sqrt tensor log float64 Wt T
+eval_stay_rel ('B', 'rows', 'EU', 'only_meas') defaults (True,) | names: range len any torch tensor SX reshape float64 list stack core_step_v append float mean norm np median
+score () defaults None | names: np array pre pred float median abs mean
+score2 ('P',) defaults None | names: np array pred float median abs mean
+enc_eu ('atoms',) defaults None | names: mm encode_set torch stack embed_atom OPTS double zeros float64
+atom_vec ('code', 'rate', 'kind') defaults (0,) | names: dict CODE OPTS mm embed_atom double
+mha ('xq', 'xk', 'xv', 'pre', 'kadd') defaults (None,) | names: Wt T shape view transpose torch softmax math sqrt reshape
+ffn ('x', 'pre') defaults None | names: F gelu Wt T
+LNt ('x', 'name') defaults None | names: F layer_norm shape Wt
+mlp_t ('x', 'pre') defaults None | names: F gelu Wt T
+age_emb ('a', 'sc') defaults None | names: mlp_t
+<class 'dict'> ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias'] 181
+<class 'dict'> ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.0.bias', 'core.prelude.0.ffn.0.weight'] <class 'dict'> ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias']
+
+```

@@ -1,0 +1,35 @@
+OUTPUT of Python run 227 of at most 300:
+```
+1 
+2 import torch, math, torch.nn.functional as F
+3 def LNx(x, P, pre): return F.layer_norm(x, (x.shape[-1],), P[pre+'.weight'], P[pre+'.bias'], 1e-5)
+4 def prelude(P, hf, e, u, z):
+5     zt = F.linear(z, P['z_in.weight'], P['z_in.bias'])
+6     X = torch.cat([hf + P['core.slots'][None], e[:,None], u[:,None], zt[:,None]], 1)
+7     pre='core.prelude.0'; B=X.shape[0]; H=4; dh=48
+8     n1 = LNx(X, P, pre+'.norm1')
+9     q = F.linear(n1, P[pre+'.attn.q.weight']); k,v = F.linear(n1, P[pre+'.attn.kv.weight']).split(192,-1)
+10     sh=lambda t: t.view(B,7,H,dh).transpose(1,2)
+11     att = torch.softmax(sh(q)@sh(k).transpose(-1,-2)/math.sqrt(dh), -1)
+12     o = att@sh(v)
+13     X1 = X + F.linear(o.transpose(1,2).reshape(B,7,192), P[pre+'.attn.out.weight'])
+14     n3 = LNx(X1, P, pre+'.norm3')
+15     X2 = X1 + F.linear(F.gelu(F.linear(n3, P[pre+'.ffn.0.weight'], P[pre+'.ffn.0.bias'])), P[pre+'.ffn.2.weight'], P[pre+'.ffn.2.bias'])
+16     E = LNx(X2[:,:4], P, 'core.prelude_norm')
+17     return dict(X=X, n1=n1, att=att, o=o, X1=X1, n3=n3, X2=X2, E=E, vh=sh(v))
+18 
+19 def mh(P, pre, xq, xkv, mask=None, kadd=None):
+20     B,Tq,_=xq.shape; Tk=xkv.shape[1]; H=4; dh=48
+21     q=F.linear(xq, P[pre+'.q.weight']); k,v=F.linear(xkv, P[pre+'.kv.weight']).split(192,-1)
+22     if kadd is not None: k,_=F.linear(xkv+kadd, P[pre+'.kv.weight']).split(192,-1)
+23     qh=q.view(B,Tq,H,dh).transpose(1,2); kh=k.view(B,Tk,H,dh).transpose(1,2); vh=v.view(B,Tk,H,dh).transpose(1,2)
+24     s=qh@kh.transpose(-1,-2)/math.sqrt(dh)
+25     if mask is not None: s=s.masked_fill(~mask[:,None,None,:], float('-inf'))
+26     a=torch.softmax(s,-1); return F.linear((a@vh).transpose(1,2).reshape(B,Tq,192), P[pre+'.out.weight'])
+27 def ffP(P, pre, x): return F.linear(F.gelu(F.linear(x, P[pre+'.0.weight'], P[pre+'.0.bias'])), P[pre+'.2.weight'], P[pre+'.2.bias'])
+28 def agE(P, age_s):
+29     a=torch.log1p(age_s.clamp_min(0))[...,None]
+30     return F.linear(F.gelu(F.linear(a, P['core.age.0.weight'], P['core.age.0.bias'])), P['core.age.2.weight'], P['core.age.2.bias'])
+31 def core_rest(P, hf, E, Mx, Mage, Mmask, agemode='kv', keep=False):
+
+```

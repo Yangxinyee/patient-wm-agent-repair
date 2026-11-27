@@ -1,0 +1,15 @@
+OUTPUT of Python run 197 of at most 300:
+```
+_in) * exp(core.a_in))`. 5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.  ## Heads: predicting bundle k+1 from what is known before it  **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`. - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged. - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.  **Heads:** - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals). - **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type   (Poisson). - **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`. - **Attributes.** They are read from:        with_code = q + emb
+====
+as`. - **Attributes.** They are read from:        with_code = q + embed.code[code]                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]    The "last" fields are a register: the most recent earlier value of the same code in this stay.   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`     (`vocab.json["value_bin_centres"]`).   - **rate:** `rate_bin` works the same way for drug rates.   - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay     continue).  ## How a dose edit is read  "Insulin x2 from hour 12": 1. The record up to ICU hour 12 is shown as it is. 2. From 
+tf_views (df, s, P, mods, seed=0)
+head_probs (act, dt_s, layout, age_mult, side, nz, seed=0, kq=None, zmode='sample')
+head_mean (act, dt_s, gapdiv, layout, age_s, status, typ_off, renorm)
+tf_states (P, stay_rows=[array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+       17, 18, 19, 20, 21, 22,
+ctx_rows (rws)
+flag (cond)
+true_shift (sid_, t, ed)
+
+```

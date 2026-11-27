@@ -1,0 +1,250 @@
+OUTPUT of Python run 63 of at most 300:
+```
+=== REMAINING EARLY CONCLUSIONS ===
+e": 0.4273,
+        "total_LP_SE": 0.14982,
+        "next_dose_feedback": 0.7373,
+        "n": 115815
+      },
+      {
+        "lag": 6,
+        "total_LP": 3.8049,
+        "controlled_impulse": 0.2757,
+        "total_LP_SE": 0.15714,
+        "next_dose_feedback": 0.7396,
+        "n": 109912
+      },
+      {
+        "lag": 7,
+        "total_LP": 3.0577,
+        "controlled_impulse": 0.0074,
+        "total_LP_SE": 0.16998,
+        "next_dose_feedback": 0.7415,
+        "n": 103989
+      },
+      {
+        "lag": 8,
+        "total_LP": 2.5549,
+        "controlled_impulse": 0.0318,
+        "total_LP_SE": 0.1813,
+        "next_dose_feedback": 0.7467,
+        "n": 98005
+      },
+      {
+        "lag": 9,
+        "total_LP": 2.246,
+        "controlled_impulse": 0.1012,
+        "total_LP_SE": 0.19735,
+        "next_dose_feedback": 0.7482,
+        "n": 92036
+      },
+      {
+        "lag": 10,
+        "total_LP": 1.8218,
+        "controlled_impulse": -0.0967,
+        "total_LP_SE": 0.21019,
+        "next_dose_feedback": 0.7529,
+        "n": 85957
+      },
+      {
+        "lag": 11,
+        "total_LP": 1.6283,
+        "controlled_impulse": 0.0394,
+        "total_LP_SE": 0.23231,
+        "next_dose_feedback": 0.754,
+        "n": 79945
+      },
+      {
+        "lag": 12,
+        "total_LP": 1.4078,
+        "controlled_impulse": -0.0408,
+        "total_LP_SE": 0.25115,
+        "next_dose_feedback": 0.7563,
+        "n": 73880
+      }
+    ],
+    "geometric": [
+      3.4251262905273707,
+      0.6730035660080467
+    ],
+    "kernel": [
+      3.293228277726093,
+      2.5878650009977466,
+      1.7746983768126912,
+      0.9873506803028125,
+      0.4273030715972208,
+      0.2756797388201844,
+      0.007392273242067926,
+      0.03180661616606528,
+      0.10121714894504308,
+      -0.09665213231440539,
+      0.03943189864870522,
+      -0.04081733879812144
+    ]
+  }
+}
+
+## Run 7
+Recovered architecture. Separate action encoder feeds posterior and prelude; reading heads also use same-code last-reading registers and transition logits. No edits. Run 6 record-based rollout targets remain provisional: insulin x2 about -14.18, half +7.09; norepinephrine x2 +4.68, half -2.34 on training schedules.
+
+## Run 8
+Recovered persistent analysis variables and exact tensor shapes. Value-bin head is Linear(192,192), activation, Linear(192,17). Action encoder is separate two-stage DeepSets MLP. Last_numeric has 8 inputs; exact reconstruction must be checked rather than assuming the architecture summary lists every feature.
+
+## Forward 4
+Original factual predictions on the 100 training stays with saved states: NLL 1.63841 over 4510 readings. By event: finger 1.4350, lab 1.3445, arterial 1.5024, cuff 1.9645. No edits. Intended for validating a local reconstruction of the reading head.
+
+## Run 10
+Loaded original tensors and matched training factual CSV schema. Established complete numeric normalisation and fine-bin tables. Preparing a forward-head reconstruction; no model edits or external information used.
+
+## Run 11
+Matched 4510 factual reading rows to their preceding saved states. Initial local head reconstruction identifies measurement type index 1 but mean RMSE is about 3.76, too large to assume exact reconstruction. Checking bin boundaries, register layout, status and latent details before editing.
+
+## Run 12
+Register search supports [has_last, age, z_value, has_value, ...], measurement type 1 and zero status. Bin-edge convention has negligible effect here. Residual reconstruction error remains ~3.76; checking mixed MLP activations and latent Monte Carlo noise next. No edits.
+
+
+
+=== RELEVANT TENSORS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+core.flow.a (192,)
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed.code.weight (13, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+embed_transition.value_bin.weight (221, 17)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+
+=== FORWARD FILES ===
+1 ['summary.json', 'factual_original.csv']
+2 ['summary.json', 'dose_edit_original.csv']
+3 ['summary.json', 'states_original.npz']
+4 ['summary.json', 'factual_original.csv']
+5 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+6 ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+7 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+
+=== VOCAB STRUCTURE ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config: {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes: [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom_kinds {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+
+=== SELECTED PERSISTENT OBJECTS ===
+head_meta DataFrame (4510, 12)
+rc_has Tensor (1000,)
+rc_age Tensor (1000,)
+rc_z Tensor (1000,)
+rc_bins Tensor (1000,)
+rc_codes Tensor (1000,)
+rc_centres Tensor (1000, 17)
+rc_dt Tensor (1000, 1)
+rc_base Tensor (1000, 192)
+rc_gap_inputs dict keys ['seconds_div10', 'seconds', 'hours_div10', 'hours']
+rc_gaps dict keys [('seconds_div10', 'silu'), ('seconds_div10', 'gelu'), ('seconds', 'silu'), ('seconds', 'gelu'), ('hours_div10', 'silu'), ('hours_div10', 'gelu'), ('hours', 'silu'), ('hours', 'gelu')]
+rc_regs dict keys [('seconds', None), ('seconds', 3), ('seconds', 4), ('seconds', 5), ('seconds', 6), ('seconds', 7), ('hours', None), ('hours', 3), ('hours', 4), ('hours', 5), ('hours', 6), ('hours', 7)]
+rc_noise Tensor (48, 1000, 32)
+rc_age_inputs dict keys ['forecast_seconds', 'forecast_hours', 'state_seconds', 'state_hours', 'zero']
+rh_meta DataFrame (1000, 12)
+rh_x Tensor (1000, 992)
+rh_out Tensor (1000, 192)
+rh_h Tensor (1000, 4, 192)
+rh_dt Tensor (1000, 1)
+rh_flow Tensor (1000, 4, 192)
+rh_bases dict keys ['flow', 'no_flow', 'out_only']
+rh_times dict keys ['seconds_div10', 'seconds', 'hours_div10', 'hours']
+rh_codes Tensor (1000,)
+rh_norm dict keys [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_lab', 'value'), ('glucose_finger', 'value'), ('insulin', 'dose'), ('norepinephrine', 'dose'), ('insulin', 'rate'), ('norepinephrine', 'rate')]
+rh_lb Tensor (1000,)
+rh_centres Tensor (1000, 17)
+rh_fixed Tensor (1000, 192)
+rh_trans Tensor (1000, 17)
+rh_tool Tensor (1000,)
+rh_iqr Tensor (1000,)
+rh_has Tensor (1000,)
+rh_last Tensor (1000,)
+rh_nf Tensor (1000, 8)
+rh_hidden Tensor (1000, 192)
+rh_probs Tensor (1000, 17)
+rh_means Tensor (1000,)
+rh_diag DataFrame (1000, 13)
+rh_vg Tensor (1000, 192)
+rh_baseview Tensor (1000, 192)
+rh_eps Tensor (128, 1000, 32)
+rh_chosen dict keys ['config', 'mean_rmse', 'expected_four_draw_rmse', 'normalized_rmse', 'normalized_noise', 'excess_normalized_mse', 'mean_log_sd']
+wr_meta DataFrame (4510, 12)
+wr_x Tensor (4510, 992)
+wr_out Tensor (4510, 192)
+wr_h Tensor (4510, 4, 192)
+wr_dt Tensor (4510, 1)
+wr_codes Tensor (4510,)
+wr_lb Tensor (4510,)
+wr_const_rows Tensor (1000, 192)
+wr_const Tensor (192,)
+wr_nf Tensor (4510, 8)
+wr_fixed Tensor (4510, 192)
+wr_centres Tensor (4510, 17)
+wr_trans Tensor (4510, 17)
+wr_flow Tensor (4510, 4, 192)
+wr_gap Tensor (4510, 192)
+wr_base Tensor (4510, 192)
+wr_prior Tensor (4510, 64)
+wr_mu Tensor (4510, 32)
+wr_logsd Tensor (4510, 32)
+wr_eps_half Tensor (16, 4510, 32)
+wr_eps Tensor (32, 4510, 32)
+wr_phi Tensor (4510, 192)
+wr_p Tensor (4510, 17)
+wr_gain Tensor (4510,)
+wr_score Tensor (17,)
+wr_mean ndarray (4510,)
+wr_instruments dict keys ['insulin', 'norepinephrine']
+wr_overlap ndarray (1000,)
+wr_flowbase Tensor (4510, 192)
+wr_times dict keys ['hours_div10', 'seconds_div10', 'hours', 'seconds']
+wr_gaps dict keys ['hours_div10', 'seconds_div10', 'hours', 'seconds']
+trial_relevant ndarray (4510,)
+trial_active ndarray (4510,)
+trial_y ndarray (4510,)
+trial_X ndarray (4510, 192)
+trial_groups ndarray (4510,)
+trial_rows ndarray (1824,)
+trial_tr0 ndarray (1384,)
+trial_va0 ndarray (440,)
+trial_tr ndarray (1384,)
+trial_va ndarray (440,)
+trial_tra ndarray (649,)
+trial_vaa ndarray (156,)
+trial_W2 ndarray (17, 192)
+trial_phi ndarray (4510, 192)
+trial_importance ndarray (192,)
+trial_spare ndarray (12,)
+trial_s_va ndarray (440,)
+trial_m_va ndarray (440,)
+trial_gated_va ndarray (440,)
+trial_gate_margins ndarray (4510,)
+trial_P ndarray (192, 192)
+trial_dv ndarray (192,)
+trial_av ndarray (192,)
+trial_gv ndarray (192,)
+t
+[output cut at 10,000 characters]
+```

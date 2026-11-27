@@ -1,0 +1,181 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 65 replies happened before. Forward passes used: 4 of 50; Python runs used: 59 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+495195463642, 'own_delta_quantiles': [-0.05757236182689666, 0.5198003053665161, 0.7388702988624567]}}, 'norepinephrine': {0.0: {'mean_feature_change': [0.002092755166813731, 0.0002958528930321336], 'mean_rate_change': -0.43416434540389975, 'own_feature_slope': -0.0004505283900178966, 'own_delta_quantiles': [-0.0004786699078977108, 0.00025813281536102295, 0.0011574702803045511]}, 0.5: {'mean_feature_change': [0.0002709237451199442, 2.7596717700362206e-05], 'mean_rate_change': -0.21708217270194988, 'own_feature_slope': 0.00022719093186169593, 'own_delta_quantiles': [-0.0006400971207767725, -5.83035871386528e-05, 0.0008708017412573098]}, 1.5: {'mean_feature_change': [0.0005914452485740185, 0.00012170652917120606], 'mean_rate_change': 0.21708217270194988, 'own_feature_slope': 0.0009654526247335035, 'own_delta_quantiles': [-0.0005291061010211706, 5.771522410213947e-05, 0.001099053071811795]}, 2.0: {'mean_feature_change': [0.0044122664257884026, 0.0007710559875704348], 'mean_rate_change': 0.43416434540389975, 'own_feature_slope': 0.0025260932755774034, 'own_delta_quantiles': [-0.0005615878850221634, 0.00012414529919624329, 0.005414054635912179]}, 3.0: {'mean_feature_change': [0.023111050948500633, 0.002157476730644703], 'mean_rate_change': 0.8683286908077995, 'own_feature_slope': 0.0031339260917329103, 'own_delta_quantiles': [-0.0007757513783872127, 0.0002228235825896263, 0.010614319751039146]}}}
+- Python runs: 35; forward passes: 4; no weights edited.
+
+## Run 36: recovery after conversation restart
+- Factor-one action reconstruction is exact, but posterior dose features saturate for insulin and are nearly dose-insensitive for norepinephrine.
+- Recovering architecture and record-derived identification before selecting an edit pathway.
+- Python runs: 36; forward passes: 4; no weights edited.
+
+## Run 37: recover dynamic identification
+- Earlier cross-fitted one-hour estimates are about -2 for insulin/glucose and +3 for norepinephrine/MAP, with sensor agreement.
+- Recovering impulse-response estimates and existing helpers; no edit yet.
+- Python runs: 37; forward passes: 4.
+
+## Run 38: prepare a dose-centered posterior correction
+- Record-derived insulin impulses persist for several hours; MAP impulses decay faster.
+- Inspecting validated local update helpers and saved posterior inputs before implementing a correction.
+- Python runs: 38; forward passes: 4; no weights edited.
+
+## Runs 39–40: direct action-dose decoding and policy centering
+- Run 39 stopped on a named-tuple diagnostic-print error before fitting; fixed in run 40.
+- Multiplier action-readout held-out RMSE: [(1e-06, [0.11796039661149307, 0.028787601049422212, 0.05181061032989907, 0.04790709477529297]), (0.0001, [0.12256598536032551, 0.03786559299994172, 0.05190349729761165, 0.04801767963061905]), (0.01, [0.24398175298729258, 0.07679840512199322, 0.052575374169505536, 0.049377883287424505]), (1.0, [0.6085731199577677, 0.21816193296959493, 0.06170188105652034, 0.06500822495085234])]
+- Active-dose context prediction RMSE: {'insulin': [(0.1, 0.5782961461526772), (1.0, 0.5547947512352039), (10.0, 0.5362032981303506), (100.0, 0.530997116998796), (1000.0, 0.603127566315318)], 'norepinephrine': [(0.1, 0.288115039159916), (1.0, 0.2806670976643769), (10.0, 0.2692955370780582), (100.0, 0.26784869582792753), (1000.0, 0.27970046471935706)]}
+- No model tensors edited.
+- Python runs: 40; forward passes: 4.
+
+## Run 41: nonlinear, dose-invariant policy centering
+- Linear context centering is inadequate, especially for norepinephrine; testing existing nonlinear posterior features with counterfactual invariance constraints.
+- Diagnostics: [{'invariance_penalty': 0.0, 'active_innovation_RMSE': [0.3778736561416944, 0.24010843202892565], 'absent_drug_RMS': [0.08725812270437652, 0.040178090648147265], 'dose_response_slopes': [0.8816287384288601, 1.0216930443729768]}, {'invariance_penalty': 0.01, 'active_innovation_RMSE': [0.3732257249913067, 0.2400360115967246], 'absent_drug_RMS': [0.08778011265441323, 0.040214673639178355], 'dose_response_slopes': [0.8963582577044326, 1.0214905880392395]}, {'invariance_penalty': 0.1, 'active_innovation_RMSE': [0.3802566197991127, 0.2397184636192632], 'absent_drug_RMS': [0.09343580761226314, 0.04047269946316477], 'dose_response_slopes': [0.9554710857409977, 1.019711098502509]}, {'invariance_penalty': 1.0, 'active_innovation_RMSE': [0.44432894443626, 0.24052347671780142], 'absent_drug_RMS': [0.11182384014263769, 0.04148954711891165], 'dose_response_slopes': [1.0069218395049708, 1.0107793697628735]}, {'invariance_penalty': 10.0, 'active_innovation_RMSE': [0.5278516617037933, 0.24659584392926945], 'absent_drug_RMS': [0.13925258569282126, 0.046415878578412555], 'dose_response_slopes': [1.0138826837763941, 1.0033943348260026]}]
+- No tensors edited. Python runs: 41; forward passes: 4.
+
+## Run 42: target-alignment and prediction-readout audit
+- Dose-invariant centering retains intervention slopes, but norepinephrine centering error remains large.
+- Checking innovation alignment and head/register layout before committing an edit.
+- Python runs: 42; forward passes: 4; no tensors edited.
+
+## Run 43: value-head reconstruction assay
+- Innovation alignment exactly matches the retained targets.
+- Best value-head conventions (prior mean approximation): [(0.1450220802807591, 1, 3, False, 6.047452705431512), (0.1450220802807591, 1, 3, True, 6.047452705431512), (0.24712339659102198, 1, 7, False, 10.484804885742795), (0.24712339659102198, 1, 7, True, 10.484804885742795)]
+- No tensors edited. Python runs: 43; forward passes: 4.
+
+## Run 44: recover edit implementation context
+- Prior-mean head reconstruction is approximate, not an exact forward surrogate.
+- Recovering architecture, identification evidence, and retained helpers before editing.
+- Python runs: 44; forward passes: 4; no tensors edited.
+
+## Run 45: focused recovery
+- Shared recurrent action pathway and last-reading feedback require dynamic calibration.
+- Retrieving truncated identification notes and helper names.
+- Python runs: 45; forward passes: 4; no tensors edited.
+
+## Run 46: compact helper inventory
+- Exact posterior reconstruction was previously validated; avoiding repeated broad searches.
+- Inspecting only validated primitives and recent correction objects.
+- Python runs: 46; forward passes: 4; no tensors edited.
+
+## Run 47: select dose-channel surgery
+- Existing posterior dose features saturate; direct action decoder covers multiple multipliers.
+- Checking validated core error and record-derived aggregate targets before reserving linear dose channels.
+- Python runs: 47; forward passes: 4; no tensors edited.
+
+## Run 54: bin-table correction
+- Added the absent-value centre to the 16 fine-bin centres; testing local readouts before weight surgery. No weights edited.
+- Python runs: 54; forward passes: 4.
+
+## Run 56: posterior response assay
+- Corrected readout bin dimensions and aligned probe registers.
+- Measured finite-difference responses of all 32 posterior coordinates and fitted two small, regularized drug-response directions.
+- No weights edited. Python runs: 56; forward passes: 4.
+
+## Runs 55–58: causal pathway audit
+- Training-record one-hour effects: insulin/glucose about -2 per rate unit; NE/arterial MAP about +3.05. Glucose impulses persist longer than MAP.
+- Existing posterior-coordinate directions are too weak/heterogeneous for a safe direct edit.
+- Exact reconstructed value-head hidden features. Complete-path immediate slopes on 64 probes: insulin x2 -0.342 (finger), x3 -0.178; NE x2 +0.249 (arterial).
+- No weights edited. Expanding state coverage before a preservation-constrained head correction.
+- Python runs: 58; forward passes: 4.
+
+## Run 59: preservation-constrained head dataset
+- Reconstructed all 100 training stays; checked core against validated probes.
+- Built exact value-head features and local dose counterfactuals at multipliers 0, 0.5, 1.5, 2, and 3, without modifying weights.
+- Python runs: 59; forward passes: 4.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 59 of at most 300:
+```
+<run>:32: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+Expanded-core agreement: 9.5367431640625e-07 0.0001068115234375
+Factual readings: 4177 local baseline NLL: 1.7347517013549805
+<run>:32: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+Factual feature table: (4035, 4, 192) counterfactual rows: 4000
+Seconds: 1.0
+
+```

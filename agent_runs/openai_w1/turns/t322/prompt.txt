@@ -1,0 +1,138 @@
+OUTPUT of Python run 281 of at most 300:
+```
+=== RECORD-IDENTIFICATION NOTES ===
+# World-model weight repair
+
+## Initial plan
+- Infer drug effects exclusively from the supplied simulated records.
+- Separate dose assignment from subsequent physiological response; do not assume either effect's sign or magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+Counts: 4 Python runs, 1 forward passes.
+
+## Forward 2 / Run 5
+Exported original states for training stays 1010000000..1010000099 (all bundles). Checked held-out-stay dose decoding and residual-effect dose-range diagnostics. Past-change placebo here is raw, not separately residualized, and must not be treated as a definitive independence test.
+         event                range      n      beta       se
+glucose_finger               0.5..1  21312 -1.895856 0.144475
+glucose_finger                 1..2 134998 -2.042501 0.083923
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab                 1..2   6440 -1.674272 0.221519
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab prior_change_placebo   5781  0.010951      NaN
+  map_arterial           0.01..0.31  46952  2.808803 0.267351
+  map_arterial            0.31..0.7  48870  3.186511 0.130080
+  map_arteria
+
+=== LOCAL FUNCTION NAMES ===
+E258, _attention_features228, _describe224, _f260, _fn, _fun, _fun65, _obj225, _post178, _rxlinear257, _v66, a251, act2, arr222, arr231, arr262, array238, branch186, branch195, brief194, brief198, brief210, brief230, brief258, ce_make_heads, center240, coda269, compact_structure, describe219, describe236, direct_readout257, drop_edit, edited, ff, fine_bin, finite_readout221, fixedpost215, fn, fn184, fn265, fun, gelu195, he_old_mlp, hp_keys, install_carrier200, install_selective251, lc_linear, lc_mlp, lc_observation_vectors, lin, lin277, load, load_original, mlp, mlp277, norm, norm215, norm277, np185, np200, np205, np276, post208, posterior211, posterior238, posterior_token270, prelude269, prelude277, q196, r243_meta, r244_attention_features, r245_features, r33_act, r33_action_embedding, r33_linear, r33_ln, r33_mlp, r34_activation, r34_mlp, r34_set_encode, r35_set, r36_atom, r36_set_encode, r71_observations, r72_posterior, r78_desc, r79_act, r79_encode, r79_lin, r79_mlp, r79_norm, r79_w, r82_show_fields, r84_describe, r85_brief, r86_encode_observations, r88_local_atoms, r88_local_score, r89_encode_actions, r93_fun, r93_obj, r95_base_atom, r95_correct_atom, repair_action_encoding, repair_build_features, repair_cluster_beta, repair_crossfit, resume_fn, rp_encode, rp_install, rr117_compare, rr50_action_parts, rr58_observation_encoding, rr64_np, rr_atom, rr_encode4, rr_encode_atoms112, rr_linear, rr_mlp, rr_norm, rx_attn, rx_cross, rx_cross126, rx_cross133, rx_cross_before133, rx_layer, rx_layer2, rx_linear, rx_memory_for, rx_memory_variant, rx_mlp, rx_norm, rx_show_function, save_edit, summary69, transition214, value_raw221
+
+=== COMPACT RECENT OBJECTS ===
+Ef277 (5215, 4, 192)
+O277 dict 181 keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight']
+Ucf279 dict 10 keys [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5)]
+W277 dict 181 keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight']
+aa279 (11768, 192)
+actidx279 (3002,)
+atoms279 (11768, 192)
+check278 (48, 7, 192)
+ctx277 (5215, 192)
+d279 dict 5 keys ['code', 'value', 'rate', 'dose', 'end']
+di279 list 1566
+ds_rates (5215, 2)
+dt276 (5215,)
+dt277 (5215,)
+e277 (5215, 192)
+factor279 3.0
+hflow276 (5215, 4, 192)
+hflow277 (5215, 4, 192)
+hours276 (5215,)
+ids279 list 100
+idx278 (3,)
+inp277 (5215, 576)
+lin277 args ('x', 'p', 'w') uses ('F', 'linear', 'get')
+m276 77289
+minute277 (5215,)
+mlp277 args ('x', 'p', 'w') uses ('lin277', 'F', 'gelu')
+mu277 (5215, 32)
+muorig277 (5215, 32)
+newcheck278 (48, 4, 192)
+norm277 args ('x', 'p', 'w') uses ('F', 'layer_norm')
+np276 args ('x',) uses ('isinstance', 'torch', 'Tensor', 'detach', 'cpu', 'numpy', 'np', 'asarray')
+ns276 (5215, 4, 192)
+oldcheck278 (48, 4, 192)
+pick276 (48,)
+pold278 (192, 2)
+posterr278 (5215, 32)
+prelude277 args ('raw', 'w') uses ('norm277', 'shape', 'lin277', 'reshape', 'transpose', 'chunk', 'F', 'scaled_dot_product_attention', 'mlp277')
+prev276 (5215,)
+raw277 (5215, 7, 192)
+safe236 dict 9 keys ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias']
+same277 (5215,)
+slots276 (5215, 4, 192)
+slots277 (5215, 4, 192)
+u277 (5215, 192)
+ubase279 (5215, 192)
+uu279 (5215, 192)
+validprev276 (5215,)
+wx278 dict 181 keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight']
+zin277 (5215, 192)
+
+=== RECONSTRUCTION HELPER SOURCES ===
+lin277 args ('x', 'p', 'w') uses ('F', 'linear', 'get') scalar constants ['.weight', '.bias']
+mlp277 args ('x', 'p', 'w') uses ('lin277', 'F', 'gelu') scalar constants ['.0', '.2']
+norm277 args ('x', 'p', 'w') uses ('F', 'layer_norm') scalar constants ['.weight', '.bias']
+prelude269 args ('tokens',) uses ('rx_attn', 'rx_norm', 'rx_mlp') scalar constants ['core.prelude.0', '.norm1', '.attn', '.norm3', '.ffn', 'gelu', 4, 'core.prelude_norm']
+prelude277 args ('raw', 'w') uses ('norm277', 'shape', 'lin277', 'reshape', 'transpose', 'chunk', 'F', 'scaled_dot_product_attention', 'mlp277') scalar constants ['core.prelude.0.norm1', 'core.prelude.0.attn.q', 4, 48, 1, 2, 'core.prelude.0.attn.kv', -1, 192, 'core.prelude.0.attn.out', 'core.prelude.0.norm3', 'core.prelude.0.ffn', 'core.prelude_norm']
+
+=== STATE-EXPORT ALIGNMENT ===
+S280 same stays True same hours True
+ds_s same stays True same hours True
+pair0_s188 same stays True same hours True
+pair5_s188 same stays True same hours True
+r164_s0 same stays True same hours True
+r164_s5 same stays True same hours True
+r97_archive same stays True same hours True
+repair_S same stays True same hours True
+rr_state4 same stays True same hours True
+Rebuilt flowed incoming state: (5215, 4, 192)
+RMS change versus original incoming state: 0.23026438057422638
+Stay starts: 100 ; their initial flow is retained from the verified reconstruction.
+
+```

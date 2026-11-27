@@ -1,0 +1,65 @@
+OUTPUT of Python run 146 of at most 300:
+```
+Complete match: 4784 maximum hour error: 0.0
+
+ALL-HOUR PROBE CHANGES:
+                   n     shift       rms       nll  feature_norm
+event                                                           
+glucose_finger  1596 -0.090839  0.252251 -0.000107      0.055143
+glucose_lab      522 -0.033546  0.159799  0.000804      0.048604
+map_arterial    1558  0.000162  0.017964 -0.000002      0.038320
+map_cuff        1389 -0.001020  0.019840  0.000005      0.032199
+
+HOURS 13?24:
+                mean_shift  nll_shift  feature_norm
+event                                              
+glucose_finger   -0.096664   0.000405      0.063904
+glucose_lab      -0.034466   0.000943      0.058387
+map_arterial     -0.001104   0.000163      0.047695
+map_cuff         -0.000801  -0.000031      0.038537
+
+HEAD WEIGHT CACHE CHECK:
+attr_heads.value_bin.0.bias 0.0
+attr_heads.value_bin.0.weight 0.0
+attr_heads.value_bin.2.bias 0.0
+attr_heads.value_bin.2.weight 0.0
+
+DRUG NORMALIZATION:
+insulin dose {'median': 1.5, 'iqr': 1.0}
+insulin rate {'median': 1.5, 'iqr': 1.0}
+norepinephrine dose {'median': 2.208, 'iqr': 2.832}
+norepinephrine rate {'median': 0.46, 'iqr': 0.5900000000000001}
+
+DRUG RECORD SAMPLE:
+   stay_id   hour   event  value  rate  rate_unit  dose dose_unit  end_hour
+1010000000 0.0833 insulin    NaN   2.0 units/hour   2.0     units    1.0833
+1010000000 1.0833 insulin    NaN   1.5 units/hour   1.5     units    2.0833
+1010000000 2.0833 insulin    NaN   2.5 units/hour   2.5     units    3.0833
+1010000000 3.0833 insulin    NaN   3.5 units/hour   3.5     units    4.0833
+1010000000 4.0833 insulin    NaN   2.0 units/hour   2.0     units    5.0833
+1010000000 5.0833 insulin    NaN   1.5 units/hour   1.5     units    6.0833
+
+DATA DOCUMENTATION:
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+```

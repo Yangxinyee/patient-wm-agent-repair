@@ -1,0 +1,130 @@
+OUTPUT of Python run 106 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== CURRENT OPERATIONS ===
+[{'op': 'rank1', 'name': 'embed.numeric.weight', 'vector': 'vectors/v001.npy', 'alpha': 3.0, 'side': 'in'}]
+
+=== EARLY RECORD-BASED EVIDENCE ===
+# World-model repair notebook
+
+## Initial inspection
+- Python runs: 1; forward passes: 0.
+- No weight edits made.
+- Read architecture, record definitions, vocabulary and tensor shapes first.
+- Drug effects are unknown. No medical assumptions will be used.
+- Plan: establish effects from treatment variation in the records, inspect the model's corresponding predictions, then test targeted weight edits against both dose rollouts and the factual NLL constraint.
+
+## Inspection, run 2
+- First output was truncated after the vocabulary; loaded records and requested compact summaries.
+- Architecture separates action encoding from observation encoding. Candidate edits must still be justified by estimated drug effects.
+- No weight edits; no forward passes.
+
+## Run 3: hourly panels and preliminary regressions
+- Infusions begin at hour + 0.0833, after readings, and run one hour.
+- Built complete -1..24 panels; absent infusion means rate zero.
+- Preliminary adjusted slopes are associations, not yet established causal effects. Need nonlinear adjustment and independent checks.
+- Sensor/dose summaries printed. Preliminary estimates: {('glucose_finger', 'insulin'): {'n': 400154, 'raw_slope': np.float64(27.415433254830994), 'adjusted_slope': np.float64(-0.813008629750258), 'cluster_se': np.float64(0.04208575715363863), 'residual_rmse': np.float64(13.420845287662623)}, ('glucose_lab', 'insulin'): {'n': 143791, 'raw_slope': np.float64(30.153346410333576), 'adjusted_slope': np.float64(-0.7489972769612019), 'cluster_se': np.float64(0.06732977710214152), 'residual_rmse': np.float64(11.56030767772446)}, ('map_arterial', 'norepinephrine'): {'n': 328940, 'raw_slope': np.float64(-30.026406261425024), 'adjusted_slope': np.float64(0.8529804747023586), 'cluster_se': np.float64(0.08565469619687506), 'residual_rmse': np.float64(4.43480783695137)}, ('map_cuff', 'norepinephrine'): {'n': 439865, 'raw_slope': np.float64(-33.90418077217516), 'adjusted_slope': np.float64(-4.774212872772716), 'cluster_se': np.float64(0.1866481398966458), 'residual_rmse': np.float64(7.695480574994642)}}
+- Probe stays: tuning IDs 2020000000..2020000099; independent validation IDs 2020000200..2020000299.
+- Python runs: 3; forward passes: 0; no edits.
+
+## Run 4 / forwards 1?2: causal diagnostics and baselines
+- Original probe factual NLL: 1.63461; allowed increase 0.005.
+- Original dose rollouts: {'insulin_x2': -1.847, 'insulin_half': 0.777, 'ne_x2': -0.498, 'ne_half': -0.6}
+- Insulin threshold estimates: {('glucose_finger', 1, 6): {'n': 94569, 'rate_jump': 0.676820167360905, 'outcome_jump': -1.469092110147066, 'effect': -2.1705796916120748, 'se': 0.2823686119400948}, ('glucose_finger', 1, 10): {'n': 158690, 'rate_jump': 0.800859016409116, 'outcome_jump': -1.7400345142239886, 'effect': -2.172710150690366, 'se': 0.18469317346762512}, ('glucose_finger', 1, 14): {'n': 223106, 'rate_jump': 0.8605678363604209, 'outcome_jump': -1.767739842270549, 'effect': -2.0541551375505844, 'se': 0.14557496818862847}, ('glucose_lab', 1, 6): {'n': 22161, 'rate_jump': 0.6106859197361182, 'outcome_jump': -0.9623250088225842, 'effect': -1.575810048540847, 'se': 0.4515120296985709}, ('glucose_lab', 1, 10): {'n': 36635, 'rate_jump': 0.7512887970002406, 'outcome_jump': -1.1779938611589744, 'effect': -1.5679640983101166, 'se': 0.2826879624651828}, ('glucose_lab', 1, 14): {'n': 50919, 'rate_jump': 0.8293928985338691, 'outcome_jump': -1.2996262711630073, 'effect': -1.566960934269364, 'se': 0.21622340829361023}, ('glucose_finger', 2, 10): {'n': 146117, 'rate_jump': 0.7829977388109858, 'outcome_jump': -1.5017770940980744, 'effect': -1.9179839476657807, 'se': 0.204116411045284}, ('glucose_finger', 4, 10): {'n': 130544, 'rate_jump': 0.7679516563693188, 'outcome_jump': -0.9530878642549095, 'effect': -1.2410779459228825, 'se': 0.24394129883778568}}
+- Prior-reading placebo: {'n': 157736, 'rate_jump': 0.7725678382439083, 'outcome_jump': 0.06211945739767062, 'effect': 0.08040647606930126, 'se': 0.19329795224019525}
+- Nonlinear cross-fitted estimates: {('glucose_finger', 'all'): {'n': 400154, 'effect': -1.9205123153267514, 'se': 0.046687521700809545, 'dose_residual_sd': 0.49018342634703577, 'outcome_residual_sd': 12.422922826191442}, ('glucose_finger', 'fresh'): {'n': 298450, 'effect': -1.9349220454366567, 'se': 0.047097440462058895, 'dose_residual_sd': 0.5639277025139702, 'outcome_residual_sd': 12.3318485715214}, ('map_arterial', 'all'): {'n': 328940, 'effect': 3.062084804446521, 'se': 0.08898857289398902, 'dose_residual_sd': 0.09352020066962713, 'outcome_residual_sd': 4.32549324142304
+[output cut at 10,000 characters]
+```

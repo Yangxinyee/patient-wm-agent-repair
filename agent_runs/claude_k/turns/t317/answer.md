@@ -1,0 +1,21 @@
+Run 292 confirmed the edit is cleanly isolated:
+- Only hidden units 110 and 120 of the value head's output layer differ from the original.
+- Their output weights are exact mirror images: correlation −1, equal norms, and they sum to zero.
+- So the two units cancel whenever the gate is off. When it is on, their sum is the reader times a tilt.
+- Scaling both columns therefore changes the reader's gain κ linearly and touches nothing else.
+
+I also now have the 100 tuning stay ids that pass 13 used, so I can compare against the earlier rollouts.
+
+Next I run the evaluation rollout on these stays with both models and the same random numbers. This measures what the norepinephrine reader actually does once the model feeds its own drawn readings forward.
+
+| Outcome | What it shows |
+|---|---|
+| Edited norepinephrine ×2 shift clearly above the original's +0.34 (rough target +4.6) | Reader works; κ can then be scaled to hit the target |
+| ×½ shift roughly mirrors ×2 | Reader is linear in the rate change |
+| Insulin shifts stay near the original −2.15 / +1.23 | No gate leak into glucose |
+| Norepinephrine shift unchanged | Reader is ineffective in the rollout (refutes) |
+| Insulin shifts move | Gate leaks into glucose codes (refutes) |
+
+```forward
+{"type": "dose_edit", "model": "both", "split": "tuning", "stays": [2020000000,2020000008,2020000012,2020000013,2020000018,2020000019,2020000023,2020000031,2020000032,2020000034,2020000038,2020000039,2020000040,2020000041,2020000043,2020000048,2020000052,2020000053,2020000056,2020000058,2020000060,2020000063,2020000067,2020000069,2020000071,2020000074,2020000076,2020000079,2020000081,2020000084,2020000086,2020000089,2020000091,2020000093,2020000094,2020000096,2020000102,2020000111,2020000112,2020000117,2020000120,2020000124,2020000125,2020000126,2020000128,2020000130,2020000132,2020000154,2020000156,2020000158,2020000165,2020000171,2020000176,2020000181,2020000182,2020000183,2020000187,2020000188,2020000198,2020000201,2020000204,2020000211,2020000212,2020000214,2020000232,2020000249,2020000250,2020000252,2020000254,2020000264,2020000265,2020000267,2020000268,2020000274,2020000279,2020000281,2020000286,2020000288,2020000293,2020000298,2020000300,2020000304,2020000305,2020000308,2020000309,2020000317,2020000321,2020000342,2020000348,2020000352,2020000353,2020000361,2020000366,2020000370,2020000381,2020000382,2020000384,2020000391,2020000396,2020000398]}
+```

@@ -1,0 +1,156 @@
+OUTPUT of Python run 84 of at most 300:
+```
+EARLY NOTES
+ # World-model weight repair
+
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+  180.5   5  38087     0.5698       -0.7370          -1.2935      0.5515
+  180.5  10  75667     0.7794       -1.1972          -1.5359      0.2877
+  180.5  15 112580     0.8600       -1.4093          -1.6386      0.2149
+  180.5  20 148824     0.9038       -1.5463          -1.7108      0.1791
+  220.5   5  13465     0.6094       -1.9360          -3.1771      1.0528
+  220.5  10  27007     0.8056       -1.8092          -2.2459      0.5494
+  220.5  15  41128     0.8857       -1.9515          -2.2034      0.4082
+  220.5  20  55451     0.9242       -2.0053          -2.1697      0.3407
+  260.5   5   2121     0.4853       -1.7844          -3.6771      3.6196
+  260.5  10   4328     0.7606       -2.5573          -3.3620      1.6647
+  260.5  15   6845     0.8875       -2.7845          -3.1374      1.1748
+  260.5  20   9743     0.9343       -2.9469          -3.1542      0.9651
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440       -1.8588          -1.7805      0.1641
+  220.0   5  10878     1.0678       -3.1426          -2.9430      0.7643
+  220.0  10  24707     1.0534       -2.2490          -2.1350      0.4629
+  220.0  15  39001     1.0530       -2.2109          -2.0996      0.3641
+  220.0  20  53461     1.0493       -2.1822          -2.0797      0.3138
+  260.0   5   1722     0.9170       -4.7440          -5.1732      2.5458
+  260.0  10   3976     1.0306       -3.9808          -3.8625      1.3933
+  260.0  15   6526     1.0794       -3.8052          -3.5254      1.0430
+  260.0  20   9462     1.0751       -3.7279          -3.4675      0.8812
+Two-fold, stay-separated history-adjusted dose/outcome residual regressions:
+          drug         target      n     beta  cluster_se  dose_R2  dose_residual_SD  outcome_residual_SD
+       insulin glucose_finger 391466 -2.04924     0.04571  0.80748           0.48910             12.20504
+norepinephrine   map_arterial 330203  3.17146     0.08848  0.92657           0.09261              4.31153
+These estimates require dose innovations to be unconfounded conditional on
+recorded history; threshold agreement and placebo tests are used as checks.
+No weights edited.
+
+## Run 6
+Previous forward request failed because of duplicate stay IDs; it was not counted.
+Re-read architecture/schema and inspected retained kernel objects and tensor shapes.
+Constructed a verified list of 100 unique tuning stay IDs.
+Drug-effect estimates remain provisional; no weights edited.
+
+## Run 7
+
+
+FUNCTION SIGNATURES
+load (name)
+load_original (name)
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+note (text)
+compact (obj, limit=16)
+make_panel (df)
+ffill_stay (s)
+local_rd (score, dose, outcome, cutoff, bandwidth, eligible)
+build_history_features (p)
+linear_repair (x, prefix)
+norm_repair (x, prefix)
+act_repair (x, kind)
+mlp_repair (x, prefix, kind)
+sample_metrics_repair (p)
+persistence_loss (rho)
+head_linear_fixed (x, prefix)
+head_norm_fixed (x, prefix)
+head_mlp_fixed (x, prefix)
+reading_bin_fixed (ev, value)
+build_head_dataset_fixed (states, records, reference=None)
+head_features_fixed (states, dataset, draws=16, seed=2501)
+insulin_labels_fixed (dataset, panel, hist, is_train)
+predicate (x)
+fun (x, prefix)
+rp_linear (x, prefix)
+rp_norm (x, prefix)
+rp_mlp (x, prefix)
+rp_action_encoder (atoms)
+fn (bank, indices)
+r41_obj (atoms)
+singleton_action_repair (atom_vectors)
+atom_embedding_repair (event, values=None, rates=None, doses=None, unit=0, rate_unit=0, kind=0, ekind=None, side='left')
+pre_context_repair (bank, indices)
+fun_obj (x, prefix, kind)
+fn56 (states, dataset, draws=16, seed=2501)
+fn57 (states, records, reference=None)
+atom_clean58 (event, values, rates, doses)
+pooled_encoder58 (atoms58, bundle58, count58, prefix58)
+atom_clean60 (event, values, rates, doses, kind=0, unit_override=None, rate_unit_override=None)
+arr64 (x)
+fn64 (bank, indices)
+atom_exact65 (event, values, rates, doses, kind=0, unit_override=None, rate_unit_override=None)
+obj66 (p)
+attention67 (qsrc, mem, prefix, mask=None, agevec=None, age_mode='after')
+self_block67 (x, prefix)
+memory67 (indices, mode)
+transition73 (indices, action_override=None)
+intervention_bank74 (drug, factor)
+_fn (indices, action_override=None)
+calibrated_prob80 (p, x, coef)
+metrics80 (coef)
+profile81 (frame, event, arg)
+
+LATER OBJECT NAMES
+dml_models | start | target | X | D | Y | good | inds | ff | predD | predY | models | f | fit | test | kwargs | md | my | rd | ry | beta | influence | sums | se | obj | tuning_records_repair | stay_col_repair | tuning_ids_repair | key | val | items | train_id_preview | inspect | Ridge | r2_score | state_o | k | v | item | container_name | container | state_panel_idx | state_panel | state_split | state_decode | flag | target_rate | active | width | pred | fitted | fold_number | fit_mask | test_mask | decoder | score | rmse | svd | tHX_repair | policy_pred_tuning | pairs | probe_rows | rate_probe | feature_sets | alphas_probe | actual | policy | targets | feature_name | features | predictions | coefficients | xm | ym | U | singular | Vt | projected_y | alpha | coef | intercept | probe_table | fresh_map_repair | latest_map_repair | map_policy_summary | map_policy_table | res | ii | F | W_repair | linear_repair | norm_repair | act_repair | mlp_repair | selected_records | csv_bundles | numeric_lookup_repair | code_lookup_repair | state_banks_repair | reading_banks_repair | sid | group | n_fact_repair | fact_prev_repair | fact_dt_repair | fact_last_z_repair | fact_age_repair | fact_has_repair | fact_bin_repair | fact_code_repair | fact_observed_bin_repair | fact_centres_repair | j | indices | position | prev | info | times | values | lp | fact_state_repair | flow_h_repair | context_base_repair | gap_input_repair | code_t_repair | bin_t_repair | h | z | zero | last_patterns_repair | reference_mean_repair | reference_nll_repair | head_candidates_repair | head_predictions_repair | activation | context | prior_mean | view | type_index | q | base | pattern | last_features | with_code | hidden | logits | prob | nll | head_candidate_table_repair | core_trials_repair | core_trial_cache_repair | last_fields_trials_repair | flag_col | fields | core_act | gap_factor | prior | latent_mode | latent | status_mode | status | prehidden | head_act | has_t | core_trial_table_repair | best_trial_repair | best_trial_key_repair | best_pred_repair | best_nll_repair | check_detail_repair | prefix | suffix | mc_prob_repair | draw | mc_mean_repair | mc_nll_repair | mc_metrics_repair | itertools | sample_idx_layout | si | context_layout | prior_layout | q_layout | base_layout | prebase_layout | last_to_hidden_layout | transition_layout | layouts_repair | zcol | agecol | remaining | flag_columns | sample_has | sample_age | sample_z | sample_centres | sample_obsbin | sample_ref_mean | sample_ref_nll | layout_scores_repair | start_layout | batch | vh | vz | va | pre | p_obs | rms_mean | rms_nll | flags | layout_table_repair | best_layout_row | notes_text | num | folder | state_path | state_meta | arr | fact_paths | fact_probe | first_stay | alignment_probe | idx_probe | zc | ac | flag_cols | ha | pre_best_sample | fc | logits_best_sample | prob_best_sample | mean_best_sample | nll_best_sample | sample_check | W0 | Wlast | status_weights | raw_b
+[output cut at 10,000 characters]
+```

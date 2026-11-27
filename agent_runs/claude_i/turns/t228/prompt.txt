@@ -1,0 +1,66 @@
+OUTPUT of Python run 207 of at most 300:
+```
+===== jac2.py
+
+import numpy as np, torch
+def build_info(recs, sid3, hr3, NB):
+    R = recs.copy(); R['tm'] = np.round(R['hour'].values*60).astype(int)
+    grp = {k: g for k, g in R.groupby(['stay_id','tm'])}
+    info = []
+    for k in range(NB):
+        t = int(round(float(hr3[k])*60)); g = grp.get((int(sid3[k]), t)); d = {'t': t, 'sid': int(sid3[k])}
+        if g is not None:
+            for ev, val, rate in zip(g['event'], g['value'], g['rate']):
+                if ev in ('insulin','norepinephrine'):
+                    if rate == rate: d[ev] = float(rate)
+                elif ev in ('glucose_finger','glucose_lab','map_arterial','map_cuff'): d[ev] = float(val)
+        info.append(d)
+    return info
+def build_reg(info, codes=('glucose_finger','glucose_lab','map_arterial','map_cuff')):
+    NB = len(info); LV = {c: np.full(NB, np.nan) for c in codes}; LT = {c: np.full(NB, np.nan) for c in codes}
+    for c in codes:
+        cur_s, v, t = None, np.nan, np.nan
+        for k in range(NB):
+            if info[k]['sid'] != cur_s: cur_s, v, t = info[k]['sid'], np.nan, np.nan
+            LV[c][k], LT[c][k] = v, t
+            if c in info[k]: v, t = info[k][c], info[k]['t']
+    return LV, LT
+
+===== sim.py
+
+import numpy as np, torch
+import torch.nn.functional as Fnn_
+def _W(n): return WT[n]
+def zpost_mean(ctx, e, u):
+    x = torch.cat([ctx, e, u], -1)
+    hdn = Fnn_.gelu(x @ WT['z_post.0.weight'].T + WT['z_post.0.bias'])
+    return (hdn @ WT['z_post.2.weight'].T + WT['z_post.2.bias'])[..., :32]
+def gapf(dt_s):
+    g = torch.log(torch.clamp(torch.as_tensor(dt_s, dtype=WT['gap.0.weight'].dtype), min=1.0)).reshape(-1,1)/10.0
+    return (Fnn_.gelu(g @ WT['gap.0.weight'].T + WT['gap.0.bias']) @ WT['gap.2.weight'].T + WT['gap.2.bias'])
+def ctx_from(out_prev, hf, dt_s):
+    return out_prev + Fnn_.layer_norm(hf.mean(-2), (192,), WT['core.out_norm.weight'], WT['core.out_norm.bias'], 1e-5) + gapf(dt_s).reshape(out_prev.shape)
+def run_stay(ks, E_, U_, V_={'incl':1,'unit':'s','age':'both'}, h0=None, o0=None, collect=True):
+    """ks: global bundle indices of one stay (in order). E_,U_: (N,192) tensors for those global indices."""
+    dt_ = WT['core.flow.a'].dtype
+    h = torch.zeros(4,192, dtype=dt_) if h0 is None else h0.clone()
+    o = torch.zeros(192, dtype=dt_) if o0 is None else o0.clone()
+    j0 = ks[0]; Hs=[]; Os=[]; Zs=[]; CT=[]
+    for k in ks:
+        dtk = dts[k] if k!=j0 else torch.zeros((), dtype=dts.dtype)
+        hf = h * torch.exp(-dtk * torch.exp(WT['core.flow.a']))
+        ctx = ctx_from(o, hf, dtk)
+        z = zpost_mean(ctx, E_[k], U_[k])
+        idx_m = np.arange(max(j0, k+1-128), k+1)
+        ages = (tmin[k] - tmin[idx_m]) * 60.0
+        h, o = core_step(hf, E_[k], U_[k], z, E_[idx_m], ages, V_)
+        if collect: Hs.append(h); Os.append(o); Zs.append(z); CT.append(ctx)
+    return Hs, Os, Zs, CT
+
+JI.npy (150, 32, 3) float64 [-0.  0.  0.  0.  0.  0.]
+JN.npy (150, 32, 3) float64 [0.01 0.   0.   0.08 0.04 0.03]
+sIN.npy (2, 150) int64 [2005 3961 2620 2372  771 1753]
+80
+core.a_in(192,) core.age.0.bias(192,) core.age.0.weight(192, 1) core.age.2.bias(192,) core.age.2.weight(192, 192) core.b_in.weight(192, 192) core.blocks.0.0.attn.kv.weight(384, 192) core.blocks.0.0.attn.out.weight(192, 192) core.blocks.0.0.attn.q.weight(192, 192) core.blocks.0.0.cross.kv.weight(384, 192) core.blocks.0.0.cross.out.weight(192, 192) core.blocks.0.0.cross.q.weight(192, 192) core.blocks.0.0.ffn.0.bias(768,) core.blocks.0.0.ffn.0.weight(768, 192) core.blocks.0.0.ffn.2.bias(192,) core.blocks.0.0.ffn.2.weight(192, 768) core.blocks.0.0.norm1.bias(192,) core.blocks.0.0.norm1.weight(192,) core.blocks.0.0.norm2.bias(192,) core.blocks.0.0.norm2.weight(192,) core.blocks.0.0.norm3.bias(192,) core.blocks.0.0.norm3.weight(192,) core.blocks.0.1.attn.kv.weight(384, 192) core.blocks.0.1.attn.out.weight(192, 192) core.blocks.0.1.attn.q.weight(192, 192) core.blocks.0.1.cross.kv.weight(384, 192) core.blocks.0.1.cross.out.weight(192, 192) core.blocks.0.1.cross.q.weight(192, 192) core.blocks.0.1.ffn.0.bias(768,) core.blocks.0.1.ffn.0.weight(768, 192) core.blocks.0.1.ffn.2.bias(192,) core.blocks.0.1.ffn.2.weight(192, 768) core.blocks.0.1.norm1.bias(192,) core.blocks.0.1.norm1.weight(192,) core.blocks.0.1.norm2.bias(192,) core.blocks.0.1.norm2.weight(192,) core.blocks.0.1.norm3.bias(192,) core.blocks.0.1.norm3.weight(192,) core.c_out.weight(192, 192) core.coda.0.attn.kv.weight(384, 192) core.coda.0.attn.out.weight(192, 192) core.coda.0.attn.q.weight(192, 192) core.coda.0.ffn.0.bias(768,) core.coda.0.ffn.0.weight(768, 192) core.coda.0.ffn.2.bias(192,) core.coda.0.ffn.2.weight(192, 768) core.coda.0.norm1.bias(192,) core.coda.0.norm1.weight(192,) core.coda.0.norm3.bias(192,) core.coda.0.norm3.weight(192,) core.delta_in(192,) core.flow.a(192,) core.out_norm.bias(192,) core.out_norm.weight(192,) core.prelude.0.attn.kv.weight(384, 192) core.prelude.0.attn.out.weight(192, 192) core.prelude.0.attn.q.weight(192, 192) core.prelude.0.ffn.0.bias(768,) core.prelude.0.ffn.0.weight(768, 192) core.prelude.0.ffn.2.bias(192,) core.prelude.0.ffn.2.weight(192, 768) core.prelude.0.norm1.bias(192,) core.prelude.0.norm1.weight(192,) core.prelude.0.norm3.bias(192,) core.prelude.0.norm3.weight(192,) core.prelude_norm.bias(192,) core.prelude_norm.weight(192,) core.slots(4, 192) z_head.bias(192,) z_head.weight(192, 32) z_in.bias(192,) z_in.weight(192, 32) z_post.0.bias(192,) z_post.0.weight(192, 576) z_post.2.bias(64,) z_post.2.weight(64, 192) z_prior.0.bias(192,) z_prior.0.weight(192, 192) z
+
+```

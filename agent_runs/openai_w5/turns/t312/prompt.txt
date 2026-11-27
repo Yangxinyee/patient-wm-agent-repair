@@ -1,0 +1,235 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 311 replies happened before. Forward passes used: 26 of 50; Python runs used: 270 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.a_in', 'core.b_in.weight', 'core.blocks.0.0.attn.out.weight', 'core.blocks.0.0.cross.out.weight', 'core.blocks.0.0.ffn.2.bias', 'core.blocks.0.0.ffn.2.weight', 'core.blocks.0.1.attn.out.weight', 'core.blocks.0.1.cross.out.weight', 'core.blocks.0.1.ffn.2.bias', 'core.blocks.0.1.ffn.2.weight', 'core.c_out.weight', 'core.coda.0.attn.out.weight', 'core.coda.0.ffn.2.bias', 'core.coda.0.ffn.2.weight', 'core.delta_in', 'core.flow.a', 'core.out_norm.bias', 'core.out_norm.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.2.bias', 'core.prelude.0.ffn.2.weight', 'core.prelude_norm.bias', 'core.slots', 'embed.bins.rate.weight', 'embed.bins.value.weight', 'embed.code.weight', 'encode.mlp1.0.weight', 'encode.norm.bias', 'encode.norm.weight', 'encode_action.mlp1.0.bias', 'encode_action.mlp1.0.weight', 'encode_action.mlp1.2.bias', 'encode_action.mlp1.2.weight', 'encode_action.mlp2.0.bias', 'encode_action.mlp2.0.weight', 'encode_action.mlp2.2.bias', 'encode_action.mlp2.2.weight', 'encode_action.norm.bias', 'encode_action.norm.weight', 'encode_action.size.bias', 'encode_action.size.weight', 'gap.2.bias', 'gap.2.weight', 'last_numeric.bias', 'last_numeric.weight', 'last_status.weight', 'query_norm.bias', 'query_norm.weight', 'type_emb.weight', 'z_head.bias', 'z_head.weight', 'z_in.bias', 'z_in.weight']. Files in /work: ['checkpoint_run202.safetensors', 'checkpoint_run217.safetensors', 'checkpoint_run238.safetensors', 'checkpoint_run249.safetensors', 'checkpoint_run264.safetensors', 'checkpoint_trial264.safetensors', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ncoder normalization cache.
+- Private recurrent coordinates nearly match edited GPU states; ordinary replay still does not.
+- Auditing finite-dose private transport with temporary record copies; no new weight edits.
+
+## Run 191: diagnostic correction
+- Run 189's apparent routing discontinuities used a stale world cache; they are not evidence of a GPU routing defect.
+- Installed candidate_e184 into the local replay cache only. No model weights changed.
+
+## Restart / run 193
+- Preserved all current edits in _r193_checkpoint; no weights changed.
+- Recovering architecture, causal estimates, and replay dependencies.
+- END atoms and stale replay caches remain diagnostic concerns, not established causes.
+
+## Run 202: clean recovery after timeout
+- Kernel variables were lost in run 199; persisted edits survived.
+- Saved all current edits in /work/checkpoint_run202.safetensors.
+- Rebuilt weight caches directly from the current and original tensors; no weights changed.
+
+## Restart after forward 18 / run 206
+- Tuning B factual value NLL: 1.62038 versus original 1.61898, +0.00140.
+- Factual preservation holds on this sample; finite-dose causal asymmetry remains unresolved.
+- Recovering architecture, record-identification evidence, and kernel objects before further edits.
+
+## Runs 209–211: recovered finite-rate channels
+- Correct clean pairs are insulin (21,61), NE (15,66); initial diagnostic pairing was wrong.
+- Encoder signals are mostly linear and drug-specific. Insulin saturates near rate 11.49 due to input clipping.
+- Saturation alone cannot explain doubling response exceeding twice the halving response.
+- Next hypothesis: ordinary-feature exposure centering may absorb dose interventions; not yet established.
+
+## Run 217: restart recovery and rollback snapshot
+- Saved current edits to /work/checkpoint_run217.safetensors; no weights changed.
+- Recovered sensor-specific identification checks and current head/centering objects.
+- Existing exposure centering uses ordinary features; intervention leakage remains a hypothesis, not a finding.
+
+## Runs 218–219: local-head validation failure
+- No weights changed. Local head NLL (~2.85) disagrees with GPU factual NLL (~1.64).
+- Local strength-loss and centering diagnostics are not trusted until register/head reconstruction is validated.
+
+## Runs 226–229: reconstruction audit
+- Re-read the architecture and record-identification notes; no weight edits.
+- Exact weight caches do not resolve local/GPU prediction disagreement.
+- Auditing prior sampling, register timing, and state alignment before using local likelihood calculations.
+
+## Runs 230–232: concrete diagnostic corrections
+- Correct register layout is consistent with [presence, age, z_value, has_value, z_dose, has_dose, z_rate, has_rate]; the recovered layout was wrong.
+- Recomputed outcome and last-value bins from each sensor's supplied edges.
+- No weight edits. Validating prior-averaged paired predictions before further calibration.
+
+## Run 233: bin-boundary audit
+- Prior averaging did not validate the recovered local head.
+- The register-layout improvement is partial, not proof of exact reconstruction.
+- Testing edge equality explicitly; changed bin indices must not automatically be treated as corrections.
+- No weight edits.
+
+## Run 234: restart and validation policy
+- Left-edge binning agrees with existing labels; boundary changes do not explain local/GPU disagreement.
+- Recovered CPU likelihood calculations remain unvalidated and will not determine edit acceptance.
+- Recovering identification evidence and edit structure; subsequent acceptance requires paired GPU factual and rollout tests.
+
+## Run 238: GPU-calibrated strength trial
+- Saved complete pre-trial edits in /work/checkpoint_run238.safetensors.
+- Multiplied paired glucose value-head columns by 2.0 and MAP columns by 1.2; all transport and centering weights unchanged.
+- This is a calibration trial, not an accepted repair. Requires paired GPU dose rollouts and factual NLL validation.
+- Scaling alone is refuted if doubling/halving asymmetry persists or factual value-NLL cost exceeds +0.005.
+
+## Forward 22 / run 243: reject strength-only trial
+- Tuning A factual NLL increase +0.00536 exceeds the +0.005 ceiling.
+- Restored the pre-trial value-head output weights (glucose strength 1, NE baseline).
+- Investigating whether post-dose ordinary features leak dose into the centering regression.
+
+## Run 249: reversible centering-isolation trial
+- Saved all pre-trial edits in /work/checkpoint_run249.safetensors.
+- Replaced ordinary-feature exposure centers with sensor-specific constant factual exposure means; retained private-dose coefficients and value-head output strengths unchanged.
+- This is a diagnostic, not an accepted repair. GPU paired rollouts must establish whether removing center leakage reduces asymmetry; factual NLL must be tested before retention.
+
+## Forward 23 / run 250: constant-center diagnostic rejected
+- Constant-center rollout shifts: insulin x2 -4.152, half +1.090; NE x2 +4.538, half -1.092 (reached stay-hour means).
+- Removing ordinary-feature centering did not resolve asymmetry. Restored the pre-trial first-layer value-head tensors.
+- Next audit: exact action encoding and attention transport for WORLD, END, and simultaneous start/end bundles.
+
+## Run 251: bundle-semantics audit
+- END and WORLD+END synthetic signals are irregular; these are not yet validated explanations of rollout asymmetry.
+- No weights changed. Re-reading architecture and recovering exact action/transport helpers before another trial.
+
+## Runs 252–257: persistence audit
+- Stronger glucose readout alone gives little rollout gain and costs factual NLL; retained baseline strengths.
+- Factual reconstructed signal neurons are near +8, not GELU-clipped.
+- Private core.flow.a=0 resets dose coordinates within seconds. Multi-hour persistence therefore relies on ordinary autoregressive feedback.
+- Comparing hourly GPU effects with record-derived AR response before a reversible persistent-channel trial; estimates remain assumption-dependent.
+
+## Run 258: persistence-trial preparation
+- Hourly paired effects understate record-derived insulin responses, especially halving.
+- Rapid private-channel decay is a candidate mechanism, not an established explanation.
+- Recovering exact architecture, causal estimates, and current edit layout before a reversible trial.
+- No weights changed.
+
+## Runs 261–263: finite transport audit
+- Current insulin WORLD encoder is essentially linear through rate 8; saturation starts near 11.5.
+- Plausible END variants add an offset but do not reproduce the large doubling/halving asymmetry.
+- Synthetic END semantics remain unverified; no conclusion rests on them alone.
+- Completed NE audit and recovered prior rollout summaries; no weights changed.
+
+## Run 264: reversible insulin-persistence trial
+- Saved all pre-trial edits in /work/checkpoint_run264.safetensors; BASE264 holds all tensors.
+- Insulin coordinates 21/61 now decay with tau=1500 seconds; core.a_in pair equalized to preserve antisymmetry.
+- NE transport and all value-head weights unchanged.
+- This is not accepted. Requires GPU factual, state stability, and paired finite-rollout checks.
+- Variable normalization makes retention approximate; factual centering may need recalibration.
+
+## Forward 24–25 / runs 265–266: persistence trial rejected as-is
+- Insulin tau=1500 s: factual NLL 1.64604 vs 1.63933 (+0.00671), exceeds guardrail.
+- Rollouts: insulin x2 -8.110, half +1.952; NE x2 +4.362, half -1.332.
+- Magnitudes increased, asymmetry remains. Trial saved in checkpoint_trial264.safetensors.
+- Restored pre-trial flow; dropped a_in edit because checkpoint omitted this previously original tensor.
+
+## Run 270: prepare factual-centering recalibration
+- Reinstalled only trial flow/a_in from checkpoint_trial264; still an unaccepted diagnostic.
+- Plan: fresh training GPU states, cross-validated ordinary-feature centering, then GPU factual and rollout acceptance.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 26 of 50 done (states); files in /work/fwd_27/. Summary:
+```
+{
+ "type": "states",
+ "model": "edited",
+ "split": "train",
+ "n_stays": 100,
+ "results": {
+  "edited": {
+   "file": "states_edited.npz",
+   "rows": 4314,
+   "layout": "x[:, 0:192] = out, x[:, 192 + 192*s : 384 + 192*s] = slot s of h (s = 0..3), x[:, 960:992] = z posterior mean; one row per bundle, after the bundle",
+   "other_arrays": [
+    "stay_id",
+    "hour",
+    "has_insulin",
+    "has_norepinephrine",
+    "n_atoms"
+   ]
+  }
+ },
+ "seconds": 2.9
+}
+```
+Forward passes left: 24.
+Edits used in this pass: attr_heads.value_bin.0.bias, attr_heads.value_bin.0.weight, attr_heads.value_bin.2.bias, attr_heads.value_bin.2.weight, core.a_in, core.b_in.weight, core.blocks.0.0.attn.out.weight, core.blocks.0.0.cross.out.weight, core.blocks.0.0.ffn.2.bias, core.blocks.0.0.ffn.2.weight, core.blocks.0.1.attn.out.weight, core.blocks.0.1.cross.out.weight, core.blocks.0.1.ffn.2.bias, core.blocks.0.1.ffn.2.weight, core.c_out.weight, core.coda.0.attn.out.weight, core.coda.0.ffn.2.bias, core.coda.0.ffn.2.weight, core.delta_in, core.flow.a, core.out_norm.bias, core.out_norm.weight, core.prelude.0.attn.kv.weight, core.prelude.0.attn.out.weight, core.prelude.0.attn.q.weight, core.prelude.0.ffn.2.bias, core.prelude.0.ffn.2.weight, core.prelude_norm.bias, core.slots, embed.bins.rate.weight, embed.bins.value.weight, embed.code.weight, encode.mlp1.0.weight, encode.norm.bias, encode.norm.weight, encode_action.mlp1.0.bias, encode_action.mlp1.0.weight, encode_action.mlp1.2.bias, encode_action.mlp1.2.weight, encode_action.mlp2.0.bias, encode_action.mlp2.0.weight, encode_action.mlp2.2.bias, encode_action.mlp2.2.weight, encode_action.norm.bias, encode_action.norm.weight, encode_action.size.bias, encode_action.size.weight, gap.2.bias, gap.2.weight, last_numeric.bias, last_numeric.weight, last_status.weight, query_norm.bias, query_norm.weight, type_emb.weight, z_head.bias, z_head.weight, z_in.bias, z_in.weight (edit hash 4839308960).

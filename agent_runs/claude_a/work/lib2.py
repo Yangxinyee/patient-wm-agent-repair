@@ -1,0 +1,55 @@
+
+import torch, math, torch.nn.functional as F
+def LNx(x, P, pre): return F.layer_norm(x, (x.shape[-1],), P[pre+'.weight'], P[pre+'.bias'], 1e-5)
+def prelude(P, hf, e, u, z):
+    zt = F.linear(z, P['z_in.weight'], P['z_in.bias'])
+    X = torch.cat([hf + P['core.slots'][None], e[:,None], u[:,None], zt[:,None]], 1)
+    pre='core.prelude.0'; B=X.shape[0]; H=4; dh=48
+    n1 = LNx(X, P, pre+'.norm1')
+    q = F.linear(n1, P[pre+'.attn.q.weight']); k,v = F.linear(n1, P[pre+'.attn.kv.weight']).split(192,-1)
+    sh=lambda t: t.view(B,7,H,dh).transpose(1,2)
+    att = torch.softmax(sh(q)@sh(k).transpose(-1,-2)/math.sqrt(dh), -1)
+    o = att@sh(v)
+    X1 = X + F.linear(o.transpose(1,2).reshape(B,7,192), P[pre+'.attn.out.weight'])
+    n3 = LNx(X1, P, pre+'.norm3')
+    X2 = X1 + F.linear(F.gelu(F.linear(n3, P[pre+'.ffn.0.weight'], P[pre+'.ffn.0.bias'])), P[pre+'.ffn.2.weight'], P[pre+'.ffn.2.bias'])
+    E = LNx(X2[:,:4], P, 'core.prelude_norm')
+    return dict(X=X, n1=n1, att=att, o=o, X1=X1, n3=n3, X2=X2, E=E, vh=sh(v))
+
+def mh(P, pre, xq, xkv, mask=None, kadd=None):
+    B,Tq,_=xq.shape; Tk=xkv.shape[1]; H=4; dh=48
+    q=F.linear(xq, P[pre+'.q.weight']); k,v=F.linear(xkv, P[pre+'.kv.weight']).split(192,-1)
+    if kadd is not None: k,_=F.linear(xkv+kadd, P[pre+'.kv.weight']).split(192,-1)
+    qh=q.view(B,Tq,H,dh).transpose(1,2); kh=k.view(B,Tk,H,dh).transpose(1,2); vh=v.view(B,Tk,H,dh).transpose(1,2)
+    s=qh@kh.transpose(-1,-2)/math.sqrt(dh)
+    if mask is not None: s=s.masked_fill(~mask[:,None,None,:], float('-inf'))
+    a=torch.softmax(s,-1); return F.linear((a@vh).transpose(1,2).reshape(B,Tq,192), P[pre+'.out.weight'])
+def ffP(P, pre, x): return F.linear(F.gelu(F.linear(x, P[pre+'.0.weight'], P[pre+'.0.bias'])), P[pre+'.2.weight'], P[pre+'.2.bias'])
+def agE(P, age_s):
+    a=torch.log1p(age_s.clamp_min(0))[...,None]
+    return F.linear(F.gelu(F.linear(a, P['core.age.0.weight'], P['core.age.0.bias'])), P['core.age.2.weight'], P['core.age.2.bias'])
+def core_rest(P, hf, E, Mx, Mage, Mmask, agemode='kv', keep=False):
+    x=hf+E; ag=agE(P, Mage); info={}
+    for li,b in enumerate(['core.blocks.0.0','core.blocks.0.1']):
+        n1=LNx(x,P,b+'.norm1'); x=x+mh(P,b+'.attn',n1,n1)
+        n2=LNx(x,P,b+'.norm2')
+        if agemode=='kv': x=x+mh(P,b+'.cross',n2,Mx+ag,Mmask)
+        else: x=x+mh(P,b+'.cross',n2,Mx,Mmask,kadd=ag)
+        n3=LNx(x,P,b+'.norm3')
+        if keep: info[f'x{li}']=x; info[f'n3_{li}']=n3
+        x=x+ffP(P,b+'.ffn',n3)
+    sp=F.softplus(P['core.delta_in']); abar=torch.exp(-sp*torch.exp(P['core.a_in']))
+    hn=abar*hf+sp*F.linear(E,P['core.b_in.weight'])+(x-(hf+E))
+    c=F.linear(hn,P['core.c_out.weight']); n1=LNx(c,P,'core.coda.0.norm1'); c=c+mh(P,'core.coda.0.attn',n1,n1)
+    y=c+ffP(P,'core.coda.0.ffn',LNx(c,P,'core.coda.0.norm3'))
+    out=LNx(y.mean(1),P,'core.out_norm')
+    return hn,y,out,info
+def mem_for(ds, rows_by_stay, e_all):
+    tsec=torch.as_tensor(np.asarray(ds['tsec']),dtype=torch.float32); N=len(tsec); L=max(len(r) for r in rows_by_stay)
+    Mx=torch.zeros(N,L,192); Ma=torch.zeros(N,L); Mm=torch.zeros(N,L,dtype=torch.bool)
+    for rr in rows_by_stay:
+        rr=list(rr)
+        for i,k in enumerate(rr):
+            idx=rr[max(0,i-127):i+1]; n=len(idx)
+            Mx[k,:n]=e_all[idx]; Ma[k,:n]=tsec[k]-tsec[idx]; Mm[k,:n]=True
+    return Mx,Ma,Mm

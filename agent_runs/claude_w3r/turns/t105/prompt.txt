@@ -1,0 +1,58 @@
+OUTPUT of Python run 96 of at most 300:
+```
+class M ['__init__', 'lin', 'mlp', 'ln', 'embed_atom', 'encode_set', 'encode_bundle', 'ctx', 'zpost']
+6 def fbin(code, attr, x):
+8 def zsc(code, attr, x):
+11 def build_bundles(ev, opts):
+35 def __init__(self, W): self.W={k:torch.tensor(np.asarray(v)) for k,v in W.items()}
+36 def lin(self, x, name, bias=True):
+40 def mlp(self, x, name):
+42 def ln(self, x, name, eps=1e-5):
+44 def embed_atom(self, a, opts):
+56 def encode_set(self, X, name):
+60 def encode_bundle(self, atoms, opts):
+65 def ctx(self, out, h, dt_s):
+70 def zpost(self, ctx, e, u):
+--- tail of impl.py ---
+        else: bundles.append((tm,[a]))
+    return [(tm/60.0, al) for tm,al in bundles]
+class M:
+    def __init__(self, W): self.W={k:torch.tensor(np.asarray(v)) for k,v in W.items()}
+    def lin(self, x, name, bias=True):
+        y = x @ self.W[name+'.weight'].T
+        if bias and (name+'.bias') in self.W: y = y + self.W[name+'.bias']
+        return y
+    def mlp(self, x, name):
+        return self.lin(torch.nn.functional.gelu(self.lin(x, name+'.0')), name+'.2')
+    def ln(self, x, name, eps=1e-5):
+        return torch.nn.functional.layer_norm(x, (x.shape[-1],), self.W[name+'.weight'], self.W[name+'.bias'], eps)
+    def embed_atom(self, a, opts):
+        W=self.W; v = W['embed.code.weight'][a['code']] + W['embed.kind.weight'][a['kind']] + W['embed.ekind.weight'][a['ek']]
+        v = v + W['embed.categorical.unit.weight'][a['unit']] + W['embed.categorical.rate_unit.weight'][a['ru']]
+        if opts.get('kq',True): v = v + W['embed.kq.weight'][0]
+        num = torch.zeros(6)
+        if a['val'] is not None:
+            c,x=a['val']; v = v + W['embed.bins.value.weight'][fbin(c,'value',x)]; num[0]=zsc(c,'value',x); num[1]=1
+        if a['dose'] is not None:
+            c,x=a['dose']; v = v + W['embed.bins.dose.weight'][fbin(c,'dose',x)]; num[2]=zsc(c,'dose',x); num[3]=1
+        if a['rate'] is not None:
+            c,x=a['rate']; v = v + W['embed.bins.rate.weight'][fbin(c,'rate',x)]; num[4]=zsc(c,'rate',x); num[5]=1
+        return v + W['embed.numeric.weight'] @ num + W['embed.numeric.bias']
+    def encode_set(self, X, name):
+        n = X.shape[0]
+        s = self.mlp(X, name+'.mlp1').sum(0)/math.sqrt(n) + self.lin(torch.tensor([math.log(1+n)]), name+'.size')
+        return self.ln(self.mlp(s, name+'.mlp2'), name+'.norm')
+    def encode_bundle(self, atoms, opts):
+        obs=[a for a in atoms if a['ek'] in (1,3,4)]; act=[a for a in atoms if a['ek']==2]
+        e = self.encode_set(torch.stack([self.embed_atom(a,opts) for a in obs]), 'encode') if obs else torch.zeros(192)
+        u = self.encode_set(torch.stack([self.embed_atom(a,opts) for a in act]), 'encode_action') if act else torch.zeros(192)
+        return e,u
+    def ctx(self, out, h, dt_s):
+        decay = torch.exp(-dt_s*torch.exp(self.W['core.flow.a']))
+        hf = h*decay
+        g = self.mlp(torch.tensor([math.log(max(dt_s,1.0))/10.0]), 'gap')
+        return out + self.ln(hf.mean(0),'core.out_norm') + g, hf
+    def zpost(self, ctx, e, u):
+        o = self.mlp(torch.cat([ctx,e,u]), 'z_post'); return o[:32], o[32:]
+
+```

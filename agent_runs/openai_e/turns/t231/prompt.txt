@@ -1,0 +1,200 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 230 replies happened before. Forward passes used: 23 of 50; Python runs used: 199 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['baseline77.npz', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate58.npz', 'insulin_candidate63.npz', 'ne_candidate148.npz', 'ne_candidate151.npz', 'ne_candidate154.npz', 'ne_candidate155.npz', 'ne_candidate199.npz', 'ne_candidate82.npz', 'ne_detector81.npz', 'ne_reduced107.npz', 'ne_trial103.npz', 'ne_trial83.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ile leaving the direct action pathway intact. No weights changed. Python runs: 183; forwards: 22.
+
+## Run 184: baseline-state detector robustness hypothesis
+Earlier latent sensitivity was weak, so no posterior edit attempted. Inspecting exact action/world encoders to rebuild prelude detector features on paired original and insulin-baseline training states from forward22. Hypothesis: original-state fits leak on the repaired-state distribution. No weights changed. Python runs: 184; forwards: 22.
+
+## Run 185: recover decision evidence after restart
+Read architecture first and recovered compact causal/validation evidence. Current insulin baseline retained; no weights changed. Next decision is a factual-budgeted correction, not an unvalidated detector refit. Python runs: 185; forwards: 22.
+
+## Run 186: bounded validation and archive recovery
+Run185 output was truncated; retrieved only key experiment summaries, saved-edit array schemas, and forward-output schemas. No weights changed. Python runs: 186; forwards: 22.
+
+## Run 187: compare measured factual and intervention trade-offs
+Recovered forward-result tables and retained NE edit bases. No weights changed. Hypothesis to test: repaired-state anchoring can reduce NE factual leakage relative to original-state fits. Python runs: 187; forwards: 22.
+
+## Runs 188–189: complete effect recovery and safe tensor conversion
+Baseline rollout on second tuning sample: insulin -12.708/+4.335; NE +0.099/-1.004. Candidate151 NE +1.893/-1.633 but factual cost .011068 on first sample; reduced107 NE +.587/-1.282 with cost .004018 on second. Independent arterial/cuff dynamic evidence supports NE beta near3, persistence .70. Run188 stopped on Torch/NumPy max conversion; no weights changed. Python runs: 189; forwards: 22.
+
+## Run 190: recover training bundle reconstruction conventions
+Installed b_in matches baseline77 exactly. Loaded full records and paired train states for repaired-state detector anchoring. No weights changed. Python runs: 190; forwards: 22.
+
+## Run 191: reconstruct paired training preludes and test anchor drift
+Built atoms with audited END convention and checked posterior means against paired GPU states. Measured old NE edit activation on original versus insulin-repaired factual states. No weights changed. Python runs: 191; forwards: 22.
+
+## Run 192: reject anchor-drift explanation; build dose contrasts
+Old NE factual state RMS is 1.318 original vs1.321 insulin baseline: drift hypothesis refuted. Built training NE/insulin dose contrasts using recorded factual z plus recomputed posterior differences. Remaining posterior reconstruction offset is explicitly not treated as verified absolute inference. No weights changed. Python runs: 192; forwards: 22.
+
+## Run 193: recover exact contrast-edit construction
+Run192 refuted repaired-state anchor drift. Reading architecture and recovering saved NE constructions and contrast variables before a factual-null, dose-responsive auxiliary fit. Posterior offsets remain unverified; no weights changed. Python runs: 193; forwards: 22.
+
+## Run 194: bounded construction recovery
+Run193 output truncated before recent variables and archive schemas. Recovering those compactly plus early causal evidence; no weights changed. Python runs: 194; forwards: 22.
+
+## Runs 195–196: archive lookup recovery
+Run195 confirmed paired train contrasts but stopped on a missing archive key. No weights changed. Located saved direction schemas and recovered prior NE construction notes. Python runs: 196; forwards: 22.
+
+## Run 197: stay-held-out factual-null NE detector frontier
+Admission-null rank=180. Fitted auxiliary linear regressions on paired training dose contrasts, with factual and insulin guards; five-fold validation by stay. No model weights changed. Python runs: 197; forwards: 22.
+[{'fact_RMS': 2.1403074273748737, 'NE2_slope': 0.96632225567212, 'NE2_RMS': 1.3063971149349758, 'NEhalf_slope': 2.5242534426225802, 'NEhalf_RMS': 1.479528895867999, 'I2_slope': 0.34898270863077246, 'I2_RMS': 1.2543001826230467, 'Ihalf_slope': 0.4914400753544606, 'Ihalf_RMS': 1.0228269233198362, 'factual_weight': 3.0, 'insulin_weight': 1.0}, {'fact_RMS': 2.142704935396895, 'NE2_slope': 0.969425055656918, 'NE2_RMS': 1.326329819665794, 'NEhalf_slope': 2.5533987867936974, 'NEhalf_RMS': 1.499706275033742, 'I2_slope': 0.3547805346678141, 'I2_RMS': 1.2757734399219025, 'Ihalf_slope': 0.4929941156719938, 'Ihalf_RMS': 1.0420193217986302, 'factual_weight': 30.0, 'insulin_weight': 10.0}, {'fact_RMS': 2.1467434597951174, 'NE2_slope': 0.9695337566753592, 'NE2_RMS': 1.338785566204939, 'NEhalf_slope': 2.569272752401999, 'NEhalf_RMS': 1.5113579128470953, 'I2_slope': 0.3582543940065371, 'I2_RMS': 1.3019702907571222, 'Ihalf_slope': 0.47751379584239045, 'Ihalf_RMS': 1.0711061743738823, 'factual_weight': 10.0, 'insulin_weight': 1.0}, {'fact_RMS': 2.150537426282029, 'NE2_slope': 0.9705291353900561, 'NE2_RMS': 1.3453108520851642, 'NEhalf_slope': 2.578619427242916, 'NEhalf_RMS': 1.5178795048232694, 'I2_slope': 0.3601107161804689, 'I2_RMS': 1.3092235625721922, 'Ihalf_slope': 0.4776193405347022, 'Ihalf_RMS': 1.07794311849998, 'factual_weight': 100.0, 'insulin_weight': 10.0}, {'fact_RMS': 2.1544969603388395, 'NE2_slope': 0.9705051607737886, 'NE2_RMS': 1.3492805216867783, 'NEhalf_slope': 2.5835477482822227, 'NEhalf_RMS': 1.521545234273715, 'I2_slope': 0.3611609269605748, 'I2_RMS': 1.3179065908493919, 'Ihalf_slope': 0.4719596427168563, 'Ihalf_RMS': 1.08820959489592, 'factual_weight': 30.0, 'insulin_weight': 1.0}]
+
+## Run 198: audit overbroad admission guard
+Run197 used all pre-ICU bundles as exact-null constraints, consuming 180 directions. Audited event types and refitted with only initial pure admission bundles exactly protected; later factual bundles remain penalized. No weights changed. Python runs: 198; forwards: 22.
+[{'fact_RMS': 0.34829411574766594, 'NE2_slope': 0.9173670231273487, 'NE2_RMS': 0.7942391088808117, 'NEhalf_slope': 1.4048536289291862, 'NEhalf_RMS': 0.7797662957351102, 'I2_slope': 0.11380674003765975, 'I2_RMS': 0.586885320091798, 'Ihalf_slope': 0.22625859715391033, 'Ihalf_RMS': 0.48985175377057366, 'factual_weight': 30.0, 'insulin_weight': 1.0}, {'fact_RMS': 0.36362974772777734, 'NE2_slope': 0.9240179152141543, 'NE2_RMS': 0.8967019446107913, 'NEhalf_slope': 1.6813112340213592, 'NEhalf_RMS': 0.9504311440734778, 'I2_slope': 0.1880579209804754, 'I2_RMS': 0.758147264076797, 'Ihalf_slope': 0.31319274778115624, 'Ihalf_RMS': 0.6211907003424508, 'factual_weight': 100.0, 'insulin_weight': 1.0}, {'fact_RMS': 0.3712978824466663, 'NE2_slope': 0.9139223883781422, 'NE2_RMS': 0.7255127532705383, 'NEhalf_slope': 1.1598842569758052, 'NEhalf_RMS': 0.6198339192268081, 'I2_slope': 0.03520684291447128, 'I2_RMS': 0.42694154788818495, 'Ihalf_slope': 0.13237859909077082, 'Ihalf_RMS': 0.3632551757218403, 'factual_weight': 10.0, 'insulin_weight': 1.0}, {'fact_RMS': 0.44892955418236385, 'NE2_slope': 0.910998624520756, 'NE2_RMS': 0.7027045000343739, 'NEhalf_slope': 1.028375280888642, 'NEhalf_RMS': 0.5095118593353032, 'I2_slope': -0.02704220167327054, 'I2_RMS': 0.31579202818940694, 'Ihalf_slope': 0.058755187404793775, 'Ihalf_RMS': 0.2620420252296437, 'factual_weight': 3.0, 'insulin_weight': 1.0}, {'fact_RMS': 0.5384771850859755, 'NE2_slope': 0.9267464785847348, 'NE2_RMS': 1.0587250965711774, 'NEhalf_slope': 2.344100416342337, 'NEhalf_RMS': 1.2751250216884773, 'I2_slope': 0.16580975980644436, 'I2_RMS': 0.609442734142738, 'Ihalf_slope': 0.23488200988897567, 'Ihalf_RMS': 0.5019246191813549, 'factual_weight': 100.0, 'insulin_weight': 10.0}]
+
+## Run 199: install training-contrast NE trial
+Corrected initial-admission guard leaves 188 input directions. Selected factual weight10 / insulin guard1: held-out factual RMS=.3713, NE x2 slope=.9139, half slope=1.1599, insulin slopes=.0352/.1324. Installed baseline77 plus .8*direction82 outer normalized feature. Saved ne_candidate199.npz; unaccepted pending GPU factual and rollout checks. Python runs: 199; forwards: 22.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 23 of 50 done (factual); files in /work/fwd_23/. Summary:
+```
+{
+ "type": "factual",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.63461,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.4639,
+     "mean_abs_error": 10.843
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.2941,
+     "mean_abs_error": 8.565
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.4712,
+     "mean_abs_error": 3.776
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.012,
+     "mean_abs_error": 6.303
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.65731,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.4779,
+     "mean_abs_error": 11.062
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.3134,
+     "mean_abs_error": 8.681
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.5228,
+     "mean_abs_error": 3.953
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.0241,
+     "mean_abs_error": 6.345
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "seconds": 3.0
+}
+```
+Forward passes left: 27.
+Edits used in this pass: core.b_in.weight (edit hash 88b97efccd).

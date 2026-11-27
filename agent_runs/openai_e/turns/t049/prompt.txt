@@ -1,0 +1,60 @@
+OUTPUT of Python run 44 of at most 300:
+```
+=== HELPER IMPLEMENTATIONS ===
+
+ core_update_local (z, config, h_flow=None, e=None, u=None, memory_data=None)
+names: ('core_h_flow', 'core_E_obs', 'core_U_actions', 'core_memories', 'core_ffn', 'torch', 'log1p', 'clamp_min', 'cat', 'W0', 'core_lin', 'core_layer', 'core_norm', 'F', 'softplus', 'exp', 'mean')
+locals: ('z', 'config', 'h_flow', 'e', 'u', 'memory_data', 'nheads', 'age_divisor', 'age_mode', 'include_current', 'h', 'memory', 'age_seconds', 'valid', 'ages', 'tokens', 'E', 'base', 'uu', 'p', 'delta', 'abar', 'hnew', 'y', 'out')
+constants: [0, 'core.age', 'core.slots', 'z_in', 1, ('dim',), 'core.prelude.0', 4, 'core.prelude_norm', ('core.blocks.0.0', 'core.blocks.0.1'), 'core.delta_in', 'core.a_in', 'core.b_in', 'core.c_out', 'core.coda.0', 'core.out_norm']
+
+ core_attn (x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+names: ('core_lin', 'chunk', 'shape', 'reshape', 'transpose', 'F', 'scaled_dot_product_attention')
+locals: ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode', 'q', 'kv', 'k', 'v', 'ka', 'va', 'b', 'nq', 'width', 'nk', 'attn_mask', 'ans')
+constants: ['.q', '.kv', 2, -1, ('dim',), 'both', 1, ('attn_mask',), '.out']
+
+ core_layer (x, p, nheads, memory=None, ages=None, valid=None, age_mode='both')
+names: ('core_attn', 'core_norm', 'core_ffn')
+locals: ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode')
+constants: ['.norm1', '.attn', '.norm2', '.cross', '.norm3', '.ffn']
+
+ head_calc (input0, idx=None, kind='gelu')
+names: ('head_transition', 'head_centres', 'activation0', 'linear0', 'softmax', 'sum')
+locals: ('input0', 'idx', 'kind', 'trans0', 'ctr0', 'hidden0', 'logits0', 'prob0')
+constants: ['attr_heads.value_bin.0', 'attr_heads.value_bin.2', -1]
+
+ decoder_query (kind='gelu', gap_style='log1p', type_id=1)
+names: ('torch', 'log1p', 'dt0', 'log', 'clamp_min', 'state_x', 'norm0', 'flow_h', 'mean', 'mlp0', 'linear0', 'W0')
+locals: ('kind', 'gap_style', 'type_id', 'gap_x', 'ctx', 'zp', 'view')
+constants: ['log1p', 1, 10, 192, 'core.out_norm', 'gap', 'z_prior', 32, 'z_head', 'type_emb.weight', 'query_norm']
+
+ recon_record_atom (row, kind=0, end_numeric='absent', end_units='none')
+names: ('event', 'torch', 'zeros', 'getattr', 'np', 'isfinite', 'NUM_SPEC', 'get', 'float', 'clip', 'int', 'searchsorted', 'W0', 'RECON_UNITS', 'RECON_RATE_UNITS', 'CODE_ID', 'RECON_EKINDS', 'F', 'linear')
+locals: ('row', 'kind', 'end_numeric', 'end_units', 'drug', 'numeric', 'bin_terms', 'col', 'attr', 'val', 'spec', 'bb', 'ui', 'ri')
+constants: [6, 192, ((0, 'value'), (2, 'dose'), (4, 'rate')), 2, 'absent', 'zero', 0.0, 'median', 'iqr', -10, 10, 1, 'fine_bin_edges', 'left', ('side',), 'embed.bins.', '.weight', 0, ('code', 'all'), 'all', 'embed.code.weight', 'embed.kind.weight']
+
+ _post33 (indices, e, u)
+names: ('recon_ctx', 'torch', 'nn', 'functional', 'gelu', 'linear', 'cat', 'W0')
+locals: ('indices', 'e', 'u', 'c', 'h')
+constants: ['gelu', 'log', ('act', 'gap_style'), 1, ('dim',), 'z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 32]
+=== CORE SAMPLE ===
+   stay_id    hour  has_insulin  has_norepinephrine  n_atoms  state_row
+2020000046 23.0833         True               False        2       3955
+2020000026 20.0833         True               False        2       2876
+2020000060 16.0833         True                True        4       3497
+2020000007 22.0833        False                True        1       2028
+2020000024 16.0833         True               False        2       2343
+2020000077 24.0833         True               False        2       3812
+2020000026 18.0833         True               False        2       2872
+2020000040 15.0833         True                True        4       2395
+2020000079 16.0833        False                True        2       4305
+2020000098 20.0833         True               False        2        942
+2020000016 24.0833         True               False        2        105
+2020000099 15.0833         True               False        2       1259
+Traceback (most recent call last):
+  File "<run>", line 19, in <module>
+  File "/opt/site/numpy/_core/fromnumeric.py", line 3860, in mean
+    return mean(axis=axis, dtype=dtype, out=out, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: mean() got an unexpected keyword argument 'axis'
+
+```

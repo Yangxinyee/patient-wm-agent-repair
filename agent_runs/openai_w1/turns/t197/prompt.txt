@@ -1,0 +1,172 @@
+OUTPUT of Python run 177 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== RECENT BRANCH CACHES ===
+rp_A ndarray (5215, 193)
+rp_D ndarray (12155, 193)
+rp_Dhold ndarray (3935, 193)
+rp_Gd ndarray (193, 193)
+rp_Gf ndarray (193, 193)
+rp_H ndarray (5215, 192)
+rp_R ndarray (193, 2)
+rp_T ndarray (12155, 2)
+rp_Thold ndarray (3935, 2)
+rp_X ndarray (5215, 576)
+rp_Xa ndarray (5215, 577)
+rp_action_mask ndarray (11768,)
+rp_atoms Tensor (11768, 192)
+rp_branch_specs dict keys: ['insulin', 'norepinephrine']
+rp_cf_hidden dict keys: [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+rp_cf_input dict keys: [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+rp_cf_masks dict keys: ['insulin', 'norepinephrine']
+rp_comp ndarray (189, 4)
+rp_comp_b2 ndarray (64,)
+rp_comp_w2 ndarray (64, 192)
+rp_context_choice 'log1p/10'
+rp_ctx ndarray (5215, 192)
+rp_current_gains tuple len 2 sample (4.0, 4.0)
+rp_current_weights tuple len 4 sample (array([[ 0.05409637, -0.01229608, -0.06921377, ..., -0.01400827,
+         0.00261376,  0.00910435],
+       [ 0.04531025, -0.00378058,  0.00735061, ..., -0.0185051 ,
+        -0.0378566 ,  0.01287392],
+       [-0.02818102, -0.04080355, -0.05443854, ...,  0.00472141,
+        -0.00241099, -0.00548249],
+       ...,
+       [ 0.04745482, -0.02349592, -0.02179328, ..., -0.02321561,
+        -0.03979026, -
+rp_drug ndarray (11768,)
+rp_e_choice 'ds_e'
+rp_encode callable ('atoms', 'mask', 'prefix', 'empty_zero', 'owner', 'count', 'summed', 'v', 'enc')
+rp_encoder_choice tuple len 2 sample ('drug_END_observation', False)
+rp_encodings dict keys: [('all_drug_actions', False), ('all_drug_actions', True), ('drug_END_observation', False), ('drug_END_observation', True), ('drug_END_ignored', False), ('drug_END_ignored', True)]
+rp_end ndarray (11768,)
+rp_fallback_numeric Tensor (192, 6)
+rp_fits dict keys: [0.1, 1.0, 3.0, 10.0, 30.0, 100.0]
+rp_gate_fits dict keys: ['insulin', 'norepinephrine']
+rp_has_action ndarray (5215,)
+rp_hidden Tensor (5215, 192)
+rp_hold ndarray (5215,)
+rp_input Tensor (5215, 576)
+rp_install callable ('gain_insulin', 'gain_norepinephrine', 'w0', 'b0', 'w2', 'b2', 'drug', 'gain', 's', 'a', 'b', 'name', 'arr')
+rp_linear_fits dict keys: [('insulin', 0.1), ('insulin', 1.0), ('insulin', 3.0), ('insulin', 10.0), ('norepinephrine', 0.1), ('norepinephrine', 1.0), ('norepinephrine', 3.0), ('norepinephrine', 10.0)]
+rp_meta list len 11768 sample [{'code': 'hospital_admission', 'value': nan, 'rate': nan, 'dose': nan, 'end': False}, {'code': 'map_arterial', 'value': 63.0, 'rate': nan, 'dose': nan, 'end': False}, {'code': 'map_cuff', 'value': 73.0, 'rate': nan, 'dose': nan, 'end': False}, {'code': 'glucose_finger', 'value': 125.0, 'rate': nan, 'dose': nan, 'end': False}, {'code': 'icu_admission', 'value': nan, 'rate': nan, 'dose': nan, 'end'
+rp_mu ndarray (192,)
+rp_multipliers tuple len 5 sample (0.0, 0.5, 1.5, 2.0, 3.0)
+rp_obs_mask ndarray (11768,)
+rp_old_b0 ndarray (192,)
+rp_old_b2 ndarray (64,)
+rp_old_w0 ndarray (192, 576)
+rp_old_w2 ndarray (64, 192)
+rp_owner Tensor (11768,)
+rp_owner_list list len 11768 sample [0, 1, 1, 2, 2, 2, 3, 4]
+rp_raw_e Tensor (5215, 192)
+rp_raw_u Tensor (5215, 192)
+rp_remaining ndarray (188,)
+rp_reserved ndarray (4,)
+rp_sd ndarray (192,)
+rp_train ndarray (5215,)
+rp_u_choice 'ds_u'
+rp_valid ndarray (5215,)
+rp_xmu ndarray (576,)
+rp_xsd ndarray (576,)
+
+=== RELEVANT HELPERS ===
+ce_make_heads ('records', 'states', 'rows', 'n', 'previous', 'elapsed', 'numeric', 'lastbins', 'truebins', 'lookup', 'sid', 'ii', 'gg', 'times', 'xx', 'last_by_code')
+r72_posterior ('e', 'ix', 'inp')
+
+CURRENT EDITS: ['z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+
+```

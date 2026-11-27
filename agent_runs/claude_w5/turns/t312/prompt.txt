@@ -1,0 +1,71 @@
+OUTPUT of Python run 284 of at most 300:
+```
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+-----
+ARCH len 5234 hits [4551]
+ **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+-----
+['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000016    13  insulin_x2 -4.4940    0.0302  185.3282     True
+1  2020000016    14  insulin_x2 -6.9907    0.6871  191.0530     True
+edit  insulin_half  insulin_x2  ne_half  ne_x2
+hour                                          
+13           -0.04       -4.62    -0.50   1.20
+14           -1.84       -7.26    -0.50   1.87
+15           -1.21       -8.75    -0.81   2.30
+16           -2.30      -10.50     0.13   3.37
+17           -2.64      -11.72    -0.34   3.23
+18           -2.16      -13.22    -0.44   3.90
+19           -3.37      -15.41    -0.35   4.21
+20           -2.43      -16.80    -0.42   4.69
+21           -3.72      -18.96    -0.47   4.89
+22           -4.40      -20.93    -0.89   4.66
+23           -5.25      -21.30    -0.33   5.56
+24           -5.46      -21.77    -0.13   7.50
+first hour 13 quantiles:
+ edit  insulin_half  insulin_x2  ne_half  ne_x2
+0.10         -7.43      -11.08    -4.60  -2.96
+0.25         -5.98       -8.46    -1.55  -0.85
+0.50          0.52       -4.58     0.08   0.53
+0.75          4.15       -1.59     1.38   2.65
+0.90          6.86        1.49     2.83   6.92
+frac<0: {'insulin_half': 0.29, 'insulin_x2': 0.49, 'ne_half': 0.39, 'ne_x2': 0.29}
+
+```

@@ -1,0 +1,188 @@
+OUTPUT of Python run 131 of at most 300:
+```
+Architecture input and state:
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+
+Dose-edit semantics:
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+Relevant function inventory:
+recon_lin ('x', 'p')
+recon_mlp ('x', 'p', 'act')
+recon_norm ('x', 'p')
+recon_ctx ('indices', 'act', 'gap_style')
+recon_single_set ('atoms', 'prefix')
+recon_atom ('drug', 'records', 'unit_id', 'rate_unit_id', 'kq_id')
+recon_record_atom ('row', 'kind', 'end_numeric', 'end_units')
+recon_sets ('atom_lists', 'prefix', 'empty_zero')
+core_lin ('x', 'p')
+core_norm ('x', 'p')
+core_ffn ('x', 'p')
+core_attn ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode')
+core_layer ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode')
+core_update_local ('z', 'config', 'h_flow', 'e', 'u', 'memory_data')
+bundle_target115 ('key',)
+readout121 ('h', 'out', 'src', 'dt', 'static', 'transition', 'centres')
+readout125 ('h', 'out', 'src', 'dt', 'static', 'transition', 'centres')
+arr127 ('x',)
+ff128 ('include_current',)
+oldattn129 ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode')
+attn129 ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode')
+
+Recent arrays:
+prelude_all46 (4356, 4, 192) torch.float32
+prelude_cf46 (1497, 4, 192) torch.float32
+hnew46 (32, 4, 192) torch.float32
+E_fact95 (4356, 4, 192) float32
+old_feature95 (192,) float64
+flat_E95 (17424, 192) float64
+old_factual95 (4704,) float64
+scale95 (192,) float64
+initial95 (4, 192) float64
+null95 (192, 188) float64
+XF95 (17424, 188) float64
+GF95 (188, 188) float64
+hnew_all121 (4356, 4, 192) torch.float32
+delta121 (192,) torch.float32
+abar121 (192,) torch.float32
+_rows121 (4,) int64
+_mem121 (4, 32, 192) torch.float32
+_age121 (4, 32, 1) torch.float32
+_valid121 (4, 32) torch.bool
+_ages121 (4, 32, 192) torch.float32
+_h121 (4, 4, 192) torch.float32
+_E121 (4, 4, 192) torch.float32
+_base121 (4, 4, 192) torch.float32
+_uu121 (4, 4, 192) torch.float32
+hlocal121 (4356, 4, 192) torch.float32
+olocal121 (4356, 192) torch.float32
+out_error121 (4356, 192) float32
+src_all121 (4751,) torch.int64
+dt_all121 (4751, 1) torch.float32
+mean_all121 (4751,) torch.float32
+logits_all121 (4751, 17) torch.float32
+prob_all121 (4751, 17) torch.float32
+hidden_all121 (4751, 192) torch.float32
+_check121 (4751,) torch.float32
+htest125 (32, 4, 192) torch.float32
+otest125 (32, 192) torch.float32
+mtrust125 (31,) torch.float32
+mtest125 (31,) torch.float32
+mstate125 (4751,) float32
+ob125 (4751,) float32
+aa125 (4751,) float32
+gpu126 (4751,) float64
+mlocal126 (4751,) float32
+mask126 (4751,) bool
+ob126 (4751,) bool
+ss127 (4751,) int64
+xx127 (4751, 992) float32
+yy127 (4751, 992) float32
+base127 (192, 192) float32
+ne127 (192, 192) float32
+cur127 (192, 192) float32
+hg128 (4356, 4, 192) float32
+hl128 (4356, 4, 192) float32
+dd128 (4356, 4, 192) float32
+xx128 (32, 4, 192) torch.float32
+vv128 (192, 192) torch.float32
+oldrows129 (32,) int64
+eligible129 (3909,) int64
+rows129 (96,) int64
+hf129 (96, 4, 192) torch.float32
+ef129 (96, 4, 192) torch.float32
+targeth129 (96, 4, 192) torch.float32
+targeto129 (96, 192) torch.float32
+baseh129 (96, 4, 192) torch.float32
+mem129 (4, 31, 192) torch.float32
+
+Recent containers:
+found127 list 0
+sections127 list 119
+ins127 list 4
+audit129 list 0
+
+Core layer code metadata:
+core_layer locals ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode') names ('core_attn', 'core_norm', 'core_ffn') constants ('.norm1', '.attn', '.norm2', '.cross', '.norm3', '.ffn')
+core_lin locals ('x', 'p') names ('F', 'linear', 'W0', 'get') constants ('.weight', '.bias')
+core_attn locals ('x', 'p', 'nheads', 'memory', 'ages', 'valid', 'age_mode', 'q', 'kv', 'k', 'v', 'ka', 'va', 'b', 'nq', 'width', 'nk', 'attn_mask', 'ans') names ('core_lin', 'chunk', 'shape', 'reshape', 'transpose', 'F', 'scaled_dot_product_attention') constants ('.q', '.kv', 2, -1, ('dim',), 'both', 1, ('attn_mask',), '.out')
+
+Earlier calibration notes:
+Run 88: NE signal/leakage frontier
+Comparing retained NE feature fits, checking basis and raw-dose units, and auditing paired factual mean/NLL shifts. Baseline77 remains installed. Python runs: 88; forwards: 12.
+
+
+Run 89: consider nonlinear posterior feature route
+Retained b_in linear detectors have substantial insulin cross-response even with stronger guards. NE trial factual MAP mean shifts vary by ~1.7, so a constant debias is inadequate. Inspecting posterior hidden-feature capacity and prior local-edit experiments. No weights changed; baseline77 remains installed. Python runs: 89; forwards: 12.
+
+
+Run 90: restart recovery and selective-edit audit
+Insulin-only baseline77 remains installed. Recovering architecture, prior insulin validation, and retained NE/core helpers before a different NE correction. No weights changed. Python runs: 90; forwards: 12.
+
+
+Run 97: recover targets and fix empty residual audit
+Run96 matched zero future MAP readings; its NaNs are not evidence of a null effect. Inspecting record/prediction keys, causal estimates and model interfaces. No weights changed; baseline77 remains installed. Python runs: 97; forwards: 12.
+
+
+Run 98: compact evidence and feature recovery
+Architecture and record schema recovered. Fractional infusion hours may explain the empty exact-hour residual match; recovering prior causal targets and retained feature helpers. No weights changed. Python runs: 98; forwards: 12.
+
+
+```

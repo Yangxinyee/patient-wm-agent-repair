@@ -1,0 +1,53 @@
+OUTPUT of Python run 247 of at most 300:
+```
+=== EARLY DYNAMIC EVIDENCE ===
+- Dose-policy out-of-stay R2: insulin 0.8660, NE 0.9351; residual SD 0.3678 and 0.07559 respectively.
+- Used two-fold, stay-held-out nonlinear outcome models and clustered residual-on-residual regressions.
+- Checked sensor, positive-dose, and early/late subgroups; estimates still require confounding and dynamics checks.
+- DML results: {'glucose_finger': {'beta': array([-1.93474217,  0.33946561]), 'se': array([0.04454258, 0.26229829]), 'n': 400154}, 'glucose_lab': {'beta': array([-2.01483673, -0.33459203]), 'se': array([0.0747496 , 0.35865811]), 'n': 143791}, 'map_arterial': {'beta': array([0.01574776, 3.05259229]), 'se': array([0.02054298, 0.0887042 ]), 'n': 328940}, 'map_cuff': {'beta': array([-0.03133786,  2.52816442]), 'se': array([0.02915835, 0.17344546]), 'n': 439865}}
+- Python runs: 5; forward passes: 2.
+
+## Run 6: dynamic identification
+- Cross-fitted immediate effects: glucose finger -1.9347 (SE .0445), lab -2.0148 (.0747); arterial MAP +3.0526 (.0887), cuff +2.5282 (.1734).
+- Estimated treatment impulse responses using dose innovations and removed their induced future-dose changes by moment deconvolution.
+- Used independent/randomly sampled glucose_lab for glucose dynamics and arterial MAP for pressure dynamics, with stay-cluster bootstrap.
+- Impulse estimates: {'glucose_lab': array([-2.07283356, -2.23466817, -2.14515517, -1.43875875, -1.28052947,
+       -0.90473374]), 'map_arterial': array([2.95159917, 2.49611187, 1.62799136, 1.02869814, 0.34279884,
+       0.21392442])}
+- Interpretation depends on residual treatment variation being conditionally exogenous; dose-regime checks assess linearity within observed support.
+- Python runs: 6; forward passes: 2.
+
+## Run 7: restart inspection
+- Re-read architecture and schema and inventoried retained analysis objects before choosing an edit.
+
+=== ROLLOUT TARGET NOTES ===
+- Estimated treatment impulse responses using dose innovations and removed their induced future-dose changes by moment deconvolution.
+- Impulse estimates: {'glucose_lab': array([-2.07283356, -2.23466817, -2.14515517, -1.43875875, -1.28052947,
+- Record-derived impulses suggest persistent insulin effects and faster MAP-effect decay.
+- Recovering impulse-response estimates and existing helpers; no edit yet.
+- Record-derived insulin impulses persist for several hours; MAP impulses decay faster.
+- Training-record one-hour effects: insulin/glucose about -2 per rate unit; NE/arterial MAP about +3.05. Glucose impulses persist longer than MAP.
+- Record impulse estimates: insulin/glucose -2.073 at one hour, NE/MAP +2.952; glucose persists longer.
+- Recovering latent candidate construction and rate scale to connect causal impulse estimates to rollout targets.
+- Computed approximate tuning rollout targets by convolving recorded doses with empirical drug impulse responses.
+- Current rollout remains far short of identification-based drug targets, especially NE.
+- Record impulse responses persist for several hours; one-step head slopes alone cannot establish rollout repair.
+- Training one-hour effects are approximately -2 and +3 per rate unit; persistence matters for rollout targets.
+- Computing six-lag record-identified rollout targets on the official tuning sample.
+- Computed a rank-two core.b_in candidate calibrated to record-estimated one-hour effects.
+
+=== RECENT OBJECT INVENTORY ===
+ins242 Instruction 9
+pbase242 Tensor (320, 4)
+np242 fn ('x',)
+drug242 'norepinephrine'
+cf242 dict ['out', 'h', 'E', 'pre']
+pc242 Tensor (320, 4)
+event242 'map_cuff'
+data242 dict ['H', 'P', 'C', 'M']
+name242 'np'
+Traceback (most recent call last):
+  File "<run>", line 21, in <module>
+TypeError: 'numpy._ArrayFunctionDispatcher' object is not iterable
+
+```

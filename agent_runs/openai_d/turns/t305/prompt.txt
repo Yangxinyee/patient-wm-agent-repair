@@ -1,0 +1,95 @@
+OUTPUT of Python run 258 of at most 300:
+```
+=== FORWARD 36 FILE SCHEMA ===
+['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+Exact overall delta: 0.006259019153862344
+                count      mean
+event                          
+glucose_finger   1538  0.010074
+glucose_lab       488  0.000999
+map_arterial     1109  0.011920
+map_cuff         1616  0.000331
+
+=== EXISTING STATE FILES ===
+/work/fwd_15/states_edited.npz MB= 15.11
+/work/fwd_15/states_original.npz MB= 15.11
+/work/fwd_28/states_original.npz MB= 15.99
+/work/fwd_3/states_original.npz MB= 15.11
+
+=== CACHE BUILDING FUNCTIONS ===
+
+=== EXISTING READING CACHES ===
+_dc n= 146556 keys= ['inds', 'X', 'y', 'd', 'groups', 'hours', 'pred_y', 'pred_d', 'ry', 'rd', 'models']
+c210_train n= 4510 keys= ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']
+c210_tune n= 4664 keys= ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']
+cache n= 4664 keys= ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']
+cache231 n= 4664 keys= ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']
+cc n= 4664 keys= ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']
+g114 n= 146556 keys= ['__name__', 'NAMES', 'SHAPES', 'VOCAB', 'load', 'load_original', 'save_edit', 'drop_edit', 'edited', '__builtins__', 'Path', 'json', 'name', 'np', 'pd', 'train']
+ns115 n= 146556 keys= ['__name__', 'NAMES', 'SHAPES', 'VOCAB', 'load', 'load_original', 'save_edit', 'drop_edit', 'edited', '__builtins__', 'Path', 'json', 'name', 'np', 'pd', 'train']
+r255_globals n= 146556 keys= ['__name__', 'NAMES', 'SHAPES', 'VOCAB', 'load', 'load_original', 'save_edit', 'drop_edit', 'edited', '__builtins__', 'Path', 'json', 'name', 'np', 'pd', 'train']
+r257_g n= 146556 keys= ['__name__', 'NAMES', 'SHAPES', 'VOCAB', 'load', 'load_original', 'save_edit', 'drop_edit', 'edited', '__builtins__', 'Path', 'json', 'name', 'np', 'pd', 'train']
+
+=== EARLY ROLLOUT TARGETS ===
+201844,
+      0.007392273242067926,
+      0.03180661616606528,
+      0.10121714894504308,
+      -0.09665213231440539,
+      0.03943189864870522,
+      -0.04081733879812144
+    ]
+  }
+}
+
+## Run 7
+Recovered architecture. Separate action encoder feeds posterior and prelude; reading heads also use same-code last-reading registers and transition logits. No edits. Run 6 record-based rollout targets remain provisional: insulin x2 about -14.18, half +7.09; norepinephrine x2 +4.68, half -2.34 on training schedules.
+
+## Run 8
+Recovered persistent analysis variables and exact tensor shapes. Value-bin head is Linear(192,192), activation, Linear(192,17). Action encoder is separate two-stage DeepSets MLP. Last_numeric has 8 inputs; exact reconstruction must be checked rather than assuming the architecture summary lists every feature.
+
+## Forward 4
+Original factual predictions on the 100 training stays with saved states: NLL 1.63841 over 4510 readings. By event: finger 1.4350, lab 1.3445, arterial 1.5024, cuff 1.9645. No edits. Intended for validating a local reconstruction of the reading head.
+
+## Run 10
+Loaded original tensors and matched training factual CSV schema. Established complete numeric normalisation and fine-bin tables. Preparing a forward-head reconstruction; no model edits or external information used.
+
+## Run 11
+Matched 4510 factual reading rows to their preceding saved states. Initial local head reconstruction identifies measurement type index 1 but mean RMSE is about 3.76, too large to assume exact reconstruction. Checking bin boundaries, register layout, status and latent details before editing.
+
+## Run 12
+Register search supports [has_last, age, z_value, has_value, ...], measurement type 1 and zero status. Bin-edge convention has negligible effect here. Residual reconstruction error remains ~3.76; checking mixed MLP activations and latent Monte Carlo noise next. No edits.
+
+## Restart / Run 14
+No edits. Head reconstruction error exceeds four-draw Monte Carlo noise; recovering architecture, persistent variables, and baseline rollout results before attempting a causal weight edit.
+
+## Run 15
+Original rollout on the initial tuning sample: reached-hour means insulin x2 -1.85, half +0.78; norepinephrine x2 -0.50, half -0.60. These are substantially weaker than controlled record-based estimates (and NE x2 has the wrong sign). Still no edits.
+
+## Runs 16?19
+State alignment and out=norm(mean h) verified. Status embedding for readings is zero. Separate gap conventions did not resolve local head error (~3.36 versus ~0.93 four-draw noise RMS). Testing register age at saved-state time versus forecast time, type index, and numeric layout. No edits.
+
+## Run 20: compensated continuous-dose trial
+Exact head reconstruction still unverified (best deterministic RMS 2.67). Testing gamma=4 on numeric dose/rate columns with per-bin mean compensation in dose/rate embedding tables. This preserves pooled mean factual atom embeddings while amplifying within-bin and out-of-range dose variation. Not yet validated; will reject if factual NLL exceeds the budget.
+
+## Forward 5?6: rejected continuous-dose amplification
+gamma=4 with pooled bin compensation: factual tuning NLL 1.63458 vs original 1.63461. Rollouts insulin x2 -2.051, half +1.116; NE x2 -1.140, half -0.600. Insulin improvement too small and NE x2 worsened. Reverting all three embedding edits.
+
+## Run 25: systematic local-head check
+Best deterministic reconstruction: (0.0581074059009552, 1.68510901927948, ('flow', 'seconds_div10', 'hours_div10', 'gelu', 'gelu'), (6, 3, 'forecast_hours', 'gelu')). No we
+
+=== SAFE CHECKPOINT NOTES ===
+## Run 210: generic independent cache evaluator
+Completed fresh training reconstruction and built a generic exact four-head-tensor evaluator for training and tuning 100?199. It includes register transition logits and supports sparse hidden-row changes. No weights changed.
+
+
+## Run 234: focused recovery
+Previous output was truncated. Retrieved long-horizon identification and recent candidate objects with bounded output. No weights changed.
+
+
+## Forward 29 / 30 and Run 235: validated fallback
+Current edit hash 6288c226d6: tuning 0?99 rollout shifts insulin -13.693/+6.196; NE +1.262/-0.633. Tuning 100?199 factual NLL 1.62521 vs original 1.62044, delta +0.00477. Saved exact tensors in r235_safe and /work/safe_6288c226d6.npz. Insulin is near the provisional record-derived target; NE remains underpowered. No weights changed during this audit.
+
+
+
+```

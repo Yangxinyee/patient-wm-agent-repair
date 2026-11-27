@@ -1,0 +1,40 @@
+OUTPUT of Python run 212 of at most 300:
+```
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+dose_edit_edited.csv (2624, 7)
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000000    15  insulin_x2  0.0000    0.0000  154.2667    False
+1  2020000000    16  insulin_x2 -0.6484    0.4762  161.3565     True
+2  2020000000    17  insulin_x2 -1.7700    0.5970  162.6636     True
+dose_edit_original.csv (2624, 7)
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000000    15  insulin_x2  0.0000    0.0000  154.4960    False
+1  2020000000    16  insulin_x2 -0.1953    0.0270  161.1528     True
+2  2020000000    17  insulin_x2 -0.4749    0.0311  161.4032     True
+(26251, 9)
+      stay_id  hour               event  value  rate rate_unit  dose dose_unit  end_hour
+0  2020000000  -2.0  hospital_admission    NaN   NaN       NaN   NaN       NaN   25.1667
+1  2020000000  -1.0      glucose_finger  145.0   NaN       NaN   NaN       NaN       NaN
+2  2020000000  -1.0         glucose_lab  148.0   NaN       NaN   NaN       NaN       NaN
+
+```

@@ -1,0 +1,311 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 296 replies happened before. Forward passes used: 27 of 50; Python runs used: 260 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ted carrier. All weights remain original. Counts: 231 Python runs, 21 forwards.
+
+## Run 232
+Installed reversible marker-output shrinkage t=.10 from rejected229 toward validated relay baseline, retaining marker inputs. Large output norms may amplify small factual leakage; GPU factual and rollout tests will determine whether shrinking is viable. Counts: 232 Python runs, 21 forwards.
+
+## Run 233
+Forward22 t=.1 failed factual bound (+.12212). Rejected scaling hypothesis; restored tested relay-only baseline. Comparing latent-input changes and investigating a more direct recurrent injection. Counts: 233 Python runs, 22 forwards.
+
+## Run 234
+Installed earlier carrier211+relay without dedicated markers for an isolating factual test. Marker z_in replacement differs substantially from this candidate. Counts: 234 Python runs, 22 forwards.
+
+## Run 235
+Forward23 carrier211+relay factual delta -.00022 on 2879 readings. Failure localized to dedicated marker construction. Plan: retain validated latent mapping and derive marker projections from its dose contrasts without replacing z_in. Counts: 235 Python runs, 23 forwards.
+
+
+## Run 236
+Preserved the factual-safe carrier211+relay weights in safe236. Recovering architecture, record-derived effect evidence, and carrier construction before deriving markers without replacing z_in columns. The large column differences are a suspected failure source, not an isolated causal test. No weights changed. Counts: 236 Python runs, 23 forwards.
+
+
+## Run 237
+Run236 output was truncated before implementation details. Retrieving compact dynamic-effect evidence and safe posterior/cache definitions. Early adjusted associations support signs but are not being treated as multi-hour causal targets. No weights changed. Counts: 237 Python runs, 23 forwards.
+
+
+## Run 238
+Reconstructed safe/original latent tokens and normalized pooled inputs without replacing z_in. Retrieved compact counterfactual-cache and dynamic-estimate inventories. No weights changed. Counts: 238 Python runs, 23 forwards.
+
+
+## Run 239
+Built all ten safe-carrier dose contrasts. Tested linear projection separation, held-out factual leakage, and x0/.5/1.5/2/3 scaling. No weights changed. Counts: 239 Python runs, 23 forwards.
+
+
+## Run 240
+Rejected pooled markers: stopping/halving frequently had wrong-sign or cross-drug responses. Tested a closed-form constant-query/token-type key selector and exact latent-coordinate value projections, retaining the safe z_in mapping. No weights changed. Counts: 240 Python runs, 23 forwards.
+
+## Run 241
+Recovered architecture and identification notes before using the selective latent-token marker. Its monotonic dose contrasts are promising, but factual RMS is not evidence of a safe output edit. No weights changed. Counts: 241 Python runs, 23 forwards.
+
+## Run 242
+Architecture recovery confirms indirect attention-to-state transmission. Run241 output truncated before recent definitions; retrieved narrow inventory and numeric identification notes. No weights changed. Counts: 242 Python runs, 23 forwards.
+
+## Run 243
+Retrieved later dynamic-identification evidence and compensated-relay layout. Safe236 remains unchanged; selective relay will retain its z_in mapping. Counts: 243 Python runs, 23 forwards.
+
+## Run 244
+Reconstructed prelude attention features against cached originals and prepared selective-head compensation features while preserving safe236 latent weights. No weights changed. Counts: 244 Python runs, 23 forwards.
+
+## Run 245
+Attention reconstruction verified to <4e-6 RMSE. Fitted selective-head factual compensation and dose-invariant marker predictors with stay-held-out leakage/contrast checks. No weights changed. Counts: 245 Python runs, 23 forwards.
+
+## Run 246
+Perfect factual marker cancellation also eliminates dose contrasts. Evaluated intermediate invariance penalties and finite low-norm output responses; factual-versus-counterfactual tradeoff remains explicit. No weights changed. Counts: 246 Python runs, 23 forwards.
+
+## Run 247
+Installed reversible selective latent-attention candidate without replacing safe236 z_in: dose-invariant compensation weight1; insulin output -.5*Bmean, NE +.4*B221; rank48 attention factorization. Local finite responses only guide signs, not rollout efficacy. Paired GPU factual validation next. Counts: 247 Python runs, 23 forwards.
+
+## Run 248
+Selective candidate has intended local signs but held attention perturbation RMS4.07; this is not proof of factual safety. Selected random100 tuning stays for paired factual test and inspected causal-exposure units. No additional weights changed. Counts: 248 Python runs, 23 forwards.
+
+## Run 249
+Forward24 selective candidate failed factual fit: 1.64565 versus 1.61876, delta +.02689 on 4741 readings. Preserved as rejected249 and restored safe236. Recovering architecture and record-based identification before further edits. Counts: 249 Python runs, 24 forwards.
+
+## Run 250
+Run249 restored safe236; output truncated after architecture and early conditional-effect estimates. Narrow recovery of robustness, dynamic targets and candidate construction. No weights changed. Counts: 250 Python runs, 24 forwards.
+
+## Runs 251–252
+Forward25 safe236 rollout was essentially unchanged: insulin x2 -2.051, half .981, NE x2 .071, half -.396. Run251 verified head layout but stopped before edits on numpy.clone. Run252 corrected array conversion and installed quarter-strength selective marker output with retained factual compensation. Discrete-hour six-lag convolution targets: {'insulin_x2': -12.763239357347505, 'insulin_half': 6.3816196786737525, 'ne_x2': 4.142167540798611, 'ne_half': -2.0710837703993055}; conditional estimates, not known simulator truth. Counts: 252 Python runs, 25 forwards.
+
+## Run 253
+Forward27 quarter-strength selective marker did not improve the desired rollout effects (insulin x2 -2.003, half .818; NE x2 -.074, half -.154). Recovering architecture, factual26, and existing identification objects before choosing a different weight route. No weights changed. Counts: 253 Python runs, 27 forwards.
+
+## Run 254
+Recovered factual26: current candidate delta +.00247 nats, within bound, but forward27 shows no useful causal-response gain. Inspecting cached update functions and earlier identification evidence to locate the lost dose signal. No weights changed. Counts: 254 Python runs, 27 forwards.
+
+## Run 255
+Preserved quarter-strength candidate255 and restored safe236 because forward27 showed no useful effect gain. Recovering state/head functions and earlier unsuccessful head routes to distinguish lost state signal from weak decoding. Counts: 255 Python runs, 27 forwards.
+
+## Run 256
+Earlier value-head amplification failed its factual/contrast tradeoff; prelude-attention transmission was weak. Investigating core.b_in, the additive recurrent injection after the blocks, as a lower-distortion route. No weights changed. Counts: 256 Python runs, 27 forwards.
+
+## Run 257
+Measured finite-difference reading sensitivity to additive recurrent-state injection through core.b_in, using cached local CPU readout and no gradients. Computed minimum-norm channel-selective directions where the helper returned four readouts. No weights changed; local responses require GPU validation. Counts: 257 Python runs, 27 forwards.
+
+## Run 258
+Direct recurrent injection has selective, near-linear local reading effects: B257 RMS .241 glucose and .654 MAP per unit outcome. Reconstructing recorded and counterfactual prelude E features for a physically scaled, factual-anchored linear core.b_in edit. No weights changed. Counts: 258 Python runs, 27 forwards.
+
+## Runs 259–260
+CF token recovery succeeded: pooled features are mean-normalized tokens; all ten recovered action tokens satisfy LN mean/variance checks. Run259 then failed only in an inventory printer using torch.size as a number. Run260 fixes inventory and recovers physical-dose/carrier scaling. No weights changed. Counts: 260 Python runs, 27 forwards.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 260 of at most 300:
+```
+=== PHYSICAL DOSE / ALIGNMENT ARRAYS ===
+ds_rates (5215, 2) min/max/mean 0.0 7.0 0.3129328859060403
+
+=== CARRIER SCALING ===
+lc_dims ('ndarray', (2,))
+rp_meta [{'code': 'hospital_admission', 'value': 'nan', 'rate': 'nan', 'dose': 'nan', 'end': 'False'}, {'code': 'map_arterial', 'value': '63.0', 'rate': 'nan', 'dose': 'nan', 'end': 'False'}, {'code': 'map_cuff', 'value': '73.0', 'rate': 'nan', 'dose': 'nan', 'end': 'False'}, {'code': 'glucose_finger', 'value': '125.0', 'rate': 'nan', 'dose': 'nan', 'end': 'False'}, {'code': 'icu_admission', 'value': 'nan', 'rate': 'nan', 'dose': 'nan', 'end': 'False'}, {'code': 'map_arterial', 'value': '67.0', 'rate': 'nan', 'dose': 'nan', 'end': 'False'}, {'code': 'norepinephrine', 'value': 'nan', 'rate': '0.04', 'dose': '0.192', 'end': 'False'}, {'code': 'map_arterial', 'value': '71.0', 'rate': 'nan', 'dose': 'nan', 'end': 'False'}]
+
+=== BRANCH BUILDERS ===
+branch195 (X, s={'rows': array([79, 80]), 'rw': array([-3.33138262e-02,  1.01118538e+00,  7.55636632e-02, -3.58622121e-02,
+        5.44029454e-01, -1.25790280e-01,  6.12480474e-02, -9.64592874e-02,
+        2.00804181e-03,  1.04898244e+00,  2.94803774e-02,  2.64667261e-02,
+       -1.09635973e+00, -2.93360471e-01, -2.02215541e-02,  3.60554499e-01,
+        3.36098980e-01,  6.49613037e-01,  8.49335437e-02, -1.14871586e-01,
+       -1.35140615e+00,  3.47410201e-02,  1.92189355e-02, -2.88499929e+00,
+       -9.61224900e-02,  8.92496849e-01, -2.86280932e-02,  3.82209284e-02,
+        8.12253732e-01,  4.22362471e-01, -7.18087977e-01, -4.45078738e-01,
+       -1.89738666e-02, -1.00659860e+00,  8.10453621e-02,  6.56773792e-01,
+        2.68277267e-01, -1.18307256e-01,  4.46911316e-01,  2.19656227e-01,
+       -1.03176633e-01,  8.28632082e-01, -1.89367308e-03,  1.72055692e-01,
+        4.70274010e-02, -1.01442326e-01,  1.55617982e-01, -5.45031123e-01,
+        1.06467388e-01, -3.39305795e+00, -4.44479766e-02,  1.03840928e+00,
+        2.45837957e-01,  5.41872825e-02,  5.67502243e-02,  1.04679659e+00,
+       -1.97399359e-01,  6.26378341e-01,  8.47063418e-02,  9.17808574e-01,
+        4.64764394e-01,  1.09261028e-01,  2.13971916e-01, -2.34775148e-01,
+        1.39930991e-01,  5.75488279e-01,  9.37783357e-01,  2.28807115e+00,
+       -2.36184786e+00, -3.00808401e-01,  2.61251552e-01, -5.81279309e-01,
+        1.83264184e-01, -6.05875980e-01,  6.09822509e-01, -2.04562475e-01,
+        1.80129125e-01, -1.00514676e-01, -2.19448324e-02,  6.32542098e-01,
+       -5.18479825e-02, -2.84371940e-01, -1.56014508e-01, -4.51532689e-02,
+       -6.49990674e-03, -7.30674774e-02,  1.71997772e-01,  6.13696184e-01,
+       -3.78557302e-01,  1.26399119e-01,  1.26786569e-01, -2.09829283e-01,
+        5.31280466e-01,  8.75460519e-01,  7.99400255e-03, -4.97677750e-01,
+        2.92447284e-02,  1.00857177e-01, -6.75450635e-01,  4.76188772e-02,
+       -5.84731070e-02, -1.36013754e+00,  6.05821120e-02, -2.15249514e-02,
+        2.15082805e-01, -5.10565314e-01, -2.02620494e-01, -1.95295983e-02,
+        2.90327456e-01, -1.06506349e+00,  4.93072970e-02, -1.26042042e+00,
+       -4.26198532e-01, -5.11052718e-02,  4.48725471e-02, -4.43769508e-01,
+        1.45787572e-02,  2.64631941e-01,  1.43526201e-01,  9.56281207e-03,
+        1.19792811e-01,  3.15177304e-01, -2.33848559e-01, -1.22251629e-02,
+        9.76278563e-02,  4.75645797e-01, -6.41256933e-02, -9.34864204e-01,
+        1.58226876e-01, -1.78483464e-01,  1.63479645e-03,  1.04900178e+00,
+        3.44843213e-02, -1.43035751e+00,  3.00862263e-01,  1.36118023e-01,
+        5.63251791e-01, -2.78398127e-01, -2.52297788e-01, -3.30326979e-02,
+       -1.18796265e-01,  2.39404297e-01,  3.86594879e-01, -1.74126665e-02,
+       -7.94638242e-01,  1.79366813e-01, -2.10943089e-01, -5.07378202e-02,
+        2.71048681e-02,  5.73589629e-01,  3.27552238e-01, -6.07876759e-01,
+       -2.19894343e-01, -5.81200971e-01, -1.59540437e+00,  2.71081885e-01,
+        3.51216968e-01,  5.54785636e-01, -2.17373533e-01, -5.86218054e-01,
+        5.46977648e-01, -6.15663678e-01, -1.60808356e-01,  1.65954463e-01,
+        1.63650115e-01, -3.52885869e-02,  3.43179952e-01,  5.00105632e-03,
+        2.47018911e-01, -2.40502772e-01,  1.36930776e-01, -5.53636062e-02,
+        1.70181449e-03, -1.64410488e-01,  2.04032675e-02, -5.75411878e-01,
+        4.77475148e-01,  1.43952238e-01,  6.85800073e-02, -7.53857082e-01,
+       -6.64690423e-01,  5.16777576e-01,  1.21359675e-01, -3.96799445e-01,
+       -7.39610323e-01, -8.12673265e-01, -6.30257354e-01, -1.10062800e-01,
+       -9.74213143e-01, -2.35253347e-01, -1.43135593e-01,  1.31808823e-01,
+       -1.59871057e-02,  1.30455117e-02, -1.18856796e-02, -3.02366501e-02,
+        6.42913496e-02, -1.68050825e-01,  3.53797246e-03, -5.79709247e-02,
+        1.04976718e-01, -5.68905314e-02, -3.16691129e-02, -1.30056189e-02,
+       -2.30193730e-02, -6.41142590e-02,  3.69303216e-02,  4.14937151e-02,
+       -2.45512365e-02,  1.07337497e-01,  1.31568152e-01,  2.58470678e-03,
+        7.41271787e-02, -4.97938669e-04, -9.45421821e-02, -5.58413955e-02,
+       -2.55683785e-02,  8.02158206e-02,  5.71835064e-02, -4.36352692e-04,
+        6.18565668e-02, -6.36794289e-03, -1.89000048e-02, -5.56815756e-02,
+        7.04885926e-02,  3.64395602e-02,  3.16726378e-03,  1.01182680e-01,
+        4.01085453e-04, -2.54614544e-02,  9.05000977e-02,  4.77203539e-02,
+        7.74293285e-02, -1.28083419e-01, -5.18318150e-02,  1.90763054e-02,
+        5.72236581e-02,  6.34384340e-02, -1.00690869e-01, -8.06477499e-02,
+       -2.97745831e-02,  6.27311219e-05, -5.84256146e-02,  1.47936792e-02,
+       -3.17187204e-02,  3.71076042e-02, -6.41860429e-02,  5.05316537e-02,
+       -2.66549045e-02,  3.36154489e-02, -5.33360047e-02,  6.64003424e-02,
+       -5.59841748e-02, -1.44292680e-01,  3.93970925e-02,  5.66563483e-02,
+        1.05935267e-01,  2.62679052e-02,  1.07836218e-01,  4.68638282e-02,
+       -8.28445364e-03,  6.21453264e-02,  3.86338210e-02,  1.39353015e-02,
+       -5.70932711e-02,  5.61661530e-02, -3.48205700e-02,  6.02383575e-02,
+       -4.78245046e-03, -2.78327889e-02, -3.92105155e-02, -6.37374951e-02,
+        8.28142060e-02, -5.34312409e-02, -4.49227326e-02,  2.47445370e-02,
+       -4.52840429e-02, -7.67583980e-02,  3.10656413e-02,  5.10967431e-02,
+        1.14272985e-02,  5.06504444e-02, -7.20925700e-02,  6.05060806e-02,
+        2.84622988e-02, -1.08185035e-01, -4.66611822e-02,  1.26927081e-01,
+        5.71268176e-03, -8.26436706e-02, -9.35894581e-03,  3.24608865e-02,
+       -4.33224887e-02,  1.28038819e-01, -2.52962287e-02,  4.42503198e-02,
+        3.07726123e-02,  2.25539438e-02,  3.86888762e-03, -9.62180459e-02,
+        1.49227614e-03, -3.47026612e-02, -1.02507319e-01,  3.03396357e-02,
+       -3.98018596e-02, -2.51658465e-02,  1.97675176e-02, -5.49100807e-02,
+       -5.21189403e-02,  1.73312864e-01, -8.48047553e-03,  2.39311157e-02,
+        1.60811024e-01, -8.31517954e-02,  4.63057072e-02,  1.83213401e-02,
+       -2.44724113e-02, -4.57380075e-02,  1.39667575e-02,  5.19936368e-02,
+       -1.58873529e-02,  4.21926249e-02,  1.00111351e-02, -3.77293738e-02,
+        7.10499693e-02,  2.63480412e-02, -2.96226366e-02,  4.60302477e-02,
+       -4.00392035e-02,  1.44454995e-01, -5.25945374e-02, -7.22481774e-03,
+        3.88562164e-02, -4.18665626e-02, -9.68609119e-03, -6.08816441e-02,
+       -7.27132253e-02, -4.86452039e-02,  1.63586255e-03,  3.23794822e-02,
+        5.43937272e-02,  1.59915421e-02,  3.43429016e-02,  6.33627039e-03,
+        1.90133839e-03,  1.85975894e-02, -3.41343721e-02, -3.84345076e-02,
+        4.86988289e-02, -8.27673378e-03,  5.04145006e-02, -1.28521827e-01,
+        2.75158918e-02, -6.84985398e-02,  1.16365986e-01, -5.96817292e-03,
+       -1.53443792e-01,  6.01121879e-02, -9.01355105e-02, -4.58609628e-02,
+       -4.57542353e-02,  9.00978289e-03,  5.19683319e-02,  1.03460190e-01,
+       -7.02947797e-02,  4.61221685e-02,  1.05932720e-01,  6.67271737e-02,
+        1.18124465e-01, -3.93400375e-02, -7.67397872e-02,  8.21111539e-02,
+       -8.35567123e-02,  5.00447119e-02, -2.48354008e-03,  2.66703525e-02,
+        9.87474425e-02, -5.27505633e-02,  2.21947975e-02,  1.70126885e-02,
+       -3.47255727e-02,  1.71435345e-02, -8.66390209e-02, -4.80853678e-02,
+        2.29004769e-01,  6.67529636e-02,  4.97479651e+00,  1.13368898e-01,
+       -3.44816676e-01, -1.15387860e+01, -8.56262648e+00, -6.70061139e-01,
+       -2.28026713e-03,  6.66945475e-01, -7.44997621e-01,  1.29319085e-01,
+        1.06321836e-01, -1.92421650e+00, -4.68216729e-01, -5.24086622e-03,
+       -1.34766732e+00, -2.93115606e-01, -1.15206806e+01, -2.08453834e-01,
+        3.74969402e-01, -5.44424161e-02,  2.57606774e+00, -3.00051511e-03,
+       -2.75577028e-01,  1.22110555e-01, -1.09256956e+00,  2.26984658e+00,
+       -1.31183834e+01,  1.30980162e-02,  4.25531056e+00,  2.58057471e-02,
+        9.74793159e-01, -7.21157583e+00,  5.84894799e-02, -4.96291997e-01,
+       -1.95330083e+00,  8.86259539e-01,  2.25352698e-01,  6.90004148e-01,
+        3.01114371e-01,  4.70100501e-01,  5.91139465e-01, -1.52486602e-02,
+       -1.66600985e+00,  4.34978962e-01, -1.00224510e-01, -2.18597181e+00,
+        8.00708439e-02, -2.64652721e-01, -2.17303573e+00,  3.82298254e-01,
+        9.80887039e-01,  3.90037667e-01, -4.45058947e-01,  4.67212977e+00,
+        1.64269046e-01,  5.14542802e-01, -4.15856948e-01, -8.29213548e-01,
+        1.95016676e+00, -1.52553935e-01,  1.07066050e-01, -4.80662515e-02,
+       -7.06209395e-01, -6.40898484e-01, -9.45415116e-01,  8.79709549e+00,
+        1.21670658e+00, -3.92487470e-02,  5.22198158e+00, -2.28699874e-01,
+       -1.09889868e+00, -1.59230942e+00, -8.84084740e-01, -1.64590053e-01,
+        9.35581145e-02,  7.52275742e-02,  1.24806171e+00,  1.23092916e+00,
+        1.41365575e-01, -1.77685008e+00, -4.99079916e+00, -1.08518330e+00,
+       -3.30105958e+00, -1.18151583e+00, -3.62879203e-01, -2.57724015e-01,
+        3.20358918e+00, -5.41578836e-01, -2.91673566e+00,  1.21812835e+00,
+        1.48562310e+00,  1.61477974e+00,  3.89702917e-01,  2.62113008e+00,
+        1.41747664e-01, -1.96212537e+00,  2.470
+[output cut at 10,000 characters]
+```

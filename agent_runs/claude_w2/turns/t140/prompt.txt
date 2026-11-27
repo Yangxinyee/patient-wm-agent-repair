@@ -1,0 +1,129 @@
+OUTPUT of Python run 134 of at most 300:
+```
+# Notebook
+## Setup facts (runs 1-6)
+- Stays ~24h. Readings at integer hours (-1..24); infusion records start at h+0.0833, run 1h. Policy picks hourly rates.
+- insulin rate in 0.5 steps (0.5..14, mostly 0.5-3), dose=rate. NE rate 0.01..1.0 (capped at 1.0; 13.5% at cap), dose=4.8*rate (weight 80kg for all).
+- 61% stays get insulin, 43% NE. stay_id sequential, no structure.
+- Dose pathway in model: embed.numeric cols z_dose/z_rate (cols 2..5), embed.bins.dose/rate -> encode_action -> u_k -> prelude tokens + z_post input.
+
+## Insulin policy (runs 9-12)
+- Deterministic sliding scale on latest glucose (fresh gf, else fresh gl): none if <150; band base rates ~1 [150,180), ~2 [180,220), ~3 [220,250), ~3.7 [250,300) (has inner step), ~6.5 >=300.
+- Within band, rate noise (0.5 steps) is independent of all observed covariates (R2~1e-4) => randomized experiment. No hidden confounding apparent.
+- gf measured every hour while last glucose >150.
+
+## NE policy (runs 13-14)
+- Uses map_arterial if present else cuff. Start (~0.05) when MAP<65. Titration: log(rate_t/rate_{t-1}) = adj + N(0,~0.3); adj ~ +0.1 (<65), 0 (65-74), -0.25 (>=75, sometimes stop). Cap 1.0.
+- So NE rate = accumulated random walk => lots of exogenous variation.
+- Insulin rate ~ base(band)*exp(N(0,0.3)) rounded to 0.5 (fits band-1 shares).
+
+## Insulin effect estimate (runs 15-18) -- randomization within band, deconvolved for policy feedback
+- 1h effect -2.0 mg/dL per U/h, same in all bands (linear, no glucose dependence). gf and gl same glucose (no offset, diff sd 9).
+- Structural impulse K(k), k=1..10 (fixed other doses): -2.0 -2.5 -2.2 -1.8 -1.4 -1.15 -0.94 -0.75 -0.50 -0.42 (sum -13.7).
+- Insulin does not move NE or MAP materially.
+
+## NE effect estimate (runs 19-20)
+- NE noise (rate - E[rate|prev rate, MAP band]) unpredictable (R2 0.001). Stops only from rate<=0.06 & MAP>=75.
+- Structural K_N(k) on MAP per (mcg/kg/min * 1h): +3.6 +2.7 +1.7 +1.1 +0.4 +0.45 ~0 ... (sum ~10.4). Same on ma and mc. mc reads ~3 mmHg above ma (sd 6.7).
+- NE first stage persists (0.73,0.56,0.44,...) due to random-walk titration. NE->glucose maybe +0.4 (noisy, not scored).
+
+## Model diagnostics (fwd 1-2, run 25-27), tuning sel1 (100 stays, /work/sel1.json)
+- Original dose_edit: ins x2 -2.14, x1/2 +1.26, NE x2 +1.08, x1/2 -0.73.  My record-based truth on same reached rows: -14.1, +7.0, +4.7, -2.4.
+- Model shift grows ~linearly with lag (-0.55 lag1 -> -3.5 lag12); truth -3.0 -> -19 (concave).
+- Factual baseline value NLL 1.52793 (5238 values). Model factual within-band slope: insulin -0.45/U/h (data -2.0), NE +0.94 (data 3.6) => model under-uses doses even teacher-forced; amplifying dose effect should improve NLL.
+- Readout rows = recorded outcome readings (gf / map_arterial) at hours 13-24, 'reached' = after a drug record at hour>=12.
+
+## Restart 2 (runs 37-46)
+- ARCH recap: atom emb = code+kind+ekind+categorical+bins(value/dose/rate, tables shared across codes)+numeric([z_val,has_val,z_dose,has_dose,z_rate,has_rate]).
+  z = (x-median)/iqr clip +-10. Insulin rate/dose median 1.5 iqr 1.0, bins saturate at >=5 (bin16). NE rate median .46 iqr .6, bins saturate >=1.0 (cap).
+  u_k = LN(mlp2(sum mlp1(atoms)/sqrt n + size)). z_post([ctx,e,u]) 576->192->64 (GELU). prelude tokens [h+slots,e,u,z_in(z)], E=prelude_norm(slots).
+  h <- a_bar h + softplus(delta) b_in(E) + (blocks(h+E)-(h+E)); h=coda(c_out(h)); c_out NOT ~identity. out=out_norm(mean slots).
+  Heads: view=out+out_norm(mean h_flowed)+gap(log dt)+z_head(z~prior); q=query_norm(view+type_emb[type]);
+  with_code=q+code emb+last_numeric(8 cols)+bins.value[last bin]+bins.rate[last rate bin]+last_status; value logits=MLP(192-192-17)(with_code)+embed_transition.value_bin[code*17+lastbin].
+- NOTE: variable g (train grid) was overwritten in run 37; gg (train grid with lags, glu_now, band, e_ins, map_pol, nor_prev, e_nor) still exists.
+- Policy fn pfun(glucose): smoothed mean insulin rate by latest glucose (train). p jumps 0->0.5 at 150, ~1 at 160, ~2 at 200, ~4 at 275, ~5.3 at 300.
+- Tuning residual regression (n=1297 gf, noisy): resid on e1 -0.95+-.63, p1 -0.59+-.56 (inconclusive). Model pred-mean slope on e1,e2: -0.5, -1.3 (+-.35); observed -1.5, -2.0 (+-.7).
+- States (fwd_3, train selT) at insulin bundles: out decodes p R2 .93, ins .80, e=ins-p .46; z decodes ins .73, p .74, e .32. NE: out nor .80, prev .71, e .26.
+  => z is NOT a clean deviation channel; state encodes band well, dose coarsely.
+- BELIEF: model fits factual well => missing insulin effect partly absorbed into glucose-level dynamics; naive dose amplification would double count
+  (est. bias ~10 mg/dL if x4). PLAN: gated linear readout in value head: repurpose a low-importance hidden unit of attr_heads.value_bin, gated on code
+  (gf/gl for insulin, ma/mc for NE), input = linear decoder of dose deviation from q, output weights = logit tilt along bin centres; compensation of
+  last-glucose-level effects via embed_transition.value_bin. Need exact head re-implementation -> factual on selT (same stays as fwd_3 states).
+
+## Restart 3 (runs 72-81)
+- ARCH re-read: head 'last' register = last value of SAME code (no dose in head). Head z drawn from PRIOR 4x, probs averaged (explains my head NLL gap, run 71).
+  core: a_bar 0.31-0.46 per bundle; h rewritten each step by prelude/blocks/coda (pre-norm transformer layers, 4 heads, ff 768); no dead h dims. => no cheap dedicated memory channel.
+- Bins: gf centres 72..271 (top bin >=260 -> centre 271), ma 33..101 (>=98). insulin rate/dose bins saturate >5; NE rate bin 16 for >1.0.
+- One-step OLS gf_t on gf lags1-3, ins lags1-10, pol lags1-4 (train n=228k): AR .48/.30/.21 (sum .98); dose -1.99 -1.47 -0.89 +.17 +.81 +.65 +.40 +.32 +.23 +.03.
+  Model predicted_mean (fwd_4 selT, n=1704, resid sd 3.2): AR .46/.24/.17 (sum .87, const 18); dose -0.31 -0.10 -0.49 -0.04 +.51 +.31 +.32 +.31 +.05 +.10.
+  => model misses short-lag insulin effect (lags1-3), compensates with stronger mean reversion.
+- Linear surrogate rollout (sel1, x2): model-coef surrogate -1.2 (tool -2.14), but shape wrong at late lags (surrogate rebounds, tool grows ~linearly -0.55 -> -3.53).
+  => linear AR(3) projection is NOT a reliable rollout model. Model propagates drawn shifts ~fully.
+- DECISION: build local full re-implementation (core step verified vs fwd_3 states), then local rollouts & counterfactual states.
+
+## Restart 4 (runs 94-119): exact encoder in /work/impl.py (exec it)
+- Atom emb: code+kind+ekind+unit[row]+rate_unit[row]+kq[0]+bins(value,dose,rate; side=left)+numeric. Unit rows: gf 0, gl 5, MAP 2, insulin 3, NE 4;
+  rate_unit: insulin 2, NE 3. END atoms (kind 2): unit 0, rate_unit 0, NO rate/dose. END atoms routed to e (encode); START drug atoms to u.
+- Empty sets: e/u = norm(mlp2(size(log1p 0))) (NOT zero). z_post input [out_prev+out_norm(mean hf)+gap(log(dt_s)/10), e, u], gelu everywhere.
+- Verified: z posterior mean matches fwd_3 states exactly (abs err ~0) on all bundle kinds (selT train stays).
+
+=====IMPL=====
+8862
+
+import numpy as np, torch, torch.nn.functional as F, json, math, pandas as pd
+torch.set_num_threads(8)
+V=json.load(open('/model/vocab.json'))
+CODE={c['name']:c['id'] for c in V['codes']}
+CNAME={v:k for k,v in CODE.items()}
+NUMD={(n['code'],n['attribute']):n for n in V['numeric']}
+UMAP={'map_cuff':2,'glucose_finger':3,'map_arterial':2,'glucose_lab':3,'insulin':4,'norepinephrine':5}
+RUMAP={'insulin':2,'norepinephrine':3}
+MEAS=('glucose_finger','glucose_lab','map_arterial','map_cuff'); DRUG=('insulin','norepinephrine')
+UROW=np.zeros(13,int); RROW=np.zeros(13,int)
+for _k,_v in UMAP.items(): UROW[CODE[_k]]=_v
+for _k,_v in RUMAP.items(): RROW[CODE[_k]]=_v
+CEN=np.array(V['value_bin_centres'],dtype=np.float64) if not isinstance(V['value_bin_centres'],dict) else None
+
+def getW(loader):
+    return {n: torch.as_tensor(np.asarray(loader(n),dtype=np.float32)) for n in NAMES}
+
+def make_atoms(df):
+    rows=[]
+    for r in df[['stay_id','hour','event','value','rate','dose','end_hour']].itertuples(index=False):
+        sid,h,ev,val,rt,ds,eh=r
+        if ev in MEAS: rows.append((sid,h,CODE[ev],0,1,val,np.nan,np.nan))
+        elif ev in DRUG:
+            rows.append((sid,h,CODE[ev],0,2,np.nan,rt,ds)); rows.append((sid,eh,CODE[ev],2,2,np.nan,rt,ds))
+        elif ev in ('hospital_admission','icu_admission'):
+            ek=3 if ev=='hospital_admission' else 4
+            rows.append((sid,h,CODE[ev],0,ek,np.nan,np.nan,np.nan)); rows.append((sid,eh,CODE[ev],2,ek,np.nan,np.nan,np.nan))
+    A=pd.DataFrame(rows,columns=['stay_id','t','code','kind','ekind','value','rate','dose'])
+    A['minute']=np.round(A.t.values*60).astype(int)
+    A=A.sort_values(['stay_id','minute','kind','code'],kind='stable').reset_index(drop=True)
+    A['bidx']=A.groupby('stay_id').minute.transform(lambda m: pd.factorize(m)[0]).astype(int)
+    return A
+
+def atom_features(A):
+    n=len(A); num=np.zeros((n,6),np.float32); bins={}
+    codes=A.code.values
+    for attr,(zc,hc) in [('value',(0,1)),('dose',(2,3)),('rate',(4,5))]:
+        x=A[attr].values.astype(float); bb=np.zeros(n,np.int64)
+        for cid in np.unique(codes):
+            key=(CNAME[cid],attr)
+            if key not in NUMD: continue
+            m=(codes==cid)&~np.isnan(x); nd=NUMD[key]
+            num[m,zc]=np.clip((x[m]-nd['median'])/nd['iqr'],-10,10); num[m,hc]=1
+            bb[m]=1+np.searchsorted(np.array(nd['fine_bin_edges']),x[m],side='left')
+        bins[attr]=bb
+    return num,bins['value'],bins['dose'],bins['rate']
+
+def embed(A,feats,W):
+    num,vb,db,rb=feats
+    T=lambda a: torch.as_tensor(np.asarray(a),dtype=torch.long)
+    c=A.code.values
+    x=(W['embed.code.weight'][T(c)]+W['embed.kind.weight'][T(A.kind.values)]+W['embed.ekind.weight'][T(A.ekind.values)]
+       +W['embed.categorical.unit.weight'][T(UROW[c])]+W['embed.categorical.rate_unit.weight'][T(RROW[c])]+W['embed.kq.weight'][0]
+       +W['embed.bins.value.weight'][T(vb)]+W['embed.bins.dose.weight'][T(db)]+W['embed.bins.rate.weight'][T(rb)]
+       +torch.as_tensor(num)@W[
+[output cut at 10,000 characters]
+```

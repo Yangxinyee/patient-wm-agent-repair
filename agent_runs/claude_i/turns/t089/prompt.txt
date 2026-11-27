@@ -1,0 +1,19 @@
+OUTPUT of Python run 83 of at most 300:
+```
+)[0]]
+        v = v + W['embed.numeric.weight'] @ num + W['embed.numeric.bias']
+        V[i] = v
+    return V
+def set_encode(V, pre):
+    n = V.shape[0]
+    s = mlp2(V, pre + '.mlp1').sum(0) / np.sqrt(n) + Tn(pre + '.size.weight')[:,0]*np.log1p(n) + Tn(pre + '.size.bias')
+    return lnorm(mlp2(s[None,:], pre + '.mlp2')[0], Tn(pre + '.norm.weight'), Tn(pre + '.norm.bias'))
+def bundle_eu(atoms, cfg):
+    ms = [a for a in atoms if a['code'] not in ('insulin','norepinephrine')]
+    ds = [a for a in atoms if a['code'] in ('insulin','norepinephrine')]
+    e = set_encode(atom_matrix(ms,cfg), 'encode') if ms else np.zeros(192)
+    u = set_encode(atom_matrix(ds,cfg), 'encode_action') if ds else np.zeros(192)
+    return e, u
+
+
+```

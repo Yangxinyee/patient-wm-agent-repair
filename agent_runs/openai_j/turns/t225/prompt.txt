@@ -1,0 +1,217 @@
+OUTPUT of Python run 199 of at most 300:
+```
+Notebook characters: 50380 sections: 70
+
+=== SECTION INDEX ===
+0 # Weight-repair notebook
+1 ## Initial plan
+2 ## Inspection
+3 ## Hourly panel and preliminary associations
+4 ## Baseline rollout and flexible residualisation
+5 ## Factual baseline and latent dynamics
+6 ## Causal identification checks
+7 ## Dose-innovation local projections
+8 ## Sensor-proxy dynamic check
+9 ## Fixed-dose response-kernel estimates
+10 ## Head reconstruction setup
+11 ## Reconstruction diagnostics
+12 ## Restart diagnostics
+13 ## Runs 34?36: restart recovery
+14 ## Run 37: dose-feature feasibility
+15 ## Run 38: readout vs state information
+16 ## Run 39: first reversible weight probe
+17 ## Forward 6 and run 40
+18 ## Forward 7 and run 42: rejected input-gain probe
+19 ## Restart recovery, runs 47?48
+20 ## Run 49: reversible dose-bin gain probe
+21 ## Forward passes 8?9; run 50: rejected bin gain
+22 ## Run 53: restart recovery
+23 ## Run 57: posterior counterfactual features
+24 ## Runs 58?59: posterior dose-contrast feasibility
+25 ## Run 64: reversible posterior-only probe
+26 ## Forward 10?11; run 65: rejected posterior probe
+27 ## Restart after run 65
+28 ## Run 73: restart recovery
+29 ## Run 78: completed local dose/readout probe
+30 ## Run 79: cross-stay value-head contrast feasibility
+31 ## Run 80: reversible value-head contrast candidate
+32 ## Forward 12: rejected value-head candidate
+33 ## Run 88: reconstruction audit resumed
+34 ## Runs 90?93: head equivalence audit
+35 ## Restart after run 95
+36 ## Runs 96?102: restart audit
+37 ## Runs 103?107: reconstruction recovery
+38 ## Runs 107?109: register breakthrough
+39 ## Run 115: corrected local contrast reconstruction
+40 ## Run 117: anchored paired-action contrasts
+41 ## Restart audit, runs 126?127
+42 ## Runs 128?131: gated insulin correction candidate
+43 ## Forward 13: insulin candidate rejected and rolled back
+44 ## Runs 133?138: matched-state audit
+45 ## Run 139: stochastic-head fingerprint
+46 ## Runs 140?144: stochastic audit resolved
+47 ## Runs 145?146: complete stochastic reconstruction
+48 ## Run 151: stochastic final-layer frontier
+49 ## Run 152: stochastic glucose-only raw-input frontier
+50 ## Restart audit, run 154
+51 ## Run 158: stochastic glucose-head candidate audit
+52 ## Run 159: installed glucose-only stochastic candidate
+53 ## Restart, run 160: GPU factual check passed
+54 ## Forward 16 and run 162: working insulin repair
+55 ## Forward 17 and run 163: independent factual check
+56 ## Run 164: MAP-only stochastic ridge frontier
+57 ## Run 165: sensor-specific MAP feasibility
+58 ## Restart audit, runs 166?168
+59 ## Restart, run 173
+60 ## Run 177: modest MAP extension installed for validation
+61 ## Restart audit, run 179
+62 ## Forward 19: modest MAP rollout improvement
+63 ## Run 182: evidence and calibration audit
+64 ## Restart audit, run 186
+65 ## Run 190: conditional MAP calibration experiment
+66 ## Run 191: conditional glucose calibration
+67 ## Run 192: calibrated linear MAP frontier
+68 ## Restart audit, runs 193?196
+69 ## Run 197: calibrated MAP candidate installed
+
+=== LATER IDENTIFICATION EVIDENCE ===
+## Causal identification checks
+- Paired-sensor IV suggests insulin lowers next glucose, approximately 2 per rate unit.
+- Norepinephrine sensor-difference instrument is weak; do not use its IV ratios.
+- Earlier zero placebos were mechanical because controls contained the placebo outcome; corrected here.
+          drug     n       beta        se  dose_slope  past_outcome_slope
+       insulin 59658  -0.104668  0.609526    0.025015           -0.002618
+norepinephrine 93508 -20.380205 14.355973   -0.000347            0.007077
+          drug  maxlag      n       rho   rho_se      beta  beta_se
+       insulin       2 224413 -2.849041 0.509204 18.162388 3.203651
+       insulin       3 202551  0.397434 0.149430 -2.194095 0.960694
+       insulin       4 184978  0.918568 0.109879 -5.462461 0.726760
+norepinephrine       2 270360  0.529543 0.037465  2.555445 0.294576
+norepinephrine       3 245698  0.539414 0.026764  2.774850 0.272898
+norepinephrine       4 222850  0.513011 0.025379  2.627387 0.291069
+- Python runs: 9. Forward passes: 3. No edits yet.
+
+
+## Sensor-proxy dynamic check
+- Instrument current sensor with its paired sensor, controlling only earlier history.
+- Additional assumption: dose is independent of regressor sensor measurement noise; test sensor-swap stability.
+          drug  swap     n      rho   rho_se      beta  beta_se
+       insulin False 59611 1.152056 0.008436 -7.162353 0.123087
+       insulin  True 59611 1.000964 0.007962 -1.787155 0.082103
+norepinephrine False 93413 0.881754 0.010005  4.200352 0.171239
+norepinephrine  True 93413 0.899401 0.009205  3.228365 0.235937
+- Python runs: 11. Forward passes: 3. No edits yet.
+
+
+## Fixed-dose response-kernel estimates
+- Fit geometric kernels to instrument/outcome moments, including subsequent recorded doses.
+- Insulin instrument: paired-sensor noise difference with past-only controls.
+- NE instrument: cross-fitted policy innovation with measured-history controls; stronger sequential-unconfoundedness assumption.
+- insulin: rho=0.82939, beta=-2.30803
+- norepinephrine: rho=0.63511, beta=3.55456
+          drug  factor   first100     all400
+       insulin     0.0  10.528802  11.082850
+       insulin     0.5   5.264401   5.541425
+       insulin     1.5  -5.264401  -5.541425
+       insulin     2.0 -10.528802 -11.082850
+       insulin     3.0 -21.057603 -22.165700
+norepinephrine     0.0  -3.808429  -3.969327
+norepinephrine     0.5  -1.904215  -1.984664
+norepinephrine     1.5   1.904215   1.984664
+norepinephrine     2.0   3.808429   3.969327
+norepinephrine     3.0   7.616858   7.938655
+- Python runs: 12. Forward passes: 3. No edits yet.
+
+
+
+=== FORWARD 20 ===
+factual_edited.csv
+(4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll'] 
+    stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        145.0083 2.3931
+2020000000  -1.0    map_cuff      58.0         76.7711 2.4222
+factual_original.csv
+(4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll'] 
+    stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        144.6262 2.3947
+2020000000  -1.0    map_cuff      58.0         76.1007 2.3324
+summary.json
+{
+ "ok": true,
+ "type": "factual",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.63164,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.4597,
+     "mean_abs_error": 10.745
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.3159,
+     "mean_abs_error": 8.692
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.4662,
+     "mean_abs_error": 3.785
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.0041,
+     "mean_abs_error": 6.272
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.63509,
+   "n_values": 4751,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1538,
+     "nll": 1.4656,
+     "mean_abs_error": 10.775
+    },
+    "glucose_lab": {
+     "n": 488,
+     "nll": 1.3274,
+     "mean_abs_error": 8.836
+    },
+    "map_arterial": {
+     "n": 1109,
+     "nll": 1.4673,
+     "mean_abs_error": 3.768
+    },
+    "map_cuff": {
+     "n": 1616,
+     "nll": 2.0045,
+     "mean_abs_error": 6.245
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "edited_tensors": [
+  "attr_heads.value_bin.0.bias",
+  "attr_heads.value_bin.0.weight",
+  "attr_heads.value_bin.2.bias",
+  "attr_heads.value_bin.2.weight"
+ ],
+ "edit_hash": "f4f11dfebe",
+ "seconds": 2.9,
+ "gpu_peak_mib": 232
+}
+
+
+=== REPAIR HELPERS ===
+head177_make callable arguments ('map_coef',)
+map192_candidates keys [(1.0, 1.5), (0.3, 1.0), (0.3, 2.0), (0.3, 3.0), (0.3, 4.0), (0.3, 6.0), (0.3, 8.0), (1.0, 1.0), (1.0, 2.0), (1.0, 3.0), (1.0, 4.0), (1.0, 6.0), (1.0, 8.0), (3.0, 1.0), (3.0, 2.0), (3.0, 3.0), (3.0, 4.0), (3.0, 6.0), (3.0, 8.0), (10.0, 1.0)]
+targets shape (93413, 4)
+
+```

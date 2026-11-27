@@ -1,0 +1,176 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 258 replies happened before. Forward passes used: 20 of 50; Python runs used: 225 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+an calibration is not sufficient for sustained rollout repair; investigating recurrent response/decoder feedback. Tool summaries explicitly report stay-hour means despite architecture's stay-averaging description, so retain both aggregates and matched targets. No weights changed.
+
+
+## Run 201
+Recovered architecture, record-based targets and exact dual-channel construction/evaluation interfaces to diagnose NE rollout sign reversal. No weights changed. Passing factual candidate remains backed up in backup_passing200.
+
+
+## Run 202
+Compared factual replay at NE connection scales +.5, 0, -.5 and -1, reconstructing the unit response from the scale-1 backup. Submitted weights unchanged; CPU globals restored. Reversed connection is a mechanism test, not evidence about the ICU's drug effect.
+
+
+## Run 203
+Provisionally saved NE B_in scale -.5, with every other channel/insulin weight unchanged. Training replay dNLL is approximately +.00447 versus original; scale -1 fails. Previous passing +.5 candidate saved in backup_before203 and backup_passing200. Matched tuning IDs recovered from fwd_17. GPU factual and rollout validation pending.
+
+
+## Run 204
+GPU reversed-NE candidate (scale -.5) passed factual on 98 tuning stays: 1.59803 versus original 1.59352, dNLL +.00451. Paired rollout row means: insulin x2 -8.493, half +12.367; NE x2 +1.345, half -4.699. This confirms rollout orientation reversal but not magnitude accuracy. Inspecting free baseline drift/bin saturation and nonlinear record evidence; no weights changed.
+
+
+## Run 205
+Compared recorded-dose generated baselines with matched actual tuning outcomes and inspected regularized response-direction alternatives. Mean generated values are not at global bin limits; large baseline shifts make recurrent feedback a plausible source of half/double asymmetry. No weights changed.
+
+## Run 207
+Run-206 stopped at a float32/float64 replay mismatch before returning factual scores. Recovering architecture, record-identification evidence, retained candidates and replay interfaces. No save_edit or drop_edit calls in this run; submitted weights are not changed.
+
+## Run 208
+Run-207 architecture review confirms recurrent and generated-reading feedback matters. Its long output was truncated; retrieving compact candidate/replay metadata to repair the dtype failure. No submitted weights changed.
+
+## Run 209
+Run-208 localized the failed comparison to an unsaved float64 B_in tensor. Replayed original, submitted and regularized NE-response candidates with all tensors float32. CPU mean losses: {'original': 1.6355364322662354, 'submitted': 1.6400082111358643, 'fixed206': 1.6379451751708984, 'ridge1_scale-0.5': 1.6388460397720337, 'ridge1_scale-1': 1.6412367820739746, 'ridge10_scale-0.5': 1.6381863355636597, 'ridge10_scale-1': 1.6389878988265991}. CPU globals restored in finally; no submitted weights changed. Factual loss screens candidates but does not establish rollout response or causal truth.
+
+## Runs 210–211
+Run-210 saved the ridge-10 NE connection at scale -1 (CPU training dNLL .003451), then failed while looking up a guessed rollout filename; its notebook write did not execute. Previous saved tensors remain in backup_before210. Locating actual forward artifacts now. No additional weights changed in Run-211; held-out validation remains outstanding.
+
+## Run 212; forward passes used 20/50
+Ridge-10 NE connection scale -1 passed GPU factual on 98 tuning stays: original 1.59352, edited 1.59702, delta .00350. Paired dose rollout row shifts: insulin x2 -10.385, half +12.633; NE x2 +.730, half -3.130. Both channels retain pronounced half/double asymmetry; inspecting causal evidence and dose transmission before changing strengths. No weights changed in this run.
+
+## Run 213
+Current ridge-10 rollout equal-stay shifts are insulin x2 -8.722, half +11.677; NE x2 +.609, half -2.840. Row-weighted shifts differ materially, so preserve both. Recovering cached dose-augmentation tests and record-effect estimates to distinguish input transmission from recurrent distortion. No weights changed.
+
+## Run 214
+Recovered architecture, record-identification evidence and retained repair interfaces. Current GPU-passing edit has strongly asymmetric half/double rollout effects; dose transmission and generated-state feedback must be distinguished before further calibration. No saved weights changed.
+
+## Run 215
+Retrieved compact repair interfaces, record-effect/kernel objects and dose-transmission diagnostics after Run-214 output truncation. Architecture confirms recurrent and generated-reading feedback; delayed record-derived insulin effects require longitudinal rather than immediate calibration. No saved weights changed.
+
+## Run 216
+Retrieved numerical longitudinal kernels, channel-construction variables and exact replay dependencies. Investigating whether doubled-dose saturation explains the half/double asymmetry. Record-derived targets remain provisional causal estimates. No saved weights changed.
+
+## Run 217
+Tested the submitted insulin/NE channels on held-out-context half/double action encodings, holding patient context fixed. Results retained in r217_transmission. This measures channel transmission, not causal drug effects. CPU globals restored in finally; no saved weights changed.
+
+## Run 218
+Run-217 fixed-context transmission slopes: insulin half .85884/double .87482; NE half .87314/double 1.01000. Similar insulin slopes and stronger NE doubling transmission do not explain the free-rollout asymmetry. Recovering impulse tests and temporal rollout profiles to distinguish hidden-state dynamics from generated-reading feedback. No saved weights changed.
+
+## Run 219
+Recovered architecture, retained impulse interfaces and latest hourly rollout profiles. Fixed-context dose transmission did not explain half/double asymmetry; investigating recurrent/generated-reading feedback before another weight edit. No saved weights changed.
+
+## Run 220
+Hourly GPU profiles show accumulating insulin effects and NE doubling with an early wrong sign. Recovering record-derived dynamics and candidate construction to distinguish delayed response from feedback distortion. No saved weights changed.
+
+## Run 221
+Run-220 output was truncated before late construction details. Retrieved targeted kernel and candidate metadata with bounded output. No saved weights changed; checking initial response and persistence against record-derived kernels.
+
+## Run 222
+Inspecting retained impulse results and factual replay implementation, with compact output. Considering longitudinal response-direction calibration rather than further immediate-response scaling. No saved weights changed.
+
+## Run 223
+Retained teacher-forced impulses decay rapidly after subsequent observed readings, unlike the multi-hour record-derived kernels. Inspecting isolated latent carriers for a factual-safe dose-dependent adjustment; generated-reading feedback remains a key limitation. No saved weights changed.
+
+## Run 224
+Comparing all retained free-rollout candidates using eligible-hour equal-stay readouts and inspecting paired-neuron gate geometry before nonlinear surgery. No saved weights changed; checking whether dual-channel construction introduced insulin asymmetry.
+
+## Run 225
+Screened UNSAVED insulin paired-gate nonlinear adjustments: compressed action gate, innovation thresholds at .5/1/1.5 factual carrier SD, response gains 2/3. These are computational correction candidates, not evidence of nonlinear ICU pharmacology. CPU factual results: {(0.5, 2.0): {'nll': 5.1639885902404785, 'delta': 3.528452157974243}, (1.0, 2.0): {'nll': 5.086690425872803, 'delta': 3.4511539936065674}, (1.5, 2.0): {'nll': 5.06265115737915, 'delta': 3.427114725112915}, (0.5, 3.0): {'nll': 3.610856294631958, 'delta': 1.9753198623657227}, (1.0, 3.0): {'nll': 3.6108880043029785, 'delta': 1.9753515720367432}, (1.5, 3.0): {'nll': 3.610907554626465, 'delta': 1.9753711223602295}}. No saved weights changed. GPU factual and dose-rollout validation required.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 225 of at most 300:
+```
+Insulin factual gate quantiles [19.151 23.313 24.451 40.388 42.342]
+Insulin factual innovation-carrier quantiles [-0.671 -0.381 -0.04   0.428  0.985]
+Carrier SD 0.3345466866504628 head evaluator (state_array, weights, draws=4)
+Insulin decomposition error 0.0
+(0.5, 2.0) NLL 5.1639886 delta 3.5284522 elapsed 0.5
+(1.0, 2.0) NLL 5.0866904 delta 3.451154 elapsed 0.9
+(1.5, 2.0) NLL 5.0626512 delta 3.4271147 elapsed 1.4
+(0.5, 3.0) NLL 3.6108563 delta 1.9753199 elapsed 1.8
+(1.0, 3.0) NLL 3.610888 delta 1.9753516 elapsed 2.3
+(1.5, 3.0) NLL 3.6109076 delta 1.9753711 elapsed 2.7
+
+```

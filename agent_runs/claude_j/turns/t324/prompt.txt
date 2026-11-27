@@ -1,0 +1,173 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 323 replies happened before. Forward passes used: 6 of 50; Python runs used: 285 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.weight', 'embed_transition.value_bin.weight']. Files in /work: ['amp.py', 'cf.py', 'edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'gen.py', 'gen2.py', 'heads.py', 'notes.md', 'prep.py', 'sel1.json', 'sel_train.json'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+
+  GF centres [73..272] -> predicted mean bounded 73..272. NE rate edges cap at 1.0 -> x2 NE rates (>1) unseen bins.
+- Plan: build CPU replica of the model (validate vs 'states' request), then engineer a compensated dose channel.
+
+## Session 4 (runs 90+): state of kernel
+- Kernel holds an earlier replica of the per-bundle state update (fns: build_bundles, bundle_vecs/bvd, encode, step, mha,
+  tlayer, block, ffn, one_step_err; dicts W/Wt of weights; BUN = bundles of the 100 sel1 tuning stays; Xt = fwd_3 states).
+  Source is NOT recoverable (defined in kernel). o_chk=8.9e-7 suggests out matched. No head implementation yet.
+- fwd_3 = states, tuning sel1 100 stays, 5116 bundles (x: out | 4 h slots | z post mean).
+- KEEP OUTPUTS SHORT (content filter refused long raw listings). Save new code to /work/*.py files.
+
+- HEAD REPLICA (/work/heads.py, runs 99-103): value logits = value_bin.2(gelu(value_bin.0(with_code))) + embed_transition[code*17+lastbin];
+  q = query_norm(view + type_emb[1]); view = out + out_norm(mean_slots(h*exp(-dt*exp(flow.a)))) + gap(log(dt_s)/10) + z_head(z), z~prior;
+  last_numeric cols: 0 = has_last, 3 = log1p(age_s)/10, 6 = z_last_value (others 0 for measurements); last_status NOT added; bins[0] rows zero.
+  MAE vs tool predicted mean: 0.94 (readings with a last value), 2.3 on first readings (only first GF after admission is off).
+- Dead hidden units in value_bin.0: 89, 170, 149 (max contribution <0.015 logits). PLAN: repurpose 89 (insulin->GF/GL) and 170 (NE->MA/MC),
+  gated by embed.code, linear regime, constant offset cancelled in embed_transition rows; readout fit by ridge on q.
+
+## Session 5 (runs 112-126)
+- No source history; replica fns are black boxes. BUN keys int; maps from hourly_maps(tus) are nested dict[stay][hour].
+- fwd factual csv row order != reading_table order: MERGE on (stay_id,hour,event).
+- Drug bundles are separate (h+0.083), readings at h. Heads average probs over 4 prior-z draws.
+- Linear readout from head query q (100 tuning stays): CV R2 RI .89, exogenous part TI .15, RN .62.
+- Right after drug-A bundle, dose-deviation CV R2: out .07, hmean .38, z .18 -> deviation weakly encoded.
+- PLAN: replica counterfactual states (doses scaled, readings recorded) -> joint ridge readout (factual+cf) -> head unit edit.
+
+## Session 6 (run 147+): restarted; runs 127-146 undocumented (last: probe end->u attrs). Re-orienting.
+- Run 161-163: replica validated: step(out_p,h_p,dt_s,e,u,z,Mem,ages): Mem = e of ALL bundles 0..k (incl current, last 128), ages seconds; one-step out err med .01 (GPU precision).
+  zpost: ctx=out_p+out_norm(mean_slots(flow(h_p,dt)))+gap(log(dt_s)/10); z=z_post.2(gelu(z_post.0([ctx,e,u])))[:32] -> err ~0 (dt seconds). vecs(s,k)=bvd(BUN[s][k][1]).
+- PLAN: teacher-forced cf states (doses scaled from h12, readings recorded) -> target = structural direct effect given readings - model change -> ridge readout on q -> dead value unit; calibrate via dose_edit.
+
+## Session 7 (runs 179-202)
+- Exact cf teacher-forced data: dose x m from h0 (run_cf edits) + readings shifted by true S_t=K*(dDose) (global SHIFT dict, mod_events rebound to mod_events_new).
+  M (68668 rows: drug none/insulin/norepinephrine, h0, m, event, hour, S, mean_cf, mean_f, obs, b), WC (with_code mean over draws), LG (logits 4 draws).
+- BUG FOUND: run_cf's states BEFORE its restart index are wrong (H off ~3%) -> factual rows must use run_cf(s,{},BUN[s][1][0],Xs).
+  Fixed: replica factual NLL 1.5077 vs tool 1.5116; pred-mean err ~1.4 at all hours.
+- Teacher-forced on exact cf histories the model moves only ~13% of truth: ins x2 h12 GF -1.64 vs -12.85; NE x2 MA +1.34 vs +4.18.
+- solve_theta(lg,ev,v,T_SHIFT)->tilt; tilt_mean returns MEAN. vG[1:]=(cenGF-160)/25, vM[1:]=(cenMA-75)/8 (bin0 = 0).
+- Plan: ridge readout theta~WC (glucose rows -> insulin unit, MAP rows -> NE unit), gated dead units 89/170 in value_bin.0, const cancelled in embed_transition.
+
+## Session 8 (runs 208-237)
+- frontier: expF = factual dNLL per glucose reading (oof). wf10: +0.099 (A=62% of S); wf1000: +0.021 (A=22%). Head readout too costly.
+- Best linear readout on WC (Fisher dir, ins x2 h12 glucose rows): oof SNR 1.4, in-sample 1.6 (need ~4). => head-only edit limited (~1/3 of gap).
+- embed.numeric dose cols x4: no effect (shift -0.86->-0.83). u+s*(u(2d)-u(d)): shift -0.52/-0.63 (worse). Model ~ignores u.
+- z: POSTERIOR COLLAPSE in core: step output indep of z (z+10 -> diff 5e-7). z encodes GF surprise (CV R2 .70) but no effect on state.
+- RTs[s] cols: minute,b(bundle idx),prow,event,observed,predicted_mean,nll. CEN[code] 16 centres = logit bins 1..16. fb_(code,x) fine bin.
+- amp_eval(lam,stays)->[(s,k0,k1,lgf,lgc)] factual vs ins x2 teacher-forced (readings recorded); amp_stats/summ in /work/amp.py.
+- DON'T reuse global names F (torch functional!), C, W, M. bvd/zpost restored to bvd_orig/zpost_orig.
+
+## KEY (run 240-242): M cf data BUG - shifted readings never reached replica state (obs col shifted, states not).
+- Replica test (30 stays): readings shifted -13 from h13 (core+head last_val; RT age is SECONDS) -> GF pred -11.1; doses x2 alone -0.90; both -12.07 (additive).
+- => model persistence ~0.85; problem = direct (one-step) dose effect too small (-0.9/step vs needed ~-2..-3).
+  Needed per-step direct kernel K_D(k)=KI(k)-0.85*KI(k-1): [-2,-0.7,-0.12,+0.1,+0.17..] per unit; sum -1.9. Edit needed is SMALL (~-1.5 mg/dL/step).
+- Plan: Fisher readout w from WC (cf doses x2 readings recorded vs factual), head unit tilt with gain g; calibrate g via tool dose_edit.
+
+## Session 9 (runs 245-251)
+- Tool rollout (orig) ~1.5-1.9x teacher-forced direct (M) for ins; NE rollout < TF direct. Effective rollout feedback rho~0.4 (not .85).
+- Ridge readout on WC (glucose rows, per (code,lastbin) centering, clip tilt targets): ins rho.4 lam30 oof frac .46 cost g1 .0018/glucose row, full .0107; NE rho.3 lam300 frac .31 cost full .0056/MAP row. Drug-bundle gating useless (88% rows).
+- codes: GF6 GL10 MA7 MC5 ins8 NE9. EDIT v1: unit89 (ins->GF/GL, vG tilt), unit170 (NE->MA/MC, vM), gate via embed.code min-var, linear GELU regime, centering in embed_transition rows; gains 1.5/1.5. fns fit_full, build_unit, apply_units.
+- runs 252-257: readout must NOT be projected off LN cols 0,3,6 (cost x50); project only drug LN cols [1,2,4,5,7] (Pd). fitw2(fa,c,v,rho,lam,0,Pd,1e-2): ins frac .46 cost g1 .0017 full .0073; NE frac .31 g1 .0009 full .0056.
+- near-dead head units: 89,170,118,158,149. EDIT v2 (run 258): pairs main+cancel (89/149 ins, 170/118 NE), gate G=10 (min-var, orth to bins & LN), kap=1/sd, gains 1.5/1.5. fns unit_pair, apply_pairs.
+- fwd5 factual both sel1: orig 1.51162 -> v2 1.51604 (+.0044; pred in-sample .0039). by event dNLL: GF +.0034, GL +.0247(!), MA -.0007, MC +.0039.
+- fwd6 dose_edit both sel1, v2 g1.5: ins x2 -2.75->-3.49, half 1.38->1.94, NE x2 .69->.75, half -.58->-.64. => readout fit on cf (doses scaled, readings recorded) does NOT transfer to rollouts (likely reads 'surprise'). Need exact-cf (readings shifted by true S) training states.
+
+## Session 10 (runs 264-285): CORE DOSE CHANNEL
+- Arch: doses enter core ONLY via action token u_k -> prelude.0 attention. Prelude head 2 attends u with weight 1.00 on drug bundles.
+- slot residual norm ~800, head2 output ~0.7 -> dose signal swamped (why model ignores dose). E=prelude_norm(slots) cov rank-deficient (102 null dims).
+- Edit design: (1) kv rows 288:336 (head2 value) += cp*(pEI x wI2 + pEN x wN2), cp=40, wI2/wN2 = rate probes on ln1(u) (PR2), pEI/pEN = Ve[:,-1/-2];
+  (2) core.b_in.weight += tI x rI + tN x rN (rI,rN null-space readers of dE; tI,tN = TC@V2_[:,-1/-2] scaled to SNR 3/6). Vars: WkvF, BinF, KV, BI.
+- Replica disturbance at this scale: dnll all +0.0008 (GL +.002, MA +.002). Channel is one-step (decays within ~1h).
+- Readout: J from factual edit-vs-orig is wrong (accumulated effects); use cf contrast (x2 vs factual, edited) for J.
+- HT(n)=load(n): replica heads read saved edits. heads_full returns (wc (n,4,192), lg (n,4,17)).
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 285 of at most 300:
+```
+ins slope A/B 0.14 -0.02 noise sd W1 0.655 prec 0.071 corr(u,dev) 0.543
+    finger A -0.24 sd u 1.44
+    se_lab A 0.15 sd u 1.683
+nor slope A/B 0.86 0.88 noise sd W1 0.442 prec 0.042 corr(u,dev) 0.494
+    terial A -0.69 sd u 0.805
+    p_cuff A -0.86 sd u 0.849
+
+```

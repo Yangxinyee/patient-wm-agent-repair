@@ -1,0 +1,100 @@
+OUTPUT of Python run 69 of at most 300:
+```
+=== DATA SCHEMA ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== VOCABULARY STRUCTURE ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+
+=== RECONSTRUCTION HELPER INTERFACES ===
+rlinear (x, prefix)
+  names: ('tF', 'linear', 'Wrepair', 'get')
+  constants: (None, '.weight', '.bias')
+rnorm (x, prefix)
+  names: ('tF', 'layer_norm', 'Wrepair')
+  constants: (None, (192,), '.weight', '.bias')
+rmlp (x, prefix)
+  names: ('rlinear', 'tF', 'gelu')
+  constants: (None, '.0', '.2')
+rmlp_act (x, prefix, activation='gelu')
+  names: ('rlinear', 'tF', 'gelu', 'silu', 'relu')
+  constants: (None, '.0', ('gelu', 'silu', 'relu'), '.2')
+action_encode_atoms (x)
+  names: ('shape', 'rmlp', 'sum', 'np', 'sqrt', 'rlinear', 'torch', 'full', 'log1p', 'rnorm')
+  constants: (None, -2, 'encode_action.mlp1', -1, 1, 'encode_action.size', 'encode_action.mlp2', 'encode_action.norm')
+action_encode_variant (x, activation='gelu', return_hidden=False)
+  names: ('shape', 'rmlp_act', 'sum', 'np', 'sqrt', 'max', 'rlinear', 'torch', 'full', 'log1p', 'tF', 'gelu', 'silu', 'relu', 'rnorm')
+  constants: (None, -2, 'encode_action.mlp1', 1, -1, 'encode_action.size', 'encode_action.mlp2.0', ('gelu', 'silu', 'relu'), 'encode_action.mlp2.2', 'encode_action.norm')
+embed_record_atom (row1, kind1=0, end_mode1='same')
+  names: ('code_ids', 'Wrepair', 'measurement_events', 'unit_ids_repair', 'rate_unit_ids_repair', 'torch', 'zeros', 'get', 'np', 'nan', 'numeric_specs', 'pd', 'notna', 'clip', 'float', 'searchsorted', 'tF', 'linear')
+  constants: (None, 'event', 'embed.code.weight', 'embed.kind.weight', ('insulin', 'norepinephrine'), 2, 1, 'hospital_admission', 3, 4, 'embed.ekind.weight', 'embed.kq.weight', 0, 'embed.numeric.bias', 'same', 'empty_all', 'embed.categorical.unit.weight', 'embed.categorical.rate_unit.weight', 6, (('value', 0), ('dose', 2), ('rate', 4)), 'median', 'iqr', -10, 10, 'fine_bin_edges', 'left', ('side',), 'embed.bins.', '.weight', 'embed.numeric.weight')
+encode_atom_set (atoms1, prefix1)
+  names: ('len', 'rmlp', 'torch', 'stack', 'sum', 'np', 'sqrt', 'zeros', 'rlinear', 'tensor', 'log1p', 'float32', 'rnorm')
+  constants: (None, '.mlp1', 0, 192, ('dtype',), '.size', '.mlp2', '.norm')
+local_value_head (data, cfg, bin_side='left', zmode='prior_mean', nsamples=32, return_features=False, seed=917)
+  names: ('len', 'torch', 'tensor', 'S', 'state_index', 'to_numpy', 'float32', 'dt_s', 'reshape', 'exp', 'hw', 'head_norm', 'mean', 'get', 'head_mlp', 'log1p', 'Generator', 'manual_seed', 'randn', 'clamp', 'zeros', 'TF', 'linear', 'int', 'code_id', 'long', 'np', 'int64', 'event', 'unique', 'eq', 'numeric_specs', 'last_value', 'isfinite', 'searchsorted', 'observed', 'has_last', 'z_last', 'last_age_s', 'act_fn', 'softmax', 'array', 'VOCAB', 'sum', 'numpy', 'log', 'arange', 'clamp_min', 'dict', 'std', 'update')
+  constants: (None, 'x', ('dtype',), 192, 960, -1, 4, 'core.flow.a', 1, 'core.out_norm', 'gap_activation', 'activation', 'gelu', 'prior_activation', 'value_activation', 10, 'gap', 'z_prior', 'prior_mc', 32, ('generator',), -7, 3, 'posterior_mean', 992, 'none', 'z_head.weight', 'z_head.bias', 'type_emb.weight', 'type_id', 'query_norm', 'value', 'fine_bin_edges', ('side',), 'age_mode', 'seconds_div10', 'hours_div10', 3600, 8, 'zcol', 2, 'acol', 'flags', (0, 3), 'last_numeric.weight', 'last_numeric.bias', 'embed.code.weight', 'embed.bins.value.weight', 'embed.bins.rate.weight', 0, 'last_status.weight', 'status_id', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weigh
+
+=== REFERENCE STATE METADATA ===
+   stay_id    hour  has_insulin  has_norepinephrine  n_atoms
+1010001344 -2.0000        False               False        1
+1010001344 -1.0000        False               False        3
+1010001344  0.0000        False               False        4
+1010001344  0.0833         True               False        1
+1010001344  1.0000        False               False        2
+1010001344  1.0833         True               False        2
+1010001344  2.0000        False               False        2
+1010001344  2.0833         True               False        2
+action bundle counts: 906 771
+atom-count distribution: (array([1, 2, 3, 4]), array([1214, 2425,  494,  217]))
+
+=== ONE STAY'S FIRST EVENTS ===
+   stay_id    hour              event  value  rate  rate_unit  dose dose_unit  end_hour
+1010000431 -2.0000 hospital_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000431 -1.0000       map_arterial   80.0   NaN        NaN   NaN       NaN       NaN
+1010000431 -1.0000           map_cuff   85.0   NaN        NaN   NaN       NaN       NaN
+1010000431  0.0000     glucose_finger  138.0   NaN        NaN   NaN       NaN       NaN
+1010000431  0.0000      icu_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000431  0.0000       map_arterial   76.0   NaN        NaN   NaN       NaN       NaN
+1010000431  1.0000        glucose_lab  140.0   NaN        NaN   NaN       NaN       NaN
+1010000431  1.0000       map_arterial   71.0   NaN        NaN   NaN       NaN       NaN
+1010000431  2.0000       map_arterial   69.0   NaN        NaN   NaN       NaN       NaN
+1010000431  3.0000       map_arterial   82.0   NaN        NaN   NaN       NaN       NaN
+1010000431  4.0000       map_arterial   80.0   NaN        NaN   NaN       NaN       NaN
+1010000431  5.0000       map_arterial   89.0   NaN        NaN   NaN       NaN       NaN
+1010000431  5.0000           map_cuff   85.0   NaN        NaN   NaN       NaN       NaN
+1010000431  6.0000        glucose_lab  143.0   NaN        NaN   NaN       NaN       NaN
+1010000431  6.0000       map_arterial   83.0   NaN        NaN   NaN       NaN       NaN
+1010000431  6.0000           map_cuff   89.0   NaN        NaN   NaN       NaN       NaN
+1010000431  7.0000     glucose_finger  146.0   NaN        NaN   NaN       NaN       NaN
+1010000431  7.0000       map_arterial   88.0   NaN        NaN   NaN       NaN       NaN
+1010000431  8.0000       map_arterial   90.0   NaN        NaN   NaN       NaN       NaN
+1010000431  8.0000           map_cuff   92.0   NaN        NaN   NaN       NaN       NaN
+1010000431  9.0000     glucose_finger  151.0   NaN        NaN   NaN       NaN       NaN
+1010000431  9.0000       map_arterial   83.0   NaN        NaN   NaN       NaN       NaN
+1010000431  9.0833            insulin    NaN   1.5 units/hour   1.5     units   10.0833
+1010000431 10.0000     glucose_finger  150.0   NaN        NaN   NaN       NaN       NaN
+
+```

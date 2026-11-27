@@ -1,0 +1,318 @@
+OUTPUT of Python run 41 of at most 300:
+```
+=== DYNAMIC AND PLACEBO CHECKS ===
+## More efficient dynamic checks; Python 6, forward 2
+- Replicate-sensor NE estimates are positive but rely on dose/error independence.
+- Insulin replicate-sensor level estimates are invalid if dosing uses finger noise; the negative sensor-difference IV is more defensible for insulin.
+- Enlarged first-difference samples using own-sensor instruments at lags >=2, which avoid overlapping current measurement errors.
+{
+  "('map_arterial', 'admission')": {
+    "coefficients": [
+      0.9825267853113245,
+      0.5165933079110422,
+      0.029677058825007888
+    ],
+    "se": [
+      0.006061144800747398,
+      0.1349655273885699,
+      0.006965149985368135
+    ],
+    "n": 25283
+  },
+  "('map_cuff', 'admission')": {
+    "coefficients": [
+      0.9736397009521174,
+      0.4870228377565288,
+      0.04526212305580476
+    ],
+    "se": [
+      0.014298533258265632,
+      0.39942899381697966,
+      0.01616727199739762
+    ],
+    "n": 7995
+  },
+  "('glucose_finger', '(2, 3)', False)": {
+    "persistence": 1.0636624817043296,
+    "effect": -20.50967480255291,
+    "se_persistence": 0.6011473477865716,
+    "se_effect": 14.10406179320535,
+    "n": 187065,
+    "condition": 4278.111074394605
+  },
+  "('glucose_finger', '(2, 3)', True)": {
+    "persistence": 1.6853771922182748,
+    "effect": -28.31022511468185,
+    "se_persistence": 0.5252171736929621,
+    "se_effect": 16.30187699616657,
+    "n": 151972,
+    "condition": 4146.207612178202
+  },
+  "('glucose_finger', '(2, 3, 4)', False)": {
+    "persistence": 1.7622489453213448,
+    "effect": -32.365447466632254,
+    "se_persistence": 0.4640301018640856,
+    "se_effect": 14.770938349276275,
+    "n": 170139,
+    "condition": 3163.075474062332
+  },
+  "('glucose_finger', '(2, 3, 4)', True)": {
+    "persistence": 1.9119603835647734,
+    "effect": -30.143412757950454,
+    "se_persistence": 0.457167597898931,
+    "se_effect": 14.832568278064965,
+    "n": 140261,
+    "condition": 4231.202488567382
+  },
+  "('map_arterial', '(2, 3)', False)": {
+    "persistence": 0.56601743744358,
+    "effect": 2.7506419331801824,
+    "se_persistence": 0.07126114745990335,
+    "se_effect": 0.3355457823113206,
+    "n": 223342,
+    "condition": 112.63924108944546
+  },
+  "('map_arterial', '(2, 3)', True)": {
+    "persistence": 0.5766677284650158,
+    "effect": 2.1253207072251303,
+    "se_persistence": 0.07454238978195318,
+    "se_effect": 0.6283698960977526,
+    "n": 212970,
+    "condition": 268.15917645613507
+  },
+  "('map_arterial', '(2, 3, 4)', False)": {
+    "persistence": 0.49069634893724623,
+    "effect": 3.0574728886354428,
+    "se_persistence": 0.0461088749782071,
+    "se_effect": 0.3461294557797029,
+    "n": 201643,
+    "condition": 163.09105288561636
+  },
+  "('map_arterial', '(2, 3, 4)', True)": {
+    "persistence": 0.4968152626735331,
+    "effect": 2.366824568449006,
+    "se_persistence": 0.04891121747249014,
+    "se_effect": 0.5944101362422026,
+    "n": 192271,
+    "condition": 354.87191394661596
+  },
+  "('map_cuff', '(2, 3)', False)": {
+    "persistence": 0.6268160682431204,
+    "effect": 6.790448718802579,
+    "se_persistence": 0.23618181454957313,
+    "se_effect": 2.3593492092276183,
+    "n": 183795,
+    "condition": 190.83738903656888
+  },
+  "('map_cuff', '(2, 3)', True)": {
+    "persistence": 0.7342361832419435,
+    "effect": 12.700388178520777,
+    "se_persistence": 0.23291547909078456,
+    "se_effect": 4.609211211457707,
+    "n": 165686,
+    "condition": 576.8037490840541
+  },
+  "('map_cuff', '(2, 3, 4)', False)": {
+    "persistence": 0.5018208037686507,
+    "effect": 6.631520491739785,
+    "se_persistence": 0.1459720754302214,
+    "se_effect": 1.7341403751240727,
+    "n": 156601,
+    "condition": 273.0146298294646
+  },
+  "('map_cuff', '(2, 3, 4)', True)": {
+    "persistence": 0.5759442765765651,
+    "effect": 10.79062518132017,
+    "se_persistence": 0.17155737451875266,
+    "se_effect": 3.286390891868858,
+    "n": 141406,
+    "condition": 645.7722117251755
+  }
+}
+
+
+
+=== LATER IDENTIFICATION AND STATE INSPECTION ===
+## Dynamic identification; Python 10, forward 2
+- Prior-controlled sensor IV supports a modest negative immediate insulin effect; NE sensor instrument is weak.
+- Prior-controlled placebo lags 1/2 were tautologies; added earlier placebos.
+- Estimated persistence conditional on candidate effects and insulin impulse moments including later doses.
+{
+  "fixed_b_dynamics": {
+    "('insulin', -1.8)": [
+      [
+        -2.693714988473109,
+        0.3743989046404466,
+        224413
+      ],
+      [
+        -7.381247201106025,
+        2.1851839577620606,
+        209202
+      ],
+      [
+        9.064263420439419,
+        3.25877373442609,
+        197161
+      ],
+      [
+        6.7982618442898,
+        1.8482641674381641,
+        186615
+      ]
+    ],
+    "('insulin', -2.4)": [
+      [
+        -2.6737204639738095,
+        0.3740867179013077,
+        224413
+      ],
+      [
+        -7.344412554660796,
+        2.1796511727981933,
+        209202
+      ],
+      [
+        9.064688743009736,
+        3.25287866500073,
+        197161
+      ],
+      [
+        6.788247871036914,
+        1.8411833874204857,
+        186615
+      ]
+    ],
+    "('norepinephrine', 0.0)": [
+      [
+        -0.7750230422783966,
+        0.40080079636025945,
+        270360
+      ],
+      [
+        2.2920233620831185,
+        0.9561975927083411,
+        258571
+      ],
+      [
+        1.2343182766422196,
+        0.2555226354438176,
+        246862
+      ],
+      [
+        1.215320497031814,
+        0.20219814359130123,
+        235141
+      ]
+    ],
+    "('norepinephrine', 0.5)": [
+      [
+        -0.9981561513665138,
+        0.4514409618385362,
+        270360
+      ],
+      [
+        2.549546767875217,
+        1.0511924437213063,
+        258571
+      ],
+      [
+        1.3311421161274992,
+        0.2682184118963657,
+        246862
+      ],
+      [
+        1.2799181522608383,
+        0.2088504616612766,
+        235141
+      ]
+    ],
+    "('norepinephrine', 2.5)": [
+      [
+        -1.8906885877189625,
+        0.6761592673124185,
+        270360
+      ],
+      [
+        3.579640391043617,
+        1.4427881571434515,
+        258571
+      ],
+      [
+        1.718437474068605,
+        0.3230911331051513,
+        246862
+      ],
+      [
+        1.5383087731769387,
+        0.23721217914679632,
+        235141
+      ]
+    ]
+  },
+  "insulin_lp_fit": [
+    0.8771361658655799,
+    -1.7571965689916067
+  ],
+  "lp_standardised_residuals": [
+    0.5648167713613772,
+    0.3811484963341996,
+    -1.8217840937561756,
+    0.02114743388359586,
+    0.6502634427579448,
+    -0.7490265138980114,
+    -0.018146548860674825,
+    1.582133750027041
+  ]
+}
+
+## Representation inspection; Python 12, forward 3
+- Python 11 stopped while inspecting list-valued numeric vocabulary; no edits were made.
+- Tested linear dose/reading decoding from post-drug out and mean h with stays held out.
+{
+  "insulin": [
+    0.8307965993881226,
+    1,
+    0.4609822928905487
+  ],
+  "norepinephrine": [
+    0.7113162279129028,
+    100,
+    0.15150652825832367
+  ],
+  "glucose_finger": [
+    0.9796723127365112,
+    0.1,
+    4.064848899841309
+  ],
+  "map_arterial": [
+    0.9844172596931458,
+    0.1,
+    1.7291861772537231
+  ]
+}
+
+## Kernel recovery; Python 18, forward 4
+- Python 17 exceeded memory before producing results. No edits existed.
+- Rebuilt a float32 hourly panel by chunked CSV reads; retained raw training records only for 100 state-sampled stays.
+- Continuing with bounded-memory head reconstruction and validation.
+
+
+
+=== AVAILABLE STATE ARTIFACTS ===
+3 dict
+{'x': (4356, 992), 'stay_id': (4356,), 'hour': (4356,), 'has_insulin': (4356,), 'has_norepinephrine': (4356,), 'n_atoms': (4356,)}
+4 dict
+{'x': (4035, 992), 'stay_id': (4035,), 'hour': (4035,), 'has_insulin': (4035,), 'has_norepinephrine': (4035,), 'n_atoms': (4035,)}
+
+=== HEAD METADATA ===
+['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row', 'dt_seconds', 'code', 'has_last', 'last_age_seconds', 'last_z', 'last_bin', 'observed_bin']
+   stay_id  hour          event  value  rate  last_value  last_hour  state_row  dt_seconds  code  has_last  last_age_seconds  last_z  last_bin  observed_bin
+2020000000  -1.0 glucose_finger  145.0   NaN         NaN        NaN          0      3600.0     6       0.0               0.0     0.0         0             7
+2020000000  -1.0    glucose_lab  148.0   NaN         NaN        NaN          0      3600.0    10       0.0               0.0     0.0         0             9
+
+=== VOCAB NORMALISATION ===
+dict_keys(['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note'])
+{('map_arterial', 'value'): {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 77.0, 81.0, 84.0, 88.0, 92.0, 95.0, 98.0]}, ('map_cuff', 'value'): {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [40.0, 46.0, 52.0, 60.0, 69.0, 74.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}, ('glucose_lab', 'value'): {'code': 'glucose_lab', 'attribute': 'value', 'median': 142.0, 'iqr': 53.0, 'fine_bin_edges': [74.0, 81.0, 89.0, 98.0, 111.0, 122.0, 132.0, 142.0, 151.0, 163.0, 176.0, 198.0, 215.0, 230.0, 247.0]}, ('glucose_finger', 'value'): {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [78.0, 87.0, 96.0, 109.0, 128.0, 143.0, 154.0, 164.0, 173.0, 183.0, 195.0, 214.0, 230.0, 243.0, 260.0]}, ('insulin', 'dose'): {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, ('norepinephrine', 'dose'): {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.208, 'iqr': 2.832, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.384, 0.72, 1.2, 1.6799999999999997, 2.208, 2.832, 3.456, 4.176, 4.8, 4.8, 4.8, 4.8]}, ('insulin', 'rate'): {'code': 'insulin', 'attri
+[output cut at 10,000 characters]
+```

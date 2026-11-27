@@ -1,0 +1,66 @@
+OUTPUT of Python run 212 of at most 300:
+```
+=== CURRENT ROLLOUT AGGREGATES ===
+insulin_half row_shift 12.633 equal_stay_shift 11.6773 generated_baseline 167.897
+insulin_x2 row_shift -10.3848 equal_stay_shift -8.7218 generated_baseline 167.897
+ne_half row_shift -3.1298 equal_stay_shift -2.8397 generated_baseline 65.6444
+ne_x2 row_shift 0.73 equal_stay_shift 0.6085 generated_baseline 65.6444
+=== EARLIER RECORD-IDENTIFICATION NOTES ===
+## Run 6
+Previous forward request failed because of duplicate stay IDs; it was not counted.
+Re-read architecture/schema and inspected retained kernel objects and tensor shapes.
+Constructed a verified list of 100 unique tuning stay IDs.
+Drug-effect estimates remain provisional; no weights edited.
+
+
+## Run 7
+Architecture inspection: drugs enter posterior and recurrent prelude; value heads also have a same-code last-reading register.
+Considering targeted readout repair, conditional on states retaining dose information.
+Run 6 output was truncated; obtained compact remaining tensor/vocab/object summaries.
+No weights edited.
+
+
+## Run 8; forward passes used: 3
+Original states obtained on first 100 tuning stays, all bundles, 4531 rows in /work/fwd_4/states_original.npz.
+Aligned states to hourly records; tested held-out-stay ridge rate decoding from out, out+h, and out+h+z.
+Inspected normalisation, last-numeric dimensions and retained DML objects.
+No weights edited.
+
+
+## Run 9
+Run 8 rate decoding with ridge alpha=10: insulin R2 0.513 (out), 0.657 (full); norepinephrine R2 0.273 (out), 0.485 (full).
+Tested weaker ridge penalties and conditional dose-innovation decoding with stay-separated validation. This distinguishes policy information from usable administered-dose information.
+          drug features    alpha  rate_R2  innovation_R2  innovation_RMSE
+## Run 10
+Dose innovations decode weakly from original states (best approximately 0.17 insulin R2 and 0.11 norepinephrine R2). Readout-only repair is not yet justified; investigating action-pathway repair.
+Implemented candidate CPU head reconstructions using exported states; tested activation, measurement type index and last-numeric ordering against original forward predictions.
+activati
+## Run 11
+Run 10 head reconstruction failed (best mean RMSE 7.98, NLL RMSE 0.579); not trusted for editing.
+Checked latent source, gap scale, register flags/status and mixed activations.
+core_act  gap_factor latent  value_flag_col status head_act  mean_RMSE  nll_RMSE  mean_nll
+    silu         1.0   mean               3   zero     gelu    7.65668   0.55623   1.72939
+    silu         1.0 
+## Run 14
+Architecture explicitly specifies the four-field last_numeric register. Run 13 output was truncated; collected compact vocabulary, tensor and forward-file metadata to verify the CPU head and state alignment. No weights edited.
+
+
+## Run 25; forward passes used: 4
+Built reusable head dataset and feature functions, verified tuning alignment, fit insulin-innovation decoders on independent training states with MAP scores penalised toward zero, and checked tuning transfer plus approximate factual costs. No weights edited. Selected decoder alpha: 10000.
+
+
+=== RETAINED CHANNEL CONSTRUCTORS ===
+calibrated_prob80 (p, x, coef) globals ('np', 'clip', 'tilt_bins80', 'exp', 'sum')
+collect_channel186 () globals ('range', 'len', 'indices102', 'capture_transition102', 'append', 'as_np184', 'np', 'concatenate')
+gated_innovation94 (raw) globals ('gelu94', 'np', 'asarray', 'W0base94', 'reserved94', 'T', 'b0base94')
+gated_ne185 (raw, coef, scale=40.0) globals ('as_np184', 'gate_fits180', 'decision_function', 'expit')
+=== POSTERIOR EDIT STRUCTURE ===
+z_post.0.weight shape (192, 576) changed indices [89, 96, 156, 184]
+largest changes [(156, 5178.06299), (89, 5171.03027), (96, 360.12317), (184, 356.2616)]
+z_post.2.weight shape (64, 192) changed indices [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191]
+largest changes [(96, 1.08344), (184, 1.07537), (156, 1.03456), (89, 0.93989), (47, 0.14538), (135, 0.13024), (115, 0.11558), (124, 0.10904)]
+z_in.weight shape (192, 32) changed indices [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+largest changes [(1, 27.42416), (19, 11.29109), (3, 11.24072), (10, 11.08639), (25, 10.2103), (11, 8.94088), (29, 5.48268), (16, 5.13014)]
+raw_candidates87 keys [('insulin', 0.001, 0.0), ('insulin', 0.001, 1.0), ('insulin', 0.001, 10.0), ('insulin', 0.01, 0.0), ('insulin', 0.01, 1.0), ('insulin', 0.01, 10.0), ('insulin', 0.1, 0.0), ('insulin', 0.1, 1.0), ('insulin', 0.1, 10.0), ('insulin', 1.0, 0.0), ('insulin', 1.0, 1.0), ('insulin', 1.0, 10.0), ('norepinephrine', 0.001, 0.0), ('norepinephrine', 0.001, 1.0), ('norepinephrine', 0.001, 10.0), ('norepinephrine', 0.01, 0.0), ('norepinephrine', 0.01, 1.0), ('norepinephrine', 0.01, 10.0), ('norepinephrine', 0.1, 0.0), ('norepinephrine', 0.1, 1.0), ('norepinephrine', 0.1, 10.0), ('norepinephrine', 1.0, 0.0), ('norepinephrine', 1.0, 1.0), ('norepinephrine', 1.0, 10.0)]
+
+```

@@ -1,0 +1,226 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 127 replies happened before. Forward passes used: 15 of 50; Python runs used: 109 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['baseline77.npz', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate58.npz', 'insulin_candidate63.npz', 'ne_candidate82.npz', 'ne_detector81.npz', 'ne_reduced107.npz', 'ne_trial103.npz', 'ne_trial83.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+0.06334682281657412, 'unit_cross': 1.5633331629041907, 'half_ratio': 0.38603190638755563, 'score': 0.3809324982057856}. No weights changed. Python runs: 82; forwards: 10.
+
+## Run 83: reversible insulin+NE trial installed
+Added a rank-one NE correction to the preserved insulin baseline. Detector=(1.0, 1.0, 300.0); multi-context MAP direction ridge=.01; strength=56.937, NE delta norm=714.41. Scaling uses record-based NE beta=3.0, not external medical knowledge. Trial is unaccepted pending paired factual and intervention validation. Saved /work/ne_trial83.npz. Python runs: 83; forwards: 10.
+
+## Run 84: NE trial fails factual constraint
+Forward11: original NLL 1.60516, edited 1.63855; increase .03339 exceeds .005. Largest deterioration is arterial MAP (.0788), with smaller glucose and cuff losses. Recovering architecture, saved baseline and edit helpers before revision. NE trial83 is unaccepted. Python runs: 84; forwards: 11.
+
+## Run 85: reject NE trial and restore insulin baseline
+Forward12 trial responses: insulin x2 -12.512, half +3.326; NE x2 +1.543, half -3.791. NE responses are imbalanced and factual NLL failed by +.03339. Restored original b_in plus baseline77 insulin-only delta. Recovering prior validation and local forward helpers for a more selective NE edit. Python runs: 85; forwards: 12.
+
+## Run 86: NE interference and helper recovery
+Baseline forward10 insulin shifts -12.708/+4.335, NE +.099/-1.004. NE trial reduced insulin-half response by ~1.0 and failed factual fit. Insulin-only baseline remains installed. Recovering local forward and constrained regression objects to improve detector selectivity and doubling/halving balance. Python runs: 86; forwards: 12.
+
+## Run 87: detector feasibility audit
+Inspecting contrast targets, masks, raw features and local coda helpers before closed-form selective refitting. No new weight changes; baseline77 remains installed. Python runs: 87; forwards: 12.
+
+## Run 88: NE signal/leakage frontier
+Comparing retained NE feature fits, checking basis and raw-dose units, and auditing paired factual mean/NLL shifts. Baseline77 remains installed. Python runs: 88; forwards: 12.
+
+## Run 89: consider nonlinear posterior feature route
+Retained b_in linear detectors have substantial insulin cross-response even with stronger guards. NE trial factual MAP mean shifts vary by ~1.7, so a constant debias is inadequate. Inspecting posterior hidden-feature capacity and prior local-edit experiments. No weights changed; baseline77 remains installed. Python runs: 89; forwards: 12.
+
+## Run 90: restart recovery and selective-edit audit
+Insulin-only baseline77 remains installed. Recovering architecture, prior insulin validation, and retained NE/core helpers before a different NE correction. No weights changed. Python runs: 90; forwards: 12.
+
+## Run 91: compact helper recovery
+Architecture recovered; run90 output truncated before helpers. Inspecting retained NE fits and validated insulin edit without another large architecture dump. No weights changed. Python runs: 91; forwards: 12.
+
+## Run 92: nonlinear prelude feature route
+Considering a closed-form detector on the prelude FFN's 768 hidden features rather than the 192-dimensional normalized prelude. Need held-out factual-null, admission-null, drug-specific and balanced contrast checks before a reversible trial. No weights changed. Python runs: 92; forwards: 12.
+
+## Run 93: nonlinear factual-centered NE detector fits
+Extracted 768 prelude FFN hidden features using GPU posterior means for factual bundles. Closed-form fits include a bias, exact initial admission nullspace, factual-zero penalties and insulin-contrast guards. Held-out diagnostics printed; no weights changed. Python runs: 93; forwards: 12.
+
+## Run 94: correct nonlinear feature alignment
+Run93 used inconsistent observation/action vectors on drug bundles; its feature fits are rejected. Verified factor-one posterior before rebuilding factual and edited drug features consistently. Corrected held-out fits printed. No weights changed. Python runs: 94; forwards: 12.
+
+## Run 95: corrected recurrent feature audit
+Factor-one drug posterior is exact. Rebuilt normalized prelude features with consistent drug observation/action encodings and true factual posterior means. Audited old NE detector leakage and refitted constrained 192-feature detectors before any new weight edit. Python runs: 95; forwards: 12.
+
+## Run 96: factual dose-innovation error audit
+Corrected old NE detector has materially greater factual leakage and halving than doubling sensitivity. Tested whether original next-hour arterial MAP residuals retain a cross-fitted dose-innovation signal, using only tuning records and original predictions. This is a diagnostic, not an independent causal estimate. No weights changed. Audit beta=nan, cluster SE=nan, n=0. Python runs: 96; forwards: 12.
+
+## Run 97: recover targets and fix empty residual audit
+Run96 matched zero future MAP readings; its NaNs are not evidence of a null effect. Inspecting record/prediction keys, causal estimates and model interfaces. No weights changed; baseline77 remains installed. Python runs: 97; forwards: 12.
+
+## Run 98: compact evidence and feature recovery
+Architecture and record schema recovered. Fractional infusion hours may explain the empty exact-hour residual match; recovering prior causal targets and retained feature helpers. No weights changed. Python runs: 98; forwards: 12.
+
+## Run 99: corrected timing and compact feature recovery
+Next recorded arterial matching found 947/991 NE records within two hours, avoiding fractional-hour equality. Recovering corrected features and record-derived NE dynamics. No weights changed. Python runs: 99; forwards: 12.
+
+## Run 100 results and Run 101: posterior-feature alternative
+Corrected original residual audit: n=501, beta=0.9844, cluster SE=1.0352; inconclusive diagnostic. Corrected prelude-hidden and b_in detectors have factual leakage around .37-.69 raw-dose units per unit doubling sensitivity; not yet safe to scale. Run100 completed fits but failed during its final inventory. Inspecting posterior features as a different closed-form edit route. No weights changed. Python runs: 101; forwards: 12.
+
+## Run 102: posterior detector frontier and local reconstruction
+Factor-one posterior inputs are exact. Fitted initial-admission-null posterior detectors with factual and insulin guards, evaluated by held-out stays. Checked local recurrent reconstruction against original GPU states. No weights changed. Python runs: 102; forwards: 12.
+
+## Run 103: modest corrected balanced NE trial
+Posterior route rejected as no more selective. Local original reconstruction out RMSE=.0507, so GPU tests remain decisive. Installed baseline77 plus a corrected balanced b_in NE rank-one trial, beta correction=1.0, metrics={'half_w': 3.0, 's2': 0.000950745308085738, 's_half': 0.00097385013930297, 'half_ratio': 1.0243018093497112, 'fact_per_x2': 0.37156234535742527}, NE delta norm=1104.404. Trial unaccepted pending factual and paired rollout tests. Saved ne_trial103.npz. Python runs: 103; forwards: 12.
+
+## Run 104: reject corrected NE trial
+Forward13 factual original=1.60883, trial=1.62605; +.01722 violates .005. Trial103 rejected. Recovering baseline archive and prior causal evidence. Python runs: 104; forwards: 13.
+
+## Run 107: reduced corrected NE trial
+Run106 inventory errored on a non-array; weights were unchanged. Verified trial103 composition (total error 500.611, NE-only error 0). Installed baseline77 plus .35 times trial103 NE delta; unaccepted pending paired factual and rollout tests. Python runs: 107; forwards: 13.
+
+## Run 108: reduced NE passes, but insufficient causal correction
+Forward14 NLL increase=.00402. Forward15 shifts: insulin -12.555/+4.182, NE +.587/-1.282. Reduced NE improves both signs but is far below record-derived doubling target. Investigating actual per-slot b_in perturbations and MAP-selective output directions before scaling. Python runs: 108; forwards: 15.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 109 of at most 300:
+```
+HEAD DATA
+head_meta DataFrame (4751, 15)
+head_static Tensor torch.Size([4751, 192])
+head_transition Tensor torch.Size([4751, 17])
+head_centres Tensor torch.Size([4751, 17])
+head_input Tensor torch.Size([4751, 192])
+state_x Tensor torch.Size([4751, 992])
+flow_h Tensor torch.Size([4751, 4, 192])
+dt0 Tensor torch.Size([4751, 1])
+state_df DataFrame (4356, 6)
+recon_e Tensor torch.Size([4356, 192])
+recon_u Tensor torch.Size([4356, 192])
+recon_context Tensor torch.Size([4356, 192])
+HEAD METADATA COLUMNS ['stay_id', 'hour', 'event', 'code', 'state_row', 'dt', 'last_z', 'last_bin', 'age', 'has_last', 'observed', 'gpu_mean', 'gpu_nll', 'local_mean', 'mean_error']
+   stay_id  hour       event  code  state_row     dt  last_z  last_bin  age  has_last  observed  gpu_mean  gpu_nll  local_mean  mean_error
+2020000000  -1.0 glucose_lab    10          0 3600.0     0.0         0  0.0       0.0     148.0  143.9628   2.2533  147.769928    3.807128
+2020000000  -1.0    map_cuff     5          0 3600.0     0.0         0  0.0       0.0      58.0   80.8695   2.7317   79.078674   -1.790826
+VOCAB KEYS ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+VALUE EDGE EXAMPLE {}
+CORE CONFIGURATION
+LOCAL VARIABLES ('z', 'config', 'h_flow', 'e', 'u', 'memory_data', 'nheads', 'age_divisor', 'age_mode', 'include_current', 'h', 'memory', 'age_seconds', 'valid', 'ages', 'tokens', 'E', 'base', 'uu', 'p', 'delta', 'abar', 'hnew', 'y', 'out')
+END_CFG {'end_numeric': 'absent', 'end_units': 'code', 'rmse': 0.04775621369481087}
+head_cfg [4]
+cfg (4, 10.0, 'both', False)
+core_best_cfg (4, 1.0, 'both', True)
+core_config45 (4, 1.0, 'both', True)
+MEMORY EXAMPLE
+dict 2
+tuple
+[('Tensor', torch.Size([32, 51, 192])), ('Tensor', torch.Size([32, 51, 1])), ('Tensor', torch.Size([32, 51]))]
+CONFIG/MEMORY BYTECODE
+RESUME 
+LOAD_FAST config
+UNPACK_SEQUENCE 
+STORE_FAST nheads
+STORE_FAST age_divisor
+STORE_FAST age_mode
+STORE_FAST include_current
+LOAD_FAST h_flow
+POP_JUMP_IF_NOT_NONE to 32
+LOAD_GLOBAL core_h_flow
+JUMP_FORWARD to 34
+LOAD_FAST h_flow
+LOAD_FAST u
+STORE_FAST u
+LOAD_FAST memory_data
+POP_JUMP_IF_NOT_NONE to 98
+LOAD_GLOBAL core_memories
+LOAD_FAST include_current
+BINARY_SUBSCR 
+JUMP_FORWARD to 100
+LOAD_FAST memory_data
+UNPACK_SEQUENCE 
+STORE_FAST memory
+STORE_FAST age_seconds
+STORE_FAST valid
+LOAD_GLOBAL NULL + core_ffn
+LOAD_GLOBAL NULL + torch
+LOAD_ATTR log1p
+LOAD_FAST age_seconds
+LOAD_ATTR NULL|self + clamp_min
+LOAD_CONST 0
+Traceback (most recent call last):
+  File "<run>", line 42, in <module>
+TypeError: can only concatenate tuple (not "Tensor") to tuple
+
+```

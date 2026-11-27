@@ -1,0 +1,9 @@
+Still broken: restoring `B` wasn't enough — run 293 also clobbered `rows` and `EU`, and `stay_data` depends on one of those too. With 2 Python runs left I'm abandoning local simulation and will spend forward passes instead, which I have in abundance (44).
+
+The urgent unknown is the factual cost of the currently saved edit. I verified NLL only on the glucose panel; the MAP tilt at scale 7 has a local spread of ~6.2 mmHg against a predictive variance of 33, which could cost ~0.5 nats on MAP readings and blow the 0.005 budget. I must measure it before choosing the final scale.
+
+Confirming outcome: if the edited overall value NLL is within +0.005 of the original I have headroom to push harder; if MAP NLL is far worse, I must shrink the map gain sharply.
+
+```forward
+{"type": "factual", "model": "both", "split": "tuning", "stays": [2020000103, 2020000007, 2020000131, 2020000277, 2020000029, 2020000194, 2020000011, 2020000251, 2020000252, 2020000163, 2020000152, 2020000305, 2020000284, 2020000192, 2020000009, 2020000212, 2020000225, 2020000282, 2020000172, 2020000042, 2020000335, 2020000349, 2020000378, 2020000380, 2020000218, 2020000285, 2020000097, 2020000348, 2020000139, 2020000054, 2020000157, 2020000215, 2020000356, 2020000393, 2020000027, 2020000341, 2020000372, 2020000229, 2020000311, 2020000288, 2020000178, 2020000256, 2020000333, 2020000181, 2020000245, 2020000200, 2020000240, 2020000379, 2020000089, 2020000154, 2020000353, 2020000201, 2020000049, 2020000279, 2020000128, 2020000216, 2020000162, 2020000002, 2020000101, 2020000390, 2020000269, 2020000195, 2020000019, 2020000082, 2020000391, 2020000268, 2020000295, 2020000303, 2020000373, 2020000141, 2020000262, 2020000319, 2020000001, 2020000182, 2020000023]}
+```

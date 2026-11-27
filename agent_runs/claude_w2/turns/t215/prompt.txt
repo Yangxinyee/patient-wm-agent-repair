@@ -1,0 +1,180 @@
+OUTPUT of Python run 209 of at most 300:
+```
+
+GLC=[CODE['glucose_finger'],CODE['glucose_lab']]; MPC=[CODE['map_arterial'],CODE['map_cuff']]
+def tilt_P(P,cen,r,iters=4):
+    p=P[:,1:].double(); s=p.sum(1,keepdim=True); p=p/s; c=cen.double(); r=torch.as_tensor(r,dtype=torch.float64)
+    mu0=(p*c).sum(1); var0=((p*c*c).sum(1)-mu0**2).clamp(min=1e-3); beta=r/var0
+    lp=torch.log(p.clamp(min=1e-30))
+    for _ in range(iters):
+        q=torch.softmax(lp+beta[:,None]*c,1); mu=(q*c).sum(1); var=((q*c*c).sum(1)-mu**2).clamp(min=1e-3)
+        beta=beta+(mu0+r-mu)/var
+    q=torch.softmax(lp+beta[:,None]*c,1); Pn=P.clone().double(); Pn[:,1:]=q*s; return Pn.float()
+def dose_stack(R,arms,drug): return np.stack([dose_grid(R,drug,arm_mult(R,a,drug)) for a in arms])
+def lag_diff(DG,a,si,tau,L=12):
+    X=np.zeros((len(si),L))
+    for k in range(1,L+1):
+        ix=tau-k+3; ok=ix>=0
+        X[ok,k-1]=DG[a[ok],si[ok],ix[ok]]-DG[0,si[ok],ix[ok]]
+    return X
+def make_oracle(R,DGi,Gi,DGn=None,Gn=None):
+    A=R['A']; code=A.code.values; tt=A.t.values
+    def hook(k,hn_,hj,P,ctx):
+        P=P.clone()
+        for codes_,DG,Gf in [(GLC,DGi,Gi),(MPC,DGn,Gn)]:
+            if DG is None: continue
+            m=np.isin(code[hj],codes_)
+            if not m.any(): continue
+            si=ctx['seq_si'][hn_[m]]; a=ctx['seq_arm'][hn_[m]]; tau=np.round(tt[hj[m]]).astype(int)
+            r=lag_diff(DG,a,si,tau,len(Gf))@Gf
+            if np.abs(r).max()==0: continue
+            cen=torch.as_tensor(CENT[code[hj[m]]],dtype=torch.float32)
+            P[torch.as_tensor(np.where(m)[0])]=tilt_P(P[torch.as_tensor(np.where(m)[0])],cen,r)
+        return P
+    return hook
+def truth_rows(R,DG,a,rows,Kf):
+    A=R['A']; si=A.si.values[rows]; tau=np.round(A.t.values[rows]).astype(int)
+    return lag_diff(DG,np.full(len(rows),a),si,tau,len(Kf))@Kf
+def G_from_K(K,kap):
+    G=np.zeros(len(K))
+    for m in range(len(K)): G[m]=K[m]-kap*G[:m].sum()
+    return G
+
+def make_dev_oracle(R,DGi,Gf,t_hide=13.0,pf=None):
+    A=R['A']; code=A.code.values; tt=A.t.values; val=A.value.values; loc=A['loc'].values; S_=len(R['stays'])
+    GFI=np.full((S_,32),-1); GLI=np.full((S_,32),-1)
+    for cc,arr in [(CODE['glucose_finger'],GFI),(CODE['glucose_lab'],GLI)]:
+        m=np.where((code==cc)&(np.abs(tt-np.round(tt))<1e-6))[0]; arr[A.si.values[m],np.round(tt[m]).astype(int)+3]=m
+    def gval(n,j,drawn):
+        v=val[j].astype(float).copy(); hid=tt[j]>=t_hide
+        if hid.any(): b=drawn[n[hid],loc[j[hid]]]; v[hid]=CENT[code[j[hid]],np.maximum(b,1)-1]
+        return v
+    def devs(n,si,a,tau,drawn,L):
+        D=np.zeros((len(n),L))
+        for kk in range(1,L+1):
+            ix=tau-kk+3; ok=ix>=0; ixc=np.clip(ix,0,31)
+            d=DGi[a,si,ixc]; jf=GFI[si,ixc]; jl=GLI[si,ixc]; g=np.full(len(n),np.nan)
+            m1=ok&(jf>=0); g[m1]=gval(n[m1],jf[m1],drawn); m2=ok&(jf<0)&(jl>=0); g[m2]=gval(n[m2],jl[m2],drawn)
+            p=np.where(np.isnan(g),0.0,pf(np.nan_to_num(g))); D[:,kk-1]=np.where(ok,d-p,0.0)
+        return D
+    def hook(k,hn_,hj,P,ctx):
+        m=np.isin(code[hj],GLC)
+        if not m.any(): return P
+        n=hn_[m]; si=ctx['seq_si'][n]; a=ctx['seq_arm'][n]; tau=np.round(tt[hj[m]]).astype(int)
+        r=devs(n,si,a,tau,ctx['drawn'],len(Gf))@Gf
+        P=P.clone(); ii=torch.as_tensor(np.where(m)[0])
+        P[ii]=tilt_P(P[ii],torch.as_tensor(CENT[code[hj[m]]],dtype=torch.float32),r); return P
+    hook.devs=devs; return hook
+
+=====cf.py=====
+
+import numpy as np, torch, pandas as pd, time
+def arm_embed(R,W,arm):
+    A=R['A'].copy()
+    for drug,key in [('insulin','ins'),('norepinephrine','ne')]:
+        m=((A.code==CODE[drug])&(A.kind==0)).values
+        if key+'_mult' in arm:
+            mult=np.asarray(arm[key+'_mult'],dtype=float)
+            A.loc[m,'rate']=A.rate.values[m]*mult[m]; A.loc[m,'dose']=A.dose.values[m]*mult[m]; continue
+        f,h0=arm.get(key,1.0),arm.get(key+'_from',12.0)
+        m=m&(A.t.values>=h0)
+        if arm.get(key+'_drop',False) and f==0: A.loc[m,['rate','dose']]=np.nan
+        else: A.loc[m,'rate']=A.rate.values[m]*f; A.loc[m,'dose']=A.dose.values[m]*f
+    return embed(A,atom_features(A),W)
+def arm_mult(R,arm,drug):
+    """per-row multiplier actually applied to drug START rows"""
+    A=R['A']; key={'insulin':'ins','norepinephrine':'ne'}[drug]
+    m=((A.code==CODE[drug])&(A.kind==0)).values; mult=np.ones(len(A))
+    if key+'_mult' in arm: mult=np.where(m,np.asarray(arm[key+'_mult'],dtype=float),1.0); return mult
+    f,h0=arm.get(key,1.0),arm.get(key+'_from',12.0); mult[m&(A.t.values>=h0)]=f; return mult
+def dose_grid(R,drug,mult=None):
+    """G[si, h+3] = rate of infusion starting in hour h (h=-3..27)"""
+    A=R['A']; m=((A.code==CODE[drug])&(A.kind==0)).values
+    G=np.zeros((len(R['stays']),32))
+    r=A.rate.values[m]*(1.0 if mult is None else mult[m]); hr=np.floor(A.t.values[m]+1e-6).astype(int)
+    np.add.at(G,(A.si.values[m],hr+3),np.nan_to_num(r))
+    return G
+def cf_collect(df,ids,arms,W,seed=0):
+    R=prep_rollout(df,ids); store=[]; t0=time.time()
+    res=run_rollout(R,W,arms,n_paths=1,seed=seed,t_hide=1e9,want_nll=True,store=store)
+    HN=np.concatenate([s[0] for s in store]); HJ=np.concatenate([s[1] for s in store])
+    D=dict(n=HN,j=HJ,base=torch.cat([s[2] for s in store]),P=torch.cat([s[3] for s in store]),
+           f8=torch.cat([s[4] for s in store]),lb=torch.cat([s[5] for s in store]),zmu=torch.cat([s[6] for s in store]))
+    nA=len(arms); D['si']=HN//nA; D['arm']=HN%nA
+    A=R['A']; D['code']=A.code.values[HJ]; D['t']=A.t.values[HJ]; D['value']=A.value.values[HJ]
+    cen=torch.as_tensor(CENT[D['code']],dtype=torch.float32); D['pm']=(D['P'][:,1:]*cen).sum(1).numpy()
+    print('collect %.1fs, %d head rows'%(time.time()-t0,len(HN)))
+    return R,res,D
+
+=====diff rollout.py -> rollout_h2.py=====
+--- 
++++ 
+@@ -1,34 +1,3 @@
+-
+ import numpy as np, torch, torch.nn.functional as F, math, pandas as pd
+-GLU=('glucose_finger','glucose_lab'); 
+-def _cen_table():
+-    cm=np.zeros((13,16)); 
+-    for nm,arr in V['value_bin_centres'].items(): cm[CODE[nm]]=np.array(arr)
+-    return cm
+-CENT=_cen_table()
+-def _z(code,x):
+-    nd=NUMD[(CNAME[code],'value')]; return np.clip((x-nd['median'])/nd['iqr'],-10,10)
+-def prep_rollout(df, ids):
+-    A=make_atoms(df[df.stay_id.isin(ids)])
+-    stays=np.array(sorted(A.stay_id.unique())); s_of={s:i for i,s in enumerate(stays)}
+-    A['si']=A.stay_id.map(s_of).values
+-    A=A.sort_values(['si','minute','kind','code'],kind='stable').reset_index(drop=True)
+-    A.loc[A.kind==2,['rate','dose']]=np.nan
+-    nb=A.groupby('si').bidx.max().values+1; Kmax=int(nb.max())
+-    tb=np.full((len(stays),Kmax),np.nan); g=A.groupby(['si','bidx']).t.first()
+-    tb[g.index.get_level_values(0),g.index.get_level_values(1)]=g.values
+-    A['loc']=A.groupby('si').cumcount().values
+-    atoms_sk={}
+-    for (si,k),idx in A.groupby(['si','bidx']).indices.items(): atoms_sk[(si,k)]=np.asarray(idx)
+-    return dict(A=A,stays=stays,nb=nb,Kmax=Kmax,tb=tb,atoms_sk=atoms_sk,maxloc=int(A['loc'].max())+1)
+-def arm_embed(R,W,arm):
+-    A=R['A'].copy()
+-    for drug,key in [('insulin','ins'),('norepinephrine','ne')]:
+-        f,h0=arm.get(key,1.0),arm.get(key+'_from',12.0)
+-        m=(A.code==CODE[drug])&(A.kind==0)&(A.t>=h0)
+-        if arm.get(key+'_drop',False) and f==0: 
+-            A.loc[m,['rate','dose']]=np.nan
+-        else: A.loc[m,'rate']*=f; A.loc[m,'dose']*=f
+-    return embed(A,atom_features(A),W)
+-def run_rollout(R,W,arms,n_paths=20,seed=0,t_hide=13.0,want_nll=False,chunk=None,store=None,store_h=False):
++def run_rollout_h2(R,W,arms,n_paths=20,seed=0,t_hide=13.0,want_nll=False,chunk=None,store=None,store_h=False,hook_P=None,hook_draw=None,hook_state=None,hook_pre=None,hook_z=None):
+     A=R['A']; S_=len(R['stays']); nA=len(arms); Kmax=R['Kmax']; nb=R['nb']; tb=R['tb']
+@@ -94,2 +63,3 @@
+             P=P/4
++            if hook_P is not None: P=hook_P(k,hn_,hj,P,dict(seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p,drawn=drawn,base=base,inv=inv,out=out,h=h,un=un))
+             if store is not None: store.append((hn_.copy(),hj.copy(),base[inv].clone(),P.clone(),f8.clone(),lb_.clone(),zmu[inv].clone(),(h[un][inv].reshape(len(hj),-1).clone() if store_h else None),(out[un][inv].clone() if store_h else None)))
+@@ -109,2 +79,3 @@
+                 drawn[hn_[hd],A['loc'].values[hj[hd]]]=b
++                if hook_draw is not None: hook_draw(k,hn_[hd],hj[hd],drawn,dict(seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p))
+         # ---- embeddings of bundle k atoms
+@@ -131,2 +102,4 @@
+         z=mlp(torch.cat([ctx,e,u],-1),W,'z_post')[:,:32]
++        if hook_z is not None: z=hook_z(k,act_n,z,ctx,e,u,dict(seq_si=seq_si,seq_arm=seq_arm))
++        if hook_pre is not None: hook_pre(k,act_n,hf,ctx,e,u,z,dict(seq_si=seq_si,seq_arm=seq_arm))
+         Xt=torch.cat([hf+W['core.slots'][None],e[:,None],u[:,None],F.linear(z,W['z_in.weight'],W['z_in.bias'])[:,None]],1)
+@@ -147,2 +120,3 @@
+         h[act_n]=y; out[act_n]=LN(y.mean(1),W,'core.out_norm')
++        if hook_state is not None: hook_state(k,act_n,h,out,dict(seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p,e=e,u=u,Ep=Ep,hn=hn))
+         # ---- registers
+@@ -157,23 +131 @@
+     return dict(pm=pm_rec,nll=nll_rec,seq_si=seq_si,seq_arm=seq_arm,seq_p=seq_p,drawn=drawn)
+-def _z_vec(c,x):
+-    med=np.array([NUMD[(CNAME[ci],'value')]['median'] if (CNAME[ci],'value') in NUMD else 0 for ci in range(13)])
+-    iqr=np.array([NUMD[(CNAME[ci],'value')]['iqr'] if (CNAME[ci],'value') in NUMD else 1 for ci in range(13)])
+-    return np.clip((x-med[c])/iqr[c],-10,10)
+-def readout(R,res,arms,drug='insulin',outcome='glucose_finger',t0=12.0,arm_ids=None,lo=13,hi=24):
+-    A=R['A']; code=A.code.values; tt=A.t.values
+-    rows=np.where((code==CODE[outcome])&(tt>=lo)&(tt<=hi+1e-9))[0]
+-    dr=A[(A.code==CODE[drug])&(A.kind==0)&(A.t>=t0)]
+-    first_dr=dr.groupby('si').t.min()
+-    reached=np.array([ (A.si.values[j] in first_dr.index) and (first_dr[A.si.values[j]]<tt[j]) for j in rows])
+-    pm=res['pm']; seq_si=res['seq_si']; seq_arm=res['seq_arm']; seq_p=res['seq_p']
+-    nP=seq_p.max
+[output cut at 10,000 characters]
+```

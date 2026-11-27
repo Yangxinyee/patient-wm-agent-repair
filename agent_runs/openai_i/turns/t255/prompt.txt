@@ -1,0 +1,111 @@
+OUTPUT of Python run 227 of at most 300:
+```
+SELECTED DYNAMICS / IDENTIFICATION NOTES
+## Resumed investigation ? Python 6; forward 2
+- Re-reading architecture, tensor inventory, and retained analysis objects before designing an edit.
+- No weights changed. Insulin ~-2 and post-startup NE ~+3 remain provisional record-based estimates.
+
+
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        
+## Python 68; forward 6 ? recovered identification
+- No weights edited. Record-based crossfit estimates support insulin about -2 and NE about +3 per rate unit at the next reading.
+- Insulin RD and pre-dose placebo provide complementary evidence; hour-0 NE estimates are less reliable.
+- Recovering impulse persistence and exact recurrent computations to choose a shared-state correction, not a sensor-only adjustment.
+
+
+## Python 191 ? expose recurrent-input features
+- Capturing the prelude E that feeds core.b_in, without changing weights or using gradients.
+- Will test dose-innovation decoding and downstream response before any installation.
+
+
+## Python 192 ? validate independent prelude features
+- Comparing captured E with a standalone prelude computation and checking full-data input alignment.
+- No weight changes; rate-decoder neutrality and held-stay dose response will decide viability.
+
+
+## Python 221 ? reject large-anchor compensation; test small-anchor selection
+- Large-anchor FFN compensation held RMS remains 0.600; not installed.
+- Tested closed-form latent-token selectors on stay-held bundles with progressively smaller anchors.
+- Neutral209 remains installed, with zero treatment-response columns.
+
+
+## Python 222 ? small-signal, anchor-free routing candidate
+- Built isolated innovation axes; latent-token selector uses no anchor.
+- Best held attention RMS 0.219222; best held final-slot RMS 0.319911.
+- Saved small_route222.npz with zero response output columns. Not installed yet; requires factual validation.
+
+
+
+ROUTING GEOMETRY
+private_cols222 shape (2,) norm 20.0 values [16 12]
+hs222 shape () norm 48.0 values [48]
+signal_scale222 shape () norm 0.02093949556350708 values [0.0209395]
+slope222 shape () norm 0.8313329730457341 values [0.83133297]
+gate222 shape (192,) norm 0.3074114649364578 values [-0.02429098 -0.00682854  0.0094558  -0.03653604 -0.01139642 -0.02203674
+ -0.01206406  0.02772975]
+axes222 shape (192, 2) norm 1.414213562373095 values [ 0.0371821   0.06110608 -0.12484629 -0.0241151   0.00765291 -0.07775421
+ -0.05822085  0.06947571]
+constant222 shape (192,) norm 37.340958947425385 values [2.73202929 2.58333384 2.73368248 2.95321638 2.60517505 2.66998308
+ 2.84158911 2.66983261]
+baseW222 shape (192, 32) norm 8.964236377849241 values [ 0.10726361  0.1135022   0.02290693  0.11380506  0.10968833 -0.12214267
+  0.15121225  0.19248067]
+baseb222 shape (192,) norm 1.5116328401613393 values [ 0.0202652   0.1005407   0.17798941 -0.01631068 -0.05004396  0.12317497
+ -0.04368902 -0.07191447]
+Reserved output column norms [9.01272038 3.68271499]
+W distance from original / installed
+z_in.weight 0.0 3.0792033672332764
+core.prelude.0.attn.out.weight 0.0 169.87693786621094
+
+REPLAY / CORE CONTRACTS
+core_step136 args ('h_before', 'dt_seconds', 'e', 'u', 'z', 'memory', 'ages', 'age_mode', 'mask') locals ('h', 'tokens', 'E', 'base', 'recurrent', 'j', 'delta', 'abar', 'hnew', 'out') globals ('torch', 'exp', 'W', 'cat', 'linear136', 'norm136', 'block136', 'range', 'F', 'softplus', 'mean')
+call_core161 args ('args', 'age_mode') locals ('first', 'second') globals ('core_step136', 'ndim')
+linear136 args ('x', 'prefix') locals () globals ('F', 'linear', 'W', 'get')
+mlp136 args ('x', 'prefix') locals () globals ('linear136', 'F', 'gelu')
+encode_actions168 args ('scales',) locals ('rr', 'row', 'r', 'j') globals ('act_rows152', 'dict', 'float', 'append', 'encode_rows152', 'act_groups152', 'len')
+replay_action_token216 args ('shifts', 'action_inputs', 'batch_size') locals ('injected_linear', 'result_h', 'result_o', 'positions', 'offset', 'jj', 'k', 'j', 'packed', 'hh', 'oo') globals ('linear136', 'torch', 'empty', 'n182', 'groups182', 'values', 'range', 'len', 'cat', 'args_cache182', 'ids182', 'call_core161', 'tuple')
+batch_replay182 args ('Uall',) locals ('newpost', 'result_h', 'result_o', 'length', 'js', 'offset', 'jj', 'k', 'j', 'packed', 'hh', 'oo') globals ('mlp136', 'torch', 'cat', 'context', 'ids182', 'e_cal161', 'empty', 'n182', 'groups182', 'items', 'range', 'len', 'args_cache182', 'oldpost182', 'call_core161', 'tuple')
+
+FIRST CACHED ARGUMENT
+[((1, 4, 192), 'torch.float32'), ((1,), 'torch.float32'), ((1, 192), 'torch.float32'), ((1, 192), 'torch.float32'), ((1, 32), 'torch.float32'), ((1, 6, 192), 'torch.float32'), ((1, 6), 'torch.float32')]
+ids182 [  5   9  24  36 258 262 271 275 502 516] range (np.int64(5), np.int64(4006))
+input196 (4035, 576)
+all_z201 (4035, 32)
+private_z209 (4035, 32)
+context (4035, 192)
+reg_terms182 (258, 4, 192)
+centres214 (4, 17)
+gap_seconds182 (258,)
+
+ACTION REPLAY INTERCEPT
+              0 COPY_FREE_VARS           2
+
+ 39           2 RESUME                   0
+
+ 40           4 PUSH_NULL
+              6 LOAD_DEREF               3 (original_linear)
+              8 LOAD_FAST                0 (x)
+             10 LOAD_FAST                1 (prefix)
+             12 CALL                     2
+             20 STORE_FAST               2 (y)
+
+ 41          22 LOAD_FAST                1 (prefix)
+             24 LOAD_CONST               1 ('z_in')
+             26 COMPARE_OP              40 (==)
+             30 POP_JUMP_IF_FALSE        8 (to 48)
+             32 LOAD_FAST                2 (y)
+             34 LOAD_DEREF               4 (shift_box)
+             36 LOAD_CONST               2 (0)
+             38 BINARY_SUBSCR
+             42 BINARY_OP                0 (+)
+             46 RETURN_VALUE
+        >>   48 LOAD_FAST                2 (y)
+             50 RETURN_VALUE
+
+```

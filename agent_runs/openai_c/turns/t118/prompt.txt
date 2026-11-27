@@ -1,0 +1,258 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes). The weight values themselves are not available to you.
+   - You edit the model with operations. They are applied in order to the original weights whenever the forward tool runs
+     the edited model, and at the evaluation:
+     scale(name, c): multiply a whole tensor by the number c;
+     rank1(name, vector, alpha, side="out"): a rank-1 update along the unit direction v of the vector. With side "out" (v
+     has shape[0] entries), W <- W + alpha * v (v^T W): the tensor's output component along v is scaled by 1 + alpha.
+     With side "in" (2-D tensors, v has shape[1] entries), W <- W + alpha * (W v) v^T. For a 1-D tensor,
+     w <- w + alpha * v (v . w);
+     ops() lists the operations, undo() removes the last one, and clear_ops() removes them all.
+     Directions can come from anything you compute: the records, or the states the forward tool returns.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 117 replies happened before. Forward passes used: 32 of 50; Python runs used: 82 of 300. Your kernel is still running with its variables. Operations so far: ['1. rank1 embed.numeric.weight']. Files in /work: ['fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md', 'ops.json', 'vectors'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ amplification pilot
+- Recovered existing gain-16 results: factual +0.00246, insulin -2.231/+1.531, NE +0.157/+0.085. No new forward pass spent; restored numeric gain 4.
+- Installed query_norm.weight scale 1.5, leaving its bias and reading registers unchanged.
+- Hypothesis: stronger state contribution at the reading head increases dose sensitivity. Factual safety is untested.
+- Forward passes used: 22.
+
+## Forward 23 / Python run 54: uniform query gain rejected
+- Query gamma x1.5 plus numeric gain 4: factual NLL 1.72639 vs 1.63461, +0.09178.
+- Restored numeric gain 4. The paired query-only changes relative to forward 9 can be used as an empirical head-sensitivity probe, not as an accepted repair.
+- Next assess whether a selective head correction can be predicted and made factual-safe.
+- Forward passes used: 23.
+
+## Restart / Python run 55
+- Forward 24 collected original and numeric-gain-4 factual states on 100 tuning stays.
+- Recovering architecture and comparing paired states before designing another selective edit.
+- No edits changed. Forward passes used: 24.
+
+## Python run 56
+- Retrieving paired-state diagnostics and compact causal/candidate evidence after run 55 output truncation.
+- No edits changed; forward passes used: 24.
+
+## Python run 57
+- Paired states show numeric gain alters z more strongly than normalized out.
+- Record-based immediate slopes remain about -1.93 insulin and +3.1 norepinephrine.
+- Inspecting rollout accumulation and reading-feedback pathways before another pilot.
+- No edits changed; forward passes used: 24.
+
+## Python run 58
+- Recovered training-population targets: insulin -12.515/+6.257; NE +4.673/-2.336.
+- Persistence estimates: insulin rho 0.841, NE rho 0.673.
+- Locating saved rollout files and aligning paired states with factual predictions.
+- No edits changed; forward passes used: 24.
+
+## Python run 59: controlled head-response estimation
+- Aligned factual readings with preceding original/numeric-gain-4 states.
+- Fitting stay-held-out regressions to paired numeric and query-gain prediction changes.
+- These are empirical perturbation responses, not observational outcome associations.
+- No edits changed; forward passes used: 24.
+
+## Python runs 60-61: time-flow pilot installed
+- Run 60 applied numeric gain 4 plus core.flow.a x1.15, then failed only during candidate saving.
+- Run 61 saved the existing candidate without repeating the edits.
+- Controlled head regressions fit their own perturbations but fail cross-perturbation transfer.
+- Testing whether between-bundle decay suppresses drug information; factual NLL is untested.
+- Forward passes used: 24.
+
+## Restart / Python run 62
+- Current candidate remains numeric gain 4 plus core.flow.a x1.15.
+- Recovering architecture and tuning IDs before factual validation; no edits changed.
+- Forward passes used: 24.
+
+## Forward 25 / Python run 63: flow edit rejected
+- core.flow.a x1.15 factual NLL 1.73963 vs 1.63461, increase +0.10502.
+- Removed flow scaling; restored numeric gain 4 alone.
+- Recovering early causal evidence and selective action/readout designs.
+- Forward passes used: 25.
+
+## Python run 64
+- Recovered training-only causal identification: insulin about -2 and NE about +3 per rate unit immediately, with persistence.
+- Reviewing earlier action-path tests and existing transform helpers before another selective experiment.
+- Numeric gain 4 retained; forward passes used: 25.
+
+## Python run 65
+- Reviewing prior selective-head tests and possible recurrent-state correction locations.
+- No edits changed; numeric gain 4 remains installed; forward passes used: 25.
+
+## Python run 66: prior-head ablation
+- Installed numeric gain 4 plus z_head.weight x0; z_head.bias and recurrent latent pathways unchanged.
+- Hypothesis: prior-latent reading contribution masks a more useful direct recurrent dose response.
+- This is an exploratory pathway test, not an established causal correction.
+- Require factual increase <=0.005, then assess all four dose rollouts.
+- Forward passes used: 25.
+
+## Restart / Python run 67
+- Prior-head ablation rollout remains weak: insulin -2.273/+1.446, NE +0.064/-0.128.
+- Recovering architecture, factual pass 26, and early diagnostics before deciding the next edit.
+- Forward passes used: 27; current edits unchanged pending inspection.
+
+## Python run 68: prior-head ablation rejected
+- Factual increase +0.00249 nats passed the probe constraint, but all drug responses remain weak.
+- Removed z_head.weight ablation; restored numeric gain 4 alone.
+- Reviewing earlier selective edits and available state estimators. Forward passes: 27.
+
+## Python run 71: alignment audit
+- Numeric gain 4 retained. Comparing conditional drug-state directions under original and gain-4 weights.
+- Earlier selective corrections used original-state directions; checking whether this mismatch explains failure.
+- No new forward pass; passes used: 27.
+
+## Python run 72: gain-4 direction recalibration
+- Gain 4 changes the NE out direction markedly (old/new cosine -0.070 in run 71).
+- Checking stay-split stability and minimum-factual-variance sensors using gain-4 states.
+- No new edits or forward passes; passes used: 27.
+
+## Python run 73: recalibrated head pilot
+- Gain-4 dose directions are stable across stay halves: cosine 0.890 insulin, 0.948 NE.
+- New factual sensor SD: insulin 1.096, NE 0.222 rate units at ridge 1e-4.
+- Installed numeric gain 4 plus 20%-strength input shear on attr_heads.value_bin.0.weight.
+- Surrogate increments: insulin/glucose -0.270, NE/MAP +0.588 per rate unit.
+- Factorization verified; factual and rollout behavior remain untested. Forward passes: 27.
+
+## Python run 74: restart recovery
+- Re-reading architecture and recovering tuning IDs and pilot variables.
+- Current recalibrated head pilot remains installed; no edits changed.
+- Factual safety and rollout usefulness are still untested. Forward passes: 27.
+
+## Forward 28 / Python run 75: recalibrated pilot too strong
+- Strength 0.20: factual NLL 1.64358 vs 1.63461, increase +0.00897.
+- Saved its operation vectors and effective head transform in kernel variables.
+- Removed the head correction; numeric gain 4 alone is restored.
+- Inspecting the transform for a weaker, factual-safe pilot. Forwards used: 28.
+
+## Python run 76: half-strength recalibrated pilot
+- Installed numeric gain 4 plus the same head shear at strength 0.10.
+- Strength 0.20 failed factual fit by +0.00897; testing a weaker version.
+- Factual and rollout behavior at this strength remain untested. Forwards: 28.
+
+## Forwards 29–30 / Python run 77: head pilot rejected; identity pilot
+- Head strength 0.10 factual increase +0.00303 passed the probe constraint.
+- Rollouts: insulin -2.561/+1.697; NE +0.100/+0.016. Negligible benefit.
+- Removed head shear; retained numeric gain 4.
+- New exploratory test zeros only insulin and NE rows of embed.code.weight.
+- Numeric doses/rates, fine bins, kinds and units remain available.
+- Hypothesis: fixed treatment-identity components mask useful dose variation.
+- Factual safety and rollout benefit remain untested. Forward passes: 30.
+
+## Restart / Python run 78
+- Forward 31 identity ablation increased factual NLL by +0.00658; rejected.
+- Removed both drug-code row ablations; restored numeric gain 4 alone.
+- Recovering architecture, early causal evidence, and saved helpers before another selective edit.
+- Forward passes used: 31; 19 remain.
+
+## Python run 81: identity-path diagnostic
+- Reinstalled numeric gain 4 plus full insulin/NE code-row removal solely to measure dose sensitivity.
+- This strength is NOT acceptable for submission: forward 31 factual increase was +0.00658.
+- A material rollout improvement would justify partial removal; otherwise abandon this pathway.
+- Forward passes used: 31; 19 remain.
+
+## Forward 32 / Python run 82
+- Full identity removal: insulin -2.232/+1.670, NE +0.203/-0.273; rejected.
+- Numeric gain 4 alone restored. Inspecting paired controlled state perturbations.
+- Forward passes used: 32; 18 remain.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 82 of at most 300:
+```
+RESTORED: [{'op': 'rank1', 'name': 'embed.numeric.weight', 'alpha': 3.0, 'side': 'in'}]
+
+VOCAB KEYS: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+
+PAIRED STATE FILES: ['summary.json', 'states_original.npz', 'states_edited.npz']
+original [('x', (4035, 992)), ('stay_id', (4035,)), ('hour', (4035,)), ('has_insulin', (4035,)), ('has_norepinephrine', (4035,)), ('n_atoms', (4035,))]
+stay_id [1010000000 1010000000 1010000000 1010000000]
+hour [-2.     -1.      0.      0.0833]
+has_insulin [False False False  True]
+has_norepinephrine [False False False False]
+n_atoms [1 2 4 1]
+edited [('x', (4035, 992)), ('stay_id', (4035,)), ('hour', (4035,)), ('has_insulin', (4035,)), ('has_norepinephrine', (4035,)), ('n_atoms', (4035,))]
+stay_id [1010000000 1010000000 1010000000 1010000000]
+hour [-2.     -1.      0.      0.0833]
+has_insulin [False False False  True]
+has_norepinephrine [False False False False]
+n_atoms [1 2 4 1]
+
+NUMERIC DOSE DIRECTION: [0.         0.         0.70710678 0.         0.70710678 0.        ]
+CONTROL COLUMNS: ['glucose_finger', 'glucose_finger_previous', 'glucose_finger_previous2', 'glucose_finger_observed', 'glucose_finger_square', 'glucose_lab', 'glucose_lab_previous', 'glucose_lab_previous2', 'glucose_lab_observed', 'glucose_lab_square', 'map_arterial', 'map_arterial_previous', 'map_arterial_previous2', 'map_arterial_observed', 'map_arterial_square', 'map_cuff', 'map_cuff_previous', 'map_cuff_previous2', 'map_cuff_observed', 'map_cuff_square', 'insulin_previous', 'insulin_previous2', 'norepinephrine_previous', 'norepinephrine_previous2', 'hour', 'hour_square', 'glucose_finger_age', 'glucose_finger_change', 'glucose_finger_past_mean', 'glucose_finger_baseline', 'glucose_lab_age', 'glucose_lab_change', 'glucose_lab_past_mean', 'glucose_lab_baseline', 'map_arterial_age', 'map_arterial_change', 'map_arterial_past_mean', 'map_arterial_baseline', 'map_cuff_age', 'map_cuff_change', 'map_cuff_past_mean', 'map_cuff_baseline', 'insulin_past_mean', 'norepinephrine_past_mean']
+PAIRED ARRAY SHAPES: {'xo': (4035, 992), 'xe': (4035, 992), 'delta_state': (4035, 992), 'before': (4035, 992)}
+
+```

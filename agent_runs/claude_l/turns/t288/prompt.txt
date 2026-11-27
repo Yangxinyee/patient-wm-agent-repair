@@ -1,0 +1,52 @@
+OUTPUT of Python run 265 of at most 300:
+```
+
+def bstep_z(W,out,h,dt,e,u,Mt,ages,zfn=None,info=None):
+    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+    g=bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+    ctx=out+bln(W,hf.mean(1),'core.out_norm')+g
+    if zfn is None:
+        z=bmlp(W,torch.cat([ctx,e,u],-1),'z_post')[:,:32]; zt=blin(W,z,'z_in')
+    else: zt=zfn(ctx,e,u,info)
+    tok=torch.cat([hf+W['core.slots'],e[:,None],u[:,None],zt[:,None]],1)
+    tok=bself(W,tok,'core.prelude.0'); E=bln(W,tok[:,:4],'core.prelude_norm')
+    ae=bmlp(W,torch.log1p(ages)[:,None],'core.age'); Mk=Mt+ae[None]
+    x=hf+E
+    for L in ['core.blocks.0.0','core.blocks.0.1']:
+        a_=bln(W,x,L+'.norm1'); x=x+bmha(W,a_,a_,L+'.attn')
+        x=x+bmha(W,bln(W,x,L+'.norm2'),Mk,L+'.cross')
+        x=x+bmlp(W,bln(W,x,L+'.norm3'),L+'.ffn')
+    sp=F.softplus(W['core.delta_in']); abar=torch.exp(-sp*torch.exp(W['core.a_in']))
+    h2=abar*hf+sp*(E@W['core.b_in.weight'].T)+(x-(hf+E))
+    y=bself(W,h2@W['core.c_out.weight'].T,'core.coda.0')
+    return bln(W,y.mean(1),'core.out_norm'), y, ctx
+def info_of(atoms):
+    r,hs=drug_rates(atoms)
+    return dict(di=torch.tensor([r[8]],dtype=T),hi=torch.tensor([float(hs[8])],dtype=T),dn=torch.tensor([r[9]],dtype=T),hn=torch.tensor([float(hs[9])],dtype=T))
+def tf_stay_z(W,B_,zfn):
+    times=[b[0] for b in B_]
+    out=torch.tensor(X0row[:192],dtype=T)[None]; h=torch.tensor(X0row[192:960],dtype=T).reshape(1,4,192)
+    ea,ua=split_fix(B_[0][1]); Ms=[set_enc(W,ea,'encode')]; ts=[times[0]]; reg={}
+    for a in ea:
+        if a['code'] in MEASC and a['kind']==0: reg[a['code']]=(times[0],a['num'][0],a['vb'])
+    R=[]
+    for k in range(1,len(B_)):
+        t=times[k]; dt=(t-times[k-1])*3600.0; atoms=B_[k][1]; ea,ua=split_fix(atoms)
+        meas=[a for a in ea if a['code'] in MEASC and a['kind']==0]
+        if meas:
+            views=bview(W,out,h,dt,zs=torch.zeros(1,1,32,dtype=T))
+            for a in meas:
+                c=a['code']
+                if c in reg: tl,zl,vl=reg[c]; hs=1.0; age=(t-tl)*3600.0
+                else: hs=0.0; age=0.0; zl=0.0; vl=0
+                p=bvalue_probs(W,views,c,torch.tensor([hs],dtype=T),torch.tensor([age],dtype=T),torch.tensor([zl],dtype=T),torch.tensor([vl]))[0]
+                R.append((t,c,float((p[1:]*torch.tensor(CENd[c],dtype=T)).sum()),-math.log(float(p[a['vb']]))))
+            for a in meas: reg[a['code']]=(t,a['num'][0],a['vb'])
+        e=set_enc(W,ea,'encode'); u=set_enc(W,ua,'encode_action') if ua else u_empty
+        Ms.append(e); ts.append(t); Mt=torch.stack(Ms)[None]; ages=torch.tensor([(t-tj)*3600.0 for tj in ts],dtype=T)
+        out,h,_=bstep_z(W,out,h,dt,e[None],u[None],Mt,ages,zfn=zfn,info=(info_of(atoms) if ua else None))
+    return R
+
+cosf=list393[float64] ; Dmin_ins=arr(192,) ; Dmin_ne=arr(192,) ; cap_prelude=fn(W,B_) ; PC=list2006[tuple] ; read=arr(2006,) ; P_=arr(2006, 4, 4, 7) ; hd=2 ; wuz=arr(892, 4) ; oth_d=arr(892, 4) ; we=arr(1017, 4) ; oth_r=arr(1017, 4) ; NE1=arr(1017, 192) ; NU1=arr(2898, 192) ; Mx=arr(3915, 192) ; bstep_c=fn(W,out,h,dt,e,u,Mt,ages,zt,cadd) ; pred4=fn(W,ob,hb,dt2,reg,t2,nb) ; jac_c=fn(W,B_,eps_,chk) ; rd=arr(1017, 4, 7) ; Wo=arr(192, 192) ; hs=list2[int] ; Jh=arr(96, 4) ; a_=list26[dict] ; Cdir_ins_1=tuple2[ndarray] ; Cdir_ins_2=tuple2[ndarray] ; Cdir_ins_12=tuple2[ndarray] ; Cdir_ne_1=tuple2[ndarray] ; Cdir_ne_2=tuple2[ndarray] ; Cdir_ne_12=tuple2[ndarray] ; ctx_next=fn(W,ob,hb,dt2) ; jac_ctx=fn(W,B_,eps_) ; JX=list844[tuple] ; CSa=list1966[tuple] ; VGa=list120[tuple] ; a1_=list12[tuple] ; a2_=list40[tuple] ; a3_=list3[tuple] ; Cr=arr(978, 192) ; S_c=arr(192, 192) ; ev_s=arr(192,) ; Jm_c=arr(192, 192) ; lamf=0.01 ; Sr=arr(192, 192) ; Mg=arr(192, 192) ; dstar=arr(192,) ; wdec=arr(192,) ; g_k=arr(844,) ; nz_=0.08755 ; Vg=arr(192, 4) ; cvp=fn() ; scol=str ; AE=tuple2[str] ; ae=tuple2[str] ; B2=list54[tuple] ; ids=arr(30000,) ; TRB=dict320:[1010000111, 1010000154, 1010000156, 1010000226, 1010000350, 1010000425] ; ds=DataFrame ; C=arr(4759, 192) ; UE=arr(5600, 192) ; TE=arr(5600, 4) ; Xa=arr(5971, 192) ; ya=arr(5971,) ; lr=RidgeCV ; Uall=arr(10360, 192) ; S=SVDResult3[ndarray] ; KFold=ABCMeta ; serf=ufunc ; gelu=fn(x) ; GF=6 ; MA=7 ; last_vals=fn(B_,k) ; LV=arr(4759, 4) ; cvr2=fn(X,y,alphas) ; mc=arr(192,) ; EV=arr(192, 192) ; Cw=arr(4759, 60) ; sc=2 ; cb=0.6953 ; lab_i=arr(10359,) ; lab_n=arr(10359,) ; Pu_=arr(12, 192) ; facn=arr(10359,) ; tag=str ; cvpred=fn(X,y,alpha) ; dmap=dict254:[1010000154, 1010000156, 1010000226, 1010000350, 1010000425, 1010000427] ; REC=arr(15216, 14) ; js=list25[int] ; td=arr(25,) ; md=74 ; iq=20 ; tt=24.08 ; lag=1 ; ALLC=list4[int] ; yi=arr(10359,) ; yn=arr(10359,) ; fac_i=arr(10359,) ; fac_n=arr(10359,) ; regp=fn(reg,c,tn,Bt) ; nextmeans=fn(W,o2,h2,dtn,reg,tn) ; EPS=0.05 ; DIRS=dict8:[('ins', 0.001), ('ins', 0.01), ('ins', 0.1), ('ins', 1), ('ne', 0.001), ('ne', 0.01)] ; Tg=arr(4,)[0.0, 0.0, 1.0, 1.0] ; bv=arr(192,) ; src_=str ; jof=dict4759:[(1010000154, 3), (1010000154, 5), (1010000154, 7), (1010000154, 9), (1010000154, 11), (1010000154, 13)] ; tf_collect=fn(W,B_,s) ; READ=list8127[dict] ; PERT=list4504[dict] ; rres=fn(rd,drug) ; GC=list2[int] ; DECS=dict6:[(8, 1.0), (8, 10.0), (8, 100.0), (9, 1.0), (9, 10.0), (9, 100.0)] ; cset=list2[int] ; Cx=arr(10980, 192) ; Cy=arr(10980,) ; dx=arr(192,) ; own=arr(10980,) ; sw=8.405 ; rh=arr(7757,) ; cr=0.8944 ; com=list1[str]
+
+```

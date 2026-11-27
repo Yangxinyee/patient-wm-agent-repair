@@ -1,0 +1,91 @@
+OUTPUT of Python run 186 of at most 300:
+```
+['dose_edit_edited.csv', 'dose_edit_original.csv', 'summary.json']
+/work/fwd_8/dose_edit_edited.csv (3312, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000000    15  insulin_x2  0.0000    0.0000  154.5238    False
+1  2020000000    16  insulin_x2  0.7268    0.5050  174.8862     True
+2  2020000000    17  insulin_x2 -2.3270    0.5533  185.8915     True
+/work/fwd_8/dose_edit_original.csv (3312, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000000    15  insulin_x2  0.0000    0.0000  154.4960    False
+1  2020000000    16  insulin_x2 -0.1953    0.0270  161.1528     True
+2  2020000000    17  insulin_x2 -0.4749    0.0311  161.4032     True
+/work/fwd_8/summary.json {
+ "ok": true,
+ "type": "dose_edit",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -1.726,
+     "n_stay_hours": 737,
+     "n_stays": 80
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.909,
+     "n_stay_hours": 737,
+     "n_stays": 80
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": -0.075,
+     "n_stay_hours": 690,
+     "n_stays": 61
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.484,
+     "n_stay_hours": 690,
+     "n_stays": 61
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -7.171,
+     "n_stay_hours": 737,
+     "n_stays": 80
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 1.473,
+     "n_stay_hours": 737,
+     "n_stays": 80
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.459,
+     "n_stay_hours": 690,
+     "n_stays": 61
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -1.918,
+     "n_st
+9007
+on sel1.
+
+## Restart 6 (runs 150-165)
+- Offline head exact (pred0/nll0 reproduced). WC0 = with_code at z=prior mean. wc_from(z) rebuilt (z_head, query_norm, type_emb[1], reg). One z draw changes wc rms .23.
+- Factual residual slopes on insulin surprise (PT_tr eps, lags1-6, gluc rows pooled): -1.26,-1.29,-0.42,+0.37,+0.27,+0.61 (se .3) -> model misses lag1-2 effect, later lags carried by readings.
+- NE: E[rate|MAP hist] via HGB (R2 .77), D_ne = rate - E. Resid slopes on D_ne lags1-3 (arterial): 3.14, 0.15, -2.2. One-step eps_ne lags: 3.37,2.65,3.15.
+- Decoders from wc with z-noise aug (ridge a=1, CV): ins eps lag1 R2 .33 (slope .32), lag2 .18; NE D lag1 .15, eps_ne lag1 .10. Full state ins lag1 .63 (head cannot see slots separately).
+- Plan now: hidden-space injection u (W1 += u w^T) gated by Jacobian LS so glucose-only / MAP-only; scale c/kappa; test with dose_edit both on sel1.
+
+- Runs 166-180: gated-channel head edit. Repurpose hidden units (31,143)=insulin, (54,9)=NE (joint ablation dNLL +.0003, 4-draw).
+  unit a: M*(AND gate - th) + s/lam, unit b: M*(AND gate - th); W2 cols +-lam*t (exp tilt). AND gate = family gate + presence(drug at t-1) gate (ridge on z-aug wc).
+  Decoders on present rows (z-aug ridge): ins eps1 R2 .59 k .57, eps2 .24; NE D1 .19 k .25. Present-row deficits: ins -1.6,-1.33,-0.39; NE joint 3.15,.53,-2.13.
+  E2 (a_ins=(-2.8,-5.5), a_ne=8.7): offline dNLL +.0063 (gf +.0117) over budget; resid slopes fixed. SAVED as current edit for dose_edit test (fwd 8).
+
+['attr_heads.value_bin.0.weight.safetensors', 'attr_heads.value_bin.0.bias.safetensors', 'attr_heads.value_bin.2.bias.safetensors', 'attr_heads.value_bin.2.weight.safetensors']
+
+```

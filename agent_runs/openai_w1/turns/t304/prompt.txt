@@ -1,0 +1,245 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 303 replies happened before. Forward passes used: 28 of 50; Python runs used: 266 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+3 scaling. No weights changed. Counts: 239 Python runs, 23 forwards.
+
+
+## Run 240
+Rejected pooled markers: stopping/halving frequently had wrong-sign or cross-drug responses. Tested a closed-form constant-query/token-type key selector and exact latent-coordinate value projections, retaining the safe z_in mapping. No weights changed. Counts: 240 Python runs, 23 forwards.
+
+## Run 241
+Recovered architecture and identification notes before using the selective latent-token marker. Its monotonic dose contrasts are promising, but factual RMS is not evidence of a safe output edit. No weights changed. Counts: 241 Python runs, 23 forwards.
+
+## Run 242
+Architecture recovery confirms indirect attention-to-state transmission. Run241 output truncated before recent definitions; retrieved narrow inventory and numeric identification notes. No weights changed. Counts: 242 Python runs, 23 forwards.
+
+## Run 243
+Retrieved later dynamic-identification evidence and compensated-relay layout. Safe236 remains unchanged; selective relay will retain its z_in mapping. Counts: 243 Python runs, 23 forwards.
+
+## Run 244
+Reconstructed prelude attention features against cached originals and prepared selective-head compensation features while preserving safe236 latent weights. No weights changed. Counts: 244 Python runs, 23 forwards.
+
+## Run 245
+Attention reconstruction verified to <4e-6 RMSE. Fitted selective-head factual compensation and dose-invariant marker predictors with stay-held-out leakage/contrast checks. No weights changed. Counts: 245 Python runs, 23 forwards.
+
+## Run 246
+Perfect factual marker cancellation also eliminates dose contrasts. Evaluated intermediate invariance penalties and finite low-norm output responses; factual-versus-counterfactual tradeoff remains explicit. No weights changed. Counts: 246 Python runs, 23 forwards.
+
+## Run 247
+Installed reversible selective latent-attention candidate without replacing safe236 z_in: dose-invariant compensation weight1; insulin output -.5*Bmean, NE +.4*B221; rank48 attention factorization. Local finite responses only guide signs, not rollout efficacy. Paired GPU factual validation next. Counts: 247 Python runs, 23 forwards.
+
+## Run 248
+Selective candidate has intended local signs but held attention perturbation RMS4.07; this is not proof of factual safety. Selected random100 tuning stays for paired factual test and inspected causal-exposure units. No additional weights changed. Counts: 248 Python runs, 23 forwards.
+
+## Run 249
+Forward24 selective candidate failed factual fit: 1.64565 versus 1.61876, delta +.02689 on 4741 readings. Preserved as rejected249 and restored safe236. Recovering architecture and record-based identification before further edits. Counts: 249 Python runs, 24 forwards.
+
+## Run 250
+Run249 restored safe236; output truncated after architecture and early conditional-effect estimates. Narrow recovery of robustness, dynamic targets and candidate construction. No weights changed. Counts: 250 Python runs, 24 forwards.
+
+## Runs 251–252
+Forward25 safe236 rollout was essentially unchanged: insulin x2 -2.051, half .981, NE x2 .071, half -.396. Run251 verified head layout but stopped before edits on numpy.clone. Run252 corrected array conversion and installed quarter-strength selective marker output with retained factual compensation. Discrete-hour six-lag convolution targets: {'insulin_x2': -12.763239357347505, 'insulin_half': 6.3816196786737525, 'ne_x2': 4.142167540798611, 'ne_half': -2.0710837703993055}; conditional estimates, not known simulator truth. Counts: 252 Python runs, 25 forwards.
+
+## Run 253
+Forward27 quarter-strength selective marker did not improve the desired rollout effects (insulin x2 -2.003, half .818; NE x2 -.074, half -.154). Recovering architecture, factual26, and existing identification objects before choosing a different weight route. No weights changed. Counts: 253 Python runs, 27 forwards.
+
+## Run 254
+Recovered factual26: current candidate delta +.00247 nats, within bound, but forward27 shows no useful causal-response gain. Inspecting cached update functions and earlier identification evidence to locate the lost dose signal. No weights changed. Counts: 254 Python runs, 27 forwards.
+
+## Run 255
+Preserved quarter-strength candidate255 and restored safe236 because forward27 showed no useful effect gain. Recovering state/head functions and earlier unsuccessful head routes to distinguish lost state signal from weak decoding. Counts: 255 Python runs, 27 forwards.
+
+## Run 256
+Earlier value-head amplification failed its factual/contrast tradeoff; prelude-attention transmission was weak. Investigating core.b_in, the additive recurrent injection after the blocks, as a lower-distortion route. No weights changed. Counts: 256 Python runs, 27 forwards.
+
+## Run 257
+Measured finite-difference reading sensitivity to additive recurrent-state injection through core.b_in, using cached local CPU readout and no gradients. Computed minimum-norm channel-selective directions where the helper returned four readouts. No weights changed; local responses require GPU validation. Counts: 257 Python runs, 27 forwards.
+
+## Run 258
+Direct recurrent injection has selective, near-linear local reading effects: B257 RMS .241 glucose and .654 MAP per unit outcome. Reconstructing recorded and counterfactual prelude E features for a physically scaled, factual-anchored linear core.b_in edit. No weights changed. Counts: 258 Python runs, 27 forwards.
+
+## Runs 259–260
+CF token recovery succeeded: pooled features are mean-normalized tokens; all ten recovered action tokens satisfy LN mean/variance checks. Run259 then failed only in an inventory printer using torch.size as a number. Run260 fixes inventory and recovers physical-dose/carrier scaling. No weights changed. Counts: 260 Python runs, 27 forwards.
+
+## Run 261
+Run260 confirmed ds_rates physical-dose alignment but broad function printing truncated useful output. Recovering architecture and compact recurrent-input objects before a factual-anchored core.b_in edit. No weights changed. Counts: 261 Python runs, 27 forwards.
+
+## Run 262
+Architecture confirms core.b_in is an additive recurrent injection after the blocks. Cached factualE258 and all ten Es259 counterfactual features are available. Checking local response units, physical-rate alignment and record-effect evidence before fitting a factual-anchored rank-two edit. No weights changed. Counts: 262 Python runs, 27 forwards.
+
+## Run 263
+B257 produces approximately unit, channel-selective local reading shifts for both glucose or both MAP channels. Fitted rank-two E projections with factual-zero penalties and physical-rate counterfactual targets over x0/.5/1.5/2/3, checking stay-held-out leakage and response. No weights changed; local response does not establish rollout efficacy or factual safety. Counts: 263 Python runs, 27 forwards.
+
+## Run 264
+Installed reversible direct recurrent injection: original core.b_in plus B257 @ diag([-2,4]) @ fits263[1].T, retaining safe236 latent/relay weights. Projection held-out doubling ratios are .568 insulin/.727 NE; factual leakage requires paired GPU testing. Lower-dose and x3 response recovery is weaker, so this is an experimental candidate rather than a validated repair. Counts: 264 Python runs, 27 forwards.
+
+## Run 265
+Forward28 direct b_in candidate catastrophically failed factual fit: 5.8288 versus 1.53191 nats on 5059 readings. Removed core.b_in edit immediately, restoring safe236. Frozen-state leakage checks did not predict trajectory damage; investigating feedback/stability before any further direct injection. Counts: 265 Python runs, 28 forwards.
+
+## Run 266
+Failure diagnosis: P264.T @ (delta_in*B257) has entries up to 61; the edit reads its own injected directions and creates strong feedback. Fitted immediate-injection-orthogonal alternatives and inspected local coda/state implementation to assess transformed feedback. Safe236 remains installed. Counts: 266 Python runs, 28 forwards.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 266 of at most 300:
+```
+=== PROJECTIONS ORTHOGONAL TO IMMEDIATE INJECTION ===
+weight 0.1 factual RMS [0.1474 0.0532] P norms [23.488  6.972] feedback max 4.176202953613184e-15
+insulin (multiplier, response/target, cross) [(0.0, np.float64(0.226), np.float64(0.022)), (0.5, np.float64(0.232), np.float64(0.006)), (1.5, np.float64(0.184), np.float64(0.001)), (2.0, np.float64(0.176), np.float64(0.018)), (3.0, np.float64(0.154), np.float64(0.019))]
+norepinephrine (multiplier, response/target, cross) [(0.0, np.float64(0.08), np.float64(0.007)), (0.5, np.float64(0.116), np.float64(-0.06)), (1.5, np.float64(0.259), np.float64(0.044)), (2.0, np.float64(0.256), np.float64(0.059)), (3.0, np.float64(0.194), np.float64(0.11))]
+weight 1.0 factual RMS [0.5445 0.163 ] P norms [114.81   26.444] feedback max 8.683057866684093e-14
+insulin (multiplier, response/target, cross) [(0.0, np.float64(0.617), np.float64(0.031)), (0.5, np.float64(0.651), np.float64(0.01)), (1.5, np.float64(0.548), np.float64(-0.011)), (2.0, np.float64(0.567), np.float64(0.015)), (3.0, np.float64(0.509), np.float64(0.011))]
+norepinephrine (multiplier, response/target, cross) [(0.0, np.float64(0.322), np.float64(0.075)), (0.5, np.float64(0.418), np.float64(-0.141)), (1.5, np.float64(0.727), np.float64(0.035)), (2.0, np.float64(0.726), np.float64(0.04)), (3.0, np.float64(0.558), np.float64(0.162))]
+weight 10.0 factual RMS [1.3022 0.2965] P norms [318.358  65.842] feedback max 2.3450846160303206e-14
+insulin (multiplier, response/target, cross) [(0.0, np.float64(0.732), np.float64(0.012)), (0.5, np.float64(0.828), np.float64(0.004)), (1.5, np.float64(0.772), np.float64(-0.02)), (2.0, np.float64(0.841), np.float64(-0.003)), (3.0, np.float64(0.825), np.float64(-0.002))]
+norepinephrine (multiplier, response/target, cross) [(0.0, np.float64(0.638), np.float64(0.253)), (0.5, np.float64(0.716), np.float64(-0.059)), (1.5, np.float64(0.9), np.float64(-0.071)), (2.0, np.float64(0.923), np.float64(-0.096)), (3.0, np.float64(0.743), np.float64(0.135))]
+
+=== LOCAL UPDATE IMPLEMENTATION ===
+finite_readout221 arguments ('extra',)
+globals ('transition214', 'np', 'asarray', 'float32', 'rx_norm', 'mean', 'vbase220', 'events221', 'qctx221', 'logits221', 'value_raw221', 'wcs221', 'rawbase221', 'torch', 'softmax', 'centres221', 'sum', 'append', 'float')
+locals ('extra', 'rr221', 'vv221', 'change221', 'result221', 'event221', 'dq221', 'll221', 'mu221', 'old221')
+constants ('gelu', 2, 1, 'core.out_norm', 'query_norm', -1)
+
+=== LOCAL STATE OBJECTS ===
+rx_C131 (192, 192)
+rx_E126 (48, 4, 192)
+rx_E131 (48, 4, 192)
+rx_U131 (48, 4, 192)
+rx_W dict 181 keys ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias']
+rx_a_est131 (192,)
+rx_abar126 (192,)
+rx_age127 (48, 54)
+rx_ages (48, 54)
+rx_attn function ('x', 'p')
+rx_base131 (48, 4, 192)
+rx_coda131 (48, 4, 192)
+rx_cross function ('x', 'm', 'age', 'valid', 'p', 'mode', 'age_scale', 'act')
+rx_cross126 function ('x', 'm', 'a', 'valid', 'p', 'unit', 'scale', 'memnorm')
+rx_cross133 function ('x', 'm', 'age', 'valid', 'p', 'mode', 'age_scale', 'act')
+rx_cross_before133 function ('x', 'm', 'age', 'valid', 'p', 'mode', 'age_scale', 'act')
+rx_delta126 (192,)
+rx_drive131 (48, 4, 192)
+rx_dt (48,)
+rx_e (48, 192)
+rx_expected131 (48, 4, 192)
+rx_features131 (36864, 6)
+rx_fit131 (6,)
+rx_hflow (48, 4, 192)
+rx_hist dict 100 keys [1010000672, 1010006880, 1010018384, 1010022992, 1010003025]
+rx_hprev131 (48, 4, 192)
+rx_layer function ('x', 'p', 'act', 'memory', 'age', 'valid', 'mode', 'age_scale')
+rx_layer2 function ('x', 'p', 'ff_act', 'memory', 'age', 'valid', 'mode', 'age_act', 'age_scale')
+rx_linear function ('x', 'p')
+rx_mem (48, 54, 192)
+rx_mem127 (48, 54, 192)
+rx_memory_for function ('indices', 'include_current')
+rx_memory_variant function ('indices', 'include', 'observed_only', 'padded')
+rx_memvalid (48, 54)
+rx_mlp function ('x', 'p', 'act')
+rx_norm function ('x', 'p')
+rx_pick (48,)
+rx_pre131 (48, 4, 192)
+rx_prev (48, 992)
+rx_resid131 (48, 4, 192)
+rx_show_function function ('name', 'limit')
+rx_sv131 (192,)
+rx_targeth (48, 4, 192)
+rx_targetout (48, 192)
+rx_tokens126 (48, 7, 192)
+rx_u (48, 192)
+rx_valid127 (48, 54)
+rx_y0131 (48, 4, 192)
+rx_z (48, 32)
+
+=== FEATURE TOKEN MATCH ===
+base238 slot match RMS 46.92928
+nt215 slot match RMS 0.0
+nt240 slot match RMS 0.0
+nt slot match RMS 0.0
+
+```

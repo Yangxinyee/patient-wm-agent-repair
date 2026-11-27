@@ -1,0 +1,178 @@
+OUTPUT of Python run 280 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== CURRENT STATE EXPORT ===
+x (5215, 992) float32
+stay_id (5215,) int64
+hour (5215,) float64
+has_insulin (5215,) bool
+has_norepinephrine (5215,) bool
+n_atoms (5215,) int64
+Unique stays: 100
+
+=== RECENT RECONSTRUCTION OBJECTS ===
+B271 shape=(192, 2), dtype=float64
+E269 shape=(48, 4, 192), dtype=torch.float32
+E270 shape=(48, 4, 192), dtype=torch.float32
+Ef277 shape=(5215, 4, 192), dtype=float32
+Es259 dict[10], keys=[('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+K270 shape=(384, 192), dtype=float64
+O277 dict[181], keys=['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+P269 shape=(192, 2), dtype=float64
+P270 shape=(192, 2), dtype=float64
+P271 shape=(192, 2), dtype=float64
+P272 shape=(192, 2), dtype=float64
+Ucf279 dict[10], keys=[('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5), ('norepinephrine', 2.0), ('norepinephrine', 3.0)]
+W277 dict[181], keys=['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+a269 shape=(192,), dtype=torch.float32
+aa279 shape=(11768, 192), dtype=torch.float32
+actidx279 shape=(3002,), dtype=int64
+atoms279 shape=(11768, 192), dtype=torch.float32
+backupE270 shape=(48, 4, 192), dtype=torch.float32
+backupH270 shape=(48, 4, 192), dtype=torch.float32
+backupTokens270 shape=(48, 7, 192), dtype=torch.float32
+backupW270 dict[9], keys=['core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+base_b271 shape=(192, 192), dtype=float64
+candidate271 dict[10], keys=['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+check278 shape=(48, 7, 192), dtype=torch.float32
+coda269 (v)
+cols269 list[2]
+covK270 shape=(192, 192), dtype=float64
+ctx277 shape=(5215, 192), dtype=torch.float32
+d269 shape=(192,), dtype=torch.float32
+d279 dict[5], keys=['code', 'value', 'rate', 'dose', 'end']
+delta_b271 shape=(192, 192), dtype=float64
+di279 list[1566]
+drug279 str[14]
+ds_rates shape=(5215, 2), dtype=float64
+dt276 shape=(5215,), dtype=float32
+dt277 shape=(5215,), dtype=float32
+e277 shape=(5215, 192), dtype=torch.float32
+echeck269 shape=(48, 4, 192), dtype=torch.float32
+eig270 shape=(192,), dtype=float64
+eps270 0.1
+f271 shape=(5059, 6), dtype=?
+factor279 3.0
+factualE258 shape=(5215, 4, 192), dtype=float32
+feedback269 shape=(48, 4, 2, 2), dtype=float64
+fitsB270 dict[6], keys=[0.0, 1.0, 10.0, 100.0, 1000.0, 10000.0]
+flow269 shape=(48, 1, 192), dtype=torch.float32
+gains271 shape=(2,), dtype=float64
+h269 shape=(48, 4, 192), dtype=torch.float32
+hflow276 shape=(5215, 4, 192), dtype=torch.float32
+hflow277 shape=(5215, 4, 192), dtype=torch.float32
+hits274 list[9]
+hours276 shape=(5215,), dtype=float64
+ids271 list[99]
+ids279 list[100]
+idx278 shape=(3,), dtype=int64
+inp270 shape=(48, 576), dtype=torch.float32
+inp277 shape=(5215, 576), dtype=torch.float32
+ins272 list[59]
+leak271 shape=(1326, 4, 2), dtype=float64
+lin277 (x, p, w={'attr_heads.rate_bin.0.bias': tensor([ 2.6851e-02,  2.0040e-02, -3.0251e-02, -7.9957e-02,  3.9922e-04,
+        -6.9226e-02,  4.4014e-02, -5.5450e-02, -1.5701e-02, -6.9513e-02,
+        -1.2866e-02,  3.5697e-02,  6.3704e-02, -4.3628e-02, -6.9407e-03,
+        -4.7067e-03,  4.6765e-05, -6.5387e-02, -3.5974e-02,  2.6926e-03,
+        -7.9345e-02, -3.2803e-02,  3.8158e-02,  4.1102e-02, -6.7247e-02,
+        -5.7034e-02, -7.3061e-02,  4.1214e-02,  3.4805e-02, -6.6034e-02,
+         5.4615e-02, -1.7968e-02, -6.5573e-02, -6.5528e-02, -5.4293e-02,
+        -5.1636e-02, -2.7403e-02,  1.2960e-02,  6.8698e-03, -3.1908e-02,
+        -4.7602e-02, -5.8985e-02,  2.4501e-02, -5.9732e-02, -2.8647e-02,
+        -4.5094e-02,  3.7893e-02,  2.0444e-02,  5.8887e-02, -1.0084e-01,
+      
+[output cut at 10,000 characters]
+```

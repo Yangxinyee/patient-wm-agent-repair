@@ -1,0 +1,62 @@
+OUTPUT of Python run 187 of at most 300:
+```
+def make_dev_oracle(R,DGi,Gf,t_hide=13.0,pf=None):
+    A=R['A']; code=A.code.values; tt=A.t.values; val=A.value.values; loc=A['loc'].values; S_=len(R['stays'])
+    GFI=np.full((S_,32),-1); GLI=np.full((S_,32),-1)
+    for cc,arr in [(CODE['glucose_finger'],GFI),(CODE['glucose_lab'],GLI)]:
+        m=np.where((code==cc)&(np.abs(tt-np.round(tt))<1e-6))[0]; arr[A.si.values[m],np.round(tt[m]).astype(int)+3]=m
+    def gval(n,j,drawn):
+        v=val[j].astype(float).copy(); hid=tt[j]>=t_hide
+        if hid.any(): b=drawn[n[hid],loc[j[hid]]]; v[hid]=CENT[code[j[hid]],np.maximum(b,1)-1]
+        return v
+    def devs(n,si,a,tau,drawn,L):
+        D=np.zeros((len(n),L))
+        for kk in range(1,L+1):
+            ix=tau-kk+3; ok=ix>=0; ixc=np.clip(ix,0,31)
+            d=DGi[a,si,ixc]; jf=GFI[si,ixc]; jl=GLI[si,ixc]; g=np.full(len(n),np.nan)
+            m1=ok&(jf>=0); g[m1]=gval(n[m1],jf[m1],drawn); m2=ok&(jf<0)&(jl>=0); g[m2]=gval(n[m2],jl[m2],drawn)
+            p=np.where(np.isnan(g),0.0,pf(np.nan_to_num(g))); D[:,kk-1]=np.where(ok,d-p,0.0)
+        return D
+    def hook(k,hn_,hj,P,ctx):
+        m=np.isin(code[hj],GLC)
+        if not m.any(): return P
+        n=hn_[m]; si=ctx['seq_si'][n]; a=ctx['seq_arm'][n]; tau=np.round(tt[hj[m]]).astype(int)
+        r=devs(n,si,a,tau,ctx['drawn'],len(Gf))@Gf
+        P=P.clone(); ii=torch.as_tensor(np.where(m)[0])
+        P[ii]=tilt_P(P[ii],torch.as_tensor(CENT[code[hj[m]]],dtype=torch.float32),r); return P
+    hook.devs=devs; return hook
+
+-----readout-----
+def readout(R,res,arms,drug='insulin',outcome='glucose_finger',t0=12.0,arm_ids=None,lo=13,hi=24):
+    A=R['A']; code=A.code.values; tt=A.t.values
+    rows=np.where((code==CODE[outcome])&(tt>=lo)&(tt<=hi+1e-9))[0]
+    dr=A[(A.code==CODE[drug])&(A.kind==0)&(A.t>=t0)]
+    first_dr=dr.groupby('si').t.min()
+    reached=np.array([ (A.si.values[j] in first_dr.index) and (first_dr[A.si.values[j]]<tt[j]) for j in rows])
+    pm=res['pm']; seq_si=res['seq_si']; seq_arm=res['seq_arm']; seq_p=res['seq_p']
+    nP=seq_p.max()+1; nA=seq_arm.max()+1
+    out={}
+    for a in range(nA):
+        vals=np.full((len(rows),nP),np.nan)
+        for ri,j in enumerate(rows):
+            s=A.si.values[j]
+            for p in range(nP):
+                n=(s*nA+a)*nP+p
+                vals[ri,p]=pm.get(n*10**7+j,np.nan)
+        out[a]=vals
+    return rows,reached,out
+
+-----dataframes-----
+tr (1999838, 10) 30000
+tu (26629, 9) 400
+ne (235970, 10) 12950
+gfm (1297, 21) 86
+mam (1064, 20) 58
+Traceback (most recent call last):
+  File "<run>", line 5, in <module>
+  File "/opt/site/pandas/core/generic.py", line 6434, in __getattr__
+    return object.__getattribute__(self, name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'DataFrame' object has no attribute 'stay_id'
+
+```

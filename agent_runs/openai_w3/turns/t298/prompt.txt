@@ -1,0 +1,119 @@
+OUTPUT of Python run 264 of at most 300:
+```
+=== IDENTIFICATION ===
+# World-model repair notebook
+Python runs: 1. Forward requests: 0.
+Goal: establish dose effects from the simulated records, then edit weights without gradients while preserving factual value NLL within +0.005 nats.
+No medical-effect assumptions. No edits made yet.
+First step: read architecture, data schema, vocabulary, and tensor shapes.
+
+Python runs: 3; forward requests: 0. Loaded 1,998,495 training rows (30,000 stays), 400 tuning stays. Measurements are hourly; drug records start at hour+0.0833, last one hour. Insulin rates in 0.5 increments; norepinephrine rates in 0.01 increments, capped at 1.0. Run 2 tensor summary failed because load returns torch tensors; fixed with as_numpy. Constructed hourly arrays A/AT, times -1..24.
+
+Python runs: 4; forward requests: 1. Original rollout on tuning IDs 2020000000..99: insulin x2=-0.422, half=+0.213 glucose units; NE x2=-0.742, half=-0.238 MAP units. Created Xhist (recorded pre-dose history), stay-separated twofold histogram-regression residual estimates of immediate dose effects. Results: {"('insulin', 'glucose_finger')": {'beta': -1.9117976582589598, 'se': 0.04643702514945556}, "('norepinephrine', 'map_arterial')": {'beta': 3.2284108103034193, 'se': 0.09160659418894486}}
+
+Python runs: 5; forwards: 1. Stronger 350-iteration, twofold history-adjusted estimates on all four sensors; also residualized dose-squared to check nonlinearity. {"('insulin', 'glucose_finger')": {'beta': -1.93686465753238, 'se': 0.045618852592945285, 'quadratic': [-1.9721614199729816, 0.006519443110720444], 'quadratic_se': [0.10001575970918698, 0.01835970138120731]}, "('insulin', 'glucose_lab')": {'beta': -1.9077086863023527, 'se': 0.07546108816200746, 'quadratic': [-2.1349505733834957, 0.043098195029487404], 'quadratic_se': [0.178045837967501, 0.035021676061520214]}, "('norepinephrine', 'map_arterial')": {'beta': 3.1919950557110304, 'se': 0.09112374089621184, 'quadratic': [1.6021787887032015, 1.2276868502178129], 'quadratic_se': [0.30275496930303175, 0.22235442673524064]}, "('norepinephrine', 'map_cuff')": {'beta': 2.6932493742117205, 'se': 0.17140609404668736, 'quadratic': [-1.6426030664176126, 3.4223180731807608], 'quadratic_se': [0.572236102544827, 0.4254051172466354]}}
+
+Python runs: 6; forward requests: 1. Robust immediate estimates: insulin finger -1.9369, lab -1.9077; little quadratic evidence. NE arterial +3.192, paired pre-dose sensors +3.329, high expected rates +3.407; cuff +2.693 with confounding near treatment onset. Estimated controlled impulse kernels by sequentially removing later dose contributions, using cross-fitted baseline treatment innovations. Kernels: {"('insulin', 'glucose_finger')": [-1.917764, -2.287755, -1.986765, -1.581741, -1.23612, -0.906992, -0.6303, -0.489408, -0.329701, -0.199948, -0.288551, -0.267519], "('insulin', 'glucose_lab')": [-1.972058, -2.386697, -2.017123, -1.797053, -1.249801, -0.946148, -0.647348, -0.623698, -0.385423, -0.467155, -0.216104, 0.05464], "('norepinephrine', 'map_arterial')": [3.195033, 2.710725, 1.587524, 1.030973, 0.377504, 0.218539, 0.359975, -0.138514, 0.138292, -0.039861, 0.393475, -0.090408]}
+
+Python runs: 9; forwards: 2. Recovered architecture and variables. Original factual value NLL on first 100 tuning stays is 1.63982. No weights edited. Preparing record-derived rollout targets.
+
+Python runs: 10; forwards: 3. Original training states acquired (100 stays, 431
+
+=== VALIDATED CHECKPOINT ===
+Python run 220; forwards 14. Complete one-update dose responses have the expected signs; asymmetry emerges during longer rollout. Refitted factual compensation to current restricted-carrier/action-only-gate features, with paired-dose contrast penalties and whole-stay holdout. Candidates retained but NOT installed. Scores: [(0.0, 0.0320853665471077, 2.3988113915265274, 17.64769950264696), (1.0, 0.12415843456983566, 8.088883218800747, 4.642133222522818), (10.0, 0.17595066130161285, 11.477848959018463, 0.9316270506559936), (100.0, 0.18675681948661804, 12.230851381727947, 0.15495143162362993)]
+Python run 221; forwards 14. Generated baseline is not near a glucose ceiling. Installed reversible current-feature compensation refit with paired-dose contrast penalty 1; checkpoint221 retains the prior candidate206. Edit hash 333459b508ac. Next: authoritative factual test on the same tuning stays; accept only <=0.005 nats increase before rollout testing.
+Forwards 15-16; Python run 222 recovery. Refit factual NLL 1.64091 vs 1.63982 (+0.00109), but rollouts -18.901,+0.915,+1.601,-1.255 versus record-derived -12.9555,+6.4778,+4.2797,-2.1398. Factual improvement retained as checkpoint222; rollout asymmetry unresolved. Recovering exact implementation before further edits.
+
+=== FIXED-FEATURE HELPER ===
+parts254 (tokens, original=False) names ('load_original', 'load', 'torch', 'as_tensor', 'float32', 'reshape', 'transpose', 'chunk', 'softmax', 'np', 'sqrt', 'F', 'gelu') constants ['core.prelude.0', '.norm1', '.attn.q', -1, 7, 4, 48, 1, 2, '.attn.kv', -2, 192, '.attn.out', '.norm3', '.ffn.0', '.ffn.2', 'core.prelude_norm']
+              0 MAKE_CELL               15 (getter)
+              2 MAKE_CELL               16 (weight)
+
+  7           4 RESUME                   0
+
+  8           6 LOAD_FAST                1 (original)
+              8 POP_JUMP_IF_FALSE        6 (to 22)
+             10 LOAD_GLOBAL              0 (load_original)
+             20 JUMP_FORWARD             5 (to 32)
+        >>   22 LOAD_GLOBAL              2 (load)
+        >>   32 STORE_DEREF             15 (getter)
+
+  9          34 LOAD_CLOSURE            15 (getter)
+             36 BUILD_TUPLE              1
+             38 LOAD_CONST               1 (<code object weight at 0x735f59ba6af0, file "<run>", line 9>)
+             40 MAKE_FUNCTION            8 (closure)
+             42 STORE_DEREF             16 (weight)
+
+ 11          44 LOAD_CLOSURE            16 (weight)
+             46 BUILD_TUPLE              1
+             48 LOAD_CONST               2 (<code object affine at 0x735f59bf92f0, file "<run>", line 11>)
+             50 MAKE_FUNCTION            8 (closure)
+             52 STORE_FAST               2 (affine)
+
+ 14          54 LOAD_CLOSURE            16 (weight)
+             56 BUILD_TUPLE              1
+             58 LOAD_CONST               3 (<code object norm at 0x735f59ba6d30, file "<run>", line 14>)
+             60 MAKE_FUNCTION            8 (closure)
+             62 STORE_FAST               3 (norm)
+
+ 17          64 LOAD_GLOBAL              5 (NULL + torch)
+             74 LOAD_ATTR                6 (as_tensor)
+             94 LOAD_FAST                0 (tokens)
+             96 LOAD_GLOBAL              4 (torch)
+            106 LOAD_ATTR                8 (float32)
+            126 KW_NAMES                 4 (('dtype',))
+            128 CALL                     2
+            136 STORE_FAST               4 (x)
+
+ 18         138 LOAD_CONST               5 ('core.prelude.0')
+            140 STORE_FAST               5 (prefix)
+
+ 19         142 PUSH_NULL
+            144 LOAD_FAST                3 (norm)
+            146 LOAD_FAST                4 (x)
+            148 LOAD_FAST                5 (prefix)
+            150 LOAD_CONST               6 ('.norm1')
+            152 BINARY_OP                0 (+)
+            156 CALL                     2
+            164 STORE_FAST               6 (n)
+
+ 20         166 PUSH_NULL
+            168 LOAD_FAST                2 (affine)
+            170 LOAD_FAST                6 (n)
+            172 LOAD_FAST                5 (prefix)
+            174 LOAD_CONST               7 ('.attn.q')
+            176 BINARY_OP                0 (+)
+            180 CALL                     2
+            188 LOAD_ATTR               11 (NULL|self + reshape)
+            208 LOAD_CONST               8 (-1)
+            210 LOAD_CONST               9 (7)
+            212 LOAD_CONST              10 (4)
+            214 LOAD_CONST              11 (48)
+            216 CALL                     4
+            224 LOAD_ATTR               13 (NULL|self + transpose)
+            244 LOAD_CONST              12 (1)
+            246 LOAD_CONST              13 (2)
+            248 CALL                     2
+            256 STORE_FAST               7 (q)
+
+ 21         258 PUSH_NULL
+            260 LOAD_FAST                2 (affine)
+            262 LOAD_FAST                6 (n)
+            264 LOAD_FAST                5 (prefix)
+            266 LOAD_CONST              14 ('.attn.kv')
+            268 BINARY_OP                0 (+)
+            272 CALL                     2
+            280 LOAD_ATTR               15 (NULL|self + chunk)
+            300 LOAD_CONST              13 (2)
+            302 LOAD_CONST               8 (-1)
+            304 KW_NAMES                15 (('dim',))
+            306 CALL                     2
+            314 UNPACK_SEQUENCE          2
+            318 STORE_F
+posterior261 (ctx, e, u) names ('torch', 'cat', 'as_tensor', 'float32', 'affine261', 'F', 'gelu') constants [-1, 'z_post.0', 'z_post.2', 32]
+f254 (view) names ('layer_norm', 'W', 'mlp', 'attr_static105', 'torch', 'as_tensor', 'transition97', 'softmax', 'centres105', 'sum') constants ['type_emb.weight', 1, 'query_norm', 'attr_heads.value_bin', -1]
+
+=== ALIGNED FITTING ARRAYS ===
+A88: (768, 768); C154: (4213, 192); CD134: (768, 768); CF134: (768, 768); CX103: (4213, 192); Cctx148: (4213, 192); Cdelta88: (768, 768); Cfact88: (768, 768); DX88: (34760, 768); E154: (4213, 192); E254: (4213, 4, 192); E81: (4213, 4, 192); E81_reference: (4213, 4, 192); E88: (4213, 4, 192); E_carrier155: (4213, 4, 192); E_original155: (4213, 4, 192); E_zero155: (4213, 4, 192); F81: (4213, 7, 192); FC134: (16852, 768); H154: (4213, 192); H192: (16852, 768); H220: (16852, 768); H81: (4213, 7, 768); HC147: (13172, 768); HF147: (16852, 768); Horig154: (4213, 192); PX103: (4213, 193); Pcomp154: (4213, 64); Ptarget154: (4213, 64); R154: (4213, 64); U154: (4213, 192); V170: (4213, 48); X148: (4213, 192); X154: (4213, 576); X220: (
+[output cut at 10,000 characters]
+```

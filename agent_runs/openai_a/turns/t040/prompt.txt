@@ -1,0 +1,210 @@
+OUTPUT of Python run 34 of at most 300:
+```
+=== NOTEBOOK INDEX AND START ===
+## Initial inspection
+## Architecture inspected; Python 2, forward 0
+## Record transition analysis; Python 3, forward 0
+## Original rollout and identification checks; Python 4, forward 1
+## Factual baseline and dynamic identification; Python 5, forward 2
+## More efficient dynamic checks; Python 6, forward 2
+## Restart: Python 7, forward 2
+## Sensor-contrast local projections; Python 9, forward 2
+## Dynamic identification; Python 10, forward 2
+## Representation inspection; Python 12, forward 3
+## Kernel recovery; Python 18, forward 4
+## Recovery and threshold identification; Python 23, forward 4
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+## Restart recovery; Python 26, forward 4
+## CPU head diagnostics; Python 32, forward 4
+# Weight-repair notebook
+
+## Initial inspection
+- Python runs: 1. Forward requests: 0.
+- No drug effects assumed; all effect estimates must come from these simulated records.
+- First inspect architecture, event ordering, dose encoding, and available histories.
+- Then estimate dose effects, measure original rollouts/factual fit, and test targeted weight edits with the factual NLL constraint.
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 5
+
+=== RETAINED OBJECTS ===
+load (name)
+load_original (name)
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+event_col dict 6 ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+train_ids ndarray (30000,)
+hour_grid ndarray (26,)
+pa ndarray (780000, 6)
+dtypes dict 4 ['stay_id', 'hour', 'value', 'rate']
+hh ndarray (11697,)
+st ndarray (11697,)
+valid ndarray (11697,)
+loc ndarray (11697,)
+vals ndarray (11697,)
+train_small DF (6193, 5) ['stay_id', 'hour', 'event', 'value', 'rate']
+panel DF (780000, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+tuning DF (26251, 5) ['stay_id', 'hour', 'event', 'value', 'rate']
+compact_panel (df)
+tpanel DF (10400, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+factual_baseline DF (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+dose_baseline DF (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+state_files dict 2 [3, 4]
+arr ndarray (4035,)
+entry dict 5 ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+P ndarray (30000, 26, 6)
+d ndarray (780000,)
+r dict 9 ['type_id', 'gap', 'age', 'view', 'rmse', 'nll', 'bias', 'glucose_finger']
+mask ndarray (208459,)
+grouped DF (115, 2) ['mean', 'count']
+pos ndarray (241638,)
+least_squares (fun, x0, jac='2-point', bounds=(-inf, inf), method='trf', ftol=1e-08, xtol=1e-08, gtol=1e-08, x_scale=None, loss='linear', f_scale=1.0, diff_step=None, tr_solver=None, tr_options=None, jac_sparsity=None, max_nfev=None, verbose=0, args=(), kwargs=None, callback=None, workers=None)
+stay_ix ndarray (780000,)
+time_ix ndarray (780000,)
+g ndarray (780000,)
+thresholds ndarray (7,)
+nearest ndarray (780000,)
+distance ndarray (780000,)
+base_rd ndarray (780000,)
+shifted_col (col, horizon)
+insulin_rd (horizon=1, bandwidth=10, degree=1, history=False)
+rd_checks dict 12 ['(5, 1, False)', '(5, 1, True)', '(5, 2, False)', '(5, 2, True)', '(10, 1, False)', '(10, 1, True)', '(10, 2, False)', '(10, 2, True)']
+rd_lp dict 8 [-2, -1, 1, 2, 3, 4, 6, 8]
+rd_dynamic_residual (par)
+rd_dynamic_fit dict 12 ['x', 'cost', 'fun', 'jac', 'grad', 'optimality', 'active_mask', 'nfev']
+causal_shift_table (panel_array, ids, outcome, drug, beta, rho)
+TP ndarray (400, 26, 6)
+tuning_ids ndarray (400,)
+ne_array ndarray (30000, 26)
+examples ndarray (4,)
+make_ne_data (n_lags)
+ne_dml_results dict 3 [1, 4, 8]
+ne_dml_cache dict 3 [1, 4, 8]
+X ndarray (208459, 31)
+y ndarray (208459,)
+dose ndarray (208459,)
+groups ndarray (208459,)
+dr ndarray (208459,)
+yr ndarray (208459,)
+fit ndarray (208459,)
+test ndarray (208459,)
+target ndarray (208459,)
+residual ndarray (208459,)
+results dict 2 ['all', 'interior']
+a ndarray (77672,)
+b ndarray (77672,)
+gr ndarray (77672,)
+scores ndarray (30000,)
+W dict 28 ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.flow.a', 'core.out_norm.bias', 'core.out_norm.weight', 'embed.bins.dose.weight']
+code_ids dict 13 ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff', 'glucose_finger', 'map_arterial']
+norms dict 8 [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_lab', 'value'), ('glucose_finger', 'value'), ('insulin', 'dose'), ('norepinephrine', 'dose'), ('insulin', 'rate'), ('norepinephrine', 'rate')]
+lin (x, prefix, weights={'attr_heads.value_bin.0.bias': tensor([-0.0167, -0.0096, -0.0686, -0.0070,  0.0271,  0.0680, -0.0165,  0.0352,
+        -0.0014,  0.0500, -0.0226,  0.0247,  0.0175,  0.0366,  0.0242,  0.0449,
+         0.0170, -0.0464, -0.0072,  0.0479,  0.0300, -0.0389,  0.0556, -0.0422,
+        -0.0366, -0.0073,  0.0292,  0.0393,  0.0462,  0.0431, -0.0480, -0.0200,
+        -0.0146, -0.0224,  0.0336, -0.0524, -0.0427,  0.0610,  0.0826, -0.0505,
+        -0.0193, -0.0628,  0.0667,  0.0676,  0.0520, -0.0414,  0.0058, -0.0648,
+         0.0059, -0.0208, -0.0127,  0.0296,  0.0366, -0.0105, -0.0496,  0.0397,
+        -0.0738,  0.0233, -0.0504,  0.0733,  0.0440,  0.0148,  0.0318,  0.0209,
+        -0.0119,  0.0747,  0.0136,  0.0652,  0.0394, -0.0337,  0.0223,  0.0268,
+        -0.0355,  0.0699, -0.0478,  0.0054,  0.0375, -0.0488,  0.0537,  0.0002,
+        -0.0108,  0.0091, -0.0359, -0.0110, -0.0271,  0.0005, -0.0683,  0.0757,
+         0.0183, -0.0181, -0.0040, -0.0279,  0.0486, -0.0796, -0.0143,  0.0717,
+         0.0140,  0.0302, -0.0915,  0.0894,  0.0041,  0.0595,  0.0368,  0.0658,
+         0.0365,  0.0478, -0.0328,  0.0129,  0.0446, -0.0382, -0.0464,  0.0019,
+         0.0335, -0.0654,  0.0019,  0.0158,  0.0404, -0.0863, -0.0167,  0.0422,
+        -0.0612,  0.0718,  0.0315, -0.0819,  0.0371, -0.0028, -0.0572,  0.0556,
+         0.0472,  0.0245,  0.0324, -0.0672,  0.0148, -0.0006, -0.0254,  0.0290,
+        -0.0426,  0.0412, -0.0562,  0.0552,  0.0020,  0.0610, -0.0611,  0.0330,
+        -0.0172,  0.0353,  0.0428,  0.0542,  0.0415,  0.0044,  0.0156,  0.0670,
+        -0.0520,  0.0573, -0.0094, -0.0261, -0.0466,  0.0093,  0.0564, -0.0347,
+        -0.0468,  0.0258,  0.0248, -0.0532,  0.0746,  0.0057, -0.0618,  0.0114,
+         0.0534, -0.0243, -0.0474, -0.1231,  0.0234,  0.0564,  0.0465, -0.0107,
+        -0.0751, -0.0464, -0.0563, -0.0199,  0.0566, -0.0323, -0.0010, -0.0239,
+        -0.0418, -0.0245,  0.0250, -0.0174,  0.0677, -0.0447, -0.1069, -0.0436]), 'attr_heads.value_bin.0.weight': tensor([[ 0.1062,  0.0185,  0.0035,  ...,  0.0958, -0.1222,  0.0734],
+        [-0.2705, -0.0295, -0.0231,  ..., -0.0640, -0.2674,  0.0513],
+        [ 0.1760, -0.0683,  0.0428,  ...,  0.3130, -0.0216, -0.0702],
+        ...,
+        [-0.1333,  0.0409, -0.0669,  ..., -0.0222,  0.0581,  0.0308],
+        [ 0.0609, -0.0542, -0.0214,  ...,  0.0074, -0.0216,  0.0311],
+        [-0.0952,  0.0142,  0.0430,  ..., -0.0754,  0.0552,  0.0167]]), 'attr_heads.value_bin.2.bias': tensor([-0.3414, -0.1315, -0.0334, -0.0817,  0.0606,  0.0282,  0.0389,  0.0553,
+  
+[output cut at 10,000 characters]
+```

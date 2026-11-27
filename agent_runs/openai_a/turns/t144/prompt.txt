@@ -1,0 +1,209 @@
+OUTPUT of Python run 127 of at most 300:
+```
+=== INITIAL CAUSAL-EVIDENCE NOTES ===
+# Weight-repair notebook
+
+## Initial inspection
+- Python runs: 1. Forward requests: 0.
+- No drug effects assumed; all effect estimates must come from these simulated records.
+- First inspect architecture, event ordering, dose encoding, and available histories.
+- Then estimate dose effects, measure original rollouts/factual fit, and test targeted weight edits with the factual NLL constraint.
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.024098411603330767,
+    "first_stage_t": 34.65836012846078,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'past_difference')": {
+    "beta": -1.7098169631722566,
+    "se": 0.49571479741038577,
+    "first_stage": 0.024088881089054243,
+    "first_stage_t": 34.682785128203996,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'stayFE')": {
+    "beta": 0.6604909236239173,
+    "se": 0.531745510423111,
+    "first_stage": 0.027494693802790897,
+    "first_stage_t": 23.486841143670325,
+    "n": 15729
+  },
+  "('norepinephrine', 'map_arterial', 'history')": {
+    "beta": -18.770179837459043,
+    "se": 10.725044751264742,
+    "first_stage": 0.00023924704982281593,
+    "first_stage_t": 4.630621380691009,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'past_difference')": {
+    "beta": -18.46746024463273,
+    "se": 10.79598180969503,
+    "first_stage": 0.00023698386029265031,
+    "first_stage_t": 4.589330754374463,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'stayFE')": {
+    "beta": 45.967013136779165,
+    "se": 17.626632496359736,
+    "first_stage": 0.0001960059721602588,
+    "first_stage_t": 3.583611528216762,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_cuff', 'history')": {
+    "beta": -44.76692008065325,
+    "se": 44.17355258218645,
+    "first_stage": 0.0001653959279835562,
+    "first_stage_t": 1.8429218212513345,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'past_difference')": {
+    "beta": -44.445574103820974,
+    "se": 44.36183449302977,
+    "first_stage": 0.00016465813087278928,
+    "first_stage_t": 1.836249722244463,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'stayFE')": {
+    "beta": -670.8096489513821,
+    "se": 406.4526866401043,
+    "first_stage": 0.00019082169114508174,
+    "first_stage_t": 1.659997261215908,
+    "n": 29358
+  }
+}
+
+## Factual baseline and dynamic identification; Python 5, forward 2
+- Original factual value NLL = 1.63461 on first 100 tuning stays, 4751 readings.
+- NE sensor-difference first stage is weak; do not use its point estimates.
+- Tested replicate-sensor corrections and lag-instrumented first differences; each relies on explicit measurement-noise/innovation assumptions.
+{
+  "('map_arterial', 'norepinephrine', 'basic')": {
+    "persistence": 0.9982457546092935,
+    "effect": 0.25976722831925286,
+    "se_persistence": 0.0018481345452363164,
+    "se_effect": 0.07259737043369274,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "persistence": 0.9158430901733471,
+    "effect": 3.2667303775592043,
+    "se_persistence": 0.009083782933650895,
+    "se_effect": 0.1636034525210515,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'stayFE')": {
+    "persistence": 0.7479846009200942,
+    "effect": 3.610685143623699,
+    "se_persistence": 0.012280238981277945,
+    "se_effect": 0.17246200287179653,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history_interior')": {
+    "persistence": 0
+
+=== RECENT VARIABLE NAMES ===
+['flow_name', 'gap_name', 'gt', 'r110_results', 'r110_best', 'attr_spec', 'pool_power', 'ctx_spec', 'reconstruction_mlp', 'r111_action_cases', 'atom', 'size_n', 'size', 'r111_results', 'r111_best', 'r111_left_bins', 'helper_names', 'txt', 'relevant_names', 'measure_names', 'r117_groups', 'r117_ids', 'r117_groups_used', 'r118_start', 'r118_drug_atoms', 'r118_drug_u', 'r118_drug_e', 'r118_context_trials', 'time_style', 'flowed', 'hp', 'hf', 'ht', 'tv', 'cx', 'r118_time_style', 'r118_time_scale', 'r118_flowed', 'r118_B', 'r118_prev', 'r118_dt', 'r118_hp', 'r118_hf', 'r118_ht', 'r118_tv', 'r118_ctx', 'r118_target', 'r118_values', 'r118_num', 'r118_bins', 'r118_base', 'r118_unit_table', 'r118_kq_table', 'r118_u_options', 'r118_specs', 'r118_scores', 'specs', 'es', 'uname', 'uv', 'errs', 'terms', 'params', 'inventory', 'nm', 'fnx', 'folder', 'ob', 'ar', 't123', 'tensor_prefix', 'rec_outnorm', 'rec_gap', 'rec_zpost', 'rec_zin', 'rec_context', 'rec_mc', 'rec_mhf', 'rec_v', 'rec_num', 'rec_bin', 'rec_base', 'rec_measurement_checks', 'av', 'zv', 'sid', 'hr', 'evs', 't124', 'rec_code_ids', 'rec_bundle_index', 'rec_world_rows', 'rec_world_ix', 'rec_atom_count', 'rec_atom', 'rec_numbers', 'unit', 'bi', 'rec_world_ix_t', 'rec_counts', 'rec_sum', 'rec_e_all', 'rec_attention', 'rec_attn_apply', 'rec_layer', 'rec_hf', 'rec_tokens', 'rec_E', 'rec_hbase', 'rec_delta', 'rec_abar', 'rec_h_target', 'rec_out_target', 'rec_transition_checks', 'world_only', 'include_current', 'selections', 'jx', 'width', 'mem', 'age_seconds', 'valid_mem', 'age_clock', 'age_div', 'mode', 'ag', 'layer_id', 'hn', 'on', 'he', 'oe', 't125', 'rec_world_valid', 'rec_wdt', 'rec_wctx', 'rec_wu', 'rec_wz', 'rec_wtarget', 'rec_werror', 'rec_compositions', 'rec_wlabels', 'rec_world_diag', 'rec_memory', 'rec_step_with_z', 'rec_mem48', 'rec_age48', 'rec_mask48', 'rec_h48', 'rec_o48', 'rec_transition_diag']
+
+=== RECONSTRUCTION HELPER DEPENDENCIES ===
+rec_memory arguments: ('indices', 'embeddings') dependencies: ('rec_e_all', 'np', 'flatnonzero', 'rm_states', 'arange', 'len', 'append', 'max', 'map', 'torch', 'zeros', 'bool', 'enumerate', 'tensor', 'float32', 'rm_mlp', 'log1p')
+rec_step_with_z arguments: ('prev', 'dt', 'e_world', 'u_action', 'z', 'memory', 'ages', 'mask') dependencies: ('rec_context', 'torch', 'cat', 'rm_W', 'rm_lin', 'rec_zin', 'rm_ln', 'rec_layer', 'range', 'str', 'rec_abar', 'rec_delta', 'mean', 'rec_outnorm')
+rec_layer arguments: ('x', 'prefix', 'memory', 'ages', 'mask', 'age_mode') dependencies: ('rec_attn_apply', 'rm_mlp', 'rm_ln')
+rm_set arguments: ('atom_vectors', 'prefix', 'activation') dependencies: ('shape', 'torch', 'zeros', 'rm_mlp', 'sum', 'np', 'sqrt', 'full', 'float', 'log1p', 'rm_ln', 'rm_lin')
+rm_insulin_atoms arguments: ('unit_id', 'rate_unit_id', 'side', 'use_kq', 'activation') dependencies: ('len', 'rm_rates', 'rm_W', 'repeat', 'torch', 'zeros', 'rm_doses', 'rm_normspec', 'tensor', 'np', 'clip', 'searchsorted', 'long', 'rm_lin', 'unsqueeze')
+causal_shift_table arguments: ('panel_array', 'ids', 'outcome', 'drug', 'beta', 'rho') dependencies: ('columns', 'index', 'np', 'zeros_like', 'float64', 'bool', 'zeros', 'len', 'range', 'n_times', 'hour_grid', 'isfinite', 'float', 'mean', 'int', 'sum')
+
+=== TRANSITION HELPER SOURCE, IF RETAINED ===
+Source unavailable; will inspect retained reconstruction configuration.
+
+=== RECONSTRUCTION CONFIGURATION ===
+rm_W keys: ['attr_heads.rate_bin.0.bias', 'at
+[output cut at 10,000 characters]
+```

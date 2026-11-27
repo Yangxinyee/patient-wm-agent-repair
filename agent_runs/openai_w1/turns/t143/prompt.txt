@@ -1,0 +1,43 @@
+OUTPUT of Python run 130 of at most 300:
+```
+=== CONFIGURATION ===
+{'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+
+=== INPUT ALIGNMENT AND SCALE ===
+rx_hflow shape (48, 4, 192) mean -0.49620723724365234 std 36.06977844238281 range (-196.03591918945312, 232.65603637695312)
+rx_e shape (48, 192) mean -0.0011803293600678444 std 1.0474579334259033 range (-4.345190048217773, 5.625671863555908)
+rx_u shape (48, 192) mean 0.003480053273960948 std 0.6145048141479492 range (-2.985567092895508, 3.4938297271728516)
+rx_z shape (48, 32) mean 0.010789238847792149 std 0.230979323387146 range (-1.0322871208190918, 1.3638445138931274)
+rx_targeth shape (48, 4, 192) mean -0.337615430355072 std 45.9456672668457 range (-220.33998107910156, 243.71383666992188)
+rx_targetout shape (48, 192) mean 0.007301541045308113 std 1.0082311630249023 range (-3.909689426422119, 4.477452278137207)
+rx_E126 shape (48, 4, 192) mean 0.0018248645355924964 std 1.0276386737823486 range (-3.9266669750213623, 4.904062747955322)
+rx_delta126 shape (192,) mean 1.0036264657974243 std 0.027071654796600342 range (0.9198050498962402, 1.090667724609375)
+rx_abar126 shape (192,) mean 0.3576458990573883 std 0.02466629073023796 range (0.28834816813468933, 0.4352111220359802)
+rx_dt shape (48,) mean 1787.5 std 1553.976806640625 range (300.0, 3600.0)
+e versus rr_e4 RMSE 0.0
+u versus repaired empty-set encoding RMSE 0.0
+z versus exported posterior RMSE 0.0
+
+=== ATTENTION AND NORMALIZATION IMPLEMENTATIONS ===
+
+ rx_norm
+constants: (None, (192,), '.weight', '.bias', 1e-05)
+names: ('F', 'layer_norm', 'rx_W')
+RESUME  | LOAD_GLOBAL NULL + F | LOAD_ATTR layer_norm | LOAD_FAST x | LOAD_CONST (192,) | LOAD_GLOBAL rx_W | LOAD_FAST p | LOAD_CONST '.weight' | BINARY_OP + | BINARY_SUBSCR  | LOAD_GLOBAL rx_W | LOAD_FAST p | LOAD_CONST '.bias' | BINARY_OP + | BINARY_SUBSCR  | LOAD_CONST 1e-05 | CALL  | RETURN_VALUE 
+
+ rx_attn
+constants: (None, '.q', '.kv', 4, 48, 1, 2, 'split', -1, 0, '.out')
+names: ('rx_linear', 'shape', 'reshape', 'transpose', 'rx_layout', 'chunk', 'F', 'scaled_dot_product_attention')
+RESUME  | LOAD_GLOBAL NULL + rx_linear | LOAD_FAST x | LOAD_FAST p | LOAD_CONST '.q' | BINARY_OP + | CALL  | STORE_FAST q | LOAD_GLOBAL NULL + rx_linear | LOAD_FAST x | LOAD_FAST p | LOAD_CONST '.kv' | BINARY_OP + | CALL  | STORE_FAST kv | LOAD_FAST q | LOAD_ATTR shape | UNPACK_SEQUENCE  | STORE_FAST B | STORE_FAST L | STORE_FAST D | LOAD_FAST q | LOAD_ATTR NULL|self + reshape | LOAD_FAST B | LOAD_FAST L | LOAD_CONST 4 | LOAD_CONST 48 | CALL  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | STORE_FAST q | LOAD_GLOBAL rx_layout | LOAD_CONST 'split' | COMPARE_OP == | POP_JUMP_IF_FALSE to 372 | LOAD_FAST kv | LOAD_ATTR NULL|self + chunk | LOAD_CONST 2 | LOAD_CONST -1 | CALL  | UNPACK_SEQUENCE  | STORE_FAST k | STORE_FAST v | LOAD_FAST k | LOAD_ATTR NULL|self + reshape | LOAD_FAST B | LOAD_FAST L | LOAD_CONST 4 | LOAD_CONST 48 | CALL  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | STORE_FAST k | LOAD_FAST v | LOAD_ATTR NULL|self + reshape | LOAD_FAST B | LOAD_FAST L | LOAD_CONST 4 | LOAD_CONST 48 | CALL  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | STORE_FAST v | JUMP_FORWARD to 538 | LOAD_FAST kv | LOAD_ATTR NULL|self + reshape | LOAD_FAST B | LOAD_FAST L | LOAD_CONST 4 | LOAD_CONST 2 | LOAD_CONST 48 | CALL  | STORE_FAST kv | LOAD_FAST kv | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST 0 | BUILD_TUPLE  | BINARY_SUBSCR  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | STORE_FAST k | LOAD_FAST kv | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST 1 | BUILD_TUPLE  | BINARY_SUBSCR  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | STORE_FAST v | LOAD_GLOBAL F | LOAD_ATTR NULL|self + scaled_dot_product_attention | LOAD_FAST q | LOAD_FAST k | LOAD_FAST v | CALL  | STORE_FAST a | LOAD_GLOBAL NULL + rx_linear | LOAD_FA
+
+ rx_layer2
+constants: (None, '.norm1', '.attn', '.norm2', '.cross', '.norm3', '.ffn')
+names: ('rx_attn', 'rx_norm', 'rx_cross', 'rx_mlp')
+RESUME  | LOAD_FAST x | LOAD_GLOBAL NULL + rx_attn | LOAD_GLOBAL NULL + rx_norm | LOAD_FAST x | LOAD_FAST p | LOAD_CONST '.norm1' | BINARY_OP + | CALL  | LOAD_FAST p | LOAD_CONST '.attn' | BINARY_OP + | CALL  | BINARY_OP + | STORE_FAST x | LOAD_FAST memory | POP_JUMP_IF_NONE to 142 | LOAD_FAST x | LOAD_GLOBAL NULL + rx_cross | LOAD_GLOBAL NULL + rx_norm | LOAD_FAST x | LOAD_FAST p | LOAD_CONST '.norm2' | BINARY_OP + | CALL  | LOAD_FAST memory | LOAD_FAST age | LOAD_FAST valid | LOAD_FAST p | LOAD_CONST '.cross' | BINARY_OP + | LOAD_FAST mode | LOAD_FAST age_scale | LOAD_FAST age_act | CALL  | BINARY_OP + | STORE_FAST x | LOAD_FAST x | LOAD_GLOBAL NULL + rx_mlp | LOAD_GLOBAL NULL + rx_norm | LOAD_FAST x | LOAD_FAST p | LOAD_CONST '.norm3' | BINARY_OP + | CALL  | LOAD_FAST p | LOAD_CONST '.ffn' | BINARY_OP + | LOAD_FAST ff_act | CALL  | BINARY_OP + | RETURN_VALUE 
+
+ rx_cross126
+constants: (None, '.q', 0, -1, 'core.age', 'gelu', 'before', '.cross', 1, '.norm2', 'after', '.kv', 2, 4, 48, ('attn_mask',), '.out')
+names: ('rx_linear', 'rx_mlp', 'torch', 'log1p', 'clamp_min', 'unsqueeze', 'rx_norm', 'rsplit', 'chunk', 'shape', 'F', 'scaled_dot_product_attention', 'reshape', 'transpose')
+RESUME  | LOAD_GLOBAL NULL + rx_linear | LOAD_FAST x | LOAD_FAST p | LOAD_CONST '.q' | BINARY_OP + | CALL  | STORE_FAST q | LOAD_GLOBAL NULL + rx_mlp | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + log1p | LOAD_FAST a | LOAD_FAST unit | BINARY_OP / | LOAD_ATTR NULL|self + clamp_min | LOAD_CONST 0 | CALL  | CALL  | LOAD_ATTR NULL|self + unsqueeze | LOAD_CONST -1 | CALL  | LOAD_FAST scale | BINARY_OP / | LOAD_CONST 'core.age' | LOAD_CONST 'gelu' | CALL  | STORE_FAST av | LOAD_FAST memnorm | LOAD_CONST 'before' | COMPARE_OP == | POP_JUMP_IF_FALSE to 254 | LOAD_GLOBAL NULL + rx_norm | LOAD_FAST m | LOAD_FAST p | LOAD_ATTR NULL|self + rsplit | LOAD_CONST '.cross' | LOAD_CONST 1 | CALL  | LOAD_CONST 0 | BINARY_SUBSCR  | LOAD_CONST '.norm2' | BINARY_OP + | CALL  | LOAD_FAST av | BINARY_OP + | STORE_FAST mm | JUMP_FORWARD to 350 | LOAD_FAST memnorm | LOAD_CONST 'after' | COMPARE_OP == | POP_JUMP_IF_FALSE to 340 | LOAD_GLOBAL NULL + rx_norm | LOAD_FAST m | LOAD_FAST av | BINARY_OP + | LOAD_FAST p | LOAD_ATTR NULL|self + rsplit | LOAD_CONST '.cross' | LOAD_CONST 1 | CALL  | LOAD_CONST 0 | BINARY_SUBSCR  | LOAD_CONST '.norm2' | BINARY_OP + | CALL  | STORE_FAST mm | JUMP_FORWARD to 350 | LOAD_FAST m | LOAD_FAST av | BINARY_OP + | STORE_FAST mm | LOAD_GLOBAL NULL + rx_linear | LOAD_FAST mm | LOAD_FAST p | LOAD_CONST '.kv' | BINARY_OP + | CALL  | LOAD_ATTR NULL|self + chunk | LOAD_CONST 2 | LOAD_CONST -1 | CALL  | UNPACK_SEQUENCE  | STORE_FAST k | STORE_FAST v | LOAD_FAST q | LOAD_ATTR shape | UNPACK_SEQUENCE  | STORE_FAST B | STORE_FAST L | STORE_FAST D | LOAD_FAST m | LOAD_ATTR shape | LOAD_CONST 1 | BINARY_SUBSCR  | STORE_FAST S | LOAD_GLOBAL F | LOAD_ATTR NULL|self + scaled_dot_product_attention | LOAD_FAST q | LOAD_ATTR NULL|self + reshape | LOAD_FAST B | LOAD_FAST L | LOAD_CONST 4 | LOAD_CONST 48 | CALL  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | LOAD_FAST k | LOAD_ATTR NULL|self + reshape | LOAD_FAST B | LOAD_FAST S | LOAD_CONST 4 | LOAD_CONST 48 | CALL  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | LOAD_FAST v | LOAD_ATTR NULL|self + reshape | LOAD_FAST B | LOAD_FAST S | LOAD_CONST 4 | LOAD_CONST 48 | CALL  | LOAD_ATTR NULL|self + transpose | LOAD_CONST 1 | LOAD_CONST 2 | CALL  | LOAD_FAST valid | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | LOAD_CONST None | LOAD_CONST None | LOAD_CONS
+
+```

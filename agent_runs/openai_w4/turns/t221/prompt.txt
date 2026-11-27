@@ -1,0 +1,181 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 220 replies happened before. Forward passes used: 13 of 50; Python runs used: 195 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_2', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ targeted NE/asymmetry repair. No weights changed.
+
+
+## Run 171
+Run-117/123 construction is explicitly insulin-only, explaining the lack of NE repair. Run-137 quadratic immediate fits: insulin linear -1.6589, quadratic -.0740; NE linear +2.3983, quadratic +.5930. These local observational fits do not establish doubled-dose extrapolation. Inspecting occupied latent/attention dimensions and channel-building interfaces to construct an independent NE innovation channel. No weights changed.
+
+
+## Run 172
+Current insulin channel replaces posterior hidden rows 96 and 184 and prelude attention head 1 (48-dimensional). Investigating an independent NE signal through the already reserved head, avoiding removal of another attention head. No weights changed.
+
+
+## Run 173
+Checked latent-map rank, reserved attention value/output directions, original training-bank IDs and exact capture/action interfaces for a shared-head NE channel. Existing saved weights remain unchanged.
+
+
+## Run 174
+Recovered architecture, retained insulin-channel construction objects, and record-identification summaries before designing a separate NE channel. No weights changed. Free-rollout efficacy and factual preservation remain the validation criteria, not the presence of spare dimensions.
+
+
+## Run 175
+Inspected retained channel algebra and reference-bank interfaces. The current channel is insulin-only; a separate NE signal is being considered within the same reserved head. No weights changed; statistical identification assumptions are not replaced by mechanism diagnostics.
+
+
+## Run 176
+Inspected posterior-row replacement, innovation-fit arrays and exact capture interfaces to reproduce the channel for NE. No weights changed. A successful extension requires held-out decoding and absence of non-drug leakage before free-rollout/factual validation.
+
+
+## Run 177
+Recovered compact gating/MLP diagnostics and record-target interfaces after earlier output truncation. No weights changed. NE encoding will be checked against actual recorded doses and held-out bundles rather than medical priors.
+
+
+## Run 178
+Recovered NE raw-decoder/gate fits and matched kernel targets. Earlier NE decoding was weaker than insulin, so an independent dose-sensitivity test is required before using it in a shared-head channel. No saved weights changed.
+
+
+## Run 179
+Synchronized the CPU weight dictionary to submitted edits; previous CPU B_in was stale. Backed up submitted edits. Inspected NE decoder/gate candidates before selecting a held-out dose-sensitive channel. No saved weights changed.
+
+
+## Run 180
+Refitted NE action gates on factual and perturbed encodings, evaluating on held-out stays. Existing gate misses under half doses motivate this change. Recovered latent-normalization and response-design interfaces. No weights saved.
+
+## Run 181
+Run-180 NE gate with ridge 100 had held-out accuracy .99979, active miss rate .00171 and no inactive firing. This establishes bundle discrimination only, not dose decoding or causal effect. Recovering architecture and exact retained channel interfaces before testing an independent NE channel. No weights changed.
+
+## Run 182
+Architecture confirms the existing channel enters through z posterior and a reserved prelude attention head. Recovering gating/normalization algebra and NE decoder dictionaries to extend that head, rather than remove another head. No weights changed.
+
+## Runs 183–184
+Run-183 located raw_candidates87 (NE coefficient vectors length 577) and recovered latent normalization: signature plus .02*q*carrier. Its diagnostic stopped at a NumPy/Torch mismatch before changing any weights. Added a safe conversion and inspected exact wiring, retained dose perturbations and capture return structure. No weights changed.
+
+## Run 185
+Verified a rank-one latent channel and unused value dimensions in the existing reserved attention head. Tested gated NE innovation decoders on factual and imposed half/double-dose encodings. These tests concern faithful input transmission, not causal truth. No weights changed.
+
+## Run 186
+Run-185 NE decoders had near-unit imposed-dose slopes but poor held-out innovation R2. Constructed an UNSAVED dual channel using posterior rows 156/89, a second latent carrier and reserved-head value dimension 50; tested held-out prelude decoding and insulin preservation. CPU weights restored in finally; submitted edits unchanged. Factual fit and free rollouts, not channel decoding, will determine acceptance.
+
+## Run 187
+Run-186 preserved insulin posterior signal (RMS 1.5e-6) but NE prelude decoding R2 was .92 at amplitude 80. Tested amplitudes 10/20/40 with factual and half/double NE dose encodings, jointly fitting NE decoding and preservation of the current insulin B_in signal. Also computed MAP-selective response directions from the retained finite-difference Jacobian. CPU weights restored; no submitted weights changed. Record effect estimates remain conditional on the identification assumptions, not certified by these tests.
+
+## Run 188
+Run-187 amplitude 10/20/40 channels had held-out NE decoding R2 ~.976 and insulin-preservation RMSE ~.028, but dose increment slopes were only ~.794 (half) and .812 (double). Smaller amplitudes did not resolve attenuation. Checking physical-rate/index alignment and posterior versus E-decoder sensitivity before calibration. Recovered factual evaluation interfaces and replayed the submitted baseline. No saved weights changed.
+
+## Run 189
+Run-188 alignment checks ruled out indexing/rate mismatch. The run-180 gated decoder itself attenuates imposed NE dose changes, whereas the older decoder is nearly proportional on its smaller active subset. Recovering exact channel/gate construction before modifying it; classification accuracy alone does not establish faithful dose transmission. No saved weights changed.
+
+## Run 190
+Inspecting exact gate/channel interfaces and active gate margins over all retained dose augmentations. This distinguishes gate suppression from raw decoder approximation/extrapolation error before any edit. No saved weights changed.
+
+## Run 191
+The NE channel uses silu(g+q/2)-silu(g-q/2). Retrieving compact gate-margin results and cached fitting arrays after disassembly output truncation. No saved weights changed.
+
+## Run 192
+Run-191 gates were saturated on almost all held-out active bundles; raw NE decoder approximation is the main remaining transmission issue. Fitted closed-form decoder corrections, anchoring factual outputs and supervising imposed half/double physical-rate increments on training stays. Held-out transmission tests do not estimate drug effects. No saved weights changed.
+
+## Run 193
+Run-192 ridge .001/strength 100 improved raw held-out NE dose slopes to .989/.950 with factual signal RMSE .130. Constructed an UNSAVED amplitude-20 dual channel using this decoder and refitted joint NE decoding/insulin-preservation vectors on stay-disjoint training bundles. CPU weights restored to submitted edits in finally; no saved weights changed. Transmission validation is separate from record-based causal identification.
+
+## Run 194
+Run-193 amplitude-20 dual channel with ridge .0001 E decoding had NE R2 .980, insulin-preservation RMSE .02845 and held dose slopes .867/.929. Tested unsaved MAP-selective NE response scales 0/.5/1/1.5/2 with training factual replay; original/submitted baselines and per-event NLL deltas retained in results194. CPU restored; no saved weights changed. GPU factual and free-rollout validation are still required.
+
+## Run 195
+Saved provisional dual insulin/NE channel: amplitude 20, recalibrated NE decoder (.001,100), joint E ridge .0001, MAP-response direction ridge .1 at scale 1. Existing insulin response preserved by joint refit. Training replay dNLL +.0040994 versus original; scales 1.5/2 failed the budget. Previous submitted tensors backed up in backup_before195. GPU factual and rollout validation pending; causal readout targets remain record-based estimates subject to identification assumptions.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 195 of at most 300:
+```
+SAVED ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+VALIDATION STAYS [2020000208, 2020000224, 2020000240, 2020000256, 2020000272, 2020000288, 2020000209, 2020000225, 2020000241, 2020000257, 2020000273, 2020000289, 2020000210, 2020000226, 2020000242, 2020000258, 2020000274, 2020000290, 2020000211, 2020000227, 2020000243, 2020000259, 2020000291, 2020000212, 2020000228, 2020000244, 2020000260, 2020000276, 2020000292, 2020000213, 2020000229, 2020000245, 2020000261, 2020000277, 2020000293, 2020000214, 2020000230, 2020000246, 2020000262, 2020000278, 2020000294, 2020000215, 2020000231, 2020000247, 2020000263, 2020000279, 2020000295, 2020000200, 2020000216, 2020000232, 2020000248, 2020000264, 2020000280, 2020000296, 2020000201, 2020000217, 2020000233, 2020000249, 2020000265, 2020000281, 2020000297, 2020000202, 2020000218, 2020000234, 2020000250, 2020000266, 2020000282, 2020000298, 2020000203, 2020000219, 2020000235, 2020000251, 2020000267, 2020000283, 2020000299, 2020000204, 2020000220, 2020000236, 2020000268, 2020000284, 2020000205, 2020000221, 2020000237, 2020000253, 2020000269, 2020000285, 2020000206, 2020000222, 2020000238, 2020000254, 2020000270, 2020000286, 2020000207, 2020000223, 2020000239, 2020000255, 2020000271, 2020000287]
+TRAINING REPLAY DELTA 0.0040993778966367245
+
+RECORD-BASED KERNELS {'insulin': [-2.046781, -2.478153, -2.210852, -1.795685, -1.366795, -1.012156, -0.751229, -0.580847, -0.422499, -0.291583, -0.248984, -0.080027], 'norepinephrine': [3.142908, 2.558787, 1.49318, 0.774983, 0.467854, 0.381489, 0.22542, -0.00837, 0.222162, 0.086657, 0.019215, 0.063832]}
+RECORD-BASED READOUT ESTIMATES {'insulin': {'row_mean': [-15.958712677073809, [-17.798044, -14.257319]], 'equal_stay_mean': [-13.200754314749359, [-14.677846, -11.826421]]}, 'norepinephrine': {'row_mean': [3.850968842405168, [3.596154, 4.214982]], 'equal_stay_mean': [3.6087357747707864, [3.370311, 3.949115]]}}
+QUADRATIC FITS {'insulin': {'beta': [-1.658894, -0.074017], 'se': [0.111621, 0.021165]}, 'norepinephrine': {'beta': [2.398333, 0.592992], 'se': [0.308686, 0.227366]}}
+
+```

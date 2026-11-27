@@ -1,0 +1,431 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 36 replies happened before. Forward passes used: 4 of 50; Python runs used: 32 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+head reconstruction and validation.
+
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edits.
+- Insulin policy has sharp rate jumps near finger glucose 150, 180, etc.; testing fuzzy RD rather than assuming observed dose associations are causal.
+{
+  "rd_checks": {
+    "(5, 1, False)": {
+      "n": 89398,
+      "beta": -2.11567545402709,
+      "se": 0.33683734799038334,
+      "first_stage_jump": 0.7135711767182463,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 1, True)": {
+      "n": 89398,
+      "beta": -2.0571854815200568,
+      "se": 0.3057137413636479,
+      "first_stage_jump": 0.7135240538160252,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, False)": {
+      "n": 89398,
+      "beta": -2.1113769908453865,
+      "se": 0.7234826044355352,
+      "first_stage_jump": 0.683167099721991,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, True)": {
+      "n": 89398,
+      "beta": -2.179170250120743,
+      "se": 0.6564570134763864,
+      "first_stage_jump": 0.6832177747842112,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 1, False)": {
+      "n": 179126,
+      "beta": -1.919425767186608,
+      "se": 0.22837478130371563,
+      "first_stage_jump": 0.6926458851218907,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 1, True)": {
+      "n": 179126,
+      "beta": -1.9151498499552946,
+      "se": 0.20658614946993908,
+      "first_stage_jump": 0.6925843696745465,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 2, False)": {
+      "n": 179126,
+      "beta": -2.156108590545677,
+      "se": 0.365258324667667,
+      "first_stage_jump": 0.7396721616358036,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 2, True)": {
+      "n": 179126,
+      "beta": -2.1745694951076504,
+      "se": 0.3321482939180942,
+      "first_stage_jump": 0.7396569700924231,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(14, 1, False)": {
+      "n": 251784,
+      "beta": -1.9264398261906226,
+      "se": 0.20977497313947066,
+      "first_stage_jump": 0.6279632128988961,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(14, 1, True)": {
+      "n": 251784,
+      "beta": -1.9020941408234302,
+      "se": 0.18878471311489012,
+      "first_stage_jump": 0.6278945366560021,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(14, 2, False)": {
+      "n": 251784,
+      "beta": -1.913907670650228,
+      "se": 0.2931159022182598,
+      "first_stage_jump": 0.7382135955984567,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(14, 2, True)": {
+      "n": 251784,
+      "beta": -1.9611823982200445,
+      "se": 0.26560810652114514,
+      "first_stage_jump": 0.7381607916371032,
+      "dose_impulse": [
+        1.0
+      ]
+    }
+  },
+  "rd_lp": {
+    "-2": {
+      "n": 163780,
+      "beta": 0.023175255832027536,
+      "se": 0.22658203106283378,
+      "first_stage_jump": 0.7160372238526388,
+      "dose_impulse": []
+    },
+    "-1": {
+      "n": 177294,
+      "beta": -0.06443344176846567,
+      "se": 0.19783627488288785,
+      "first_stage_jump": 0.7270949131821886,
+      "dose_impulse": []
+    },
+    "1": {
+      "n": 179126,
+      "beta": -1.919425767186608,
+      "se": 0.22837478130371563,
+      "first_stage_jump": 0.6926458851218907,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "2": {
+      "n": 165206,
+      "beta": -1.578687825747174,
+      "se": 0.23636011271982893,
+      "first_stage_jump": 0.7106265486788279,
+      "dose_impulse": [
+        1.0,
+        0.054990234109489604
+      ]
+    },
+    "3": {
+      "n": 155452,
+      "beta": -1.7345565380821675,
+      "se": 0.25540490233762486,
+      "first_stage_jump": 0.7123015425117964,
+      "dose_impulse": [
+        1.0,
+        0.07807367740503227,
+        0.0070409681229136175
+      ]
+    },
+    "4": {
+      "n": 147164,
+      "beta": -1.1792518214087369,
+      "se": 0.26727981655347777,
+      "first_stage_jump": 0.717434080459136,
+      "dose_impulse": [
+        1.0,
+        0.08920792703791736,
+        0.02604279362360432,
+        -0.038009077056815645
+      ]
+    },
+    "6": {
+      "n": 131997,
+      "beta": -0.5627170098241642,
+      "se": 0.30074125774691585,
+      "first_stage_jump": 0.7297377960894635,
+      "dose_impulse": [
+        1.0,
+        0.08575827883401207,
+        0.015063843525818143,
+        -0.03684355894588611,
+        -0.03334768494214686,
+        -0.018724894368299265
+      ]
+    },
+    "8": {
+      "n": 117019,
+      "beta": -0.4554780904882112,
+      "se": 0.33593299006762334,
+      "first_stage_jump": 0.7299757248582895,
+      "dose_impulse": [
+        1.0,
+        0.09504582199597623,
+        0.024249546872011415,
+        -0.03861528812809539,
+        -0.029608145136631955,
+        -0.011525157077047236,
+        -0.0283052568353451,
+        -0.025972083837568508
+      ]
+    }
+  },
+  "dynamic_fit": [
+    -1.9287092802694472,
+    0.8318395202800747
+  ],
+  "moment_errors": [
+    -0.04065034251961959,
+    -0.5574077201394075,
+    1.0224279584952125,
+    -0.06898099709433944,
+    -0.5406528101888338,
+    0.07138948203477055
+  ]
+}
+
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+- RD beta/persistence: [-1.9287092802694472, 0.8318395202800747].
+- Fixed-record insulin x2 target, train / first 100 tuning: ((-11.136162060797929, 152158), (-10.707835822880574, 554)); half is -0.5 times x2.
+- Flexible, stay-held-out NE estimates remain observational, not automatically causal.
+{
+  "1": {
+    "all": {
+      "beta": 3.3214268014980317,
+      "se": 0.09576999832526349,
+      "n": 299517,
+      "dose_residual_sd": 0.09073010103067478,
+      "outcome_residual_sd": 4.40471740317129
+    },
+    "interior": {
+      "beta": 3.3480345525779405,
+      "se": 0.10803830467896791,
+      "n": 116511,
+      "dose_residual_sd": 0.12413404307882044,
+      "outcome_residual_sd": 4.590900888397296
+    }
+  },
+  "4": {
+    "all": {
+      "beta": 3.280136875394464,
+      "se": 0.09669211095919605,
+      "n": 260475,
+      "dose_residual_sd": 0.09223969594935504,
+      "outcome_residual_sd": 4.268125306872915
+    },
+    "interior": {
+      "beta": 3.328771594136043,
+      "se": 0.10795623473196006,
+      "n": 99386,
+      "dose_residual_sd": 0.12647869705939818,
+      "outcome_residual_sd": 4.443289044173014
+    }
+  },
+  "8": {
+    "all": {
+      "beta": 3.3242140350967726,
+      "se": 0.10443699572843235,
+      "n": 208459,
+      "dose_residual_sd": 0.09364732007161047,
+      "outcome_residual_sd": 4.217548630415361
+    },
+    "interior": {
+      "beta": 3.3899126865451534,
+      "se": 0.11784978539028063,
+      "n": 77672,
+      "dose_residual_sd": 0.12868938320587522,
+      "outcome_residual_sd": 4.40078981957742
+    }
+  }
+}
+
+## Restart recovery; Python 26, forward 4
+- No edits. CPU head approximation is not yet exact: best mean RMSE 5.49 and NLL 1.718 versus GPU 1.635.
+- Recovering architecture and analysis before attempting a factual-preserving causal edit.
+
+## CPU head diagnostics; Python 32, forward 4
+- Query type 1 confirmed by enumeration. Register has eight inputs; current best plausible layout is has_last, age, z_value, has_value, then zero dose/rate fields.
+- Latent averaging scores: {0: {'rmse': 5.564717897988346, 'nll': 1.7048639059066772, 'bias': 0.5694274710733698, 'glucose_finger': [8.95001464588741, 1.683908580804832, 1.621583342552185], 'map_arterial': [1.8346953615243462, 0.1651280219557052, 1.4954066276550293]}, 4: {'rmse': 5.73054872514492, 'nll': 1.7206073999404907, 'bias': 0.5107450998186236, 'glucose_finger': [9.103341101745825, 1.3675544616937327, 1.6270861625671387], 'map_arterial': [1.9966728203323796, 0.2033869004245274, 1.5273429155349731]}, 32: {'rmse': 5.53954005653386, 'nll': 1.7080501317977905, 'bias': 0.5144430734501515, 'glucose_finger': [8.867384978885156, 1.4045410917403636, 1.6242039203643799], 'map_arterial': [1.8210001582291355, 0.22066284223716479, 1.5075314044952393]}}
+- No weight edits yet.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 32 of at most 300:
+```
+=== HEAD TAIL LOGIC ===
+103: LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:code | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:long | KW_NAMES:('dtype',) | CALL: | STORE_FAST:code
+104: LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:last_bin | LOAD_ATTR:NULL|self + to_numpy | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:long | KW_NAMES:('dtype',) | CALL: | STORE_FAST:bins
+105: LOAD_FAST:q | LOAD_GLOBAL:W | LOAD_CONST:'embed.code.weight' | BINARY_SUBSCR: | LOAD_FAST:code | BINARY_SUBSCR: | BINARY_OP:+ | LOAD_GLOBAL:NULL + lin | LOAD_FAST:reg | LOAD_CONST:'last_numeric' | CALL: | BINARY_OP:+ | BINARY_OP:+ | BINARY_OP:+ | BINARY_OP:+ | STORE_FAST:wc
+106: LOAD_GLOBAL:W | LOAD_CONST:'embed.bins.value.weight' | BINARY_SUBSCR: | LOAD_FAST:bins | BINARY_SUBSCR:
+107: LOAD_GLOBAL:W | LOAD_CONST:'embed.bins.rate.weight' | BINARY_SUBSCR: | LOAD_CONST:0 | BINARY_SUBSCR: | LOAD_GLOBAL:W | LOAD_CONST:'last_status.weight' | BINARY_SUBSCR: | LOAD_FAST:status | BINARY_SUBSCR:
+108: LOAD_GLOBAL:NULL + F | LOAD_ATTR:gelu | LOAD_GLOBAL:NULL + lin | LOAD_FAST:wc | LOAD_CONST:'attr_heads.value_bin.0' | CALL: | CALL: | STORE_FAST:hidden
+109: LOAD_GLOBAL:NULL + lin | LOAD_FAST:hidden | LOAD_CONST:'attr_heads.value_bin.2' | CALL: | STORE_FAST:logits
+110: LOAD_FAST:logits | LOAD_GLOBAL:W | LOAD_CONST:'embed_transition.value_bin.weight' | BINARY_SUBSCR: | LOAD_FAST:code | LOAD_CONST:17 | BINARY_OP:* | LOAD_FAST:bins | BINARY_OP:+ | BINARY_SUBSCR: | BINARY_OP:+= | STORE_FAST:logits
+111: LOAD_FAST:logits | LOAD_ATTR:NULL|self + softmax | LOAD_CONST:-1 | CALL: | STORE_FAST:probs
+112: LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + zeros | LOAD_GLOBAL:NULL + len | LOAD_FAST:meta | CALL: | LOAD_CONST:17 | CALL: | STORE_FAST:centres
+113: LOAD_GLOBAL:VOCAB | LOAD_CONST:'value_bin_centres' | BINARY_SUBSCR: | LOAD_ATTR:NULL|self + items | CALL: | GET_ITER: | FOR_ITER:to 2584 | UNPACK_SEQUENCE: | STORE_FAST:event | STORE_FAST:vals | END_FOR:
+114: LOAD_FAST:meta | LOAD_ATTR:event | LOAD_FAST:event | COMPARE_OP:== | LOAD_ATTR:NULL|self + to_numpy | CALL: | STORE_FAST:mask
+115: LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:vals | LOAD_GLOBAL:torch | LOAD_ATTR:float32 | KW_NAMES:('dtype',) | CALL: | LOAD_FAST:centres | LOAD_FAST:mask | LOAD_CONST:1 | LOAD_CONST:None | BUILD_SLICE: | BUILD_TUPLE: | STORE_SUBSCR: | JUMP_BACKWARD:to 2424
+116: LOAD_FAST:probs | LOAD_FAST:centres | BINARY_OP:* | LOAD_ATTR:NULL|self + sum | LOAD_CONST:-1 | CALL: | LOAD_ATTR:NULL|self + numpy | CALL: | STORE_FAST:means
+117: LOAD_FAST:probs | LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + arange | LOAD_GLOBAL:NULL + len | LOAD_FAST:meta | CALL: | CALL: | LOAD_GLOBAL:torch | LOAD_ATTR:NULL|self + tensor | LOAD_FAST:meta | LOAD_ATTR:observed_bin | LOAD_ATTR:N
+MLP operations: ('lin', 'F', 'gelu')
+
+=== LATENT AVERAGING ===
+samples 0 {'rmse': 5.564717897988346, 'nll': 1.7048639059066772, 'bias': 0.5694274710733698, 'glucose_finger': [8.95001464588741, 1.683908580804832, 1.621583342552185], 'map_arterial': [1.8346953615243462, 0.1651280219557052, 1.4954066276550293]}
+manual vs retained mean max error: 6.103515625e-05
+samples 4 {'rmse': 5.73054872514492, 'nll': 1.7206073999404907, 'bias': 0.5107450998186236, 'glucose_finger': [9.103341101745825, 1.3675544616937327, 1.6270861625671387], 'map_arterial': [1.9966728203323796, 0.2033869004245274, 1.5273429155349731]}
+samples 32 {'rmse': 5.53954005653386, 'nll': 1.7080501317977905, 'bias': 0.5144430734501515, 'glucose_finger': [8.867384978885156, 1.4045410917403636, 1.6242039203643799], 'map_arterial': [1.8210001582291355, 0.22066284223716479, 1.5075314044952393]}
+prior log-sd quantiles: [-1.61949205 -0.63496794 -0.47370924 -0.31350544  0.55750555]
+class-zero probability: [9.93606374e-14 3.66590935e-09 2.94438593e-07 2.36759552e-05]
+
+=== ERROR BY TIME AND LAST-VALUE RANGE ===
+                           n      bias       rmse  nll_diff
+event          period                                      
+glucose_finger (-3, 0]   122  0.815613   5.579327  0.019920
+               (0, 12]   680  1.794075   7.524434  0.161921
+               (12, 24]  736  1.142266  10.336484  0.182057
+glucose_lab    (-3, 0]    36 -0.775619   4.619437  0.032389
+               (0, 12]   226  0.200493   4.327308  0.084807
+               (12, 24]  226  0.796154   5.541923  0.141009
+map_arterial   (-3, 0]    85  0.127854   2.196658 -0.038325
+               (0, 12]   510  0.114876   1.551312  0.028813
+               (12, 24]  514  0.340974   1.992197  0.056150
+map_cuff       (-3, 0]   122  0.173575   2.147081 -0.016743
+               (0, 12]   760 -0.246628   2.229729  0.005664
+               (12, 24]  734  0.011119   2.583257  0.010355
+                             n       bias
+event          last_range                
+glucose_finger (-100, -1]  144  12.533775
+               (-1, 0]     655   2.356482
+               (0, 1]      603   0.132828
+               (1, 100]    136  -9.325517
+glucose_lab    (-100, -1]   21   9.314327
+               (-1, 0]     267   1.668828
+               (0, 1]      159  -1.571354
+               (1, 100]     41  -4.732016
+map_arterial   (-100, -1]  181   2.834278
+               (-1, 0]     506  -0.112421
+               (0, 1]      407  -0.427139
+               (1, 100]     15  -2.503923
+map_cuff       (-100, -1]  235   2.586648
+               (-1, 0]     663  -0.071886
+               (0, 1]      604  -0.941056
+               (1, 100]    114  -1.314950
+
+```

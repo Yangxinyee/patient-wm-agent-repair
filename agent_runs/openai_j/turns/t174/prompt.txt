@@ -1,0 +1,206 @@
+OUTPUT of Python run 157 of at most 300:
+```
+=== HEAD AND FEATURE SCALING ===
+axis: [ 0.  -7.5 -6.5 -5.5 -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5
+  5.5  6.5  7.5]
+logit direction: tensor([ 0.0000, -1.8750, -1.6250, -1.3750, -1.1250, -0.8750, -0.6250, -0.3750,
+        -0.1250,  0.1250,  0.3750,  0.6250,  0.8750,  1.1250,  1.3750,  1.6250,
+         1.8750])
+input scale range: 0.24764636584334637 1.4109662067703859
+gate norm/bias: 1.1480979453140419 0.2640315958262548
+original value-head shapes: {'attr_heads.value_bin.0.weight': (192, 192), 'attr_heads.value_bin.0.bias': (192,), 'attr_heads.value_bin.2.weight': (17, 192), 'attr_heads.value_bin.2.bias': (17,)}
+wm_train145 {'raw': 'dict', 'inputs0': (4510, 192), 'inputs': (16, 4510, 192), 'hidden': (16, 4510, 192), 'logits': (16, 4510, 17), 'probs': (16, 4510, 17), 'centres': (4510, 17), 'target': (4510,), 'mean': (4510,), 'nll': (4, 4510), 'noise': (16, 4510, 32)}
+raw fields: {'state': (4510, 992), 'dt': (4510,), 'context': (4510, 192), 'view': (4510, 192), 'register': (4510, 192), 'numbers': (4510, 8), 'inputs': (4510, 192), 'hidden': (4510, 192), 'probs': (4510, 17), 'logits': (4510, 17), 'code': (4510,), 'last_bin': (4510,)}
+wm_tune145 {'raw': 'dict', 'inputs0': (4751, 192), 'inputs': (16, 4751, 192), 'hidden': (16, 4751, 192), 'logits': (16, 4751, 17), 'probs': (16, 4751, 17), 'centres': (4751, 17), 'target': (4751,), 'mean': (4751,), 'nll': (4, 4751), 'noise': (16, 4751, 32)}
+raw fields: {'state': (4751, 992), 'dt': (4751,), 'context': (4751, 192), 'view': (4751, 192), 'register': (4751, 192), 'numbers': (4751, 8), 'inputs': (4751, 192), 'hidden': (4751, 192), 'probs': (4751, 17), 'logits': (4751, 17), 'code': (4751,), 'last_bin': (4751,)}
+
+=== FIT AND COUNTERFACTUAL STRUCTURE ===
+wm_fits152 (1.0, 0.0001) ndarray
+ shape (193,) first [-4.92490156 -4.03180573  4.08877755  2.88024405 -2.71701691 -6.6424445
+  1.4635305  -0.15687555]
+wm_fits153 (1.0, 0.3) ndarray
+ shape (193,) first [-6.57185213 -5.40919472  5.50124076  0.57243693 -1.98819507 -4.91375608
+ -1.81843158 -0.05756449]
+wm_cf146 ('insulin', 2.0) dict
+  raw dict
+  inputs0 (4510, 192)
+  inputs (16, 4510, 192)
+  hidden (16, 4510, 192)
+  logits (16, 4510, 17)
+  probs (16, 4510, 17)
+  mean (4510,)
+  active (4510,)
+  delta_rate (4510,)
+wm_tau_targets151 ('insulin', 2.0) ndarray
+ shape (4510,) first [ 0.          0.          0.          0.          0.         -0.69119847
+ -0.12940691 -0.3954236 ]
+
+metadata: ['stay_id', 'hour', 'event', 'state_i', 'dt', 'has_last', 'age_s', 'zlast', 'last_bin', 'target_bin', 'original_mean', 'original_nll', 'scale', 'code']
+   stay_id  hour          event  state_i     dt  has_last  age_s  zlast  last_bin  target_bin  original_mean  original_nll  scale  code
+1010000000  -1.0   map_arterial        0 3600.0       0.0    0.0    0.0         0           8        68.8153        2.6815   20.0     7
+1010000000  -1.0 glucose_finger        0 3600.0       0.0    0.0    0.0         0           9       161.2808        2.6315   52.0     6
+
+=== RAW LOSS IMPLEMENTATION ===
+  9           0 RESUME                   0
+
+ 10           2 LOAD_GLOBAL              0 (torch)
+             12 LOAD_ATTR                3 (NULL|self + as_tensor)
+             32 LOAD_FAST                1 (w)
+             34 LOAD_GLOBAL              0 (torch)
+             44 LOAD_ATTR                4 (float32)
+             64 KW_NAMES                 1 (('dtype',))
+             66 CALL                     2
+             74 STORE_FAST               1 (w)
+
+ 11          76 LOAD_FAST                0 (mc)
+             78 LOAD_CONST               2 ('inputs')
+             80 BINARY_SUBSCR
+             84 LOAD_FAST                1 (w)
+             86 LOAD_CONST               0 (None)
+             88 LOAD_CONST               3 (-1)
+             90 BINARY_SLICE
+             92 BINARY_OP                4 (@)
+             96 LOAD_FAST                1 (w)
+             98 LOAD_CONST               3 (-1)
+            100 BINARY_SUBSCR
+            104 BINARY_OP                0 (+)
+            108 LOAD_GLOBAL              0 (torch)
+            118 LOAD_ATTR                3 (NULL|self + as_tensor)
+            138 LOAD_FAST                2 (glucose_mask)
+            140 CALL                     1
+            148 LOAD_CONST               0 (None)
+            150 LOAD_CONST               0 (None)
+            152 LOAD_CONST               0 (None)
+            154 BUILD_SLICE              2
+            156 BUILD_TUPLE              2
+            158 BINARY_SUBSCR
+            162 BINARY_OP                5 (*)
+            166 STORE_FAST               3 (tau)
+
+ 12         168 LOAD_GLOBAL              7 (NULL + wm_probs151)
+            178 LOAD_FAST                0 (mc)
+            180 LOAD_CONST               4 ('logits')
+            182 BINARY_SUBSCR
+            186 LOAD_FAST                3 (tau)
+            188 CALL                     2
+            196 STORE_FAST               4 (p)
+
+ 13         198 LOAD_FAST                0 (mc)
+            200 LOAD_CONST               5 ('target')
+            202 BINARY_SUBSCR
+            206 LOAD_CONST               0 (None)
+            208 LOAD_CONST               0 (None)
+            210 LOAD_CONST               0 (None)
+            212 BUILD_SLICE              2
+            214 LOAD_CONST               0 (None)
+            216 BUILD_TUPLE              3
+            218 BINARY_SUBSCR
+            222 LOAD_ATTR                9 (NULL|self + expand)
+            242 LOAD_FAST                4 (p)
+            244 LOAD_ATTR               10 (shape)
+            264 LOAD_CONST               6 (0)
+            266 BINARY_SUBSCR
+            270 LOAD_CONST               3 (-1)
+            272 LOAD_CONST               7 (1)
+            274 CALL                     3
+            282 STORE_FAST               5 (idx)
+
+ 14         284 LOAD_FAST                4 (p)
+            286 LOAD_ATTR               13 (NULL|self + gather)
+            306 LOAD_CONST               3 (-1)
+            308 LOAD_FAST                5 (idx)
+            310 CALL                     2
+            318 LOAD_ATTR               15 (NULL|self + squeeze)
+            338 LOAD_CONST               3 (-1)
+            340 CALL                     1
+            348 STORE_FAST               6 (obs)
+
+ 15         350 LOAD_FAST                6 (obs)
+            352 LOAD_ATTR               17 (NULL|self + reshape)
+            372 LOAD_CONST               3 (-1)
+            374 LOAD_CONST               8 (4)
+            376 LOAD_FAST                4 (p)
+            378 LOAD_ATTR               10 (shape)
+            398 LOAD_CONST               7 (1)
+            400 BINARY_SUBSCR
+            404 CALL                     3
+            412 LOAD_ATTR               19 (NULL|self + mean)
+            432 LOAD_CONST               7 (1)
+            434 CALL                     1
+            442 LOAD_ATTR               21 (NULL|self + clamp_min)
+            462 LOAD_CONST               9 (1e-30)
+            464 CALL                     1
+            472 LOAD_ATTR               23 (NULL|self + log)
+            492 CALL                     0
+            500 UNARY_NEGATIVE
+            502 STORE_FAST               7 (nll)
+
+ 16         504 LOAD_FAST                4 (p)
+            506 LOAD_ATTR               19 (NULL|self + mean)
+            526 LOAD_CONST               6 (0)
+            528 CALL                     1
+            536 LOAD_FAST                0 (mc)
+            538 LOAD_CONST              10 ('centres')
+            540 BINARY_SUBSCR
+            544 BINARY_OP                5 (*)
+            548 LOAD_ATTR               25 (NULL|self + sum)
+            568 LOAD_CONST               3 (-1)
+            570 CALL                     1
+            578 STORE_FAST               8 (mean)
+
+ 17         580 LOAD_FAST                7 (nll)
+            582 LOAD_FAST                8 (mean)
+            584 LOAD_FAST                3 (tau)
+            586 LOAD_FAST                4 (p)
+            588 BUILD_TUPLE              4
+            590 RETURN_VALUE
+
+=== MOMENT IMPLEMENTATION ===
+ 57           0 RESUME                   0
+
+ 58           2 LOAD_GLOBAL              0 (wm_F151)
+             12 LOAD_CONST               0 (None)
+             14 LOAD_CONST               0 (None)
+             16 BUILD_SLICE              2
+             18 LOAD_FAST                0 (mask)
+             20 BUILD_TUPLE              2
+             22 BINARY_SUBSCR
+             26 LOAD_ATTR                3 (NULL|self + reshape)
+             46 LOAD_CONST               1 (-1)
+             48 LOAD_CONST               2 (193)
+             50 CALL                     2
+             58 STORE_FAST               1 (F)
+
+ 59          60 LOAD_FAST                1 (F)
+             62 LOAD_ATTR                4 (T)
+             82 LOAD_FAST                1 (F)
+             84 BINARY_OP                4 (@)
+             88 LOAD_GLOBAL              7 (NULL + len)
+             98 LOAD_FAST                1 (F)
+            100 CALL                     1
+            108 BINARY_OP               11 (/)
+            112 STORE_FAST               2 (factual)
+
+ 60         114 LOAD_GLOBAL              8 (np)
+            124 LOAD_ATTR               11 (NULL|self + zeros)
+            144 LOAD_CONST               3 ((193, 193))
+            146 CALL                     1
+            154 STORE_FAST               3 (C)
+
+ 61         156 LOAD_GLOBAL              8 (np)
+            166 LOAD_ATTR               11 (NULL|self + zeros)
+            186 LOAD_CONST               2 (193)
+            188 CALL                     1
+            196 STORE_FAST               4 (b)
+
+ 62         198 LOAD_GLOBAL             12 (wm_cf146)
+            208 LOAD_ATTR               15 (NULL|self + items)
+            228 CALL                     0
+            236 GET_ITER
+        >>  238 EXTENDED_ARG             1
+            240 FOR_ITER               293 (to 830)
+            244 UNPACK_SEQUENCE          2
+            248 STORE_FAST               5 (key)
+            250 STORE
+[output cut at 10,000 characters]
+```

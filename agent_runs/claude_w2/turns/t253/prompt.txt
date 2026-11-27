@@ -1,0 +1,63 @@
+OUTPUT of Python run 245 of at most 300:
+```
+NOTES LEN 10092
+# Notebook
+## Setup facts (runs 1-6)
+- Stays ~24h. Readings at integer hours (-1..24); infusion records start at h+0.0833, run 1h. Policy picks hourly rates.
+- insulin rate in 0.5 steps (0.5..14, mostly 0.5-3), dose=rate. NE rate 0.01..1.0 (capped at 1.0; 13.5% at cap), dose=4.8*rate (weight 80kg for all).
+- 61% stays get insulin, 43% NE. stay_id sequential, no structure.
+- Dose pathway in model: embed.numeric cols z_dose/z_rate (cols 2..5), embed.bins.dose/rate -> encode_action -> u_k -> prelude tokens + z_post input.
+
+## Insulin policy (runs 9-12)
+- Deterministic sliding scale on latest glucose (fresh gf, else fresh gl): none if <150; band base rates ~1 [150,180), ~2 [180,220), ~3 [220,250), ~3.7 [250,300) (has inner step), ~6.5 >=300.
+- Within band, rate noise (0.5 steps) is independent of all observed covariates (R2~1e-4) => randomized experiment. No hidden confounding apparent.
+- gf measured every hour while last glucose >150.
+
+## NE policy (runs 13-14)
+- Uses map_arterial if present else cuff. Start (~0.05) when MAP<65. Titration: log(rate_t/rate_{t-1}) = adj + N(0,~0.3); adj ~ +0.1 (<65), 0 (65-74), -0.25 (>=75, sometimes stop). Cap 1.0.
+- So NE rate = accumulated random walk => lots of exogenous variation.
+- Insulin rate ~ base(band)*exp(N(0,0.3)) rounded to 0.5 (fits band-1 shares).
+
+## Insulin effect estimate (runs 15-18) -- randomization within band, deconvolved for policy feedback
+- 1h effect -2.0 mg/dL per U/h, same in all bands (linear, no glucose dependence). gf and gl same glucose (no offset, diff sd 9).
+- Structural impulse K(k), k=1..10 (fixed other doses): -2.0 -2.5 -2.2 -1.8 -1.4 -1.15 -0.94 -0.75 -0.50 -0.42 (sum -13.7).
+- Insulin does not move NE or MAP materially.
+
+## NE effect estimate (runs 19-20)
+- NE noise (rate - E[rate|prev rate, MAP band]) unpredictable (R2 0.001). Stops only from rate<=0.06 & MAP>=75.
+- Structural K_N(k) on MAP per (mcg/kg/min * 1h): +3.6 +2.7 +1.7 +1.1 +0.4 +0.45 ~0 ... (sum ~10.4). Same on ma and mc. mc reads ~3 mmHg above ma (sd 6.7).
+- NE first stage persists (0.73,0.56,0.44,...) due to random-walk titrat
+=====FILES by mtime
+sel1.json 1200 Thu Nov 12 08:52:57 2026
+fwd_1 4096 Thu Nov 12 08:54:48 2026
+fwd_2 4096 Thu Nov 12 08:59:07 2026
+selT.json 1200 Thu Nov 12 09:05:47 2026
+fwd_3 4096 Thu Nov 12 09:06:23 2026
+fwd_4 4096 Thu Nov 12 09:37:38 2026
+impl.py 8862 Thu Nov 12 11:13:03 2026
+core_test.py 2346 Thu Nov 12 11:35:54 2026
+head.py 1428 Thu Nov 12 11:41:46 2026
+tf.py 778 Thu Nov 12 11:59:03 2026
+tf2k_orig.parquet 1674361 Thu Nov 12 11:59:10 2026
+rollout.py 10348 Thu Nov 12 12:09:42 2026
+cf.py 2296 Thu Nov 12 12:25:12 2026
+rollout_h.py 8159 Thu Nov 12 12:34:32 2026
+policy.py 2558 Thu Nov 12 12:47:00 2026
+oracle.py 3382 Thu Nov 12 12:47:00 2026
+evalh.py 849 Thu Nov 12 13:06:20 2026
+dec.py 884 Thu Nov 12 13:14:16 2026
+states_ins.py 979 Thu Nov 12 13:18:09 2026
+rollout_h2.py 8381 Thu Nov 12 13:27:51 2026
+wI_chan.npy 896 Thu Nov 12 13:32:57 2026
+wI_head2.npy 512 Thu Nov 12 13:35:22 2026
+transfer_T.npy 147584 Thu Nov 12 13:37:04 2026
+notes.md 10092 Thu Nov 12 13:45:55 2026
+resid.py 1448 Thu Nov 12 14:01:01 2026
+linor.py 1960 Thu Nov 12 14:03:08 2026
+corechan.npz 5060 Thu Nov 12 14:20:32 2026
+gen_wc.py 1468 Thu Nov 12 14:53:28 2026
+=====GLOBALS
+1449
+NAMES:list, SHAPES:dict, VOCAB:dict, load:function, load_original:function, save_edit:function, drop_edit:function, edited:function, V:dict, k:int, s:list, n:int, nm:str, tr:DataFrame, tu:DataFrame, drug:str, d:str, st:str, ne:DataFrame, w:ndarray, notes:str, build_grid:function, g:Generator, gt:DataFrame, gg:DataFrame, c:code, x:tuple, y:ndarray, tab:ndarray, z:NpzFile, LinearRegression:ABCMeta, b:list, X:ndarray, lr:LinearRegression, t1:DataFrame, prevon:bool, ww:DataFrame, t2:DataFrame, vv:ndarray, b2:ndarray, band:function, bnd:float, dd:DataFrame, m:Ridge, bm:ndarray, both:DataFrame, col:str, s2:float64, lr2:LinearRegression, gsh:DataFrameGroupBy, R:dict, RN:ndarray, RM:list, L:list, K:list, val:float64, nb:Series, on:DataFrame, dn:float32, Fn:list, Rn_ma:list, Rn_mc:list, Rn_gf:list, Fi:list, deconv:function, rb:ndarray, mb:Interval, di:DataFrame, bd:float, lo:float, hi:int, ss:DataFrame, gt2:DataFrame, ti:DataFrame, both_ids:list, ins_only:list, nor_only:list, none_ids:list, sel1:list, de:DataFrame, Kins:ndarray, Knor:ndarray, gtt:DataFrame, true_shift_rows:function, res:dict, ed:str, mult:float, Kv:ndarray, r:DataFrame, fa:ndarray, gtt2:DataFrame, gs2:DataFrameGroupBy, gfm:DataFrame, lr3:LinearRegression, mam:DataFrame, fa_:Tensor, t:str, nw:ndarray, lw:ndarray, tti:DataFrame, tr_both:list, rng:Generator, selT:list, S:NpzFile, st_ids:ndarray, hrs:ndarray, nat:ndarray, sid0:int, mask:ndarray, code_id:dict, ek_id:dict, stay_atoms:function, trs:DataFrame, bad:int, sid:int64, A:DataFrame, cnt:Series, m_:ndarray, tool:DataFrame, T:ndarray, W:dict, NUM:dict, zsc:function, fbin:function, ACTS:dict, lin:function, mlp:function, ln:function, names:dict, atom_vec:function, encode:function, ctx_from:function, cands:list, idx:ndarray, mins:ndarray, j:int, mn:ndarray, a:DataFrame, best:list, act:str, unit_row:int, side:str, gapmode:str, half:int, errs:list, ip:int64, ik:int64, dt:float64, ctx:Tensor, e:Tensor, zo:Tensor, zm:Tensor, zpred:function, act_z:Tensor, variant:str, P:Tensor, err:ndarray, corr:float64, o:Tensor, hh:int, eps:float, pred_o:Tensor, atom_vec2:function, ctx_v:function, gscale:NoneType, perm:list, blocks:list, wz:Tensor, by:dict, nm_:str, top:str, kk:str, fn:list, hi_:int, v_:ndarray, G:DataFrame, ok:Series, pf:ndarray, pfun:function, T2:DataFrame, L_:int, q_:DataFrame, qq:DataFrame, lstsq:_ArrayFunctionDispatcher, cols:set, Z:ndarray, yv:ndarray, b_:ndarray, res_:ndarray, se_:ndarray, RidgeCV:ABCMeta, cross_val_predict:function, xs:ndarray, sidS:ndarray, hrS:ndarray, ana:function, A1:DataFrame, nm2:str, sl:float, Xf:ndarray, tgt:ndarray, pr:ndarray, A2:DataFrame, ok_:ndarray, f_:ndarray, co:code, Wc:dict, I_:Tensor, notes_add:str, fa4:DataFrame, vc_:dict, t0_:float, Wd:dict, M:Tensor, LN_:function, X_:Tensor, OUT:Tensor, HH:Tensor, hS:ndarray, sS:ndarray, key:DataFrame, num_:dict, zs:function, fb:function, cen:dict, P_:Tensor, dt_:Tensor, dec:ndarray, hfl:Tensor, base0:Tensor, codes_t:Tensor, lb_t:Tensor, cenmat:ndarray, gapv:function, run:function, gm:str, ty:int, lay:str, au:float, pm_:ndarray, run2:function, sc:function, r2_:float64, gc:str, gv:ndarray, hc:tuple, pp_:ndarray, run3:function, la_h:ndarray, feats:dict, assign:list, stat_opts:dict, build:function, best_s:tuple, sk:str, sv:ndarray, e_:ndarray, sv_best:NoneType, it_:int, c_:str, cand:list, fk:str, a2:list, run4:function, nm3:str, asg:list, sdm:str, gl_b:DataFrame, ev:str, d4:DataFrame, run5:function, fC:ndarray, rep:function, kq:int, nmg:str, gf_:function, run6:function, out6:list, fs:list, gu:float, cu:float, o_:Tensor, run7:function, vm:str, ZP:Tensor, R_:Tensor, ob_:ndarray, run8:function, zs_:str, gd:float, pm8:ndarray, p8:ndarray, nl8:ndarray, AF:dict, Ma:function, run9:function, o9:list, cg:ndarray, vg:str, ag:ndarray, az:str, av:str, run10:function, a_:float, nz:int, p_:ndarray, nl_:ndarray, pair:dict, prep:function, rows_:list, s_:int, g_:Generator, d_:str, hrs_:ndarray, vals_:ndarray, evs_:ArrowStringArray, i_:int, j_:int, sh:ndarray, reg_feats:function, run11:function, mode:str, run12:function, f8_:function, rep2:function, out12:list, gname:str, nmA:str, addv:Tensor, part:dict, bset:function, gsub:DataFrame, q4:DataFrame, av_:Tensor, r_:tuple, scl:float, pmS:ndarray, nlS:ndarray, fbl:function, lbL:Tensor, obL:ndarray, run13:function, nmv:str, lbt:Tensor, obb:ndarray, pmv:ndarray, nlv:ndarray, feats2:dict, asg2:list, ev2:function, cur:list, best_c:tuple, f_m:ndarray, best_ty:dict, skip:set, ns:dict, fns:list, txt:str, fnm:str, core:list, n_:str, tau:ndarray, dl:ndarray, ai:int, sp:ndarray, abar:ndarray, Hs:ndarray, sd:ndarray, lo_dims:ndarray, others:list, b0:float64, grp:ndarray, k_:str, pol:ndarray, rows:ndarray, D:DataFrame, cols_:list, Xm:list, yv_:ndarray, beta:ndarray, res0:ndarray, se:ndarray, phi:ndarray, bet:ndarray, y_:ndarray, f4:DataFrame, f4g:DataFrame, Dm:ndarray, ols:function, bm_:ndarray, sem_:ndarray, sdm_:float64, bo_:ndarray, seo_:ndarray, sdo_:float64, surrogate:function, coefT:ndarray, coefM:ndarray, coefC:ndarray, res_s:list, deo:DataFrame, df_:DataFrame, lagtab:DataFrame, notes_new:str, fn_:str, sid_:ndarray, A_:DataFrame, m0:ndarray, sidS_:ndarray, hS_:ndarray, xS:ndarray, idx_:ndarray, cnt_mine:Series, mins_tool:ndarray, errs_z:list, ik_:int64, ip_:ndarray, dt_s:float64, GroupKFold:ABCMeta, q4g:DataFrame, b1:ndarray, ew:ndarray, Q:DataFrame, prev_:ndarray, feat:ndarray, grp_:ndarray, rcv:RidgeCV, tg_:str, yv2:ndarray, pr_:Tensor, W_:ndarray, nw_:ndarray, Wt:dict, ACT:dict, LNt:function, mlp2l:function, NUMV:dict, CODEN:dict, rows_a:list, minS:ndarray, bkey:MultiIndex, ATM:DataFrame, atom_feats:function, embed_atoms:function, bundle_enc:function, xS_t:Tensor, nB:ndarray, prev_ok:ndarray, z_check:function, U_codes:dict, U_alpha:dict, RU1:dict, RU2:dict, act_:str, side_:str, unm:str, um:dict, rnm:str, ru:dict, kq_:bool, me_:float, mx_:float, z_check2:function, base:Tensor, kw:str, nat_b:ndarray, hasmeas:ndarray, pos:ndarray, zpost_from:function, num:ndarray, vb:ndarray, db:ndarray, xa:Tensor, E_:Tensor, U_:ndarray, out_p:Tensor, h_p:Tensor, hf:Tensor, gfull:Tensor, ztrue:Tensor, act_m:Tensor, variants:dict, ctx_:Tensor, zm_:Tensor, e_all:Tensor, e_act:Tensor, sl_:slice, empty_enc:function, e_empty:Tensor, u_empty:Tensor, E2:Tensor, hasact:ndarray, U2:Tensor, on_hf:Tensor, enm:str, Eb:Tensor, Ub:Tensor, cnm:str, z_check3:function, U_c2:dict, U_c3:dict, ea_:bool, z_check4:function, eb_:ndarray, Eb_:Tensor, Ub_:Tensor, comp:Series, cb:ArrowStringArray, dfE:DataFrame, grp_g:DataFrameGroupBy, has_gf:ndarray, has_gl:ndarray, endonly:ndarray, kinds_b:Series, zerr_custom:function, gr:int, em:str, info:str, keys:list, i0:list, tail:list, fnn:str, nmx:str, shown:set, f:str, vc:list, cs:list, umapB:dict, ru
+[output cut at 10,000 characters]
+```

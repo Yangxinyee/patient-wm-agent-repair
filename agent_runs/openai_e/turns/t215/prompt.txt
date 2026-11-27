@@ -1,0 +1,224 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 214 replies happened before. Forward passes used: 22 of 50; Python runs used: 184 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['baseline77.npz', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate58.npz', 'insulin_candidate63.npz', 'ne_candidate148.npz', 'ne_candidate151.npz', 'ne_candidate154.npz', 'ne_candidate155.npz', 'ne_candidate82.npz', 'ne_detector81.npz', 'ne_reduced107.npz', 'ne_trial103.npz', 'ne_trial83.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+alibration inputs
+Collected paired original/insulin-baseline states on 100 training stays. Audited decoder/register computation and filtered exact matching records before calibration. No weights changed. Python runs: 161; forwards: 22.
+
+## Run 162: register and chronological alignment audit
+Rebuilt training reading metadata; checked prior-state selection and same-code registers against existing tuning metadata before any calibration. No weights changed. Python runs: 162; forwards: 22.
+
+## Run 163: restart recovery before factual calibration
+Read architecture first, recovered early record evidence and selected validation notes, and inventoried decoder/calibration objects. No weights changed. Register alignment is supported; bin-boundary convention still needs resolution. Python runs: 163; forwards: 22.
+
+## Run 164: compact decoder/calibration recovery
+Recovered recent calibration objects, decoder tensor names, and helper signatures with bounded output after run163 truncation. No weights changed. Next gate is local/GPU decoder agreement before calibration. Python runs: 164; forwards: 22.
+
+## Run 165: probability decoder recovery
+Insulin-only NLL margin is .00036 nats on the first tuning sample. Inspected probability/readout helpers and training-state metadata for a record-based, algebraically installed calibration. No weights changed. Python runs: 165; forwards: 22.
+
+## Run 166: inspect exact local decoder implementation
+Recovered decoder bytecode/defaults and register/static inputs before constructing training probabilities. Glucose means shift only modestly; calibration must address probability distributions, not only mean bias. No weights changed. Python runs: 166; forwards: 22.
+
+## Run 167: decoder static-input audit
+Built fresh static inputs with register columns 0=has_last, 3=log1p(age)/10, 6=last_z and left-edge bins. Compared against retained decoder inputs and checked deterministic local/GPU NLL and means. No weights changed. Python runs: 167; forwards: 22.
+
+## Run 168: correct calibration row ordering
+Run167 compared metadata in raw record order against GPU/head order; its large static errors and NLL were invalid. Reindexed by stay/hour/event, repeated exact static/transition checks, and built paired training inputs. Aligned local NLL=1.667767; GPU NLL=1.634615. No weights changed. Python runs: 168; forwards: 22.
+
+## Run 169: isolate remaining decoder offset
+Aligned transitions match exactly and numeric registers match to 1.2e-7, but static input RMS mismatch remains .3407. Tested constant and register-linear residual explanations and inspected trusted query code. No weights changed. Python runs: 169; forwards: 22.
+
+## Run 170: targeted decoder recovery
+Run169's static residual is explained to numerical precision by register features. Inspecting architecture and retained helpers before correcting assembly; no weights changed. Python runs: 170; forwards: 22.
+
+## Run 171: locate register projection discrepancy
+Comparing the exactly register-linear static residual with learned numeric projection columns and inspecting builder indexing. No weights changed. Python runs: 171; forwards: 22.
+
+## Run 172: distinguish missing from duplicated numeric projection
+Residual equals last_numeric.weight times the three populated register features exactly. Auditing retained reference and probability helpers against GPU output before choosing assembly. No weights changed. Python runs: 172; forwards: 22.
+
+## Run 173: bounded reference audit
+Run172 output truncated due tensor-valued function defaults. Repeating only decisive array comparisons and compact head/readout code. No weights changed. Python runs: 173; forwards: 22.
+
+## Run 174: GPU arbitration of register assembly
+Rebuilt static equals base162; retained static_all122 contains an additional numeric projection. Comparing both original-state decoders directly with GPU factual means and NLLs. No weights changed. Python runs: 174; forwards: 22.
+
+## Run 175: corrected local decoder and paired training distributions
+One numeric projection is correct by GPU agreement. Proper log(dt)/10 query gives deterministic original NLL=1.62508 vs GPU=1.63461 and mean RMSE=1.565; duplicate projection is worse. Built common-prior-draw original/insulin-baseline training probabilities for calibration diagnostics. No weights changed. Python runs: 175; forwards: 22.
+
+## Run 176: cross-validated factual-distribution offsets
+Corrected paired training MC NLL: original=1.64055, insulin baseline=1.64332 (+.00276). Testing closed-form code/last-bin logit-residual averages with shrinkage and held-out stays, restricted to glucose codes. No weights changed. Python runs: 176; forwards: 22.
+
+## Run 177: do not install weak calibration; audit measured candidates
+Code/last-bin distillation offsets slightly reduce KL but held-out NLL does not consistently improve. No decoder edit installed. Reviewing on-disk factual and rollout results to select the next targeted experiment. Python runs: 177; forwards: 22.
+
+## Run 178: recover causal targets and accepted baseline
+Insulin-only baseline77 remains installed. No new weights changed. Recovering architecture, early record-based causal evidence, and exact saved edit before a smaller factual-budgeted joint repair. Python runs: 178; forwards: 22.
+
+## Run 179: bounded baseline and causal recovery
+Run178 output truncated before saved-candidate details. Recovering only decisive target/edit summaries and archive keys; no weights changed. Python runs: 179; forwards: 22.
+
+## Run 180: reached-hour audit and insulin construction recovery
+Recovered target scales and baseline history; recomputed dose summaries on reached hours, including stay-weighted aggregation. No weights changed. Python runs: 180; forwards: 22.
+
+## Run 181: prepare state-conditioned factual distillation
+Reached-hour audit confirms baseline insulin responses around -12.7/+4.3. Inspecting paired training decoder inputs for an auxiliary closed-form ridge correction to the final value-head matrix; no gradients or weight optimiser, and no edit installed yet. Python runs: 181; forwards: 22.
+
+## Run 182: cross-validated hidden-feature factual distillation
+Hidden/logit max identity error=7.50723e-06. Five-fold by-stay auxiliary ridge results=[{'alpha': 10.0, 'NLL_change': 0.00157151176752628, 'KL_before': 0.0043922488448866195, 'KL_after': 0.003329595885940907, 'correction_RMS': 0.1366230347878041, 'glucose_NLL_change': 0.0008177769995274611}, {'alpha': 100.0, 'NLL_change': 0.001330771916144981, 'KL_before': 0.0043922488448866195, 'KL_after': 0.0033394540145260092, 'correction_RMS': 0.12052933442618059, 'glucose_NLL_change': 0.000641442823491322}, {'alpha': 1000.0, 'NLL_change': 0.0010053267423189734, 'KL_before': 0.0043922488448866195, 'KL_after': 0.0034964333143941203, 'correction_RMS': 0.09479743179856669, 'glucose_NLL_change': 0.00014516387002541873}, {'alpha': 10000.0, 'NLL_change': 0.0003472309006365475, 'KL_before': 0.0043922488448866195, 'KL_after': 0.0037697548187539238, 'correction_RMS': 0.0660786215088665, 'glucose_NLL_change': -0.0004477830297046002}]. No model-weight optimiser or gradients; no weights installed. Python runs: 182; forwards: 22.
+
+## Run 183: reject hidden-head distillation; inspect posterior inference pathway
+Hidden-feature distillation reduced KL but all tested penalties increased stay-held-out NLL; no decoder edit installed. Inspecting whether a record-predictable action component can replace dose-dependent posterior inference while leaving the direct action pathway intact. No weights changed. Python runs: 183; forwards: 22.
+
+## Run 184: baseline-state detector robustness hypothesis
+Earlier latent sensitivity was weak, so no posterior edit attempted. Inspecting exact action/world encoders to rebuild prelude detector features on paired original and insulin-baseline training states from forward22. Hypothesis: original-state fits leak on the repaired-state distribution. No weights changed. Python runs: 184; forwards: 22.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 184 of at most 300:
+```
+EMBEDDING / BUNDLE HELPERS
+bundle_target115 ('key',) ('np115', 'Y81', 'astype', 'np', 'float64', 'reshape', 'size', 'ncf115', 'mean', 'ValueError', 'shape')
+posterior94 ('c', 'e', 'u') ('torch', 'cat', 'F', 'linear', 'gelu', 'W0')
+recon_atom ('drug', 'records', 'unit_id', 'rate_unit_id', 'kq_id') ('np', 'zeros', 'len', 'float32', 'array', 'getattr', 'NUM_SPEC', 'clip', 'searchsorted', 'W0', 'CODE_ID', 'F', 'linear', 'torch', 'from_numpy')
+recon_record_atom ('row', 'kind', 'end_numeric', 'end_units') ('event', 'torch', 'zeros', 'getattr', 'np', 'isfinite', 'NUM_SPEC', 'get', 'float', 'clip', 'int', 'searchsorted', 'W0', 'RECON_UNITS', 'RECON_RATE_UNITS', 'CODE_ID')
+single_encode_batch ('atoms', 'prefix') ('len', 'torch', 'full', 'float', 'np', 'log', 'float32', 'recon_mlp', 'recon_lin', 'recon_norm')
+
+BUNDLE INPUT ARRAYS
+core_e_all (4356, 192)
+ctx_all101 (4356, 192)
+cf_C (1497, 192)
+cf_E (1497, 192)
+cf_U (1497, 192)
+cf_H0 (1497, 192)
+cf_H_variants length 4 first type ndarray first shape (1497, 192)
+cf_D length 4 first type ndarray first shape (1497, 193)
+cf_a_lists length 1497 first type list first shape None
+ first item: Tensor torch.Size([192])
+cf_e_lists length 1497 first type list first shape None
+cf_frame (1497, 6)
+ columns: ['stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms', 'state_row']
+state_df (4356, 6)
+ columns: ['stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms', 'state_row']
+train_records161 (6193, 5)
+ columns: ['stay_id', 'hour', 'event', 'value', 'rate']
+train_meta162 (4510, 12)
+ columns: ['stay_id', 'hour', 'event', 'code', 'state_row', 'dt', 'last_z', 'last_bin', 'age', 'has_last', 'observed', 'target_bin']
+
+SMALL RECORD SAMPLE
+   stay_id  hour              event  value  rate
+1010000000  -2.0 hospital_admission    NaN   NaN
+1010000000  -1.0     glucose_finger  165.0   NaN
+1010000000  -1.0       map_arterial   73.0   NaN
+1010000000   0.0     glucose_finger  168.0   NaN
+
+DATA DEFINITIONS
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+STATE ARCHIVE CHRONOLOGY
+original first stay/hour [(1010000000, -2.0), (1010000000, -1.0), (1010000000, 0.0), (1010000000, 0.0833), (1010000000, 1.0), (1010000000, 1.0833), (1010000000, 2.0), (1010000000, 2.0833)] first z norm 17.23633575439453
+insulin baseline first stay/hour [(1010000000, -2.0), (1010000000, -1.0), (1010000000, 0.0), (1010000000, 0.0833), (1010000000, 1.0), (1010000000, 1.0833), (1010000000, 2.0), (1010000000, 2.0833)] first z norm 17.23633575439453
+INITIAL/TIME TENSORS [('core.flow.a', (192,)), ('core.slots', (4, 192)), ('gap.0.bias', (192,)), ('gap.0.weight', (192, 1)), ('gap.2.bias', (192,)), ('gap.2.weight', (192, 192))]
+
+```

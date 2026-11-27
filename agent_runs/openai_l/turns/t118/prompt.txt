@@ -1,0 +1,227 @@
+OUTPUT of Python run 108 of at most 300:
+```
+=== LATE EDIT / LATENT NOTES ===
+## Run 85 / inspect head objective and causal evidence
+Inspecting the existing fit, original dose-rollout output, and latent-update interfaces to distinguish a weak head-only parameterization from a target/alignment error. No edits.
+
+## Run 88 / latent-direction finite-difference probe
+Original tuning rollout summaries: I2=-3.0206, Ihalf=1.6282 (60 reached stays); NE2=.4330, NEhalf=-.8431 (26 reached stays). Record-kernel targets remain provisional I2~-10.675/NE2~4.326. Probing sensor-selective latent directions with no gradients and no edits.
+
+## Run 89 / reject unvalidated latent probe
+Run 88 baseline RMSE=25.09, so its near-zero sensitivities and large latent direction are not evidence. Checking decoder return shapes and state alignment; no edits.
+
+## Run 90 / recurrence recovery
+Run 89 posterior RMS=1.95e-5 but recurrent out RMS=.1299 and h RMS=11.94. Latent probe remains invalid; recovering architecture and validated memory inputs before any edit. No tensors edited.
+
+## Run 91 / targeted memory audit
+Architecture reviewed. Posterior matches, so checking transition inputs and mask polarity rather than interpreting the invalid latent probe. No tensors edited.
+
+## Run 92 / mask-polarity validation
+State and prediction errors by mask: {'as returned': (0.12986552715301514, 11.935111045837402, 25.08648681640625), 'reversed': (1.4949718206480611e-05, 0.0025424514897167683, 0.0007484268862754107)}. Checking whether existing counterfactual features already use the correct convention. No tensors edited.
+
+## Runs 93?94 / corrected latent probe
+Run 93 stopped on pandas indexing before probing. Run 94 baseline RMSE=0.000727549; unit-effect direction results={'insulin': {'norm': 0.0, 'linear_rmse': 0.7071067811865476, 'nonlinear_rmse': 0.7071067811865476}, 'norepinephrine': {'norm': 2021.6579205609878, 'linear_rmse': 0.7000000011941472, 'nonlinear_rmse': 0.7072699565624382}}. No tenso
+## Run 96 / value-head input reconstruction
+Hidden reconstruction RMS=0. Generated validated one-step head inputs for both drugs at factors 0,.5,1.5,2,3. Original dose slopes: {('insulin', 0.0): -0.37897342443466187, ('insulin', 0.5): -0.3507140576839447, ('insulin', 1.5): -0.3287563920021057, ('insulin', 2.0): -0.2550761103630066, ('insulin', 3.0): -0.1641843467950821, ('norepine
+## Run 97 / raw-head-input scalar correction
+Fitted analytic ordinal bin-tilt scores using dose contrasts at 0,.5,1.5,2,3, with factual-zero regularization and stay-held-out validation. Results: {0.001: {'train_dNLL': 1.185721693243569, 'heldout_dNLL': 1.7496438853273455, 'coef_norm': 207.88876103546804, 'slopes': {('insulin', 2.0): -0.9745049185444954, ('insulin', 0.5): -0.752690
+
+=== ESTIMATED RECORD KERNELS ===
+glucose_finger kernel [-1.95   -2.3096 -2.0052 -1.6039 -1.0841 -0.7822 -0.5042 -0.3755] SE [   nan 0.0521    nan 0.063  0.0696 0.0752 0.0813 0.0882]
+glucose_lab kernel [-1.95   -2.2385 -2.0225 -1.4554 -1.1695 -0.8138 -0.51   -0.2911] SE [   nan 0.0911    nan 0.1146 0.1343 0.1475 0.158  0.1786]
+map_arterial kernel [3.1    2.4754 1.6582 0.9434 0.3573 0.2745 0.0182 0.1668] SE [   nan 0.1048    nan 0.1257 0.1376 0.1473 0.159  0.1739]
+map_cuff kernel [ 3.1     1.9665  1.3711  0.5141  0.6131 -0.1706 -0.0664  0.077 ] SE [   nan 0.1855    nan 0.2109 0.2229 0.2377 0.2516 0.2704]
+AR2 predictions: {'glucose_finger': [-1.95, -2.309560823294822, -2.005241875550968, -1.5101716334550959, -1.0377678105637695, -0.6636368651131719, -0.39741188824469886, -0.22219131220062943], 'glucose_lab': [-1.95, -2.2385165930306914, -2.0225015960408346, -1.693560508826862, -1.3765695247742329, -1.1049866873926173, -0.882176956602627, -0.7026139826164389], 'map_arterial': [3.1, 2.4754436954395387, 1.6581693284572787, 1.0697286940873716, 0.6838218776147449, 0.43613012543383145, 0.2779954740644264, 0.17717228323163248], 'map_cuff': [3.1, 1.9664501612741299, 1.3711487169076348, 0.9482742033423842, 0.6562638522771262, 0.4541490594159177, 0.3142826498227449, 0.21749146681464698]}
+
+=== WEIGHT ACCESS ===
+
+ w63
+RESUME 
+LOAD_FAST name
+LOAD_GLOBAL w63_cache
+CONTAINS_OP 
+POP_JUMP_IF_FALSE to 124
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + as_tensor
+LOAD_GLOBAL NULL + load_original
+LOAD_FAST name
+CALL 
+LOAD_GLOBAL torch
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+LOAD_GLOBAL w63_cache
+LOAD_FAST name
+STORE_SUBSCR 
+LOAD_GLOBAL w63_cache
+LOAD_FAST name
+BINARY_SUBSCR 
+RETURN_VALUE 
+
+ linear63
+RESUME 
+LOAD_FAST x
+LOAD_GLOBAL NULL + w63
+LOAD_FAST prefix
+LOAD_CONST '.weight'
+BINARY_OP +
+CALL 
+LOAD_ATTR T
+BINARY_OP @
+STORE_FAST y
+LOAD_FAST prefix
+LOAD_CONST '.bias'
+BINARY_OP +
+LOAD_GLOBAL SHAPES
+CONTAINS_OP 
+POP_JUMP_IF_FALSE to 112
+LOAD_FAST y
+LOAD_GLOBAL NULL + w63
+LOAD_FAST prefix
+LOAD_CONST '.bias'
+BINARY_OP +
+CALL 
+BINARY_OP +
+RETURN_VALUE 
+LOAD_FAST y
+RETURN_VALUE 
+
+ mlp63
+RESUME 
+LOAD_GLOBAL NULL + linear63
+LOAD_FAST x
+LOAD_FAST prefix
+LOAD_CONST '.0'
+BINARY_OP +
+CALL 
+STORE_FAST x
+LOAD_FAST act
+LOAD_CONST 'gelu'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 84
+LOAD_GLOBAL NULL + F
+LOAD_ATTR gelu
+LOAD_FAST x
+CALL 
+JUMP_FORWARD to 124
+LOAD_GLOBAL NULL + F
+LOAD_ATTR silu
+LOAD_FAST x
+CALL 
+STORE_FAST x
+LOAD_GLOBAL NULL + linear63
+LOAD_FAST x
+LOAD_FAST prefix
+LOAD_CONST '.2'
+BINARY_OP +
+CALL 
+RETURN_VALUE 
+
+ context64
+RESUME 
+LOAD_FAST h
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + exp
+LOAD_FAST dt
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_TUPLE 
+BINARY_SUBSCR 
+UNARY_NEGATIVE 
+LOAD_GLOBAL NULL + w63
+LOAD_CONST 'core.flow.a'
+CALL 
+LOAD_ATTR NULL|self + exp
+CALL 
+BINARY_OP *
+CALL 
+BINARY_OP *
+STORE_FAST flowed
+LOAD_FAST out
+LOAD_GLOBAL NULL + norm63
+LOAD_FAST flowed
+LOAD_ATTR NULL|self + mean
+LOAD_CONST 1
+CALL 
+LOAD_CONST 'core.out_norm'
+CALL 
+BINARY_OP +
+LOAD_GLOBAL NULL + mlp63
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + log1p
+LOAD_FAST dt
+CALL 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_CONST 10
+BINARY_OP /
+LOAD_CONST 'gap'
+CALL 
+BINARY_OP +
+STORE_FAST ctx
+LOAD_FAST ctx
+LOAD_FAST flowed
+BUILD_TUPLE 
+RETURN_VALUE 
+
+=== LATENT DIRECTIONS ===
+insulin shape (32,)
+norm 0.0 range 0.0 0.0
+norepinephrine shape (32,)
+norm 2021.6579205609878 range -623.8971792399449 935.8457688598389
+
+=== PROBE VARIABLES ===
+v88 (4491,)
+positive88 (871,)
+c88 dict keys ['rows', 'hidden', 'logits', 'means', 'probs', 'delta_rate']
+rows88 (100,)
+eligible88 (817,)
+ids88 (100,)
+positions88 (100,)
+ctx88 (100, 192)
+mask88 (100, 128)
+post88 (100, 32)
+base88 (100,)
+G88 (100, 32)
+perturb88 (32,)
+scales88 (100,)
+Gscaled88 (100, 32)
+latent_dirs88 dict keys ['insulin', 'norepinephrine']
+relevant88 (100,)
+target88 (100,)
+gram88 (32, 32)
+reg88 ()
+direction88 (32,)
+predicted88 (100,)
+nonlinear88 (100,)
+m88 (100,)
+out89 (100, 192)
+readctx89 (100, 192)
+m89 (100,)
+r89 ()
+reference92 (100, 992)
+results92 dict keys ['as returned', 'reversed']
+cfbase92 dict keys ['rows', 'hidden', 'logits', 'means', 'probs', 'delta_rate']
+eligible93 (3175,)
+rows93 (100,)
+row_events94 (4828,)
+ids93 (99,)
+positions93 (100,)
+ctx93 (99, 192)
+padding93 (99, 128)
+post93 (99, 32)
+base93 (100,)
+baseline_error94 ()
+G93 (100, 32)
+gram93 (32, 32)
+directions93 dict keys ['insulin', 'norepinephrine']
+results94 dict keys ['insulin', 'norepinephrine']
+
+```

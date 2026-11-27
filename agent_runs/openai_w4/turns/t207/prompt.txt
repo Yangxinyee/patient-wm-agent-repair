@@ -1,0 +1,203 @@
+OUTPUT of Python run 181 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+CURRENT EDITS
+core.b_in.weight (192, 192)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+
+RETAINED CHANNEL OBJECTS
+raw104 ndarray (4059, 576)
+original_post104 ndarray (4059, 64)
+candidate_hidden104 ndarray (4059, 192)
+candidate_post104 ndarray (4059, 64)
+q104 ndarray (4059,)
+gamma104 ndarray (192,)
+bias104 ndarray (192,)
+constant104 ndarray (192,)
+raw_non104 ndarray (24354, 192)
+signature104 ndarray (192,)
+S104 ndarray (192, 192)
+key_raw104 ndarray (192,)
+key104 ndarray (192,)
+orth104 ndarray (192, 189)
+eig104 ndarray (189,)
+vec104 ndarray (189, 189)
+carrier104 ndarray (192,)
+value104 ndarray (192,)
+latent_axis104 ndarray (32,)
+P104 ndarray (32, 32)
+Wpost104 ndarray (64, 192)
+bpost104 ndarray (64,)
+Wq104 ndarray (192, 192)
+Wkv104 ndarray (384, 192)
+attention_features104 (norm_tokens, qweight, kvweight) dependencies: ('torch', 'as_tensor', 'float32', 'T', 'reshape', 'heads103', 'width103', 'transpose', 'chunk', 'softmax', 'np', 'sqrt', 'numpy')
+norm_latent104 (q) dependencies: ('np', 'asarray', 'reshape', 'sqrt', 'signature104', 'lambda104', 'carrier104', 'gamma104', 'bias104', 'astype', 'float32')
+Nzero104 ndarray (4059, 7, 192)
+AFzero104 ndarray (4059, 7, 192)
+probs104 ndarray (4059, 4, 7, 7)
+keep104 ndarray (144,)
+Acomp104 ndarray (16236, 145)
+Gcomp104 ndarray (145, 145)
+Rcomp104 ndarray (145, 192)
+pencomp104 ndarray (145, 145)
+comp104 ndarray (145, 192)
+error104 ndarray (16236, 192)
+Wout104 ndarray (192, 192)
+NN104 ndarray (4059, 7, 192)
+AA104 ndarray (4059, 7, 192)
+PP104 ndarray (4059, 4, 7, 7)
+read104 ndarray (4059, 4)
+candidate104 dict 9 keys: ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias', 'core.prelude.0.attn.q.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']
+channel_base117 dict 181 keys: ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+channel_changed117 list length 9
+orig117 Tensor (64, 192)
+probe_events118 ndarray (526,)
+target118 ndarray (526,)
+JJ118 ndarray (526, 192)
+directions118 dict 4 keys: [0.0001, 0.001, 0.01, 0.1]
+vv118 ndarray (192,)
+pp118 ndarray (526,)
+base_state118 Tensor (256, 992)
+base_means118 ndarray (526,)
+original_linear118 (x, prefix) dependencies: ('F', 'linear', 'rW', 'get')
+finite_results118 dict 8 keys: [(0.001, -2.0), (0.001, -0.5), (0.001, 0.5), (0.001, 2.0), (0.01, -2.0), (0.01, -0.5), (0.01, 0.5), (0.01, 2.0)]
+shift118 Tensor (192,)
+shifted_linear118 (x, prefix) dependencies: ('original_linear118', 'shift118')
+ss118 Tensor (256, 992)
+dd118 ndarray (526,)
+connection_decoder123 ndarray (192,)
+connection_direction123 ndarray (192,)
+connection_delta123 ndarray (192, 192)
+connection_weight123 ndarray (192, 192)
+decoded_slots123 ndarray (4059, 4)
+names178 list length 145
+v178 ndarray (192,)
+backup_before179 dict 10 keys: ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']
+x179 ndarray (32,)
+ix180 ndarray (4059,)
+active_ne180 ndarray (4059,)
+sids180 ndarray (4059,)
+train180 ndarray (4059,)
+test180 ndarray (4059,)
+raws180 list length 5
+xx180 ndarray (20295, 192)
+yy180 ndarray (20295,)
+tr180 ndarray (20295,)
+te180 ndarray (20295,)
+gate_fits180 dict 4 keys: [0.1, 1.0, 10.0, 100.0]
+pred180 ndarray (4780,)
+y180 ndarray (4780,)
+key180 tuple length 3
+
+CAPTURE / ACTION / REPLAY INTERFACES
+intervention_bank74 (drug, factor) ('repair_records', 'eq', 'to_numpy', 'isin', 'atoms65', 'clone', 'atom_exact65', 'loc', 'pooled_encoder58', 'counts_u58', 'np', 'unique', 'astype', 'int', 'dict', 'repair_bank', 'array', 'range', 'len', 'transition73', 'numpy', 'zeros', 'add', 'at')
+capture_call87 (fn, *args) ('sys', 'getprofile', 'setprofile')
+capture_transition102 (indices, action_override=None) ('sys', 'getprofile', 'setprofile', 'transition73')
+capture_attention103 (indices) ('globals', 'capture_transition102')
+capture_ep111 (indices) ('sys', 'getprofile', 'setprofile', 'transition73')
+capture_q111 (indices, qvalue) ('rp_mlp', 'torch', 'as_tensor', 'latent_axis104', 'float32', 'capture_ep111')
+capture_ep112 (indices) ('sys', 'getprofile', 'setprofile', 'transition73')
+replay_factual125 (
+[output cut at 10,000 characters]
+```

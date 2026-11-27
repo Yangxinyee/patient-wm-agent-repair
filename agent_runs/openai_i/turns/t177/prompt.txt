@@ -1,0 +1,100 @@
+OUTPUT of Python run 159 of at most 300:
+```
+
+AGE / PRIOR AUDIT: glucose_finger n = 40
+hour_mean RMSE 2.3681 bias 1.4338
+minute_mean RMSE 2.3936 bias 1.6735
+second_mean RMSE 2.5731 bias 2.0119
+hour_mc RMSE 1.9491 bias 0.9967
+minute_mc RMSE 1.9669 bias 1.2506
+second_mc RMSE 2.1557 bias 1.6015
+Expected RMSE from averaging four prior draws: 1.3825
+Prior log-sd range: -0.9273233413696289 -0.15319329500198364
+
+AGE / PRIOR AUDIT: map_arterial n = 40
+hour_mean RMSE 0.7707 bias -0.2908
+minute_mean RMSE 0.9222 bias -0.1784
+second_mean RMSE 1.185 bias -0.0341
+hour_mc RMSE 0.7345 bias -0.2083
+minute_mc RMSE 0.8916 bias -0.0901
+second_mc RMSE 1.165 bias 0.0583
+Expected RMSE from averaging four prior draws: 0.7324
+Prior log-sd range: -0.9280967712402344 -0.19387081265449524
+
+=== CONTINUED RECORD-EVIDENCE NOTEBOOK ===
+    0.445901          glucose_lab          6 all hours
+   821   0.707822      6.401902   9.044512    2.478909          glucose_lab          6    hour 0
+ 35587   0.770971     -1.167060  -1.513754    0.288337          glucose_lab         10 all hours
+  1330   0.767100     -5.183869  -6.757750    1.718301          glucose_lab         10    hour 0
+ 52759   0.854804     -1.315024  -1.538392    0.213385          glucose_lab         15 all hours
+  1970   0.803874     -7.337967  -9.128259    1.419479          glucose_lab         15    hour 0
+ 21320   0.661996     -0.005302  -0.008010    0.330877 PRE-DOSE lab placebo          6 all hours
+ 35407   0.796182     -0.021624  -0.027159    0.215680 PRE-DOSE lab placebo         10 all hours
+ 52842   0.866616     -0.000792  -0.000914    0.164007 PRE-DOSE lab placebo         15 all hours
+        sensor                 state      n      beta  cluster_se
+glucose_finger  lower predicted dose 133548 -1.918558    0.088033
+glucose_finger higher predicted dose 130120 -2.000873    0.051147
+   glucose_lab  lower predicted dose  26723 -1.740929    0.147544
+   glucose_lab higher predicted dose  25920 -2.181734    0.083418
+  map_arterial  lower predicted dose  71430  2.979233    0.177470
+  map_arterial higher predicted dose  81493  3.146841    0.099880
+      map_cuff  lower predicted dose  60748  1.591780    0.337326
+      map_cuff higher predicted dose  51201  3.240350    0.199530
+
+## Resumed investigation ? Python 6; forward 2
+- Re-reading architecture, tensor inventory, and retained analysis objects before designing an edit.
+- No weights changed. Insulin ~-2 and post-startup NE ~+3 remain provisional record-based estimates.
+
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.090980
+  map_arterial        1 146556            3.288830                0.091241
+  map_arterial        2 140386            2.619413                0.108577
+  map_arterial        3 134227            1.746272                0.119747
+  map_arterial        4 128040            0.978531                0.129902
+  map_arterial        5 121841            0.413443                0.143354
+  map_arterial        6 115642            0.262312                0.152404
+  map_arterial        7 109414            0.015095                0.165928
+  map_arterial        8 103125            0.023246                0.179389
+
+## Local head reconstruction ? Python 9; forward 4
+- Captured original states and factual predictions for 100 training stays (original NLL 1.63805).
+age_unit      layout  status  type_index  gap_scale  mean_abs_difference  rms_difference
+   hours interleaved       0           1        0.1             3.061518        5.090333
+ seconds interleaved       0           1        0.1             3.371605        5.700936
+   hours     grouped       0           1        0.1             5.040884        8.075172
+ seconds     grouped       0           1        0.1             5.345762        8.810462
+   hours interleaved       0           0        0.1             6.580535        8.956929
+ seconds interleaved       0           0        0.1             6.880753        9.013090
+   hours     grouped       0           0        0.1             7.313674       10.350065
+ seconds     grouped       0           0        0.1             7.785411       10.703313
+Best head settings: {'age_unit': 'hours', 'layout': 'interleaved', 'status': 0, 'type_index': 1, 'gap_scale': 0.1}
+
+## Restart ? Python 10; forward 4
+- No weights edited. Local head reconstruction is not yet exact; recovering architecture and retained objects before designing a reversible edit.
+
+## Reconstruction inspection ? Python 12; forward 4
+- Architecture recovered. last_numeric.weight is (192,8); the four-field schematic is insufficient to reproduce its inputs.
+- No edits; investigating register features, time flow and latent marginalization.
+
+## Helper recovery ? Python 14; forward 4
+- Recovered retained head_rows, state_x, head_weights and reconstruct_head.
+- Checking feature construction and state layout before any weight change.
+
+## Head computation tests ? Python 16; forward 4
+- State layout verified: out equals normalized mean(h) to ~1e-7 RMS.
+- Reconstruction glucose bias is predominantly in rows with a last-value register.
+- Testing separate prior/view gap scaling, age units, latent modes and bin boundaries; no edits.
+
+## Reconstruction re
+
+```

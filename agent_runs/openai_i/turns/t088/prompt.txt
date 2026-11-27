@@ -1,0 +1,138 @@
+OUTPUT of Python run 79 of at most 300:
+```
+=== CACHED-WEIGHT AUDIT ===
+non-original cached tensors: []
+
+=== VOCABULARY CONVENTIONS ===
+event kinds: {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom kinds: {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+config: {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+numeric note: z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+
+=== SMALL HELPER IMPLEMENTATIONS ===
+
+ repair_linear
+0 RESUME 
+2 LOAD_GLOBAL NULL + F
+12 LOAD_ATTR linear
+32 LOAD_FAST x
+34 LOAD_GLOBAL repair_weights
+44 LOAD_FAST name
+46 LOAD_CONST '.weight'
+48 BINARY_OP +
+52 BINARY_SUBSCR 
+56 LOAD_GLOBAL repair_weights
+66 LOAD_ATTR NULL|self + get
+86 LOAD_FAST name
+88 LOAD_CONST '.bias'
+90 BINARY_OP +
+94 CALL 
+102 CALL 
+110 RETURN_VALUE 
+
+ repair_mlp_act
+0 RESUME 
+2 LOAD_GLOBAL NULL + repair_linear
+12 PUSH_NULL 
+14 LOAD_FAST activation
+16 LOAD_GLOBAL NULL + repair_linear
+26 LOAD_FAST x
+28 LOAD_FAST name
+30 LOAD_CONST '.0'
+32 BINARY_OP +
+36 CALL 
+44 CALL 
+52 LOAD_FAST name
+54 LOAD_CONST '.2'
+56 BINARY_OP +
+60 CALL 
+68 RETURN_VALUE 
+
+ empty_set58
+0 RESUME 
+2 LOAD_GLOBAL NULL + repair_linear
+12 LOAD_GLOBAL torch
+22 LOAD_ATTR NULL|self + zeros
+42 LOAD_CONST 1
+44 LOAD_CONST 1
+46 CALL 
+54 LOAD_FAST prefix
+56 LOAD_CONST '.size'
+58 BINARY_OP +
+62 CALL 
+70 STORE_FAST x
+72 LOAD_GLOBAL NULL + repair_norm
+82 LOAD_GLOBAL NULL + repair_mlp_act
+92 LOAD_FAST x
+94 LOAD_FAST prefix
+96 LOAD_CONST '.mlp2'
+98 BINARY_OP +
+102 LOAD_GLOBAL F
+112 LOAD_ATTR gelu
+132 CALL 
+140 LOAD_FAST prefix
+142 LOAD_CONST '.norm'
+144 BINARY_OP +
+148 CALL 
+156 LOAD_CONST 0
+158 BINARY_SUBSCR 
+162 RETURN_VALUE 
+
+ single_set57
+0 RESUME 
+2 LOAD_GLOBAL NULL + repair_mlp_act
+12 LOAD_FAST atom_batch
+14 LOAD_FAST prefix
+16 LOAD_CONST '.mlp1'
+18 BINARY_OP +
+22 LOAD_GLOBAL F
+32 LOAD_ATTR gelu
+52 CALL 
+60 STORE_FAST pooled
+62 LOAD_GLOBAL NULL + repair_linear
+72 LOAD_GLOBAL torch
+82 LOAD_ATTR NULL|self + full
+102 LOAD_FAST atom_batch
+104 LOAD_ATTR shape
+124 LOAD_CONST 0
+126 BINARY_SUBSCR 
+130 LOAD_CONST 1
+132 BUILD_TUPLE 
+134 LOAD_GLOBAL np
+144 LOAD_ATTR NULL|self + log
+164 LOAD_CONST 2
+166 CALL 
+174 LOAD_GLOBAL torch
+184 LOAD_ATTR float32
+204 KW_NAMES ('dtype',)
+206 CALL 
+214 LOAD_FAST prefix
+216 LOAD_CONST '.size'
+218 BINARY_OP +
+222 CALL 
+230 STORE_FAST size
+232 LOAD_GLOBAL NULL + repair_norm
+242 LOAD_GLOBAL NULL + repair_mlp_act
+252 LOAD_FAST pooled
+254 LOAD_FAST size
+256 BINARY_OP +
+260 LOAD_FAST prefix
+262 LOAD_CONST '.mlp2'
+264 BINARY_OP +
+268 LOAD_GLOBAL F
+278 LOAD_ATTR gelu
+298 CALL 
+306 LOAD_FAST prefix
+308 LOAD_CONST '.norm'
+310 BINARY_OP +
+314 CALL 
+322 RETURN_VALUE 
+
+=== BEST CONVENTION WITH FRESH ORIGINAL WEIGHTS ===
+         event  unit absent_action  mean_rms  max_rms
+glucose_finger     1       encoded  0.019229 0.033415
+   glucose_lab     5       encoded  0.017994 0.031767
+  map_arterial     2       encoded  0.017477 0.028521
+      map_cuff     2       encoded  0.014204 0.021699
+
+```

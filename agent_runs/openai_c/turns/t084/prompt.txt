@@ -1,0 +1,77 @@
+OUTPUT of Python run 57 of at most 300:
+```
+=== ROLLOUT TIME COURSES ===
+original file missing
+numeric gain 4 file missing
+
+=== PERSISTENCE / TARGET VARIABLES ===
+names: ['clear_ops', 'dynamic_moments', 'fit_persistence', 'persistence', 'probe_ids', 'q_probe', 'q_probe_base', 'q_probe_edited', 'q_probe_original', 'target', 'target_probe', 'target_train']
+persistence {'insulin': {'beta': -2.1126230003348483, 'rho': 0.8412020161353004, 'observed': [-2.054155137550587, -1.9215505007955112, -1.30868113770493, -0.6953659704972652], 'fitted': [-2.1126230003348483, -1.8304143563196857, -1.2855404663702767, -0.7857956242711385], 'standardized_residuals': [-0.40163404128999375, 0.5705568684657099, 0.12140082601220833, -0.419378529015762]}, 'norepinephrine': {'beta': 3.2907376107066626, 'rho': 0.672711214384998, 'observed': [3.116538954905723, 4.860383476324453, 5.158283324771074, 3.9048242277985303], 'fitted': [3.2907376107066626, 4.6844984871314015, 4.988418327009077, 4.185545043195627], 'standardized_residuals': [1.950153281950914, -1.646851418587893, -1.2810759309473805, 1.8051787669546966]}}
+target map_arterial
+target_probe {'insulin_x2': {'mean': -12.036254091096144, 'n_stay_hours': 554, 'n_stays': 60}, 'insulin_half': {'mean': 6.018127045548072, 'n_stay_hours': 554, 'n_stays': 60}, 'ne_x2': {'mean': 4.732347324472345, 'n_stay_hours': 281, 'n_stays': 26}, 'ne_half': {'mean': -2.3661736622361724, 'n_stay_hours': 281, 'n_stays': 26}}
+target_train {'insulin_x2': {'mean': -12.51486026649639, 'n_stay_hours': 152158, 'n_stays': 16457}, 'insulin_half': {'mean': 6.257430133248195, 'n_stay_hours': 152158, 'n_stays': 16457}, 'ne_x2': {'mean': 4.6728108030283355, 'n_stay_hours': 79814, 'n_stays': 7206}, 'ne_half': {'mean': -2.3364054015141678, 'n_stay_hours': 79814, 'n_stays': 7206}}
+
+=== READING FEEDBACK AND PRELUDE TENSORS ===
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+
+=== EARLIER EDIT DESIGN NOTES ===
+## Run 6: corrected targets, state directions, candidate A
+- Earlier rollout targets included unrecorded sensor-hours; superseded by the sensor-observed masks here.
+- Corrected probe targets: {'insulin_x2': {'mean': -12.036254091096144, 'n_stay_hours': 554, 'n_stays': 60}, 'insulin_half': {'mean': 6.018127045548072, 'n_stay_hours': 554, 'n_stays': 60}, 'ne_x2': {'mean': 4.732347324472345, 'n_stay_hours': 281, 'n_stays': 26}, 'ne_half': {'mean': -2.3661736622361724, 'n_stay_hours': 281, 'n_stays': 26}}
+- Corrected training-population targets: {'insulin_x2': {'mean': -12.51486026649639, 'n_stay_hours': 152158, 'n_stays': 16457}, 'insulin_half':
+## Run 7 / forwards 4?5: candidate A rejected
+- Re-read architecture after restart.
+- Candidate A factual NLL 1.63557 versus original 1.63461: +0.00096.
+- Candidate A rollouts: insulin x2 -1.745, half +0.388; NE x2 -0.492, half +0.127.
+- Bin-contrast erasure does not explain the causal failure; saved operations and cleared them.
+- Next: inspect latent/action pathways and recovered state directions before constructing a targeted edit.
+- Python runs: 8; forward passes: 5.
+
+## Runs 9?10: candidate B
+- Run 9 inspection confirmed z_post.0.weight is (192,576), then failed during an optional vocabulary print before any edit.
+- Run 10 erased its acti
+## Python run 23: calibrated slot shear design
+- Designed separate minimum-variance insulin/NE sensors with zero factual mean, and reading-output directions orthogonal to the sensors.
+- Candidate matrices add approximate immediate responses -1.5 insulin/glucose and +2.5 NE/MAP at full strength; approximation must be checked by forward passes.
+- No additional edits applied. Python runs: 23; forward passes: 13.
+
+## Python run 24: candidate D, selective slot shear
+- Applied numeric gain 4 plus a 15%-strength, rank-two left transformation of core.c_out.weight, factored exactly into allowed rank-one operations.
+- Based on dose-innovation state coe
+
+=== CANDIDATE OP COUNTS ===
+numeric_gain4 list 1
+slot_shear_015 list 11
+slot_shear_008 list 11
+head_ne_pilot list 5
+numeric_value_mix_m2 list 7
+latent_in_gain21 list 3
+outnorm_diag_010 list 3
+numeric_gain16 list 1
+query_gain15 list 2
+active: [{'op': 'rank1', 'name': 'embed.numeric.weight', 'vector': 'vectors/v001.npy', 'alpha': 3.0, 'side': 'in'}]
+
+```

@@ -1,0 +1,50 @@
+OUTPUT of Python run 27 of at most 300:
+```
+=== EDIT CONSTRUCTION NOTES ===
+## Run 7 failed / Run 8 recovery
+Run 7 exhausted memory and restarted the kernel; no edits had been made. Rebuilt compact float32 records and targeted history features.
+[{'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive', 'n': 155950, 'coef': 0.029011214778685096, 'se': 0.07966874626395953}, {'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_ge4', 'n': 130138, 'coef': 0.09041826580562107, 'se': 0.08633447782399166}, {'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_lt4', 'n': 25812, 'coef': -0.26252499037732024, 'se': 0.20696688544333378}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive', 'n': 84840, 'coef': 0.847788841227945, 'se': 0.22758190381027768}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 59074, 'coef': 0.1739493898543281, 'se': 0.25300784921029384}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 25766, 'coef': 2.1909689150258878, 'se': 0.45051047443270414}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive', 'n': 63844, 'coef': 0.3921358097717153, 'se': 0.335210329434825}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 44386, 'coef': 0.05362684210829568, 'se': 0.37654176589911237}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 19458, 'coef': 1.0989971324361514, 'se': 0.6651476800953505}]
+
+## Restart inspection
+Run 8's richer-history NE estimates are near zero at one hour. The twelve-hour association is concentrated before hour 4 and is much smaller thereafter; this suggests early-stay residual confounding. Working hypothesis: both drugs have little or no causal effect, subject to further later-hour checks. Inspecting architecture before choosing a minimal dose-sensitivity edit; factual NLL tolerance is +0.005 nats per reading.
+
+## Null-effect embedding candidate
+Edited only embed.numeric.weight and the dose/rate bin tables. Numeric magnitude columns 2 and 4 are zero. Their training-average contributions were moved into presence columns 3 and 5. All present dose/rate bins now share their empirical training-weighted mean; absent row 0 is unchanged. Drug identity and measurement embeddings are unchanged. This preserves the global average action input, though not each drug's average separately. Construction-only invariance check max difference: 0. Awaiting factual and rollout validation.
+
+## Forward 2 and 3 validation, first 100 tuning stays
+Factual original NLL 1.50155; candidate 1.50136 (approximately -0.00019 nats). Paired cluster summary:
+{"n_readings": 4930, "n_stays": 100, "original_nll": 1.501545902636917, "edited_nll": 1.5013641379310345, "delta": -0.00018176470588235208, "cluster_se": 0.0001816280620308649, "ci95": [-0.0005421541854477836, 0.0001786247736830794]}
+Exact evaluation rollout: insulin x2 and half, NE x2 and half all have zero shift on every reached stay-hour. Original means were +0.113, -0.186, +0.050, +0.013 respectively. This confirms behavioral invariance, not causal truth. Need validate factual fit on remaining tuning stays 
+
+=== ESTIMATION FUNCTION DETAILS ===
+
+ pre_dose_features_v2
+referenced names: ('np', 'broadcast_to', 'arange', 'n_stays', 'range', 'arr', 'prefix_last_v2', 'events', 'minimum', 'accumulate', 'where', 'isfinite', 'take_along_axis', 'copy', 'nan', 'full_like', 'concatenate', 'zeros', 'float32', 'cumsum', 'nan_to_num', 'int32', 'maximum', 'divide', 'column_stack')
+constants: (None, <code object put at 0x791893d0bdb0, file "<run>", line 27>, 'hour', -1, 25, 26, 'insulin', 0, 1, 2, 3, 4, '_current', '_last', '_age', ('axis',), '_first_so_far', 9, '_lag', (3, 6, 12), 27, ('out', 'where'), '_mean', '_count', (4, 5), 13, '_rate_lag')
+return instructions: [('LOAD_FAST', 'lag'), ('FORMAT_VALUE', ''), ('BUILD_STRING', ''), ('BINARY_OP', '+'), ('LOAD_FAST', 'shifted'), ('CALL', ''), ('POP_TOP', ''), ('JUMP_BACKWARD', 'to 1826'), ('END_FOR', ''), ('JUMP_BACKWARD', 'to 1796'), ('END_FOR', ''), ('LOAD_GLOBAL', 'NULL + np'), ('LOAD_ATTR', 'column_stack'), ('LOAD_DEREF', 'columns'), ('CALL', ''), ('LOAD_DEREF', 'names'), ('BUILD_TUPLE', ''), ('RETURN_VALUE', '')]
+
+ future_reading_v2
+referenced names: ('np', 'full', 'n_stays', 'nan', 'float32', 'arr', 'reshape')
+constants: (None, 24, ('dtype',), 1, 26, 25, -1)
+return instructions: [('BUILD_TUPLE', ''), ('BINARY_SUBSCR', ''), ('LOAD_FAST', 'target'), ('LOAD_CONST', 'None'), ('LOAD_CONST', 'None'), ('BUILD_SLICE', ''), ('LOAD_CONST', 'None'), ('LOAD_CONST', '25'), ('LOAD_FAST', 'horizon'), ('BINARY_OP', '-'), ('BUILD_SLICE', ''), ('BUILD_TUPLE', ''), ('STORE_SUBSCR', ''), ('LOAD_FAST', 'target'), ('LOAD_ATTR', 'NULL|self + reshape'), ('LOAD_CONST', '-1'), ('CALL', ''), ('RETURN_VALUE', '')]
+
+ matched_crossfit_v3
+referenced names: ('np', 'isfinite', 'full', 'len', 'nan', 'range', 'row_folds_v2', 'HistGradientBoostingRegressor', 'settings_v3', 'fit', 'predict', 'print', 'int', 'sum')
+constants: (None, 3, 'n', True, ('flush',), ())
+return instructions: [('LOAD_CONST', "'n'"), ('LOAD_GLOBAL', 'NULL + int'), ('LOAD_FAST', 'eligible'), ('LOAD_ATTR', 'NULL|self + sum'), ('CALL', ''), ('CALL', ''), ('LOAD_CONST', 'True'), ('KW_NAMES', "('flush',)"), ('CALL', ''), ('POP_TOP', ''), ('LOAD_FAST', 'exposure'), ('LOAD_FAST', 'pa3'), ('BINARY_OP', '-'), ('LOAD_FAST', 'target'), ('LOAD_FAST', 'py3'), ('BINARY_OP', '-'), ('BUILD_TUPLE', ''), ('RETURN_VALUE', '')]
+
+ orthogonal_coefficient_v2
+referenced names: ('np', 'isfinite', 'stay_groups_v2', 'float', 'bincount', 'n_stays', 'len', 'unique', 'sqrt', 'int', 'sum', 'std')
+constants: (None, ('weights', 'minlength'), 1, 1.96, ('n', 'stays', 'coef', 'se', 'ci95', 'dose_res_sd'))
+return instructions: [('LOAD_FAST', 'se'), ('BINARY_OP', '*'), ('BINARY_OP', '-'), ('LOAD_FAST', 'beta'), ('LOAD_CONST', '1.96'), ('LOAD_FAST', 'se'), ('BINARY_OP', '*'), ('BINARY_OP', '+'), ('BUILD_LIST', ''), ('LOAD_GLOBAL', 'NULL + float'), ('LOAD_GLOBAL', 'NULL + np'), ('LOAD_ATTR', 'std'), ('LOAD_FAST', 'a'), ('CALL', ''), ('CALL', ''), ('LOAD_CONST', "('n', 'stays', 'coef', 'se', 'ci95', 'dose_res_sd')"), ('BUILD_CONST_KEY_MAP', ''), ('RETURN_VALUE', '')]
+
+=== SAMPLE IDENTIFIERS ===
+training first/last: [1010000000, 1010000001, 1010000002, 1010000003, 1010000004] [1010029995, 1010029996, 1010029997, 1010029998, 1010029999]
+group first/last: [0, 0, 0, 0, 0] [29999, 29999, 29999, 29999, 29999]
+remaining tuning batch A: [2020000200, 2020000201, 2020000202, 2020000203, 2020000204, 2020000205, 2020000206, 2020000207, 2020000208, 2020000209, 2020000210, 2020000211, 2020000212, 2020000213, 2020000214, 2020000215, 2020000216, 2020000217, 2020000218, 2020000219, 2020000220, 2020000221, 2020000222, 2020000223, 2020000224, 2020000225, 2020000226, 2020000227, 2020000228, 2020000229, 2020000230, 2020000231, 2020000232, 2020000233, 2020000234, 2020000235, 2020000236, 2020000237, 2020000238, 2020000239, 2020000240, 2020000241, 2020000242, 2020000243, 2020000244, 2020000245, 2020000246, 2020000247, 2020000248, 2020000249, 2020000250, 2020000251, 2020000252, 2020000253, 2020000254, 2020000255, 2020000256, 2020000257, 2020000258, 2020000259, 2020000260, 2020000261, 2020000262, 2020000263, 2020000264, 2020000265, 2020000266, 2020000267, 2020000268, 2020000269, 2020000270, 2020000271, 2020000272, 2020000273, 2020000274, 2020000275, 2020000276, 2020000277, 2020000278, 2020000279, 2020000280, 2020000281, 2020000282, 2020000283, 2020000284, 2020000285, 2020000286, 2020000287, 2020000288, 2020000289, 2020000290, 2020000291, 2020000292, 2020000293, 2020000294, 2020000295, 2020000296, 2020000297, 2020000298, 2020000299]
+remaining tuning batch B: [2020000300, 2020000301, 2020000302, 2020000303, 2020000304, 2020000305, 2020000306, 2020000307, 2020000308, 2020000309, 2020000310, 2020000311, 2020000312, 2020000313, 2020000314, 2020000315, 2020000316, 2020000317, 2020000318, 2020000319, 2020000320, 2020000321, 2020000322, 2020000323, 2020000324, 2020000325, 2020000326, 2020000327, 2020000328, 2020000329, 2020000330, 2020000331, 2020000332, 2020000333, 2020000334, 2020000335, 2020000336, 2020000337, 2020000338, 2020000339, 2020000340, 2020000341, 2020000342, 2020000343, 2020000344, 2020000345, 2020000346, 2020000347, 2020000348, 2020000349, 2020000350, 2020000351, 2020000352, 2020000353, 2020000354, 2020000355, 2020000356, 2020000357, 2020000358, 2020000359, 2020000360, 2020000361, 2020000362, 2020000363, 2020000364, 2020000365, 2020000366, 2020000367, 2020000368, 2020000369, 2020000370, 2020000371, 2020000372, 2020000373, 2020000374, 2020000375, 2020000376, 2020000377, 2020000378, 2020000379, 2020000380, 2020000381, 2020000382, 2020000383, 2020000384, 2020000385, 2020000386, 2020000387, 2020000388, 2020000389, 2020000390, 2020000391, 2020000392, 2020000393, 2020000394, 2020000395, 2020000396, 2020000397, 2020000398, 2020000399]
+
+=== FEATURE METADATA ===
+cached baseline/target shapes: (720000, 67) (720000,) (720000,)
+
+```

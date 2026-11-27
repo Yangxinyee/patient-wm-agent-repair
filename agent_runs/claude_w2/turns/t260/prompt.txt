@@ -1,0 +1,84 @@
+OUTPUT of Python run 251 of at most 300:
+```
+
+import numpy as np, torch, torch.nn.functional as F, math, pandas as pd
+def prep_core(trdf, ids, W, Sx, Ssid, Shr):
+    A=make_atoms(trdf[trdf.stay_id.isin(ids)])
+    B,E,U,hasu,xa=encode_bundles(A,W)
+    return A,B,E,U,hasu
+def core_eval(B,E,U,hasu,Sx,W,include_cur=False,age_unit=1.0,age_mode='kadd',age_div=1.0,uzero=False,gdiv=10.0,use_statez=True,idx=None):
+    out=torch.as_tensor(Sx[:,:192]); h=torch.as_tensor(Sx[:,192:960]).reshape(-1,4,192); zS=torch.as_tensor(Sx[:,960:992])
+    sid=B.stay_id.values; t=B.t.values
+    cand=np.where((np.r_[False, sid[1:]==sid[:-1]]))[0] if idx is None else idx
+    # memory per bundle: previous bundles of same stay (optionally incl current)
+    first=pd.Series(np.arange(len(B))).groupby(sid).transform('min').values
+    L=int((cand-first[cand]).max())+1+int(include_cur)
+    n=len(cand); Mi=np.full((n,L),-1)
+    for r,i in enumerate(cand):
+        js=np.arange(first[i], i+1 if include_cur else i)[-128:]
+        Mi[r,:len(js)]=js
+    mask=torch.as_tensor(Mi>=0); Mi_=np.where(Mi>=0,Mi,0)
+    M=E[torch.as_tensor(Mi_)]*mask[...,None]
+    age=torch.as_tensor(np.where(Mi>=0,(t[cand][:,None]-t[Mi_])*3600.0,0.0),dtype=torch.float32)
+    dt=torch.as_tensor((t[cand]-t[cand-1])*3600.0,dtype=torch.float32)
+    u=U[cand].clone()
+    if uzero: u=u*torch.as_tensor(hasu[cand])[:,None].float()
+    hp=h[cand-1]; op=out[cand-1]
+    hf=hp*torch.exp(-dt[:,None,None]*torch.exp(W['core.flow.a']))
+    ctx=op+LN(hf.mean(1),W,'core.out_norm')+mlp(torch.log(dt)[:,None]/gdiv,W,'gap')
+    z=zS[cand] if use_statez else mlp(torch.cat([ctx,E[cand],U[cand]],-1),W,'z_post')[:,:32]
+    X=torch.cat([hf+W['core.slots'][None],E[cand][:,None],u[:,None],F.linear(z,W['z_in.weight'],W['z_in.bias'])[:,None]],1)
+    X=layer_sa(X,W,'core.prelude.0'); Ep=LN(X[:,:4],W,'core.prelude_norm')
+    agee=mlp(torch.log1p(age/age_unit)[...,None]/age_div,W,'core.age')
+    x=hf+Ep
+    for l in ['core.blocks.0.0','core.blocks.0.1']: x=layer_blk(x,W,l,M,mask,agee,age_mode)
+    sp=F.softplus(W['core.delta_in']); abar=torch.exp(-sp*torch.exp(W['core.a_in']))
+    hn=abar*hf+sp*F.linear(Ep,W['core.b_in.weight'])+(x-(hf+Ep))
+    y=layer_sa(F.linear(hn,W['core.c_out.weight']),W,'core.coda.0')
+    on=LN(y.mean(1),W,'core.out_norm')
+    eo=(on-out[cand]).abs().mean().item(); eh=(y-h[cand]).abs().mean().item()
+    return eo,eh,cand,on,y
+
+===== code_txt (1960)
+ 
+def make_lin_oracle(R,DGi=None,a_i=None,c_i=None,k_i=0.0,pf=None,DGn=None,a_n=None,k_n=0.0,t_hide=13.0,gain_i=1.0,gain_n=1.0):
+    A=R['A']; code=A.code.values; tt=A.t.values; val=A.value.values; loc=A['loc'].values; S_=len(R['stays'])
+    GFI=np.full((S_,32),-1); GLI=np.full((S_,32),-1)
+    for cc,arr in [(CODE['glucose_finger'],GFI),(CODE['glucose_lab'],GLI)]:
+        m=np.where((code==cc)&(np.abs(tt-np.round(tt))<1e-6))[0]; arr[A.si.values[m],np.round(tt[m]).astype(int)+3]=m
+    def gval(n,j,drawn):
+        v=val[j].astype(float).copy(); hid=tt[j]>=t_hide
+        if hid.any(): b=drawn[n[hid],loc[j[hid]]]; v[hid]=CENT[code[j[hid]],np.maximum(b,1)-1]
+        return v
+    def plags(n,si,tau,drawn,L):
+        Pm=np.zeros((len(n),L))
+        for kk in range(1,L+1):
+            ix=tau-kk+3; ok=ix>=0; ixc=np.clip(ix,0,31)
+            jf=GFI[si,ixc]; jl=GLI[si,ixc]; g=np.full(len(n),np.nan)
+            m1=ok&(jf>=0); g[m1]=gval(n[m1],jf[m1],drawn); m2=ok&(jf<0)&(jl>=0); g[m2]=gval(n[m2],jl[m2],drawn)
+            Pm[:,kk-1]=np.where(np.isnan(g),0.0,pf(np.nan_to_num(g)))
+        return Pm
+    def hook(k,hn_,hj,P,ctx):
+        P=P.clone()
+        for codes_,drug in [(GLC,'i'),(MPC,'n')]:
+
+===== sig (146)
+ (R, W, arms, n_paths=20, seed=0, t_hide=13.0, want_nll=False, chunk=None, store=None, store_h=False, hook_P=None, hook_draw=None, hook_state=None)
+===== head (2092)
+ # Notebook
+## Setup facts (runs 1-6)
+- Stays ~24h. Readings at integer hours (-1..24); infusion records start at h+0.0833, run 1h. Policy picks hourly rates.
+- insulin rate in 0.5 steps (0.5..14, mostly 0.5-3), dose=rate. NE rate 0.01..1.0 (capped at 1.0; 13.5% at cap), dose=4.8*rate (weight 80kg for all).
+- 61% stays get insulin, 43% NE. stay_id sequential, no structure.
+- Dose pathway in model: embed.numeric cols z_dose/z_rate (cols 2..5), embed.bins.dose/rate -> encode_action -> u_k -> prelude tokens + z_post input.
+
+## Insulin policy (runs 9-12)
+- Deterministic sliding scale on latest glucose (fresh gf, else fresh gl): none if <150; band base rates ~1 [150,180), ~2 [180,220), ~3 [220,250), ~3.7 [250,300) (has inner step), ~6.5 >=300.
+- Within band, rate noise (0.5 steps) is independent of all observed covariates (R2~1e-4) => randomized experiment. No hidden confounding apparent.
+- gf measured every hour while last glucose >150.
+
+## NE policy (runs 13-14)
+- Uses map_arterial if present else cuff. Start (~0.05) when MAP<65. Titration: log(rate_t/rate_{t-1}) = adj + N(0,~0.3); adj ~ +0.1 (<65), 0 (65-74), -0.25 (>=75, sometimes stop). Cap 1.0.
+- So NE rate = accumulated random wal
+
+```

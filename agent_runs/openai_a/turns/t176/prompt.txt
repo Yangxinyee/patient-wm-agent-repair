@@ -1,0 +1,167 @@
+OUTPUT of Python run 159 of at most 300:
+```
+=== TARGETED NOTEBOOK SECTIONS ===
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edits.
+- Insulin policy has sharp rate jumps near finger glucose 150, 180, etc.; testing fuzzy RD rather than assuming observed dose associations are causal.
+{
+  "rd_checks": {
+    "(5, 1, False)": {
+      "n": 89398,
+      "beta": -2.11567545402709,
+      "se": 0.33683734799038334,
+      "first_stage_jump": 0.7135711767182463,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 1, True)": {
+      "n": 89398,
+      "beta": -2.0571854815200568,
+      "se": 0.3057137413636479,
+      "first_stage_jump": 0.7135240538160252,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, False)": {
+      "n": 89398,
+      "beta": -2.1113769908453865,
+      "se": 0.7234826044355352,
+      "first_stage_jump": 0.683167099721991,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, True)": {
+      "n": 89398,
+      "beta": -2.179170250120743,
+      "se": 0.6564570134763864,
+      "first_stage_jump": 
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+- RD beta/persistence: [-1.9287092802694472, 0.8318395202800747].
+- Fixed-record insulin x2 target, train / first 100 tuning: ((-11.136162060797929, 152158), (-10.707835822880574, 554)); half is -0.5 times x2.
+- Flexible, stay-held-out NE estimates remain observational, not automatically causal.
+{
+  "1": {
+    "all": {
+      "beta": 3.3214268014980317,
+      "se": 0.09576999832526349,
+      "n": 299517,
+      "dose_residual_sd": 0.09073010103067478,
+      "outcome_residual_sd": 4.40471740317129
+    },
+    "interior": {
+      "beta": 3.3480345525779405,
+      "se": 0.10803830467896791,
+      "n": 116511,
+      "dose_residual_sd": 0.12413404307882044,
+      "outcome_residual_sd": 4.590900888397296
+    }
+  },
+  "4": {
+    "all": {
+      "beta": 3.280136875394464,
+      "se": 0.09669211095919605,
+      "n": 260475,
+      "dose_residual_sd": 0.09223969594935504,
+      "outcome_residual_sd": 4.268125306872915
+    },
+    "interior": {
+      "beta": 3.328771594136043
+## Cross-stay dose-policy fitting; Python 51, forward 4
+- Fitted small boosted-tree dose policies from recorded pre-dose histories.
+- Two folds hold out whole stays; tuning uses training-fitted policies.
+- Residual dose is a candidate edit feature, not itself proof of causal identification.
+- GPU factual acceptance threshold remains original NLL + 0.005.
+
+## Residual-dose decoder; Python 52, forward 4
+- Held-out feature-decoder diagnostics: {'insulin': {'chosen_alpha': 1000.0, 'train_target_sd': 0.03078482858836651, 'tuning_target_sd': 0.024773716926574707, 'tuning_pred_sd': 0.01987367495894432}, 'norepinephrine': {'chosen_alpha': 1000.0, 'train_target_sd': 0.014999236911535263, 'tuning_target_sd': 0.011191831901669502, 'tuning_pred_sd': 0.00281846453435719}}
+- Decoders use final value-head hidden features, with zero targets on other event types.
+- This is an algebraic low-rank edit candidate; no model gradients or optimizer used.
+
+## Gated raw-input insulin graft; Python 65, forward 7/50
+- Replaced nearly constant hidden units 41 and 109; restored their mean old contribution.
+- GELU(g+a)-GELU(g) gates a protected linear residual-dose decoder to glucose.
+- Decoder is orthogonal to all eight numeric-register weight directions.
+- beta=-2.0; selected alpha=0.01; gate scale=5.0.
+- Four-prior paired approximate CPU NLL penalty=0.272818.
+- Applied=False. Exact GPU factual validation is required.
+
+## Latent-robust gated graft; Python 72, forward 7/50
+- Refit a register/latent-protected innovation decoder on sampled inputs from 200 training stays.
+- Valid-history gate suppresses initial readings and non-glucose outcomes.
+- CPU paired costs: {0.0: -2.8449054298107512e-05, -2.0: -0.00044632816570810974, -4.0: -0.000687271764036268, -8.0: -0.0006421973230317235}; beta=-2.0; applied=True.
+- GPU factual acceptance and intervention leverage remain untested.
+
+## Feedback diagnosis; Python 87, forwards 11/50
+- Strong insulin graft has alternating-hour responses, consistent with a harmful history-feedback component in its decoder.
+- Recomputed reached-hour then stay averages differ from earlier summaries; future comparisons must use identical weighting.
+- Proposed test: validate a CPU local-step reconstruction against original GPU states, then fit a small decoder on synthetic dose/history contrasts. No new weight edits yet.
+
+=== PANEL ===
+(780000, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+ glucose_finger  glucose_lab  insulin  map_arterial  map_cuff  norepinephrine
+          165.0          NaN      0.0          73.0       NaN             0.0
+          168.0          NaN      1.0          67.0      70.0             0.0
+          175.0        167.0      0.5          70.0       NaN             0.0
+=== DATAFRAMES ===
+_df (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_probe_m (800, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+_probe_meta (4751, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+_probe_results (144, 9) ['gap_scale', 'z_scale', 'value_col', 'flags', 'status', 'score', 'rmse', 'nll']
+_q (12, 2) ['shift_beta24', 'factual_beta24']
+_r11 (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_roll2 (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_roll24 (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_s (554, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+_v (4510, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+b (2, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit']
+diag (4751, 8) ['event', 'hour', 'has_last', 'last_z', 'error', 'nll_diff', 'period', 'last_range']
+dose_baseline (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+factual_baseline (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+g (2, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit']
+grouped (115, 2) ['mean', 'count']
+head_meta_extra (4758, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+head_meta_train (4510, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+head_meta_tune (4751, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+head_reference (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+lab_meta (78, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+lab_raw (2719, 7) ['event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour']
+lookup_meta (4751, 12) ['value', 'rate', 'last_value', 'last_hour', 'state_row', 'dt_seconds', 'code', 'has_last']
+matched (55, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+meta (4751, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+panel (780000, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+probe_meta (114, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+r103_flat (61, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit']
+r103_group (1, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit']
+r132_transition_diag (48, 4) ['stay_id', 'hour', 'slot_rmse', 'out_rmse']
+rec_transition_diag (48, 4) ['stay_id', 'hour', 'slot_rmse', 'out_rmse']
+rec_world_diag (5052, 3) ['ix', 'composition', 'posterior_rmse']
+records_extra (6500, 5) ['stay_id', 'hour', 'event', 'value', 'rate']
+reference (4751, 18) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+reference_meta (4751, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+rm_records (20000, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit']
+rr_d (1670, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+rr_df (2500, 7) ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+rr_raw_first (65, 9) ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit']
+table (4758, 15) ['stay_id', 'hour', 'event', 'value', 'rate', 'last_value', 'last_hour', 'state_row']
+td (48, 7) ['stay_id', 'hour', 'slot_rmse', 'out_rmse', 'n_atoms', 'has_insulin', 'has_norepinephrine']
+tpanel (10400, 6) ['glucose_finger', 'glucose_lab', 'insulin', 'map_arterial', 'map_cuff', 'norepinephrine']
+train_small (6193, 5) ['stay_id', 'hour', 'event', 'value', 'rate']
+tuning (26251, 5) ['stay_id', 'hour', 'event', 'value', 'rate']
+=== RECONSTRUCTION/HEAD FUNCTIONS ===
+cpu_head_parts ('meta', 'states', 'x', 'dt', 'h', 'hflow', 'base', 'prior')
+cpu_head_probs ('parts', 'n_samples', 'seed', 'gen', 'prior', 'mu', 'sd', 'total')
+graft_probs ('x', 'trans', 'tensors', 'h0', 'lg')
+head_average_probs3 ('tensors', 'hidden', 'logits')
+head_dose_data ('meta', 'panel', 'ids', 'predicted_policy', 'stay_index', 'hours', 'valid', 'prior_hour')
+head_score ('mean', 'nll', 'result', 'event', 'm')
+head_unit_target ('meta0', 'logits0', 'dose_data0', 'probabilities', 'event', 'centres0', 'm0', 'covariance')
+make_head_features ('meta', 'states', 'gap_style', 'register_style', 'status', 'type_id', 'age_style', 'view_style')
+make_insulin_graft ('beta', 'n', 'a', 'out', 'n0', 'n1')
+probe_head_eval ('meta0', 'states0', 'head_weights', 'n_samples', 'seed', 'parts0', 'hw', 'k')
+r131_step ('prev', 'dt', 'e_world', 'u_action', 'z', 'memory', 'age_embedding', 'mask')
+rec_step_with_z ('prev', 'dt', 'e_world', 'u_action', 'z', 'memo
+[output cut at 10,000 characters]
+```

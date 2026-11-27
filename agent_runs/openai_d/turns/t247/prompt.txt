@@ -1,0 +1,199 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 246 replies happened before. Forward passes used: 28 of 50; Python runs used: 211 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate_v1.npz', 'insulin_ne_candidate_v1.npz', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+nd actual rollout checks. Guarded insulin fallback is preserved in r170_insulin_backup.
+
+## Runs 171–173: restart audit and combined-trial results
+Re-read architecture and record schema. Forward 22 factual on tuning 300..399: original 1.64248740, combined 1.64634215, delta +0.00385475; passes this cohort. Forward 23 on tuning 0..99: insulin x2 -14.331, half +6.691; NE x2 +2.387, half -0.873. Combined edit is a provisional fallback, not yet validated across other cohorts. NE remains weaker than provisional record-derived targets, especially for half-dose. Four-tensor backup r171_combined_backup retained. No new weight change.
+
+## Run 179: restart after failed reconstruction assertion
+Run 178 had a maximum logit reconstruction error of 1.640755 and cached NLL delta +0.013017. These diagnostics are not accepted as evidence about candidate performance until the reconstruction is audited. No weights changed in this audit run.
+
+## Run 180: restore checked combined fallback
+Restored r171_combined_backup, whose GPU factual delta was +0.00385475 on tuning 300..399 and rollout shifts were insulin -14.331/+6.691, NE +2.387/-0.873 on tuning 0..99. The failed run-178 trial is not accepted. Auditing its construction before any further trial.
+
+## Run 182: transition-logit audit
+Fresh trial reconstruction after adding the register transition term has maximum error 0.00048368365. Recomputed local diagnostics: [{'candidate': 'checked_combined', 'all': 0.0026748778764158487, 'fit': 0.0025129851419478655, 'validation': 0.003161995904520154, 'by_event': {'glucose_finger': 0.0064850980415940285, 'glucose_lab': 0.0012155240401625633, 'map_arterial': 0.0014473526971414685, 'map_cuff': 0.0009375684894621372}}, {'candidate': 'corrected_trial', 'all': 0.003386198775842786, 'fit': 0.0028193644247949123, 'validation': 0.005091740284115076, 'by_event': {'glucose_finger': 0.0064850980415940285, 'glucose_lab': 0.0012155240401625633, 'map_arterial': 0.006332510616630316, 'map_cuff': -1.9040047845919617e-05}}]. No trial installed; checked combined fallback remains active.
+
+## Run 183: guarded stronger-NE trial installed
+The run-178 discrepancy was primarily an omitted register transition-logit term, not unintended weight changes. Adding it reduces reconstruction error to 0.00048368365; direct local loss agrees with the earlier algebraic screen. Installed trial 38402104b27473b8: NE pair [48,171], arterial-only common-gate adjustment, output multiplier 1.8176594; retains validated guarded insulin correction. Local NLL delta 0.0033861988, held-out 0.0050917403. This is an UNACCEPTED trial pending paired GPU factual and dose-rollout checks. Checked combined fallback retained in c183_fallback.
+
+## Run 184: restart audit
+Forward 25 stronger-NE trial: insulin -14.423/+6.644; NE +4.736/-1.201 on tuning 0..99. Doubling matches the provisional cohort target but half-dose remains weak. No additional edit; recovering factual result and causal-estimation evidence before further changes.
+
+## Run 185: preserve stronger trial
+Forward 24 factual on tuning 300..399: 1.64524 vs 1.64249, delta about +0.00275, below +0.005. Current stronger-NE four-tensor trial preserved in c185_current; no new weight change. Broader factual validation and half-dose asymmetry remain open.
+
+## Run 186: stronger trial fails second factual cohort
+Forward 26 on tuning 100..199: original 1.62044, edited 1.62827, delta +0.00783. Stronger trial is not accepted. Its two tested cohorts pool to approximately +0.00529, leaving no safety margin. Preserved in c185_current; inspecting correction and causal persistence before revision.
+
+## Run 187: gate and persistence audit
+No weights changed. Auditing paired-neuron common gates and dose contrasts; previous cached factual checks are insufficient for acceptance after Forward 26.
+
+## Run 188: correct event-label audit
+Run 187 gate-by-event output used scalar r170_event and is invalid; recomputed with r176_events. No weights changed.
+
+## Run 189: recover controlled-dose probes
+Correct gates isolate drug/reading types, but activate on only part of the relevant readings. Investigating dose-embedding asymmetry and recovering existing controlled state-probe machinery before another edit. No weights changed.
+
+## Run 190: NE probe limitation and loss decomposition
+Recovered that the NE probe shifts embed.code continuously by +0.1-rate direction, including possible END atoms, and does not implement real dose-bin changes. Testing symmetric decoder perturbations and removed-neuron loss; no edit installed.
+
+## Runs 191–196: restart audit and restore
+Re-read architecture and record schema; recovered cross-fitted drug slopes (insulin about -2, NE about +3.3 per rate unit) and tentative persistence evidence. The prior NE probe changes a continuous code-embedding direction rather than actual dose bins; it cannot establish dose-edit symmetry. Decoder perturbations are nearly symmetric. Restored c183_fallback (checked weaker combined candidate); stronger trial preserved in c196_strong_backup. Next: validate fallback factual fit on tuning 100..199 and construct exact-dose representation probes if feasible. No new candidate accepted.
+
+## Forward 27 / Run 197: weaker fallback fails another cohort
+Checked combined fallback factual NLL on tuning 100..199: 1.62804 vs 1.62044 original, delta approximately +0.00760. Neither combined candidate is accepted across tested cohorts. Next: reconstruct an independent tuning factual-head cache from original states and validate it against GPU per-reading predictions before screening revisions.
+
+## Run 198: restart recovery audit
+Combined fallback is not accepted: factual delta +0.00760 on tuning 100–199. Recovering architecture and independent factual-cache construction before revising weights. No weights changed in this audit.
+
+## Run 201–202: reconstruction assertion failed safely
+No edits changed. The r124_x comparison failed by 2.218; auditing old-cache provenance and component differences before using local losses.
+
+## Run 203: fresh independent tuning cache
+Tuning 100–199 paired local delta 0.0073184404; GPU delta 0.0076041166. r124_x provenance is not accepted; context/prior/query reconstruction was verified. No weights changed.
+
+## Run 207: independent candidate decomposition
+      candidate      nll    delta  glucose_finger  glucose_lab  map_arterial  map_cuff
+       original 1.601441 0.000000        0.000000     0.000000      0.000000  0.000000
+   insulin_only 1.605140 0.003699        0.010073     0.007081      0.000028 -0.000057
+  combined_weak 1.608760 0.007318        0.010055     0.007089      0.004468  0.007393
+combined_strong 1.608672 0.007231        0.010055     0.007089      0.012546  0.000022
+Backups converted to tensors solely for local evaluation. No weights changed.
+
+## Run 210: generic independent cache evaluator
+Completed fresh training reconstruction and built a generic exact four-head-tensor evaluator for training and tuning 100–199. It includes register transition logits and supports sparse hidden-row changes. No weights changed.
+
+## Run 211: closed-form calibration screen
+Fitted two-parameter per-reading-code probability-tilt calibrators from the fresh training cache using empirical score moments and a ridge-regularized 2x2 solve; no model gradients or weight optimizer. Screened independent tuning losses and common-gate support. No weights changed.
+      candidate  calibration_scale     train   tune100
+       original               0.00  0.000000  0.000000
+       original               0.25 -0.000737 -0.000172
+       original               0.50 -0.001317 -0.000192
+       original               0.75 -0.001740 -0.000061
+       original               1.00 -0.002007  0.000221
+combined_strong               0.00  0.003485  0.007231
+combined_strong               0.25  0.002657  0.006979
+combined_strong               0.50  0.002004  0.006900
+combined_strong               0.75  0.001525  0.006991
+combined_strong               1.00  0.001218  0.007253
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 211 of at most 300:
+```
+calibration coefficients original {'glucose_finger': [-0.23244, 0.05344], 'glucose_lab': [-0.13467, -0.16848], 'map_arterial': [0.05394, 0.13855], 'map_cuff': [0.07163, -0.0256]}
+calibration coefficients combined_strong {'glucose_finger': [-0.23968, 0.03324], 'glucose_lab': [-0.1461, -0.19442], 'map_arterial': [0.0539, 0.16242], 'map_cuff': [0.07213, -0.02414]}
+=== MOMENT-CALIBRATION SCREEN ===
+      candidate  calibration_scale     train   tune100
+       original               0.00  0.000000  0.000000
+       original               0.25 -0.000737 -0.000172
+       original               0.50 -0.001317 -0.000192
+       original               0.75 -0.001740 -0.000061
+       original               1.00 -0.002007  0.000221
+combined_strong               0.00  0.003485  0.007231
+combined_strong               0.25  0.002657  0.006979
+combined_strong               0.50  0.002004  0.006900
+combined_strong               0.75  0.001525  0.006991
+combined_strong               1.00  0.001218  0.007253
+=== COMMON GATE QUANTILES ===
+train insulin_only glucose_finger q10/50/90 [-89.56  16.54  29.82] positive fraction 0.532
+train insulin_only glucose_lab q10/50/90 [-93.13 -58.32  26.64] positive fraction 0.247
+train insulin_only map_arterial q10/50/90 [-173.51 -130.99  -68.63] positive fraction 0.0
+train insulin_only map_cuff q10/50/90 [-206.63 -183.09  -90.72] positive fraction 0.0
+train combined_strong glucose_finger q10/50/90 [-81.55 -61.76 -22.35] positive fraction 0.0
+train combined_strong glucose_lab q10/50/90 [-86.32 -62.95 -20.14] positive fraction 0.0
+train combined_strong map_arterial q10/50/90 [-40.41 -14.09  25.39] positive fraction 0.459
+train combined_strong map_cuff q10/50/90 [-123.98 -107.73  -58.69] positive fraction 0.0
+tune100 insulin_only glucose_finger q10/50/90 [-85.64  20.16  30.9 ] positive fraction 0.589
+tune100 insulin_only glucose_lab q10/50/90 [-94.56 -40.97  27.84] positive fraction 0.302
+tune100 insulin_only map_arterial q10/50/90 [-171.49 -128.98  -66.68] positive fraction 0.0
+tune100 insulin_only map_cuff q10/50/90 [-205.18 -175.42  -87.92] positive fraction 0.0
+tune100 combined_strong glucose_finger q10/50/90 [-77.96 -60.01 -22.28] positive fraction 0.0
+tune100 combined_strong glucose_lab q10/50/90 [-81.19 -59.7  -18.1 ] positive fraction 0.0
+tune100 combined_strong map_arterial q10/50/90 [-38.13 -13.99  27.14] positive fraction 0.439
+tune100 combined_strong map_cuff q10/50/90 [-121.67 -105.04  -58.32] positive fraction 0.0
+
+```

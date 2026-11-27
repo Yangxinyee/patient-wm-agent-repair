@@ -1,0 +1,139 @@
+OUTPUT of Python run 127 of at most 300:
+```
+=== EARLY EFFECT VALIDATION NOTES ===
+ion retained meaningful mean and NLL errors; no edits are justified by that reconstruction yet.
+- Re-reading architecture and inspecting persistent analysis objects before correcting the reconstruction and checking causal estimates.
+
+## Reconstruction conventions / run 16
+- Tested schema-valid last-numeric features, last-status embeddings, type embeddings, activations, and prior/head gap scaling.
+- Best deterministic convention: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1}.
+- No tensor edits; sampling and register conventions still require validation.
+
+## Runs 17?18
+- Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+- Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+- No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+
+## Register search / run 19
+- Selected reconstruction convention: {'binside': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}.
+- Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+- Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+- No weight edits.
+
+## Restart after forward 5
+- Independent training states received in /work/fwd_5.
+- Rechecking architecture and reusable analysis objects before selecting an edit.
+- No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+
+## Run 23: head-only correction screening
+- Testing the selected register convention on original GPU predictions.
+- Preparing independent state samples for a no-gradient correction of treatment innovations.
+- Head-only edits would preserve the recurrent state and all other prediction heads directly.
+
+## Run 25: posterior-action ablation candidate
+- Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+- Latent sampling accounts for much of the local-vs-GPU head discrepancy.
+- Exploratory edit: zero z_post.0.weight[:,384:576], retaining direct action input.
+- Hypothesis: action-conditioned latent severity inference masks direct drug responses.
+- Requires paired factual and rollout tests; this is not yet a validated repair.
+- Earlier small-sample error-vs-innovation SE printouts include an intercept SE.
+
+## Forward 6 / run 26: failed posterior-action ablation
+- Removing z_post.0.weight[:,384:576] barely changed any dose-edit response.
+- Reverted the ablation; no tensors currently edited.
+- This does not support posterior action con
+=== FUNCTIONS ===
+load(name)
+load_original(name)
+save_edit(name, tensor)
+drop_edit(name)
+edited()
+make_panel(df)
+r2_score(y_true, y_pred, *, sample_weight=None, multioutput='uniform_average', force_finite=True)
+causal_features(p)
+clustered_ols(A, y, groups)
+mechanistic_shifts(p, ids, drug, readout, phi, beta, start=12, multiplier=2.0)
+lin0(v, prefix)
+norm0(v, prefix)
+act0(v, kind)
+mlp0(v, prefix, kind)
+reading_cache(records, states, factual=None)
+head0(cache, kind='gelu', gapmode='scaled', typeidx=1, flagcol=3, statusrow=0, subset=None)
+head_parts(cache, kind='gelu', flagcol=3, ageunit='seconds', subset=None)
+head_mc(cache, kind='gelu', flagcol=3, ageunit='seconds', nsamples=32, subset=None, seed=73)
+head_mc_layout(cache, kind, ageunit, layout, nsamples=16, subset=None, seed=73)
+reconstruct_head(cache, subset=None, kind='gelu', typeidx=1, prior_gap=10.0, view_gap=10.0, status=-1, ageunit='seconds', flagcol=3, nsamples=0, sd_power=1.0, seed=913, keep_hidden=False)
+head_features_layout(cache, layout, ageunit='seconds', subset=None, nsamples=16, seed=913)
+fn(j, h_branches, nsamples=16, seed=913)
+as_np(v)
+correction_data(cache, head)
+helper_probe(records, states, factual=None)
+atom_action_local(event, rate, kind=0, rate_unit=0, unit=0)
+set_encode_single_local(atoms, prefix)
+action_atom_exact(event, rates, doses=None, kind=0, bin_mode='raw64')
+context_from_saved(rows, states={'x': array([[-2.8624568 ,  0.13236251,  0.04103862, ...,  0.15522546,
+         0.12438185,  0.7925512 ],
+       [-2.8296847 , -0.09597726, -0.02484371, ..., -0.00540475,
+         0.02381059, -0.06488448],
+       [-2.9132874 , -0.04478304,  0.0041233 , ..., -0.00758266,
+         0.05248087, -0.03556135],
+       ...,
+       [-2.941284  , -0.04452135,  0.05320625, ..., -0.00634789,
+         0.0115262 , -0.17957968],
+       [-2.9907868 , -0.13312288,  0.0402553 , ...,  0.02112203,
+         0.02666816, -0.02659603],
+       [-3.0455008 , -0.18014115, -0.01807782, ...,  0.11646924,
+         0.00951204, -0.16512442]], shape=(4314, 992), dtype=float32), 'stay_id': array([1010000000, 1010000000, 1010000000, ..., 1010000095, 1010000095,
+       1010000095], shape=(4314,)), 'hour': array([-2.    , -1.    ,  0.    , ..., 23.    , 24.    , 25.1667],
+      shape=(4314,)), 'has_insulin': array([False, False, False, ..., False, False, False], shape=(4314,)), 'has_norepinephrine': array([False, False, False, ..., False, False, False], shape=(4314,)), 'n_atoms': array([1, 1, 3, ..., 2, 1, 2], shape=(4314,))})
+measurement_atom_local(event, values, unit)
+fun(v, prefix)
+wm_lin(x, prefix, weights=None)
+wm_norm(x, prefix, weights=None)
+wm_mlp(x, prefix, weights=None)
+wm_attention(x, prefix, memory=None, agevec=None, age_mode='input', weights=None)
+wm_layer(x, prefix, memory=None, agevec=None, age_mode='input', weights=None)
+wm_set(atoms, prefix)
+wm_step_saved(j, include_current=False, age_mode='input', age_units='seconds')
+action_vectors4(drug=None, multiplier=1.0)
+posterior_features4(action_vectors)
+function_repair(j, include_current=False, age_mode='input', age_units='seconds')
+compact_dis_repair(f_repair)
+f_repair(x, prefix, memory=None, agevec=None, age_mode='input', weights=None)
+short_impl60(f, limit)
+latent_step61(j, z_batch)
+next_means61(j, h_branches)
+brief_impl64(f, limit=2700)
+f64(j, include_current=False, age_mode='input', age_units='seconds')
+obj64(atoms, prefix)
+latent_step66(j, z_batch)
+local_step67(j, z_batch, include_current=False, age_mode='input', age_units=3600.0, age_scale=1.0)
+fn67(event, rates, doses=None, kind=0, bin_mode='raw64')
+response_pair68(j, h)
+func(j, h_branches)
+compact_code73(func)
+next_means_crn74(j, h_branches, nsamples=16, seed=913)
+compact_impl79(fn)
+fn81(x, prefix, weights=None)
+prelude_all83(action_u, rows=array([   1,    2,    3, ..., 4311, 4312, 4313], shape=(4214,)))
+show_impl85(name, limit=2200)
+f94(name, limit=2200)
+v94(x, prefix, weights=None)
+array103(x)
+fn104(drug=None, multiplier=1.0)
+action_hidden105(rates, presence)
+channel_targets105(rates, raw)
+compact_function109(f)
+compact115(f, max_chars=2300)
+enc_set117(q, p, weights)
+channel_dataset117(n_synthetic, n_record)
+channel_raw_target117(q, raw)
+outline122(f)
+rw125(name)
+centered_difference125(i, j)
+=== OBJECT NAMES / SHAPES ===
+Path, name, t0, train(1996002, 9), tuning(26193, 9), ev(3,), sub(238667, 9), col, entry, key, value, text, f, x(192, 1), panel(780000, 6), panel_tune(10400, 6), a(), b(), ab(106336, 2), drug, v(192,), HistGradientBoostingRegressor, threadpool_limits, X(780000, 47), Y(780000, 2), G(780000,), M(780000,), rng, all_train_ids(30000,), shuffled(30000,), nuisance_ids(12000,), effect_test_ids(6000,), sid(780000,), hours(780000,), fitmask(780000,), testmask(780000,), nuisance_models, residuals, target(4214, 2), values(150,), goodfit(780000,), model, start, pred(132000,), actual(132000,), finite(132000,), Ar(132000, 2), testsid(132000,), testpanel(132000, 6), outcome, label, mask(3500,), beta, se(2,), n, eval_ids_A, eval_ids_B, s(3,), sA, fA(4585, 6), dA(2298, 7), W0, w(192,), lp, horizon, series(780000,), lag, rr(2,), ss(3,), coef(192, 768), validfit(780000,), nu, dyn_estimates, j, response(9,), action(8,), design(8, 2), beta_one(), phi_fixed(), readout, est, mult, mean, val, k, inventory, directory, test_positions(132000,), test_index(132000,), rt(132000, 2), rates(30,), r(), sensor_checks, event, ynext(780000,), fm(780000,), nuisance, resid(132000,), jdrug, valid(132000,), bcheck(3,), scheck(3,), ncheck(), rawrate(132000,), lo, hi, vm(1032,), bb(3,), nn(1032,), dynamic_alternatives, drugletter, coefidx, train_probe_ids, sTrain, norm_meta, code_id, jj(609,), yr(9,), ar(8,), design2(8, 3), coeff2(3,), kernel(8,), h, cacheA, cacheTrain, subprobe(1032,), scale(192,), reconstruction_scores, kind, gapmode, typeidx, flagcol, statusrow, args, mm(385, 3), rmse(), nerr(), result, probe_ctx(4585, 192), probe_z(4585, 64), register_scores, ageunit, pp(1, 4, 192), pbar(1032, 17), err(3200, 2), row, best_head_spec, pcheck(64, 1032, 17), hcheck(64, 1032, 192), wcheck(64, 1032, 192), meanbar(1032,), grou
+[output cut at 10,000 characters]
+```

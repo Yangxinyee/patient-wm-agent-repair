@@ -1,0 +1,104 @@
+OUTPUT of Python run 85 of at most 300:
+```
+=== EARLY EXPERIMENT SUMMARY ===
+# World-model weight repair
+
+## Initial plan
+- Infer drug effects exclusively from the supplied simulated records.
+- Separate dose assignment from subsequent physiological response; do not assume either effect's sign or magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+Counts: 4 Python runs, 1 forward passes.
+
+## Forward 2 / Run 5
+Exported original states for training stays 1010000000..1010000099 (all bundles). Checked held-out-stay dose decoding and residual-effect dose-range diagnostics. Past-change placebo here is raw, not separately residualized, and must not be treated as a definitive independence test.
+         event                range      n      beta       se
+glucose_finger               0.5..1  21312 -1.895856 0.144475
+glucose_finger                 1..2 134998 -2.042501 0.083923
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab         
+
+=== ENCODER DEPENDENCIES ===
+r79_encode names: ('torch', 'zeros', 'r79_n', 'index_add_', 'r79_owner', 'ones', 'int', 'sum', 'bool', 'any', 'r79_mlp', 'r79_atoms', 'clamp_min', 'sqrt', 'r79_lin', 'log1p', 'r79_norm')
+r79_encode constants: (None, 192, 0, '.mlp1', 1, '.size', '.mlp2', '.norm')
+r79_n 8443
+r79_owner Tensor (18253,)
+r79_mlp (x, prefix, kind='gelu')
+r79_atoms Tensor (18253, 192)
+r79_lin (x, prefix)
+r79_norm (x, prefix)
+
+=== ATOM METADATA ===
+r79_act (x, kind)
+r79_action Tensor (18253,)
+r79_atoms Tensor (18253, 192)
+r79_drug_rows Tensor (8443,)
+r79_encode (mask, prefix, kind)
+r79_end Tensor (18253,)
+r79_lin (x, prefix)
+r79_masks dict(3)
+r79_mlp (x, prefix, kind='gelu')
+r79_n 8443
+r79_norm (x, prefix)
+r79_owner Tensor (18253,)
+r79_read_rows Tensor (8443,)
+r79_results list(108) sample=[(0.1216297522187233, 'drug-all', 'gelu', False, False, 'gelu', [0.1216297522187233, 0.15920911729335785, 0.005870271474123001]), (0.1216297522187233, 'END-as-observation', 'gelu', False, False, 'gelu', [0.12162975221872
+r79_target Tensor (8443, 32)
+r79_w (name)
+r79_weights dict(28)
+mask drug-all tuple(2) sample=(tensor([False, False, False,  ..., False, False, False]), tensor([True, True, True,  ..., True, True, True]))
+ components: ['Tensor (18253,)', 'Tensor (18253,)']
+mask END-as-observation tuple(2) sample=(tensor([False, False, False,  ..., False, False, False]), tensor([True, True, True,  ..., True, True, True]))
+ components: ['Tensor (18253,)', 'Tensor (18253,)']
+mask END-ignored tuple(2) sample=(tensor([False, False, False,  ..., False, False, False]), tensor([ True,  True,  True,  ..., False,  True,  True]))
+ components: ['Tensor (18253,)', 'Tensor (18253,)']
+
+=== ATOM EMBEDDING HELPERS ===
+r36_atom (code, value=nan, rate=nan, dose=nan, end=False)
+ names: ('np', 'zeros', 'float32', 'isfinite', 'r33_numeric', 'clip', 'int', 'searchsorted', 'drugs', 'sensors', 'r33_weights', 'r33_codes', 'r33_linear', 'torch', 'tensor', 'startswith')
+ locals: ('code', 'value', 'rate', 'dose', 'end', 'numeric', 'bins', 'attr', 'val', 'col', 'meta', 'ekind', 'result', 'table')
+ constants: (None, 6, 0, ('value', 'dose', 'rate'), 'value', 'dose', 2, 'rate', 4, 'median', 'iqr', -10, 10, 1, 'fine_bin_edges', 'left', ('side',), 'hospital_admission', 3, 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.numeric', 'embed.bins.', '.weight', 'embed.categorical.unit.weight', 'glucose', 'embed.categorical.rate_unit.weight', 'insulin', ('embed.kq.weight', 'embed.text.weight'))
+_fun (code, value=nan, rate=nan, dose=nan, end=False)
+ names: ('np', 'zeros', 'float32', 'isfinite', 'r33_numeric', 'clip', 'int', 'searchsorted', 'drugs', 'sensors', 'r33_weights', 'r33_codes', 'r33_linear', 'torch', 'tensor', 'startswith')
+ locals: ('code', 'value', 'rate', 'dose', 'end', 'numeric', 'bins', 'attr', 'val', 'col', 'meta', 'ekind', 'result', 'table')
+ constants: (None, 6, 0, ('value', 'dose', 'rate'), 'value', 'dose', 2, 'rate', 4, 'median', 'iqr', -10, 10, 1, 'fine_bin_edges', 'left', ('side',), 'hospital_admission', 3, 'embed.code.weight', 'embed.kind.weight', 'embed.ekind.weight', 'embed.numeric', 'embed.bins.', '.weight', 'embed.categorical.unit.weight', 'glucose', 'embed.categorical.rate_unit.weight', 'insulin', ('embed.kq.weight', 'embed.text.weight'))
+matching helpers: ['r36_atom', '_fun']
+
+```

@@ -1,0 +1,79 @@
+OUTPUT of Python run 137 of at most 300:
+```
+
+=== rec_layer ===
+75: RESUME
+76: LOAD_GLOBAL NULL + rec_attn_apply ; LOAD_FAST x ; LOAD_FAST prefix ; CALL ; STORE_FAST x
+77: LOAD_FAST memory ; POP_JUMP_IF_NONE to 62
+78: LOAD_GLOBAL NULL + rec_attn_apply ; LOAD_FAST x ; LOAD_FAST prefix ; LOAD_FAST memory ; LOAD_FAST ages ; LOAD_FAST mask ; LOAD_FAST age_mode ; CALL ; STORE_FAST x
+79: LOAD_FAST x ; LOAD_GLOBAL NULL + rm_mlp ; LOAD_GLOBAL NULL + rm_ln ; LOAD_FAST x ; LOAD_FAST prefix ; LOAD_CONST '.norm3' ; BINARY_OP + ; CALL ; LOAD_FAST prefix ; LOAD_CONST '.ffn' ; BINARY_OP + ; CALL ; BINARY_OP + ; RETURN_VALUE
+
+=== r131_step ===
+16: LOAD_GLOBAL NULL + rm_ln ; LOAD_GLOBAL NULL + rec_layer ; LOAD_FAST tokens ; LOAD_CONST 'core.prelude.0' ; CALL ; LOAD_CONST None ; LOAD_CONST None ; BUILD_SLICE ; LOAD_CONST None ; LOAD_CONST 4 ; BUILD_SLICE ; BUILD_TUPLE ; BINARY_SUBSCR ; LOAD_CONST 'core.prelude_norm' ; CALL ; STORE_FAST E
+17: LOAD_FAST hf ; LOAD_FAST E ; BINARY_OP + ; STORE_FAST hbase
+18: LOAD_FAST hbase ; STORE_FAST u
+19: LOAD_GLOBAL NULL + range ; LOAD_CONST 2 ; CALL ; GET_ITER ; FOR_ITER to 326 ; STORE_FAST j
+20: LOAD_GLOBAL NULL + rec_layer ; LOAD_FAST u ; LOAD_CONST 'core.blocks.0.' ; LOAD_FAST j ; FORMAT_VALUE ; BUILD_STRING ; LOAD_FAST memory ; LOAD_FAST age_embedding ; LOAD_FAST mask ; LOAD_FAST age_mode ; CALL ; STORE_FAST u ; JUMP_BACKWARD to 280
+19: END_FOR
+21: LOAD_GLOBAL rec_abar ; LOAD_FAST hf ; BINARY_OP * ; LOAD_GLOBAL rec_delta ; LOAD_GLOBAL NULL + rm_lin ; LOAD_FAST E ; LOAD_CONST 'core.b_in' ; CALL ; BINARY_OP * ; BINARY_OP + ; LOAD_FAST u ; BINARY_OP + ; LOAD_FAST hbase ; BINARY_OP - ; STORE_FAST hn
+22: LOAD_GLOBAL NULL + rec_layer ; LOAD_GLOBAL NULL + rm_lin ; LOAD_FAST hn ; LOAD_CONST 'core.c_out' ; CALL ; LOAD_CONST 'core.coda.0' ; CALL ; STORE_FAST hn
+23: LOAD_FAST hn ; LOAD_GLOBAL NULL + rm_ln ; LOAD_FAST hn ; LOAD_ATTR NULL|self + mean ; LOAD_CONST 1 ; KW_NAMES ('dim',) ; CALL ; LOAD_GLOBAL rec_outnorm ; CALL ; BUILD_TUPLE ; RETURN_VALUE
+
+=== rec_memory ===
+33: RESUME
+34: LOAD_FAST embeddings ; POP_JUMP_IF_NOT_NONE to 18 ; LOAD_GLOBAL rec_e_all ; JUMP_FORWARD to 20 ; LOAD_FAST embeddings ; STORE_FAST embeddings
+35: BUILD_LIST ; STORE_FAST selections
+36: LOAD_FAST indices ; GET_ITER ; FOR_ITER to 242 ; STORE_FAST ix
+37: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + flatnonzero
+38: LOAD_GLOBAL rm_states ; LOAD_CONST 'stay_id' ; BINARY_SUBSCR ; LOAD_GLOBAL rm_states ; LOAD_CONST 'stay_id' ; BINARY_SUBSCR ; LOAD_FAST ix ; BINARY_SUBSCR ; COMPARE_OP ==
+39: LOAD_GLOBAL np ; LOAD_ATTR NULL|self + arange ; LOAD_GLOBAL NULL + len ; LOAD_GLOBAL rm_states ; LOAD_CONST 'x' ; BINARY_SUBSCR ; CALL ; CALL ; LOAD_FAST ix ; COMPARE_OP <=
+38: BINARY_OP &
+37: CALL
+39: LOAD_CONST -128 ; LOAD_CONST None
+37: BINARY_SLICE ; STORE_FAST js
+40: LOAD_FAST selections ; LOAD_ATTR NULL|self + append ; LOAD_FAST js ; CALL ; POP_TOP ; JUMP_BACKWARD to 30
+36: END_FOR
+41: LOAD_GLOBAL NULL + max ; LOAD_GLOBAL NULL + map ; LOAD_GLOBAL len ; LOAD_FAST selections ; CALL ; CALL ; STORE_FAST width
+42: LOAD_GLOBAL torch ; LOAD_ATTR NULL|self + zeros ; LOAD_GLOBAL NULL + len ; LOAD_FAST indices ; CALL ; LOAD_FAST width ; LOAD_CONST 192 ; BUILD_TUPLE ; CALL ; STORE_FAST mem
+43: LOAD_GLOBAL torch ; LOAD_ATTR NULL|self + zeros ; LOAD_GLOBAL NULL + len ; LOAD_FAST indices ; CALL ; LOAD_FAST width ; LOAD_CONST 1 ; BUILD_TUPLE ; CALL ; STORE_FAST ages
+44: LOAD_GLOBAL torch ; LOAD_ATTR NULL|self + zeros ; LOAD_GLOBAL NULL + len ; LOAD_FAST indices ; CALL ; LOAD_FAST width ; BUILD_TUPLE ; LOAD_GLOBAL torch ; LOAD_ATTR bool ; KW_NAMES ('dtype',) ; CALL ; STORE_FAST mask
+45: LOAD_GLOBAL NULL + enumerate ; LOAD_FAST selections ; CALL ; GET_ITER ; FOR_ITER to 802 ; UNPACK_SEQUENCE ; STORE_FAST j ; STORE_FAST js
+46: LOAD_FAST embeddings ; LOAD_FAST js ; BINARY_SUBSCR ; LOAD_FAST mem ; LOAD_FAST j ; LOAD_CONST None ; LOAD_GLOBAL NULL + len ; LOAD_FAST js ; CALL ; BUILD_SLICE ; BUILD_TUPLE ; STORE_SUBSCR
+47: LOAD_GLOBAL torch ; LOAD_ATTR NULL|self + tensor
+48: LOAD_GLOBAL rm_states ; LOAD_CONST 'hour' ; BINARY_SUBSCR ; LOAD_FAST indices ; LOAD_FAST j ; BINARY_SUBSCR ; BINARY_SUBSCR ; LOAD_GLOBAL rm_states ; LOAD_CONST 'hour' ; BINARY_SUBSCR ; LOAD_FAST js ; BINARY_SUBSCR ; BINA
+
+=== RECURRENT TENSOR SHAPES ===
+core.age.0.bias (192,)
+core.age.0.weight (192, 1)
+core.age.2.bias (192,)
+core.age.2.weight (192, 192)
+core.blocks.0.0.attn.kv.weight (384, 192)
+core.blocks.0.0.attn.out.weight (192, 192)
+core.blocks.0.0.attn.q.weight (192, 192)
+core.blocks.0.0.cross.kv.weight (384, 192)
+core.blocks.0.0.cross.out.weight (192, 192)
+core.blocks.0.0.cross.q.weight (192, 192)
+core.blocks.0.0.ffn.0.bias (768,)
+core.blocks.0.0.ffn.0.weight (768, 192)
+core.blocks.0.0.ffn.2.bias (192,)
+core.blocks.0.0.ffn.2.weight (192, 768)
+core.blocks.0.0.norm1.bias (192,)
+core.blocks.0.0.norm1.weight (192,)
+core.blocks.0.0.norm2.bias (192,)
+core.blocks.0.0.norm2.weight (192,)
+core.blocks.0.0.norm3.bias (192,)
+core.blocks.0.0.norm3.weight (192,)
+core.c_out.weight (192, 192)
+core.coda.0.attn.kv.weight (384, 192)
+core.coda.0.attn.out.weight (192, 192)
+core.coda.0.attn.q.weight (192, 192)
+core.coda.0.ffn.0.bias (768,)
+core.coda.0.ffn.0.weight (768, 192)
+core.coda.0.ffn.2.bias (192,)
+core.coda.0.ffn.2.weight (192, 768)
+core.coda.0.norm1.bias (192,)
+core.coda.0.norm1.weight (192,)
+core.coda.0.norm3.bias (192,)
+core.coda.0.norm3.weight (192,)
+
+```

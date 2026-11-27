@@ -1,0 +1,63 @@
+OUTPUT of Python run 8 of at most 300:
+```
+=== RECORD DEFINITIONS ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== PANEL COLUMNS ===
+['stay_id', 't', 'glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine', 'glucose_finger_last', 'glucose_finger_age', 'glucose_finger_prev', 'glucose_finger_next', 'glucose_finger_base', 'glucose_lab_last', 'glucose_lab_age', 'glucose_lab_prev', 'glucose_lab_next', 'glucose_lab_base', 'map_arterial_last', 'map_arterial_age', 'map_arterial_prev', 'map_arterial_next', 'map_arterial_base', 'map_cuff_last', 'map_cuff_age', 'map_cuff_prev', 'map_cuff_next', 'map_cuff_base', 'insulin_prev', 'norepinephrine_prev', 'glucose_any', 'map_any', 'glucose_any_next', 'glucose_any_prev', 'map_any_next', 'map_any_prev', 'glucose_finger_lag1', 'glucose_finger_lag2', 'glucose_finger_lag3', 'glucose_finger_lag4', 'glucose_lab_lag1', 'glucose_lab_lag2', 'glucose_lab_lag3', 'glucose_lab_lag4', 'map_arterial_lag1', 'map_arterial_lag2', 'map_arterial_lag3', 'map_arterial_lag4', 'map_cuff_lag1', 'map_cuff_lag2', 'map_cuff_lag3', 'map_cuff_lag4', 'insulin_lag1', 'insulin_lag2', 'insulin_lag3', 'insulin_lag4', 'norepinephrine_lag1', 'norepinephrine_lag2', 'norepinephrine_lag3', 'norepinephrine_lag4', 'glucose_any_f1', 'insulin_f1', 'glucose_any_f2', 'insulin_f2', 'glucose_any_f3', 'insulin_f3', 'glucose_any_f4', 'insulin_f4', 'glucose_any_f5', 'insulin_f5', 'glucose_any_f6', 'insulin_f6', 'glucose_any_f7', 'insulin_f7', 'glucose_any_f8', 'insulin_f8']
+   stay_id  t  glucose_finger  glucose_lab  map_arterial  map_cuff  insulin  norepinephrine  glucose_finger_last  glucose_finger_age  glucose_finger_prev  glucose_finger_next  glucose_finger_base  glucose_lab_last  glucose_lab_age  glucose_lab_prev  glucose_lab_next  glucose_lab_base  map_arterial_last  map_arterial_age  map_arterial_prev  map_arterial_next  map_arterial_base  map_cuff_last  map_cuff_age  map_cuff_prev  map_cuff_next  map_cuff_base  insulin_prev  norepinephrine_prev  glucose_any  map_any  glucose_any_next  glucose_any_prev  map_any_next  map_any_prev  glucose_finger_lag1  glucose_finger_lag2  glucose_finger_lag3  glucose_finger_lag4  glucose_lab_lag1  glucose_lab_lag2  glucose_lab_lag3  glucose_lab_lag4  map_arterial_lag1  map_arterial_lag2  map_arterial_lag3  map_arterial_lag4  map_cuff_lag1  map_cuff_lag2  map_cuff_lag3  map_cuff_lag4  insulin_lag1  insulin_lag2  insulin_lag3  insulin_lag4  norepinephrine_lag1  norepinephrine_lag2  norepinephrine_lag3  norepinephrine_lag4  glucose_any_f1  insulin_f1  glucose_any_f2  insulin_f2  glucose_any_f3  insulin_f3  glucose_any_f4  insulin_f4  glucose_any_f5  insulin_f5  glucose_any_f6  insulin_f6  glucose_any_f7  insulin_f7  glucose_any_f8  insulin_f8
+1010000000 -1           165.0          NaN          73.0       NaN      0.0             0.0                165.0                 0.0                  NaN                168.0                165.0               NaN              NaN               NaN               NaN               NaN               73.0               0.0                NaN               67.0               73.0            NaN           NaN            NaN           70.0           70.0           0.0                  0.0        165.0     73.0             168.0               NaN          67.0           NaN                  NaN                  NaN                  NaN                  NaN               NaN               NaN               NaN               NaN                NaN                NaN                NaN                NaN            NaN            NaN            NaN            NaN           NaN           NaN           NaN           NaN                  NaN                  NaN                  NaN                  NaN           168.0         1.0           171.0         0.5           163.5         1.0           151.5         1.0           151.0         1.0           146.0         0.0             NaN         0.0           139.0         0.0
+1010000000  0           168.0          NaN          67.0      70.0      1.0             0.0                168.0                 0.0                165.0                175.0                165.0               NaN              NaN               NaN             167.0               NaN               67.0               0.0               73.0               70.0               73.0           70.0           0.0            NaN            NaN           70.0           0.0                  0.0        168.0     67.0             171.0             165.0          70.0          73.0                165.0                  NaN                  NaN                  NaN               NaN               NaN               NaN               NaN               73.0                NaN                NaN                NaN            NaN            NaN            NaN            NaN           0.0           NaN           NaN           NaN                  0.0                  NaN                  NaN                  NaN           171.0         0.5           163.5         1.0           151.5         1.0           151.0         1.0           146.0         0.0             NaN         0.0           139.0         0.0             NaN         0.0
+1010000000  1           175.0        167.0          70.0       NaN      0.5             0.0                175.0                 0.0                168.0                169.0                165.0             167.0              0.0               NaN             158.0               NaN               70.0               0.0               67.0               68.0               73.0           70.0           1.0           70.0            NaN           70.0           1.0                  0.0        171.0     70.0             163.5             168.0          68.0          67.0                168.0                165.0                  NaN                  NaN               NaN               NaN               NaN               NaN               67.0               73.0                NaN                NaN           70.0            NaN            NaN            NaN           1.0           0.0           NaN           NaN                  0.0                  0.0                  NaN                  NaN           163.5         1.0           151.5         1.0           151.0         1.0           146.0         0.0             NaN         0.0           139.0         0.0             NaN         0.0           125.0         0.0
+
+=== RECORD SAMPLE ===
+   stay_id    hour              event  value  rate  rate_unit  dose dose_unit  end_hour
+1010000000 -2.0000 hospital_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000 -1.0000     glucose_finger  165.0   NaN        NaN   NaN       NaN       NaN
+1010000000 -1.0000       map_arterial   73.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000     glucose_finger  168.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000      icu_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000  0.0000       map_arterial   67.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000           map_cuff   70.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0833            insulin    NaN   1.0 units/hour   1.0     units    1.0833
+
+=== IDENTIFICATION RESULTS ===
+RD table:
+  cutoff  window  history_adj     n  dose_jump  dose_SE  outcome_jump    effect  effect_SE  observation_jump
+    150       4        False 20829   0.801368 0.009335     -1.670998 -2.085181   0.464987      3.320437e-01
+    150       4         True 20829   0.801647 0.009337     -1.672334 -2.086122   0.423045      3.320437e-01
+    150       8        False 43160   0.932604 0.005533     -2.047126 -2.195064   0.275374      4.381636e-01
+    150       8         True 43160   0.932792 0.005534     -2.110622 -2.262692   0.251525      4.381636e-01
+    150      12        False 65812   0.971841 0.004127     -1.766372 -1.817552   0.213846      4.848653e-01
+    150      12         True 65812   0.971969 0.004128     -1.759320 -1.810057   0.194558      4.848653e-01
+    180       4        False 31206   0.583162 0.013310     -1.300138 -2.229461   0.542834     -1.452401e-16
+    180       4         True 31206   0.583174 0.013304     -1.367275 -2.344541   0.488917     -1.452401e-16
+    180       8        False 61682   0.786407 0.009273     -1.652128 -2.100855   0.279689      1.750810e-16
+    180       8         True 61682   0.786398 0.009270     -1.767134 -2.247125   0.252011      1.750810e-16
+    180      12        False 91492   0.862031 0.007570     -1.687271 -1.957320   0.209812      2.052026e-16
+    180      12         True 91492   0.861908 0.007571     -1.810359 -2.100410   0.188435      2.052026e-16
+    220       4        False 10851   0.584702 0.032664     -1.934401 -3.308353   1.041402     -3.291604e-16
+    220       4         True 10851   0.586277 0.032662     -2.018906 -3.443605   0.925664     -3.291604e-16
+    220       8        False 21817   0.815216 0.023
+[output cut at 10,000 characters]
+```

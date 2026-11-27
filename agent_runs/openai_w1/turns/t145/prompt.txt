@@ -1,0 +1,159 @@
+OUTPUT of Python run 132 of at most 300:
+```
+=== EARLY RECORD-BASED FINDINGS ===
+# World-model weight repair
+
+## Initial plan
+- Infer drug effects exclusively from the supplied simulated records.
+- Separate dose assignment from subsequent physiological response; do not assume either effect's sign or magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+Counts: 4 Python runs, 1 forward passes.
+
+## Forward 2 / Run 5
+Exported original states for training stays 1010000000..1010000099 (all bundles). Checked held-out-stay dose decoding and residual-effect dose-range diagnostics. Past-change placebo here is raw, not separately residualized, and must not be treated as a definitive independence test.
+         event                range      n      beta       se
+glucose_finger               0.5..1  21312 -1.895856 0.144475
+glucose_finger                 1..2 134998 -2.042501 0.083923
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab                 1..2   6440 -1.674272 0.221519
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab prior_change_placebo   5781  0.010951      NaN
+  map_arterial           0.01..0.31  46952  2.808803 0.267351
+  map_arterial            0.31..0.7  48870  3.186511 0.130080
+  map_arterial               0.7..1  48494  3.503649 0.137606
+  map_arterial prior_change_placebo 298800  0.134794      NaN
+      map_cuff           0.01..0.21  24183  1.573456 0.905161
+      map_cuff           0.21..0.62  25354  2.622023 0.337926
+      map_cuff              0.62..1  24436  2.837563 0.321496
+      map_cuff prior_change_placebo 279926  0.482887      NaN
+ features  alpha           drug  test_r2  test_rmse
+      out    1.0        insulin 0.739124   0.663240
+      out    1.0 norepinephrine 0.790876   0.158897
+      out   30.0        insulin 0.690299   0.722644
+      out   30.0 norepinephrine 0.743011   0.176145
+      out  300.0        insulin 0.652943   0.764986
+      out  300.0 norepinephrine 0.697538   0.191095
+out_and_z    1.0        insulin 0.899701   0.411246
+out_and_z    1.0 norepinephrine 0.795638   0.157077
+out_and_z   30.0        insulin 0.890078   0.430523
+out_and_z   30.0 norepinephrine 0.777885   0.163758
+out_and_z  300.0        insulin 0.830641   0.534389
+out_and_z  300.0 norepinephrine 0.732674   0.179653
+all_state    1.0        insulin 0.899256   0.412158
+all_state    1.0 norepinephrine 0.779078   0.163318
+all_state   30.0        insulin 0.892723   0.425312
+all_state   30.0 norepinephrine 0.781131   0.162557
+all_state  300.0        insulin 0.838499   0.521844
+all_state  300.0 norepinephrine 0.748401   0.174288
+Counts: 5 Python runs, 2 forward passes.
+
+## Forward 3 / Run 6
+Original factual NLL on matching 100 training stays: 1.63065 (4745 values). Reconstructing prediction heads from exported states; compared candidate activations, gap encodings, and last-register layouts. No edits yet.
+                                             config  mean_rmse  nll_rmse      nll
+('silu', 'log1p', 'gelu', 'interleaved', 0, 'silu')   4.519133  0.451487 1.712594
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'silu')   4.519134  0.451485 1.712592
+  ('silu', 'log', 'gelu', 'interleaved', 0, 'gelu')   4.559348  0.425870 1.703790
+('silu', 'log1p', 'gelu', 'interleaved', 0, 
+
+=== HEAD, EFFECT, AND CALIBRATION OBJECTS ===
+causal_estimates: list length 12
+causal_residuals: dict 4 [('glucose_finger', 'insulin'), ('glucose_lab', 'insulin'), ('map_arterial', 'norepinephrine'), ('map_cuff', 'norepinephrine')]
+ccoef: ndarray (384,)
+ce_centres: dict 4 ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+ce_code: dict 13 ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)']
+ce_common_ids: ndarray (199,)
+ce_decoder_models: dict 3 [1.0, 10.0, 100.0]
+ce_decoder_results: list length 6
+ce_factual: DataFrame (10093, 6)
+ce_fitmask: ndarray (10054,)
+ce_head: dict 9 ['rows', 'phi', 'logits', 'probs', 'centres']
+ce_hour: ndarray (10054,)
+ce_ins_family: ndarray (10054,)
+ce_ix: ndarray (10054,)
+ce_make_heads: (records, states)
+ce_meta: dict 8 [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_finger', 'value'), ('glucose_lab', 'value'), ('insulin', 'dose')]
+ce_mu: ndarray (10054,)
+ce_rd: ndarray (10054, 2)
+ce_rows: DataFrame (10054, 11)
+ce_si: ndarray (10054,)
+ce_states: dict 6 ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine']
+ce_stay_split: ndarray (10054,)
+ce_target: ndarray (10054, 2)
+ce_valid: ndarray (10054,)
+coef: ndarray (21,)
+kernel: list length 6
+repair_C: ndarray (480000, 47)
+repair_S: dict 6 ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine']
+repair_action_atoms: list length 4256
+repair_action_encoding: (insulin_factor=1.0, ne_factor=1.0)
+repair_age: dict 4 ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+repair_base: Tensor (4745, 192)
+repair_build_features: (si, ji)
+repair_cluster_beta: (rd, ry, si)
+repair_context: Tensor (4745, 192)
+repair_crossfit: (target, mask, features, folds)
+repair_drugs: list length 2
+repair_effect_diagnostics: list length 4
+repair_eval_ids: list length 100
+repair_events: list length 4
+repair_feature_names: list length 47
+repair_features: list length 47
+repair_fold: ndarray (480000,)
+repair_gap: Tensor (4745, 192)
+repair_hgb_params: dict 8 ['max_iter', 'max_leaf_nodes', 'learning_rate', 'min_samples_leaf', 'l2_regularization']
+repair_ins_pool: ndarray (11768,)
+repair_ins_sample: ndarray (50,)
+repair_j: ndarray (480000,)
+repair_last: dict 4 ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+repair_logits: Tensor (4745, 17)
+repair_lp: dict 2 [('glucose_finger', 'insulin'), ('map_arterial', 'norepinephrine')]
+repair_map_sample: ndarray (50,)
+repair_means: dict 4 ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+repair_norep_pool: ndarray (6972,)
+repair_num: Tensor (4745, 8)
+repair_old_params: dict 8 ['max_iter', 'max_leaf_nodes', 'learning_rate', 'min_samples_leaf', 'l2_regularization']
+repair_phi: Tensor (4745, 192)
+repair_po
+
+=== CURRENT EDITS ===
+[]
+
+```

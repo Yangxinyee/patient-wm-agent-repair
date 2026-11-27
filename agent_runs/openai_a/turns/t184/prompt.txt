@@ -1,0 +1,55 @@
+OUTPUT of Python run 167 of at most 300:
+```
+=== SYNTHETIC CONTRAST TARGETS ===
+target shape (156,) quantiles [-0.54117227 -0.1152399  -0.0143757   0.07584813  0.26144403]
+first 8 / midpoint 8 [0.05468968 0.0657248  0.07545267 0.07596239 0.03128243 0.02439812
+ 0.07638623 0.0565026 ] [-0.06943717 -0.07946955 -0.09642169 -0.11369836 -0.07549684 -0.06866015
+ -0.11219291 -0.06608967]
+multiplier shape (156,) quantiles [0.5  0.5  1.25 2.   2.  ]
+first 8 / midpoint 8 [0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5] [2. 2. 2. 2. 2. 2. 2. 2.]
+contrast group 0 target mean 0.06685784189269328 decoder mean 0.0027453235933733765 target/decoder SD 0.028751779889380165 0.005693174554805926
+contrast group 78 target mean -0.10238715800910424 decoder mean 0.007910083146430935 target/decoder SD 0.06303708890516549 0.006506045151363831
+projection residual norm 7.933006812825448e-07
+covariance eigenvalue quantiles [1.89132423e-07 8.91216989e-07 6.01541498e-05 5.19676043e-02
+ 6.82210787e+00]
+
+=== CURRENT DECODER CPU CHECKS ===
+first {'nll': 1.7179919481277466, 'signal_sd': 0.24639636278152466} original_nll 1.7184137105941772
+extra {'nll': 1.7199898958206177, 'signal_sd': 0.2584212124347687} original_nll 1.7200138568878174
+tuning {'nll': 1.7178986072540283, 'signal_sd': 0.2529754042625427} original_nll 1.718344807624817
+synthetic multiplier 0.5 mean shift -0.21422968804836273 shift quantiles [-0.70480804 -0.43460083  0.23511963]
+synthetic multiplier 2.0 mean shift -0.6786976456642151 shift quantiles [-1.18184509 -0.79196167  0.4750061 ]
+
+=== RECONSTRUCTION FUNCTION INDEX ===
+r131_step ('prev', 'dt', 'e_world', 'u_action', 'z', 'memory', 'age_embedding', 'mask', 'age_mode')
+rec_attention ('query', 'key', 'value', 'prefix')
+rec_attn_apply ('x', 'prefix', 'memory', 'ages', 'mask', 'age_mode')
+rec_context ('prev', 'dt_seconds')
+rec_layer ('x', 'prefix', 'memory', 'ages', 'mask', 'age_mode')
+rec_memory ('indices', 'embeddings')
+rec_step_with_z ('prev', 'dt', 'e_world', 'u_action', 'z', 'memory', 'ages', 'mask')
+
+=== LAST GRAFT-DESIGN NOTES ===
+## Residual-dose decoder; Python 52, forward 4
+- Held-out feature-decoder diagnostics: {'insulin': {'chosen_alpha': 1000.0, 'train_target_sd': 0.03078482858836651, 'tuning_target_sd': 0.024773716926574707, 'tuning_pred_sd': 0.01987367495894432}, 'norepinephrine': {'chosen_alpha': 1000.0, 'train_target_sd': 0.014999236911535263, 'tuning_target_sd': 0.011191831901669502, 'tuning_pred_sd': 0.00281846453435719}}
+- Decoders use final value-head hidden features, with zero targets on other event types.
+- This is an algebraic low-rank edit candidate; n
+## Decoder unit check; Python 56, forward 4
+- Insulin is the first repair target because threshold estimates support its negative effect.
+- Testing whether a residual decoder can respond off-policy without damaging factual fit; negative R2 remains a warning.
+- Norepinephrine is unchanged pending stronger identification and separate validation.
+
+
+## Raw-input decoder recovery; Python 64, forward 7/50
+- Insulin dose innovations: head input held-out R2 ~.05 extra / .094 tuning.
+- Existing hidden-feature innovation decoder ~zero R2; earlier probe had no leverage.
+- Direct insulin dose decoding R2 ~.82; action information is not entirely absent.
+- Preparing a gated raw-input decoder; project away numeric-register directions.
+- No current edits. GPU factual and dose rollouts will determine acceptance.
+
+
+
+=== NOREPINEPHRINE FLEXIBLE ESTIMATES ===
+{1: {'all': {'beta': 3.3214268014980317, 'se': 0.09576999832526349, 'n': 299517, 'dose_residual_sd': 0.09073010103067478, 'outcome_residual_sd': 4.40471740317129}, 'interior': {'beta': 3.3480345525779405, 'se': 0.10803830467896791, 'n': 116511, 'dose_residual_sd': 0.12413404307882044, 'outcome_residual_sd': 4.590900888397296}}, 4: {'all': {'beta': 3.280136875394464, 'se': 0.09669211095919605, 'n': 260475, 'dose_residual_sd': 0.09223969594935504, 'outcome_residual_sd': 4.268125306872915}, 'interior': {'beta': 3.328771594136043, 'se': 0.10795623473196006, 'n': 99386, 'dose_residual_sd': 0.12647869705939818, 'outcome_residual_sd': 4.443289044173014}}, 8: {'all': {'beta': 3.3242140350967726, 'se': 0.10443699572843235, 'n': 208459, 'dose_residual_sd': 0.09364732007161047, 'outcome_residual_sd': 4.217548630415361}, 'interior': {'beta': 3.3899126865451534, 'se': 0.11784978539028063, 'n': 77672, 'dose_residual_sd': 0.12868938320587522, 'outcome_residual_sd': 4.40078981957742}}}
+
+```

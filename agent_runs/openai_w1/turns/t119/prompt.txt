@@ -1,0 +1,178 @@
+OUTPUT of Python run 107 of at most 300:
+```
+=== ORIGINAL NOTEBOOK FINDINGS ===
+# World-model weight repair
+
+## Initial plan
+- Infer drug effects exclusively from the supplied simulated records.
+- Separate dose assignment from subsequent physiological response; do not assume either effect's sign or magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.406163 -1.974055    0.138091
+  map_arterial norepinephrine         all 314645          0.092298  3.273393    0.090766
+  map_arterial norepinephrine     treated 144316          0.136092  3.284740    0.090872
+  map_arterial norepinephrine hours_6plus 235902          0.092019  3.481080    0.103081
+      map_cuff norepinephrine         all 332093          0.060543  2.584580    0.224327
+      map_cuff norepinephrine     treated  73973          0.127912  2.671945    0.224919
+      map_cuff norepinephrine hours_6plus 248989          0.060424  3.613785    0.256323
+Counts: 4 Python runs, 1 forward passes.
+
+## Forward 2 / Run 5
+Exported original states for training stays 1010000000..1010000099 (all bundles). Checked held-out-stay dose decoding and residual-effect dose-range diagnostics. Past-change placebo here is raw, not separately residualized, and must not be treated as a definitive independence test.
+         event                range      n      beta       se
+glucose_finger               0.5..1  21312 -1.895856 0.144475
+glucose_finger                 1..2 134998 -2.042501 0.083923
+glucose_finger              2..14.5 100335 -2.306254 0.059658
+glucose_finger prior_change_placebo 256186 -0.307860      NaN
+   glucose_lab               0.5..1   1099 -1.552074 0.390301
+   glucose_lab                 1..2   6440 -1.674272 0.221519
+   glucose_lab               2..9.5   4133 -1.994494 0.159362
+   glucose_lab prior_change_placebo   5781  0.010951      NaN
+  map_arterial           0.01..0.31  46952  2.808803 0.267351
+  map_arterial            0.31..0.7  48870  3.186511 0.130080
+  map_arterial               0.7..1  48494  3.503649 0.137606
+  map_arterial prior_change_placebo 298800  0.134794      NaN
+      map_cuff           0.01..0.21  24183  1.573456 0.905161
+      map_cuff           0.21..0.62  25354  2.622023 0.337926
+      map_cuff              0.62..1  24436  2.837563 0.321496
+      map_cuff prior_change_placebo 279926  0.482887      NaN
+ features  alpha           drug  test_r2  test_rmse
+      out    1.0        insulin 0.739124   0.663240
+      out    1.0 norepinephrine 0.790876   0.158897
+      out   30.0        insulin 0.690299   0.722644
+      out   30.0 norepinephrine 0
+
+=== RECENT GLOBAL OBJECTS (COMPACT) ===
+r89_encode_actions function (atoms) names= ('r79_mlp', 'torch', 'zeros', 'len', 'r89_rows', 'shape', 'index_add_', 'r89_owner', 'r89_counts', 'sqrt', 'r79_lin', 'log1p', 'r79_norm')
+r89_ctx Tensor (512, 192)
+r89_e Tensor (512, 192)
+r89_target Tensor (512, 32)
+r89_results list 49
+r89_iu 5
+r89_nu 5
+r89_trial Tensor (632, 192)
+r89_u Tensor (512, 192)
+r89_z Tensor (512, 32)
+r89_result tuple 3
+r89_name 'zz'
+r89_obj dict 3 keys= [0.0001, 1e-05, 1e-06]
+r90_functions list 56
+r90_name 'rr51_assignment'
+r90_obj dict 2 keys= ['insulin', 'norepinephrine']
+r90_sig '(obj)'
+r90_key 'norepinephrine'
+r90_value tuple 3
+r90_f TextIOWrapper
+r91_notes "# World-model weight repair\n\n## Initial plan\n- Infer drug effects exclusively from the
+r91_start -1
+r91_name 'zz'
+r91_obj Tensor (8, 800, 32)
+r91_key 'norepinephrine'
+r91_candidate tuple 3
+r91_assignment tuple 3
+r91_f TextIOWrapper
+r92_notes "# World-model weight repair\n\n## Initial plan\n- Infer drug effects exclusively from the
+r92_start -1
+r92_key 'norepinephrine'
+r92_candidate tuple 3
+r92_assignment tuple 3
+r92_names list 56
+r92_item tuple 3
+r92_readme '# Training records\n\nThe records are from a simulated ICU. They are not patient data.\n\
+r92_f TextIOWrapper
+r93_notes "# World-model weight repair\n\n## Initial plan\n- Infer drug effects exclusively from the
+r93_sections list 71
+r93_section '## Run 92\nRun 91 output truncated before candidate details; retrieving only missing comp
+r93_header '## Run 92'
+r93_numbers list 1
+r93_name 'r93_fun'
+r93_fun function (e, ix) names= ('torch', 'cat', 'r36_ctx', 'r71_u_all', 'r33_linear', 'r33_act')
+r93_obj function (e, ix) names= ('torch', 'cat', 'r36_ctx', 'r71_u_all', 'r33_linear', 'r33_act')
+r93_f TextIOWrapper
+r94_notes "# World-model weight repair\n\n## Initial plan\n- Infer drug effects exclusively from the
+r94_section 'Run 93\nRetained trace decoders have very large coefficient norms; require recalibration 
+r94_header 'Run 93'
+r94_buf StringIO
+r94_name 'zz'
+r94_obj Tensor (8, 800, 32)
+r94_f TextIOWrapper
+r95_base_atom function (code, value=nan, rate=nan, dose=nan, end=False) names= ('np', 'zeros', 'float32', 'isfinite', 'r33_numeric', 'clip', 'int', 'searchsorted', 'drugs', 'sensors', 'r33_weights', 'r33_codes', 'r33_linear', 'torch', 'tensor', 'startswith')
+r95_correct_atom function (code, value=nan, rate=nan, dose=nan, end=False) names= ('r95_base_atom', 'clone', 'np', 'isfinite', 'r86_unit')
+r95_u Tensor (8443, 192)
+r95_action_parts tuple 3
+r95_all_atoms Tensor (757, 192)
+r95_obs_mask Tensor (18253,)
+r95_n 8443
+r95_owners Tensor (18253,)
+r96_key 'n_atoms'
+r96_value ndarray (5215,)
+r97_state_archives dict 2 keys= ['/work/fwd_2/states_original.npz', '/work/fwd_4/states_original.npz']
+r97_dir PosixPath
+r97_files list 2
+r97_path PosixPath
+r97_npz NpzFile
+r97_archive dict 6 keys= ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine']
+r97_key 'value_bin_note'
+r97_weights dict 181 keys= ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.sta
+r97_vocab dict 8 keys= ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric']
+r97_name 'z_prior.2.weight'
+r97_instruction Instruction 9
+r97_f TextIOWrapper
+rr_architecture '# The world model\n\nAn event-stream world model of ICU stays with 4.1 million parameters
+rr_sample DataFrame
+rr_notes_text "# World-model weight repair\n\n## Initial plan\n- Infer drug effects exclusively from the
+rr_vocab dict 8 keys= ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric']
+rr_original dict 181 keys= ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.sta
+match Match
+rr_start 7557
+rr_train DataFrame
+rr_tuning DataFrame
+rr_state4 dict 6 keys= ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine']
+rr_state2 dict 6 keys= ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine']
+defaultdict type
+rr_numeric dict 8 keys= [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_finger', 'value'), ('glucose_lab', 'value'), ('insulin', 'dose')]
+rr_codes dict 13 keys= ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)']
+rr_drugs set
+rr_sensors set
+rr_units dict 4 keys= ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+rr_linear function (x, prefix, weights=None) names= ('rr_original', 'F', 'linear', 'get')
+rr_mlp function (x, prefix, activation='gelu', weights=None) names= ('rr_linear', 'F', 'gelu', 'silu')
+rr_norm function (x, prefix, weights=None) names= ('rr_original', 'F', 'layer_norm')
+rr_atom function (code, value=nan, rate=nan, dose=nan, end=False) names= ('np', 'zeros', 'float32', 'isfinite', 'rr_numeric', 'clip', 'searchsorted', 'rr_drugs', 'rr_sensors', 'rr_original', 'rr_codes', 'rr_linear', 'torch', 'from_numpy', 'rr_units')
+rr_stays4 set
+rr_records4 DataFrame
+rr_bundle_map4 dict 5215 keys= [(1010000165, -120), (1010000165, 1510), (1010000165, -60), (1010000165, 0), (1010000165, 5)]
+endkey tuple 2
+rr_keys4 list 5215
+rr_bundles4 list 5215
+rr_counts4 ndarray (521
+[output cut at 10,000 characters]
+```

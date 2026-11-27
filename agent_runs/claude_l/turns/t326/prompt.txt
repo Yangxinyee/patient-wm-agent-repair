@@ -1,0 +1,84 @@
+OUTPUT of Python run 294 of at most 300:
+```
+41:def bview(W,out,h,dt,zs=None,gen=None,nz=4):
+42:    # returns views (B,nz,192) ; zs: if None draw from prior
+43:    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+44:    base=out+bln(W,hf.mean(1),'core.out_norm')+bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+45:    zp=bmlp(W,base,'z_prior')
+46:    if zs is None:
+47:        eps=torch.randn(base.shape[0],nz,32,generator=gen,dtype=T)
+48:    else: eps=zs
+49:    z=zp[:,None,:32]+torch.exp(zp[:,None,32:])*eps
+50:    return base[:,None,:]+blin(W,z,'z_head')
+51:def bvalue_probs(W,views,code,has,age_s,zlast,vblast):
+52:    # views (B,nz,192); has,age_s,zlast (B,), vblast (B,) long
+53:    q=bln(W,views+W['type_emb.weight'][1],'query_norm')
+54:    B=views.shape[0]; f=torch.zeros(B,8,dtype=T); f[:,0]=has; f[:,3]=torch.log1p(age_s)/10*has; f[:,6]=zl
+55:    wc=q+(W['embed.code.weight'][code]+blin(W,f,'last_numeric')+W['embed.bins.value.weight'][vblast]+W['e
+56:    lg=bmlp(W,wc,'attr_heads.value_bin')+W['embed_transition.value_bin.weight'][code*17+vblast][:,None,:]
+57:    return torch.softmax(lg,-1).mean(1)   # (B,17)
+58:
+15:def rollout(W, B_, conds, npaths=20, seed=0, t_edit=12.0, t_hide=13.0, nz=4):
+16:    W0c[0]=W
+17:    C=len(conds); Bt=C*npaths; gen=torch.Generator().manual_seed(seed)
+18:    times=[b[0] for b in B_]
+19:    k0=next(k for k,t in enumerate(times) if t>t_edit-1e-9 and any(a['act'] for a in B_[k][1
+20:    out=None; h=None; Ms=[]; ts=[]
+21:    for k in range(k0):
+22:        e,u=enc_eu2(B_[k][1]) if W is W0 else (None,None)
+23:        if W is not W0:
+24:            ea,ua=split_fix(B_[k][1]); e=set_enc(W,ea,'encode'); u=set_enc(W,ua,'encode_acti
+25:        if k==0:
+26:            out=torch.tensor(Xs[0,:192],dtype=T)[None] if False else None
+27:        if k>0:
+28:            Mt=torch.stack(Ms+[e])[None]; ages=torch.tensor([(times[k]-tj)*3600.0 for tj in 
+29:            out,h,_=bstep(W,out,h,(times[k]-times[k-1])*3600.0,e[None],u[None],Mt,ages)
+30:        else:
+31:            out=torch.tensor(X0row[:192],dtype=T)[None]; h=torch.tensor(X0row[192:960],dtype
+32:        Ms.append(e); ts.append(times[k])
+33:    # registers per code from prefix
+34:    reg={}
+35:    for k in range(k0):
+36:        for a in B_[k][1]:
+37:            if a['code'] in MEASC and a['kind']==0: reg[a['code']]=(times[k], a['num'][0], a
+38:    out=out.repeat(Bt,1); h=h.repeat(Bt,1,1); M=torch.stack(Ms)[None].repeat(Bt,1,1)
+39:    RG={c:(torch.full((Bt,),v[0],dtype=T), torch.full((Bt,),v[1],dtype=T), torch.full((Bt,),
+40:    rec={}
+41:    for k in range(k0,len(B_)):
+42:        t=times[k]; dt=(t-times[k-1])*3600.0; atoms=B_[k][1]
+43:        ea,ua=split_fix(atoms)
+44:        meas=[i for i,a in enumerate(ea) if a['code'] in MEASC and a['kind']==0]
+45:        rows=(atom_matrix(W,ea) if ea else torch.zeros(0,192,dtype=T))[None].repeat(Bt,1,1)
+46:        if t>=t_hide and meas:
+47:            eps=torch.randn(npaths,nz,32,generator=gen,dtype=T).repeat(C,1,1)
+48:            views=bview(W,out,h,dt,zs=eps)
+49:            U=torch.rand(npaths,len(meas),generator=gen,dtype=T).repeat(C,1)
+50:            for j,i in enumerate(meas):
+51:                c=ea[i]['code']
+52:                if c in RG: tl,zl,vl=RG[c]; has=torch.ones(Bt,dtype=T); age=(t-tl)*3600.0
+53:                else: has=torch.zeros(Bt,dtype=T); age=torch.zeros(Bt,dtype=T); zl=torch.zer
+54:                p=bvalue_probs(W,views,c,has,age,zl,vl)
+55:                pm=(p[:,1:]*torch.tensor(CENd[c],dtype=T)).sum(1)
+56:                rec[(round(t),c)]=pm.reshape(C,npaths).numpy()
+57:                q=p[:,1:]/p[:,1:].sum(1,keepdim=True); cdf=torch.cumsum(q,1)
+58:                b=(U[:,j:j+1]>cdf).sum(1).clamp(max=15)+1
+59:                x=torch.tensor(CENd[c],dtype=T)[b-1]
+60:                md,iq=MED[c]; zv=((x-md)/iq).clamp(-10,10)
+61:                rows[:,i,:]=rows[:,i,:]+W['embed.bins.value.weight'][b]-W['embed.bins.value.
+62:                RG[c]=(torch.full((Bt,),t,dtype=T), zv, b)
+63:        else:
+64:            for i in meas:
+65:                c=ea[i]['code']; RG[c]=(torch.full((Bt,),t,dtype=T), torch.full((Bt,),ea[i][
+66:        e=bset_enc(W,rows,'encode') if ea else set_enc(W,[],'encode')[None].repeat(Bt,1)
+67:        u=torch.cat([u_for(atoms,t,cd,t_edit)[None].repeat(npaths,1) for cd in conds],0)
+68:        M=torch.cat([M,e[:,None]],1); ts.append(t)
+69:        ages=torch.tensor([(t-tj)*3600.0 for tj in ts],dtype=T)
+70:        out,h,_=bstep(W,out,h,dt,e,u,M,ages)
+71:    return rec
+<class 'dict'> 100
+<class 'list'> 54 (-2.0, [{'code': 11, 'kind': 0, 'ekind': 3, 'unit': 0, 'rate_unit': 0, 'vb': 0, 'db': 0, 'rb': 0, 'num': (0, 0, 0, 0, 0, 0), 'act': False}])
+{'ri': (1.084, 1.111, 3086), 'rn': (0.28, 0.343, 2707), 'hi': (0.648, 0.477, 3086), 'hn': (0.569, 0.495, 2707)}
+tfnll (1.684046328908526, 44) calls 26 [[(1, 192), (1, 4, 192), 3600.0], [(1, 192), (1, 4, 192), 3600.0]] 0.1
+zh max 0.0
+
+```

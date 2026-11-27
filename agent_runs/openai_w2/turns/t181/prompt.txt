@@ -1,0 +1,198 @@
+OUTPUT of Python run 156 of at most 300:
+```
+=== PERSISTENCE SENSITIVITY NOTES ===
+## Run 12: persistence and rollout target sensitivity
+          drug     n  assumed_effect  persistence  cluster_se  cross_sensor_residual_cov
+       insulin 15266           -1.55      0.99773     0.00781                  108.17329
+       insulin 15266           -1.80      1.00763     0.00782                  108.17329
+       insulin 15266           -2.00      1.01556     0.00784                  108.17329
+norepinephrine 28031            3.00      0.89761     0.02096                   10.64188
+norepinephrine 28031            3.60      0.89803     0.02098                   10.64188
+norepinephrine 28031            4.00      0.89831     0.02099                   10.64188
+          drug     b    a  eligible_stays       x2    half
+       insulin -1.55 0.80             205  -6.8094  3.4047
+       insulin -1.55 0.90             205  -9.0062  4.5031
+       insulin -1.55 0.95             205 -10.5409  5.2705
+       insulin -1.80 0.80             205  -7.9077  3.9539
+       insulin -1.80 0.90             205 -10.4588  5.2294
+       insulin -1.80 0.95             205 -12.2411  6.1205
+       insulin -2.00 0.80             205  -8.7864  4.3932
+       insulin -2.00 0.90             205 -11.6209  5.8105
+       insulin -2.00 0.95             205 -13.6012  6.8006
+norepinephrine  3.00 0.70             155   3.8398 -1.9199
+norepinephrine  3.00 0.80             155   4.9006 -2.4503
+norepinephrine  3.00 0.90             155   6.5400 -3.2700
+norepinephrine  3.60 0.70             155   4.6077 -2.3039
+norepinephrine  3.60 0.80             155   5.8808 -2.9404
+norepinephrine  3.60 0.90             155   7.8479 -3.9240
+norepinephrine  4.00 0.70             155   5.1197 -2.5598
+norepinephrine  4.00 0.80             155   6.5342 -3.2671
+norepinephrine  4.00 0.90             155   8.7199 -4.3600
+Targets assume linear, time-homogeneous drug effects; they are estimates, not tool-provided truth.
+
+
+
+=== CONVERGED LATENT-FIT NOTES ===
+## Run 39: converged persistence and first action candidate
+insulin: {'rho': 0.9641085379393141, 'b': -1.8, 'drift': array([0.98483209, 0.78975363]), 'Q': 23.593656044205655, 'R': array([76.75776955, 12.33854852]), 'bias': array([ 0.        , -0.02751273]), 'initial_mean': array([145.0370579 , 153.09561383]), 'initial_cov': array([[1164.91170681, 2119.69166412],
+       [2119.69166412, 8135.17530494]])}
+norepinephrine: {'rho': 0.8445405942374236, 'b': 3.6, 'drift': array([-0.16167194, -0.27209607]), 'Q': 4.739124223305644, 'R': array([ 9.44581897, 35.72410687]), 'bias': array([0.       , 3.0834658]), 'initial_mean': array([74.71138896, 72.6813748 ]), 'initial_cov': array([[129.69680217, 176.37021955],
+       [176.37021955, 346.19154784]])}
+Benchmark targets:
+                 shift     target
+edit                             
+insulin_half  1.825296   7.398104
+insulin_x2   -3.225785 -14.796209
+ne_half      -0.845804  -3.571673
+ne_x2         1.372628   7.143345
+Installed reversible numeric dose/rate slope amplification 3.0, with per-drug code-embedding offsets analytically preserving the mean recorded atom embedding. Only embed.numeric.weight and embed.code.weight edited. Await exact factual and rollout tests.
+
+
+
+=== HELPER CONTRACTS ===
+sensor_iv_persistence (gold, proxy, drug, drug_effect)
+Local variables: ('gold', 'proxy', 'drug', 'drug_effect', 'gg', 'next_y', 'mask', 'rows', 'c', 'ctrl_names', 'C', 'target', 'residual', 'rg', 'rp', 'ry', 'den', 'a', 'ids', '_', 'groups', 'scores')
+Referenced names: ('panel', 'groupby', 'shift', 'notna', 'F', 'hour', 'between', 'np', 'flatnonzero', 'to_numpy', 'columns', 'startswith', 'iloc', 'copy', 'list', 'isna', 'astype', 'float', 'fillna', 'median', 'column_stack', 'ones', 'len', 'linalg', 'lstsq', 'T', 'index', 'get_level_values', 'unique', 'bincount', 'dict', 'sqrt', 'mean')
+Docstring: None
+fit_latent_record_model (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+Local variables: ('data', 'sensors', 'drug', 'fixed_b', 'iterations', 'initial_parameters', 'ids', 'times', 'n', 'T', 'Y', 'D', 'observed', 'Y0', 'paired', 'sensor_difference', 'bias1', 'pair_var', 'base', 'par', 'k', 'v', 'time_reg', 'constant_reg', 'time_matrix', 'logs', 'inverse2', 'start', 'iteration', 'rho', 'b', 'A', 'mf', 'mp', 'Pf', 'Pp', 'll', 't', 'm', 'Pnow', 'sensor', 'avail', 'residual', 'variance', 'K', 'old_row', 'ms', 'Ps', 'cross', 'J', 'W', 'V', 'C', 'lag', 'response', 'regressors', 'u', 'XtX', 'Xty', 'coefficients', 'new_rho', 'error', 'deviations')
+Referenced names: ('index', 'get_level_values', 'unique', 'to_numpy', 'len', 'list', 'np', 'float64', 'reshape', 'transpose', 'T', 'isfinite', 'nan_to_num', 'float', 'mean', 'var', 'nanmean', 'dict', 'zeros', 'max', 'array', 'items', 'isinstance', 'ndarray', 'copy', 'ones', 'broadcast_to', 'time', 'perf_counter', 'range', 'empty', 'empty_like', 'maximum', 'sum', 'log', 'pi', 'einsum', 'linalg', 'solve', 'clip', 'append', 'print', 'round', 'sqrt', 'pd', 'DataFrame', 'iloc', 'to_string')
+Docstring: Small Gaussian state model; never touches world-model weights.
+    State = [physiology, stable stay baseline].
+    Two noisy sensors, missing observations, known hourly exposures.
+    
+
+=== STORED LATENT PARAMETERS ===
+fit {'parameters': {'rho': 0.8445405942374236, 'b': 3.6, 'drift': array([-0.16167194, -0.27209607]), 'Q': 4.739124223305644, 'R': array([ 9.44581897, 35.72410687]), 'bias': array([0.       , 3.0834658]), 'initial_mean': array([74.71138896, 72.6813748 ]), 'initial_cov': array([[129.69680217, 176.37021955],
+       [176.37021955, 346.19154784]])}, 'log':     iteration       rho    b         Q        R0         R1     bias1       nll
+0           1  0.771355  3.6  7.412087  7.709162  34.063122  3.082930  3.203703
+1           2  0.774306  3.6  7.296765  7.785288  34.124843  3.083097  3.203518
+2           3  0.777121  3.6  7.187001  7.857549  34.184392  3.083235  3.203345
+3           4  0.779808  3.6  7.082509  7.926129  34.241823  3.083349  3.203185
+4           5  0.782374  3.6  6.983011  7.991224  34.297186  3.083445  3.203037
+..        ...       ...  ...       ...       ...        ...       ...       ...
+91         92  0.844098  3.6  4.753374  9.436324  35.713894  3.083479  3.200998
+92         93  0.844214  3.6  4.749643  9.438810  35.716567  3.083475  3.200997
+93         94  0.844326  3.6  4.746026  9.441219  35.719158  3.083472  3.200997
+94         95  0.844435  3.6  4.742521  9.443555  35.721671  3.083469  3.200996
+95         96  0.844541  3.6  4.739124  9.445819  35.724107  3.083466  3.200996
+
+[96 rows x 8 columns], 'stay_ids': array([1010000000, 1010000001, 1010000002, ..., 1010029997, 1010029998,
+       1010029999], shape=(30000,)), 'times': array([-1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+       16, 17, 18, 19, 20, 21, 22, 23, 24]), 'smoothed': array([[[80.66186565, 83.30929046],
+        [81.86290893, 85.67082709],
+        [50.00626004, 31.89759745],
+        ...,
+        [67.07085639, 63.08625889],
+        [87.0812888 , 82.98002234],
+        [65.50289925, 58.80613277]],
+
+       [[82.83692183, 83.30929046],
+        [82.00366127, 85.67082709],
+        [47.88604265, 31.89759745],
+        ...,
+        [66.45226972, 63.08625889],
+        [86.94850809, 82.98002234],
+        [65.16430148, 58.80613277]],
+
+       [[85.59780904, 83.30929046],
+        [82.00995112, 85.67082709],
+        [48.25843679, 31.89759745],
+        ...,
+        [65.30791515, 63.08625889],
+        [86.88639431, 82.98002234],
+        [64.41314191, 58.80613277]],
+
+       ...,
+
+       [[83.45581631, 83.30929046],
+        [85.78397417, 85.67082709],
+        [43.35462975, 31.89759745],
+        ...,
+        [69.93677753, 63.08625889],
+        [81.26596002, 82.98002234],
+        [61.64561867, 58.80613277]],
+
+       [[83.82489209, 83.30929046],
+        [85.57704368, 85.67082709],
+        [41.93634374, 31.89759745],
+        ...,
+        [72.66162596, 63.08625889],
+        [79.62970065, 82.98002234],
+        [62.85006611, 58.80613277]],
+
+       [[82.96819063, 83.30929046],
+        [84.89539855, 85.67082709],
+        [40.50990752, 31.89759745],
+        ...,
+        [74.05039334, 63.08625889],
+        [79.47755352, 82.98002234],
+        [64.58691033, 58.80613277]]], shape=(26, 30000, 2)), 'covariance': array([[[[ 4.31410317e+00, -3.70415609e-01],
+         [-3.70415609e-01,  7.93127255e+00]],
+
+        [[ 1.14801884e+01, -5.77253541e-01],
+         [-5.77253541e-01,  9.42477962e+00]],
+
+        [[ 4.29924528e+00, -3.73393609e-01],
+         [-3.73393609e-01,  7.91277587e+00]],
+
+        ...,
+
+        [[ 4.42370454e+00, -3.71863023e-01],
+         [-3.71863023e-01,  8.00610961e+00]],
+
+        [[ 5.12536318e+00, -3.66899388e-01],
+         [-3.66899388e-01,  8.02701654e+00]],
+
+        [[ 5.04899102e+00, -4.20418831e-01],
+         [-4.20418831e-01,  7.95472570e+00]]],
+
+
+       [[[ 3.21196999e+00,  2.05471839e-02],
+         [ 2.05471839e-02,  7.93127255e+00]],
+
+        [[ 8.52670098e+00,  1.29552112e-01],
+         [ 1.29552112e-01,  9.42477962e+00]],
+
+        [[ 3.16612807e+00,  1.38246926e-02],
+         [ 1.38246926e-02,  7.91277587e+00]],
+
+        ...,
+
+        [[ 3.54288551e+00,  2.42986187e-02],
+         [ 2.42986187e-02,  8.00610961e+00]],
+
+        [[ 5.66230618e+00,  3.46726243e-02],
+         [ 3.46726243e-02,  8.02701654e+00]],
+
+        [[ 3.67635543e+00,  1.73752580e-03],
+         [ 1.73752580e-03,  7.95472570e+00]]],
+
+
+       [[[ 3.23772100e+00,  2.00248713e-01],
+         [ 2.00248713e-01,  7.93127255e+00]],
+
+        [[ 7.32101794e+00,  5.90336629e-01],
+         [ 5.90336629e-01,  9.42477962e+00]],
+
+        [[ 3.01425067e+00,  1.85064291e-01],
+         [ 1.85064291e-01,  7.91277587e+00]],
+
+        ...,
+
+        [[ 3.36095946e+00,  2.06162345e-01],
+         [ 2.06162345e-01,  8.00610961e+00]],
+
+        [[ 3.79968181e+00,  2.07194153e-01],
+         [ 2.07194153e-01,  8.02701654e+00]],
+
+        [[ 3.39191205e+00,  1.97004615e-01],
+         [ 1.97004615e-01,  7.95472570e+00]]],
+
+
+       ...,
+
+
+       [[[ 3.366156
+[output cut at 10,000 characters]
+```

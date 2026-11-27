@@ -1,0 +1,98 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 24 replies happened before. Forward passes used: 7 of 50; Python runs used: 15 of 300. Your kernel is still running with its variables. Tensors currently edited: ['embed.bins.dose.weight', 'embed.bins.rate.weight', 'embed.numeric.weight']. Files in /work: ['edited', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+73650027075, "cluster_se": 0.09716345380559505, "residual_rate_sd": 1.2783602402579546, "drug": "insulin", "horizon": 4, "stratum": "high_policy_dose"}, {"n": 21938, "beta": -0.0061259397596409694, "cluster_se": 0.15439608270931351, "residual_rate_sd": 0.8267333741441614, "drug": "insulin", "horizon": 4, "stratum": "previously_running_both_sensors"}, {"n": 156331, "beta": 0.036521138454017936, "cluster_se": 0.10935472802341716, "residual_rate_sd": 0.09816249107204253, "drug": "norepinephrine", "horizon": 1, "stratum": "all_with_current_reading"}, {"n": 100796, "beta": 0.9614423874370043, "cluster_se": 0.4074487265644309, "residual_rate_sd": 0.03366469225676959, "drug": "norepinephrine", "horizon": 1, "stratum": "low_policy_dose"}, {"n": 18512, "beta": -0.382695830005712, "cluster_se": 0.22396766955397673, "residual_rate_sd": 0.13945747024728078, "drug": "norepinephrine", "horizon": 1, "stratum": "high_policy_dose"}, {"n": 22076, "beta": 0.08648323582496788, "cluster_se": 0.1982024942540982, "residual_rate_sd": 0.14287101020558668, "drug": "norepinephrine", "horizon": 1, "stratum": "previously_running_both_sensors"}, {"n": 117228, "beta": 0.12252907960740042, "cluster_se": 0.15507214081318302, "residual_rate_sd": 0.09819275258518197, "drug": "norepinephrine", "horizon": 4, "stratum": "all_with_current_reading"}, {"n": 75451, "beta": 0.24651002872628294, "cluster_se": 0.5942518257491226, "residual_rate_sd": 0.03267978373042208, "drug": "norepinephrine", "horizon": 4, "stratum": "low_policy_dose"}, {"n": 13926, "beta": -0.1424237170535361, "cluster_se": 0.31394874466798334, "residual_rate_sd": 0.13947186391861377, "drug": "norepinephrine", "horizon": 4, "stratum": "high_policy_dose"}, {"n": 16663, "beta": -0.31820286400190795, "cluster_se": 0.28150401186644364, "residual_rate_sd": 0.1429033974392306, "drug": "norepinephrine", "horizon": 4, "stratum": "previously_running_both_sensors"}]
+
+## Run 14: nonlinear magnitude checks
+Cross-fitted linear/quadratic dose-response moments, restricted to late-period continuing positive infusions with both current sensors observed. Outcome is future minus current reading; controls are pre-action history and the other current drug. These are single-action association checks, not estimates of the evaluation's sustained-dose rollout. No extrapolation of quadratic curves to doubled doses is used.
+[{"drug": "insulin", "horizon": 1, "n": 29845, "rate_scale": 1.0, "linear_beta": 0.40632727337140384, "linear_se": 0.20207875323817148, "quadratic_beta": -0.03656187085659365, "quadratic_se": 0.02319584781864689, "joint_p": 0.1236770181157683, "basis_condition_number": 446.3262946924651, "q25_rate": 1.0, "q25_slope": 0.33320353165821653, "q25_slope_se": 0.16312438229069726, "q75_rate": 3.0, "q75_slope": 0.18695604823184192, "q75_slope_se": 0.10521494103594256}, {"drug": "insulin", "horizon": 4, "n": 21292, "rate_scale": 1.0, "linear_beta": 0.3447529092098515, "linear_se": 0.32788521852889135, "quadratic_beta": -0.036734206121328584, "quadratic_se": 0.03981851681294282, "joint_p": 0.5750696015155612, "basis_condition_number": 430.338895691652, "q25_rate": 1.5, "q25_slope": 0.23455029084586576, "q25_slope_se": 0.22799154779619, "q75_rate": 3.0, "q75_slope": 0.12434767248188001, "q75_slope_se": 0.1580848894251216}, {"drug": "norepinephrine", "horizon": 1, "n": 21886, "rate_scale": 0.1, "linear_beta": 0.09803822663293406, "linear_se": 0.08506198137899076, "quadratic_beta": -0.00638832825265425, "quadratic_se": 0.005846012528742591, "joint_p": 0.5107959185453195, "basis_condition_number": 3761.9015639243485, "q25_rate": 0.41, "q25_slope": 0.4565393496116921, "q25_slope_se": 0.39993322732912195, "q75_rate": 0.9499999999999998, "q75_slope": -0.23340010167496664, "q75_slope_se": 0.34485213078676963}, {"drug": "norepinephrine", "horizon": 4, "n": 16523, "rate_scale": 0.1, "linear_beta": 0.23480695734499538, "linear_se": 0.1170203031412149, "quadratic_beta": -0.018538610207425744, "quadratic_se": 0.008064370543817723, "joint_p": 0.046329931078360476, "basis_condition_number": 3531.2353911629993, "q25_rate": 0.39, "q25_slope": 0.9020579772707459, "q25_slope_se": 0.5801231300127451, "q75_rate": 0.94, "q75_slope": -1.1371891455460854, "q75_slope_se": 0.4742247405480556}]
+
+## Run 15: investigate marginal nonlinear signal
+Run 14 NE horizon-4 quadratic joint p=0.046 was isolated among four checks; insulin joint p=0.124/0.575 and NE horizon-1 p=0.511. Testing richer nuisance models, all-running versus both-sensor subsets, and current-minus-previous reading as a pre-infusion placebo. Significant placebo moments diagnose estimation bias; null placebos cannot prove unconfoundedness.
+Parameters: {"max_iter": 300, "learning_rate": 0.05, "max_leaf_nodes": 31, "min_samples_leaf": 80, "l2_regularization": 1.0, "early_stopping": false, "random_state": 2026}
+[{"n": 29448, "linear_beta": -0.012039841762953276, "linear_se": 0.057632832965988604, "quadratic_beta": -0.003054113890772935, "quadratic_se": 0.00843114701350436, "joint_p": 0.192243822446122, "drug": "insulin", "horizon": 0, "stratum": "both_sensors_running", "rate_scale": 1.0, "outcome_type": "pre_infusion_placebo"}, {"n": 149273, "linear_beta": -0.10247476695820687, "linear_se": 0.10038770214592187, "quadratic_beta": 0.01595189821051556, "quadratic_se": 0.011760933591023127, "joint_p": 0.371758516589388, "drug": "insulin", "horizon": 1, "stratum": "all_running", "rate_scale": 1.0, "outcome_type": "future_change"}, {"n": 29845, "linear_beta": 0.5431494447973164, "linear_se": 0.1975845494142172, "quadratic_beta": -0.051521432012112754, "quadratic_se": 0.02226614528712956, "joint_p": 0.022565472550754702, "drug": "insulin", "horizon": 1, "stratum": "both_sensors_running", "rate_scale": 1.0, "outcome_type": "future_change"}, {"n": 106417, "linear_beta": 0.13137292156214364, "linear_se": 0.14410987678115575, "quadratic_beta": -0.01474290471844492, "quadratic_se": 0.016843627504361837, "joint_p": 0.65238815843347, "drug": "insulin", "horizon": 4, "stratum": "all_running", "rate_scale": 1.0, "outcome_type": "future_change"}, {"n": 21292, "linear_beta": 0.2950092134422848, "linear_se": 0.3203250089603941, "quadratic_beta": -0.03708075425968757, "quadratic_se": 0.038649865639630625, "joint_p": 0.6241422982719464, "drug": "insulin", "horizon": 4, "stratum": "both_sensors_running", "rate_scale": 1.0, "outcome_type": "future_change"}, {"n": 21931, "linear_beta": -0.000954083688706939, "linear_se": 0.00980537353628543, "quadratic_beta": -6.475312808931596e-05, "quadratic_se": 0.0006652277877004804, "joint_p": 0.6909813268918504, "drug": "norepinephrine", "horizon": 0, "stratum": "both_sensors_running", "rate_scale": 0.1, "outcome_type": "pre_infusion_placebo"}, {"n": 73500, "linear_beta": 0.019046988849695506, "linear_se": 0.04923054337470549, "quadratic_beta": -0.0012244749778461193, "quadratic_se": 0.003386835078253181, "joint_p": 0.9255139317970357, "drug": "norepinephrine", "horizon": 1, "stratum": "all_running", "rate_scale": 0.1, "outcome_type": "future_change"}, {"n": 21886, "linear_beta": 0.09739228975392902, "linear_se": 0.08108648656404534, "quadratic_beta": -0.006580598411873411, "quadratic_se": 0.0055623113436065194, "joint_p": 0.48487794330359935, "drug": "norepinephrine", "horizon": 1, "stratum": "both_sensors_running", "rate_scale": 0.1, "outcome_type": "future_change"}, {"n": 55285, "linear_beta": 0.10783673369423825, "linear_se": 0.06805985664955215, "quadratic_beta": -0.00707293230579355, "quadratic_se": 0.004687876949595348, "joint_p": 0.28191364251824047, "drug": "norepinephrine", "horizon": 4, "stratum": "all_running", "rate_scale": 0.1, "outcome_type": "future_change"}, {"n": 16523, "linear_beta": 0.20520138154917772, "linear_se": 0.11114027623275251, "quadratic_beta": -0.017007746330824233, "quadratic_se": 0.007689014327583921, "joint_p": 0.043261886776612184, "drug": "norepinephrine", "horizon": 4, "stratum": "both_sensors_running", "rate_scale": 0.1, "outcome_type": "future_change"}]
+
+```
+Continue from here.
+
+Last result:
+The forward pass failed and was not counted: RequestError: stays has repeated ids

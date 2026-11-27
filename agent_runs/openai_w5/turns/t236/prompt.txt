@@ -1,0 +1,105 @@
+OUTPUT of Python run 208 of at most 300:
+```
+=== RECORD IDENTIFICATION CHECKS ===
+o estimate future outcome and future dose responses.
+- Deconvolved clinician feedback with an AR(1) response model; this requires causal-innovation and stable-linear-response assumptions, to be checked further.
+- G dynamic estimates: {'phi': 0.8762725202961656, 'beta': -1.8381467582926028, 'beta_one': -1.834419990988181, 'phi_fixed': 0.8761687969798846}.
+- M dynamic estimates: {'phi': 0.6335817172466911, 'beta': 3.5998780750492387, 'beta_one': 3.217188708302707, 'phi_fixed': 0.6682056242010688}.
+- Current counts: 5 Python runs, 3 forwards; no edits.
+
+## Sensor checks and correction (runs 8?9)
+- Sensor-specific held-out next-hour estimates: glucose_finger insulin -1.8383 (SE .1026), glucose_lab -1.9344 (.1744); map_arterial NE +3.4086 (.2191), map_cuff +2.8671 (.4111).
+- Cross-drug coefficients are small relative to their uncertainty.
+- Corrected a diagnostic indexing error: clustered_ols includes an intercept. The initial dose-stratum printouts were intercepts, not drug effects, and must be discarded.
+- Run 8 dynamic-alternative calculation stopped before completion; no edits were made.
+
+## Local head reconstruction (run 10, forward 4)
+- Obtained original states for 100 training stays (4,314 bundles).
+- Computing a no-gradient local value-head reconstruction and checking it against original GPU predictions.
+- Corrected local-projection dictionary access and calculated ARX/deconvolved alternatives.
+
+## Head reconstruction validation (run 11)
+- Simple prior-mean reconstruction had nontrivial error; testing register conventions and latent integration.
+- ARX alternatives: glucose phi .7807, beta_now -1.8381, beta_lag -.7382; MAP phi .5116, beta_now 3.2133, beta_lag 1.3739. These remain conditional estimates.
+
+## Restart / run 13
+- Run 12's approximate value-head reconstruction retained meaningful mean and NLL errors; no edits are justified by that reconstruction yet.
+- Re-reading architecture and inspecting persistent analysis objects before correcting the reconstruction and checking causal estimates.
+
+## Reconstruction conventions / run 16
+- Tested schema-valid last-numeric features, last-status embeddings, type embeddings, activations, and prior/head gap scaling.
+- Best deterministic convention: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1}.
+- No tensor edits; sampling and register conventions still require validation.
+
+## Runs 17?18
+- Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+- Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+- No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+
+## Register search / run 19
+- Selected reconstruction convention: {'bins
+
+=== PRIVATE CHANNELS AND RESERVED NEURONS ===
+priv: [15, 21, 61, 66] reserved: [7, 10, 64, 74, 107, 109, 124, 171]
+config: {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes: [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+
+ linear205 (x, p, weights={'attr_heads.rate_bin.0.bias': tensor([ 0.0117,  0.0133, -0.0343, -0.0877,  0.0118, -0.0548, -0.0080, -0.0655,
+        -0.0199, -0.0872, -0.0002,  0.0476,  0.0536, -0.0593, -0.0024, -0.0100,
+         0.0167, -0.0515, -0.0324, -0.0045, -0.0731, -0.0417,  0.0151,  0.0412,
+        -0.0665, -0.0546, -0.0749,  0.0316,  0.0412, -0.0413,  0.0595,  0.0060,
+        -0.0570, -0.0379, -0.0479, -0.0643, -0.0383, -0.0253,  0.0112, -0.0270,
+        -0.0516, -0.0731,  0.0150, -0.0351, -0.0177, -0.0467,  0.0375,  0.0226,
+         0.0479, -0.1117, -0.0100,  0.0157, -0.0116,  0.0119, -0.0488, -0.0916,
+        -0.0072,  0.0092, -0.0730,  0.0149,  0.0491, -0.0072, -0.0179, -0.0029,
+        -0.0541, -0.0474,  0.0318, -0.0481, -0.0027, -0.0385,  0.0643,  0.0176,
+         0.0296, -0.0239, -0.0335, -0.0513, -0.0616,  0.0275,  0.0074, -0.0529,
+         0.0215, -0.0106,  0.0395, -0.0522, -0.0696,  0.0407, -0.0202,  0.0045,
+        -0.0072, -0.0907,  0.0906, -0.0463,  0.0295, -0.0828, -0.0394,  0.0508,
+        -0.0487, -0.0046,  0.0175,  0.0380,  0.0476, -0.0721,  0.0022, -0.0564,
+         0.0437,  0.0302, -0.0251,  0.0208, -0.0503,  0.0445, -0.0661, -0.0352,
+        -0.0147,  0.0100,  0.0323, -0.0468, -0.0520,  0.0157, -0.0284,  0.0351,
+        -0.0637,  0.0187,  0.0521, -0.0351, -0.0415, -0.0363, -0.1035,  0.0379,
+        -0.0335, -0.0423, -0.0867, -0.0967,  0.0651,  0.0295, -0.0821, -0.0427,
+        -0.0422,  0.0121, -0.0656, -0.0078, -0.0561, -0.0013, -0.0681, -0.0625,
+         0.0344, -0.0178, -0.0304, -0.0523, -0.0080,  0.0194,  0.0359,  0.0559,
+        -0.0752, -0.0204,  0.0295,  0.0064, -0.0725,  0.0011, -0.0260, -0.0046,
+        -0.0433,  0.0441,  0.0129, -0.0301,  0.0666, -0.0209, -0.0557, -0.0832,
+        -0.0531,  0.0034, -0.0959,  0.0521, -0.0070, -0.0217, -0.0660, -0.0042,
+         0.0079,  0.0415, -0.0345,  0.0583, -0.0164, -0.0473, -0.0241, -0.0583,
+        -0.0807, -0.0252,  0.0014, -0.0512, -0.0358,  0.0230,  0.0622,  0.0207]), 'attr_heads.rate_bin.0.weight': tensor([[-0.0042,  0.0277, -0.0063,  ..., -0.0248, -0.0575,  0.1281],
+        [ 0.0544, -0.0872,  0.0959,  ..., -0.0576,  0.0837,  0.0872],
+        [-0.0079, -0.0092, -0.0073,  ...,  0.0313,  0.1026, -0.1408],
+        ...,
+        [ 0.1169, -0.1570,  0.0212,  ..., -0.0096,  0.0458,  0.0185],
+        [ 0.0686,  0.0107, -0.0420,  ..., -0.0190,  0.0654,  0.0583],
+        [ 0.0624, -0.0510,  0.0782,  ..., -0.1137,  0.0346, -0.0326]]), 'attr_heads.rate_bin.2.bias': tensor([-0.3292, -0.0708, -0.0614, -0.0275,  0.0186, -0.0167, -0.0508, -0.0085,
+         0.0328,  0.0367, -0.0053, -0.0434,  0.0634,  0.0270, -0.0512, -0.0009,
+         0.0047]), 'attr_heads.rate_bin.2.weight': tensor([[-0.0690, -0.1945, -0.1625,  ..., -0.2742, -0.1914, -0.3452],
+        [-0.0177,  0.0548, -0.0760,  ...,  0.0605, -0.0306, -0.0156],
+        [ 0.0215, -0.2991, -0.1022,  ..., -0.1300, -0.3644,  0.1221],
+        ...,
+        [-0.0174,  0.0756,  0.0417,  ...,  0.0373, -0.0114,  0.0355],
+        [-0.0146,  0.0806,  0.0664,  ..., -0.0132, -0.0074, -0.0268],
+        [ 0.0176,  0.0890,  0.0998,  ...,  0.0758, -0.0805,  0.0043]]), 'attr_heads.status.0.bias': tensor([ 0.0158, -0.0702,  0.0207, -0.0270, -0.0652,  0.0236,  0.0519,  0.0622,
+        -0.0399,  0.0324,  0.0683,  0.0071,  0.0712, -0.0291, -0.0116, -0.0273,
+        -0.0646,  0.0259, -0.0710, -0.0558, -0.0219,  0.0593,  0.0216,  0.0586,
+         0.0664, -0.0055,  0.0179,  0.0401,  0.0406, -0.0551, -0.0120, -0.0379,
+         0.0444,  0.0176,  0.0217, -0.0721,  0.0240,  0.0496,  0.0256, -0.0169,
+        -0.0694, -0.0425, -0.0226, -0.0559,  0.0351,  0.0529, -0.0273,  0.0081,
+        -0.0138,  0.0468, -0.0212,  0.0661, -0.0709,  0.0049,  0.0570,  0.0649,
+         0.0013, -0.0060,  0.0356, -0.0230, -0.0368, -0.0213, -0.0085, -0.0364,
+        -0.0077, -0.0466,  0.0282, -0.0550, -0.0599, -0.0088, -0.0585, -0.0311,
+        -0.0511, -0.0205,  0.0530, -0.0008, -0.0618,  0.0017, -0.0576, -0.0624,
+        -0.0666, -0.0448,  0.0070, -0.0401,  0.0297,  0.0138, -0.0424,  0.0474,
+         0.0262, -0.0303, -0.0243,  0.0490,  0.0353,  0.0600, -0.0180, -0.0021,
+        -0.0233,  0.0440, -0.0427, -0.0669,  0.0694,  0.0471, -0.0012,  0.0232,
+        -0.0009,  0.0049, -0.0627,  0.0384,  0.0015, -0.0181,  0.0005, -0.0307,
+        -0.0415, -0.0035,  0.0704,  0.0042, -0.0679,  0.0152,  0.0302,  0.0472,
+        -0.0620, -0.0239, -0.0574, -0.0633,  0.0142, -0.0051,  0.0048,  0.0421,
+         0.0636, -0.0102, -0.0051,  0.0659, -0.0228,  0.0229,  0.0568, -0.0098,
+         0.0720, -0.0311, -0.0254, -0.0243, -0.0556,  0.005
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,82 @@
+OUTPUT of Python run 28 of at most 300:
+```
+--- Record schema ---
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+--- Input conventions ---
+atom_kinds {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+numeric_note z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.
+normalisation: {('map_arterial', 'value'): {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 66.0, 70.0, 74.0, 78.0, 81.0, 84.0, 89.0, 92.0, 95.0, 98.0]}, ('map_cuff', 'value'): {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [39.0, 46.0, 52.0, 60.0, 69.0, 74.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}, ('glucose_finger', 'value'): {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [78.0, 87.0, 96.0, 109.0, 128.0, 144.0, 155.0, 164.0, 173.0, 183.0, 196.0, 215.0, 231.0, 244.0, 261.0]}, ('glucose_lab', 'value'): {'code': 'glucose_lab', 'attribute': 'value', 'median': 141.0, 'iqr': 53.0, 'fine_bin_edges': [73.0, 81.0, 89.0, 98.0, 111.0, 121.0, 131.0, 141.0, 151.0, 163.0, 177.0, 199.0, 216.0, 231.0, 248.0]}, ('norepinephrine', 'dose'): {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.256, 'iqr': 2.832, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.384, 0.768, 1.2, 1.6800000000000002, 2.256, 2.832, 3.456, 4.224, 4.8, 4.8, 4.8, 4.8]}, ('insulin', 'dose'): {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, ('norepinephrine', 'rate'): {'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.47, 'iqr': 0.5900000000000001, 'fine_bin_edges': [0.03, 0.04, 0.05, 0.08, 0.16, 0.25, 0.35, 0.47, 0.59, 0.72, 0.8799999999999999, 1.0, 1.0, 1.0, 1.0]}, ('insulin', 'rate'): {'code': 'insulin', 'attribute': 'rate', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}}
+head conventions: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1} {'binside': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}
+
+--- State files ---
+/work/fwd_3/states_original.npz [('x', (4141, 992), 'float32'), ('stay_id', (4141,), 'int64'), ('hour', (4141,), 'float64'), ('has_insulin', (4141,), 'bool'), ('has_norepinephrine', (4141,), 'bool'), ('n_atoms', (4141,), 'int64')]
+stay_id [2020000000 2020000000 2020000000 2020000000 2020000000 2020000000
+ 2020000000 2020000000]
+hour [-2. -1.  0.  1.  2.  3.  4.  5.]
+has_insulin [False False False False False False False False]
+has_norepinephrine [False False False False False False False False]
+n_atoms [1 2 4 1 1 2 2 1]
+/work/fwd_4/states_original.npz [('x', (4314, 992), 'float32'), ('stay_id', (4314,), 'int64'), ('hour', (4314,), 'float64'), ('has_insulin', (4314,), 'bool'), ('has_norepinephrine', (4314,), 'bool'), ('n_atoms', (4314,), 'int64')]
+stay_id [1010000000 1010000000 1010000000 1010000000 1010000000 1010000000
+ 1010000000 1010000000]
+hour [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833]
+has_insulin [False False False  True False False False  True]
+has_norepinephrine [False False False False False False False False]
+n_atoms [1 1 3 1 2 1 2 1]
+/work/fwd_5/states_original.npz [('x', (4362, 992), 'float32'), ('stay_id', (4362,), 'int64'), ('hour', (4362,), 'float64'), ('has_insulin', (4362,), 'bool'), ('has_norepinephrine', (4362,), 'bool'), ('n_atoms', (4362,), 'int64')]
+stay_id [1010000112 1010000112 1010000112 1010000112 1010000112 1010000112
+ 1010000112 1010000112]
+hour [-2.     -1.      0.      0.0833  1.      1.0833  2.      2.0833]
+has_insulin [False False False  True False  True False  True]
+has_norepinephrine [False False False False False False False False]
+n_atoms [1 2 4 1 3 2 2 2]
+
+--- Cached arrays ---
+cacheA [('df', (4585, 9)), ('base', torch.Size([4585, 192])), ('dt', torch.Size([4585, 1])), ('codes', torch.Size([4585])), ('haslast', torch.Size([4585])), ('lastval', torch.Size([4585])), ('lastage', torch.Size([4585])), ('lastbin', torch.Size([4585])), ('targetbin', torch.Size([4585])), ('centers', torch.Size([4585, 17])), ('previous', (4585,)), ('gpu_mean', (4585,)), ('gpu_nll', (4585,))]
+   stay_id  hour          event  value  rate rate_unit  dose dose_unit  end_hour
+2020000000  -1.0    glucose_lab  128.0   NaN       NaN   NaN       NaN       NaN
+2020000000  -1.0       map_cuff   84.0   NaN       NaN   NaN       NaN       NaN
+2020000000   0.0 glucose_finger  120.0   NaN       NaN   NaN       NaN       NaN
+cacheTrain [('df', (4750, 9)), ('base', torch.Size([4750, 192])), ('dt', torch.Size([4750, 1])), ('codes', torch.Size([4750])), ('haslast', torch.Size([4750])), ('lastval', torch.Size([4750])), ('lastage', torch.Size([4750])), ('lastbin', torch.Size([4750])), ('targetbin', torch.Size([4750])), ('centers', torch.Size([4750, 17])), ('previous', (4750,))]
+   stay_id  hour          event  value  rate rate_unit  dose dose_unit  end_hour
+1010000000  -1.0       map_cuff   93.0   NaN       NaN   NaN       NaN       NaN
+1010000000   0.0 glucose_finger  158.0   NaN       NaN   NaN       NaN       NaN
+1010000000   0.0       map_cuff   88.0   NaN       NaN   NaN       NaN       NaN
+cacheTrainB [('df', (4817, 9)), ('base', torch.Size([4817, 192])), ('dt', torch.Size([4817, 1])), ('codes', torch.Size([4817])), ('haslast', torch.Size([4817])), ('lastval', torch.Size([4817])), ('lastage', torch.Size([4817])), ('lastbin', torch.Size([4817])), ('targetbin', torch.Size([4817])), ('centers', torch.Size([4817, 17])), ('previous', (4817,))]
+   stay_id  hour          event  value  rate rate_unit  dose dose_unit  end_hour
+1010000100  -1.0 glucose_finger   98.0   NaN       NaN   NaN       NaN       NaN
+1010000100  -1.0    glucose_lab  102.0   NaN       NaN   NaN       NaN       NaN
+1010000100  -1.0   map_arterial   68.0   NaN       NaN   NaN       NaN       NaN
+
+--- Helper definitions ---
+lin0 constants: (None, '.weight', '.bias') names: ('F', 'linear', 'W0', 'get')
+norm0 constants: (None, (192,), '.weight', '.bias', 1e-05) names: ('F', 'layer_norm', 'W0')
+mlp0 constants: (None, '.0', '.2') names: ('lin0', 'act0')
+reading_cache constants: (None, 'stay_id', 'hour', ('glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff'), ('stay_id', 'hour', 'event'), True, ('drop',), -1, ('dtype',), False, ('sort',), 'left', ('side',), 1, 0, 'event', 'value', 'fine_bin_edges', 'median', 'iqr', -10, 10, 3600, 'x', 192, 960, 4, 'core.flow.a', 'core.out_norm', 0.0, 'value_bin_centres', ('df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous'), ('on', 'how'), 'gpu_mean', 'gpu_nll') names: ('np', 'unique', 'int', 'flatnonzero', 'event', 'isin', 'stay_id', 'copy', 'sort_values', 'reset_index', 'full', 'len', 'zeros', 'groupby', 'indices', 'items', 'searchsorted', 'loc', 'to_numpy', 'where', 'maximum', 'groups', 'array', 'list', 'norm_meta', 'clip', 'log1p', 'torch', 'from_numpy', 'astype', 'float32', 'tensor', 'hour', 'reshape', 'exp', 'W0', 'norm0', 'mean', 'stack', 'r_', 'VOCAB', 'code_id', 'dict', 'long', 'merge', 'predicted_mean', 'nll')
+W0 tensor type: <class 'torch.Tensor'>
+Tuning A ids: [2020000000 2020000001 2020000002 2020000003 2020000004 2020000005
+ 2020000006 2020000007]
+
+```

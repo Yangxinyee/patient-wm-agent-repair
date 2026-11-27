@@ -1,0 +1,134 @@
+OUTPUT of Python run 220 of at most 300:
+```
+=== NOTEBOOK: RECORD IDENTIFICATION AND EDIT CONSTRUCTION ===
+Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+  180.5   5  38087     0.5698       -0.7370          -1.2935      0.5515
+  180.5  10  75667     0.7794       -1.1972          -1.5359      0.2877
+  180.5  15 112580     0.8600       -1.4093          -1.6386      0.2149
+  180.5  20 148824     0.9038       -1.5463          -1.7108      0.1791
+  220.5   5  13465     0.6094       -1.9360          -3.1771      1.0528
+  220.5  10  27007     0.8056       -1.8092          -2.2459      0.5494
+  220.5  15  41128     0.8857       -1.9515          -2.2034      0.4082
+  220.5  20  55451     0.9242       -2.0053          -2.1697      0.3407
+  260.5   5   2121     0.4853       -1.7844          -3.6771      3.6196
+  260.5  10   4328     0.7606       -2.5573          -3.3620      1.6647
+  260.5  15   6845     0.8875       -2.7845          -3.1374      1.1748
+  260.5  20   9743     0.9343       -2.9469          -3.1542      0.9651
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440       -1.8588          -1.7805      0.1641
+  220.0   5  10878     1.0678       -3.1426          -2.9430      0.7643
+  220.0  10  24707     1.0534       -2.2490          -2.1350      0.4629
+  220.0  15  39001     1.0530       -2.2109          -2.0996      0.3641
+  220.0  20  53461     1.0493       -2.1822          -2.0797      0.3138
+  260.0   5   1722     0.9170       -4.7440          -5.1732      2.5458
+  260.0  10   3976     1.0306       -3.9808          -3.8625      1.3933
+  260.0  15   6526     1.0794       -3.8052          -3.5254      1.0430
+  260.0  20   9462     1.0751       -3.7279          -3.4675      0.8812
+Two-fold, stay-separated history-adjusted dose/outcome residual regressions:
+          drug         target      n     beta  cluster_se  dose_R2  dose_residual_SD  outcome_residual_SD
+       insulin glucose_finger 391466 -2.04924     0.04571  0.80748           0.48910             12.20504
+norepinephrine   map_arterial 330203  3.17146     0.08848  0.926
+## Run 10
+Dose innovations decode weakly from original states (best approximately 0.17 insulin R2 and 0.11 norepinephrine R2). Readout-only repair is not yet justified; investigating action-pathway repair.
+Implemented candidate CPU head reconstructions using exported states; tested activation, measurement type index and last-numeric ordering against original forward predictions.
+activation  type              last_pattern  mean_RMSE  nll_RMSE  mean_nll
+      silu     1           has_age_numeric    7.97621   0.57902   1.74300
+      gelu     1           has_age_numeric    8.56412   0.63368   1.75722
+      relu     1           has_age_numeric   10.64200   0.77992   1.83793
+      relu     1           numeric_has_age   10.01018   1.13823   2.03353
+      gelu     1           numeric_has_age   10.66927   1.18053   2.10923
+      silu     1            four_then_zero    9.01266   1.21512   1.97964
+      silu     1           numeric_has_age   11.37136   1.34605   2.25092
+      silu     1 has_age_zrate_zdose_flags    8.88821   1.35029   2.08227
+No edits.
+
+## Run 11
+Run 10 head reconstruction failed (best mean RMSE 7.98, NLL RMSE 0.579); not trusted for editing.
+Checked latent source, gap scale, register flags/status and mixed activations.
+core_act  gap_factor latent  value_flag_col status head_act  mean_RMSE  nll_RMSE  mean_nll
+    silu         1.0   mean               3   zero     gelu    7.65668   0.55623   1.72939
+    silu         1.0   mean               3   zero     silu    7.97621   0.57902   1.74300
+    silu         1.0   zero               3   zero     gelu    6.82061   0.59083   1.72546
+    gelu         1.0   mean               3   zero     gelu    8.56412   0.63368   1.75722
+    silu         1.0   zero               3   zero     silu    7.60936   0.63491   1.75300
+    gelu         1.0   mean               3   zero     silu    9.17698   0.68173   1.78442
+32-draw prior-average metrics: {'mean_RMSE': 7.68521438909105, 'nll_RMSE': 0.5575281372041756, 'mean_nll': 1.7329300033856052}
+No edits.
+
+## Run 14
+Architecture explicitly specifies the four-field last_numeric register. Run 13 output was truncated; collected compact vocabulary, tensor and forward-file metadata to verify the CPU head and state alignment. No weights edited.
+
+## Run 15
+Investigated eight-dimensional last_numeric packing (architecture's description is abbreviated), reproduced the best register candidate using explicit column indexing, and examined alignment and residuals by event. No weights edited.
+
+## Run 16
+Verified that register ages are already log(seconds+1)/10. Tested status corrections with the best register layout and compared remaining head mismatch with four-draw prior variability when the latent-head prefix could be identified. No weights edited.
+
+## Run 17
+Status corrections did not improve reconstruction. Four-draw prior variability (mean RMS 1.06; NLL RMS 0.123) was too small to explain the mismatch. ReLU outperformed SiLU/GELU with the current register. Jointly searched gap/prior/head activations, prediction-gap scaling and code-query type. Best provisional configuration: ('gelu', 'gelu', 1.0, 'gelu'). No weights edited.
+
+## Run 18
+Joint search favoured GELU for gap/prior/value head, gap factor 1, and measurement query type 1. Re-searched register packing with this view, reconstructed all 4,903 readings and assessed latent noise. Provisional head configuration: {'gap_activation': 'gelu', 'prior_activation': 'gelu', 'head_gap_factor': 1.0, 'head_activation': 'gelu', 'type': 1, 'zcol': 6, 'agecol': 3, 'flags': (0,)}. No weights edited.
+
+## Run 19
+Corrected head/register reconstruction has residual errors comparable to four-draw prior variability. Began longitudinal causal diagnostics: dose innovations instrument later outcomes, explicitly accounting for covariance with subsequent recorded doses. AR persistence fits are provisional because later observation selection and nuisance misspecification can bias these moments: {'insulin': {'beta': -2.0492419728332494, 'rho': 0.9259212188520857, 'weighted_loss': 189.9550943168164, 'n_moments': 6}, 'norepinephrine': {'beta': 3.171455470405459, 'rho': 0.6834209822002549, 'weighted_loss': 22.851297233717364, 'n_moments': 6}}. No weights edited.
+
+## Run 20 (restart)
+Recovered architecture, record schema, earlier notebook context, retained objects, and original rollout summaries. The provisional one-exponential impulse model is not accepted as truth; dose-innovation identification and flexible lag responses need checking before a weight repair. No weights edited.
+
+## Run 21
+Run 20 output was truncated. Retrieved compact retained-object inventory, action/value tensor shapes and original rollout effects. Explicit action pathway and same-code measurement shortcut suggest a targeted correction rather than global output recalibration. No weights edited.
+
+## Run 22
+Recovered remaining retained objects. Deconvolved run-19 closed-loop dose-innovation moments into a provisional six-lag direct-response kernel and translated it to the tuning forward's eligible hours. This is a diagnostic, not accepted ground truth: horizon selection, nuisance misspecification and response heterogeneity remain possible. No weights edited.
+
+## Run 25; forward passes used: 4
+Built reusable head dataset and feature functions, verified tuning alignment, fit insulin-innovation decoders on independent training states with MAP scores penalised toward zero, and checked tuning transfer plus approximate factual costs. No weights edited. Selected decoder alpha: 10000.
+
+## Run 26 (restart)
+Run-25 decoder failed independent transfer (negative innovation R2, approximately zero covariance). 
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,180 @@
+OUTPUT of Python run 286 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+CANDIDATE ARCHIVES
+balanced_candidate.npz
+  core_b_in {'shape': (192, 192), 'dtype': 'float32', 'norm': 488.889753366497}
+  glucose_strength {'shape': (), 'dtype': 'float64', 'value': 1.08}
+  map_relative_strength {'shape': (), 'dtype': 'float64', 'value': 1.6}
+validated_current400.npz
+  core_b_in {'shape': (192, 192), 'dtype': 'float32', 'norm': 325.0241917830392}
+  original {'shape': (192, 192), 'dtype': 'float32', 'norm': 10.556950736290936}
+  glucose_correction {'shape': (192, 192), 'dtype': 'float32', 'norm': 135.85374429593284}
+  map_correction {'shape': (192, 192), 'dtype': 'float32', 'norm': 294.64009854333796}
+map_regularized_trial.npz
+  baseline {'shape': (192, 192), 'dtype': 'float32', 'norm': 136.33551086276609}
+  map_correction {'shape': (192, 192), 'dtype': 'float32', 'norm': 294.6400986266506}
+  core_b_in {'shape': (192, 192), 'dtype': 'float32', 'norm': 325.0241917830392}
+glucose_115_candidate.npz
+  b_in {'shape': (192, 192), 'dtype': 'float32', 'norm': 136.33551086276609}
+
+RETAINED VALIDATION/TARGET VARIABLES
+calibration_stays199 list 100 [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007]
+direct_stays98 array (2261,) array([1010000000, 1010000000, 1010000000, 1010000000, 1010000000,
+       1010000000, 1010000000, 1010000000])
+effects63 array (4, 2) 
+eligible array (718,) array([337, 339, 341, 343, 345, 347, 349, 351])
+eligible98 array (4034,) array([ True,  True, False,  True, False,  True, False,  True])
+fact_target_hours98 array (2523,) array([-1.,  0.,  1.,  2.,  3.,  4.,  5.,  7.])
+fact_target_stays98 array (2523,) array([1010000000, 1010000000, 1010000000, 1010000000, 1010000000,
+       1010000000, 1010000000, 1010000000])
+factual_missing_effect0 dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+innov_targets_audit array (4035, 2) 
+r132_eligible array (491,) array([  9,  36, 101, 109, 115, 125, 133, 137])
+r132_targets dict ['insulin', 'norepinephrine']
+r180_effects dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+r180_eligible list 5 [{'lambda': 0.03, 'w': array([ 2.39791864e-01,  1.63146067e-01, -1.82830152e-01, -6.46866104e-02,
+        1.82729333e-02,  1.49518247e-02,  4.46422429e-02,  8.69675337e-02,
+       -8.00615995e-02, -1.08117063e-01, -1.184
+r186_target array (64, 4) 
+r244_targets array (4, 2) 
+r251_stays list 100 [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007]
+r25_target Tensor
+r275_staycol 'stay_id'
+r275_staycol24 'stay_id'
+r277_eligible list 5 [(('heldout_fit', 0.001, 5.0), {'correction': array([[ -4.86392441,  -4.37164496,  -4.01305663, ...,  -5.40031809,
+          0.87128993,  -4.92496932],
+       [  2.91045686,   2.61588853,   2.40131778, ...,   3.2314221 ,
+r27_stay array (4035,) array([1010000000, 1010000000, 1010000000, 1010000000, 1010000000,
+       1010000000, 1010000000, 1010000000])
+r27_target_h Tensor
+r27_target_out Tensor
+r49_stays array (4035,) array([1010000000, 1010000000, 1010000000, 1010000000, 1010000000,
+       1010000000, 1010000000, 1010000000])
+rr31_target Tensor
+rr31_target_h Tensor
+rr31_target_out Tensor
+rr32_target Tensor
+rr33_stays array (4035,) array([1010000000, 1010000000, 1010000000, 1010000000, 1010000000,
+       1010000000, 1010000000, 1010000000])
+rr33_target Tensor
+rr33_target_h Tensor
+rr33_target_out Tensor
+rr34_target Tensor
+rr_Ntargets array (10,) array([-3.84493459e-03,  2.60340429e-01,  1.41024793e-01, -1.51312966e-03,
+       -7.78733721e-03,  2.64283409e+00,  2.83115287e+00,  2.84417091e+00])
+rr_eval_stays list 100 [2020000000, 2020000016, 2020000032, 2020000048, 2020000064, 2020000080, 2020000096, 2020000001]
+stay158 array (320,) array([1010000063, 1010000086, 1010000088, 1010000054, 1010000026,
+       1010000088, 1010000062, 1010000097])
+stay285 DataFrame (400, 2) ['sum', 'count']
+stay63 array (4035,) array([1010000000, 1010000000, 1010000000, 1010000000, 1010000000,
+       1010000000, 1010000000, 1010000000])
+stay74 array (4035,) array([1010000000, 1010000000, 1010000000, 1010000000, 1010000000,
+       1010000000, 1010000000, 1010000000])
+stay_col138 'stay_id'
+staycol266 'stay_id'
+target array (4,) array([0.        , 0.        , 1.84090394, 1.52464116])
+target230 Tensor
+target56 array (4, 2) 
+target88 array (4, 2) 
+target_audit Tensor
+target_cur 60.0
+target_hours97 array (2261,) array([1, 2, 3, 4, 5, 7, 8, 9])
+target_lines list 7 ['- Estimated treatment impulse responses using dose innovations and removed their induced future-dose changes by moment deconvolution.', '- Recovering latent candidate construction and rate scale to connect causal impul
+target_mean118 array (384,) array([155.0419,  56.54  ,  71.2112,  66.6257, 172.8714,  93.7753,
+       166.6114, 101.
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,344 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 355 replies happened before. Forward passes used: 44 of 50; Python runs used: 296 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['balanced_candidate.npz', 'balanced_paired400.csv', 'balanced_validated400.npz', 'edited', 'final_rollout400_record_comparison.csv', 'final_rollout400_summary.csv', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_36', 'fwd_37', 'fwd_38', 'fwd_4', 'fwd_40', 'fwd_41', 'fwd_42', 'fwd_43', 'fwd_44', 'fwd_45', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'glucose_115_candidate.npz', 'map_feature_trial.npz', 'map_feature_trial_backup.npz', 'map_regularized_trial.npz', 'margin_candidate.npz', 'margin_paired400.csv', 'margin_validated400.npz', 'notes.md', 'pre_recurrent_candidate.npz', 'recurrent_glucose_valid.npz', 'recurrent_half_backup.npz', 'rejected_map_trial.npz', 'validated_current400.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+dation inputs
+- Current MAP trial remains unvalidated; glucose-only backup is preserved.
+- Recovered architecture, record-derived targets, archived components and validation stay IDs.
+- No weights changed. Python runs: 278; forward passes: 25.
+
+## Run 279: bounded validation recovery
+- Run 278 output truncated before validation metadata; narrowed output.
+- Record evidence supports persistent insulin/glucose and NE/MAP effects, subject to identification assumptions.
+- No weights changed. Python runs: 279; forward passes: 25.
+
+## Run 280: reject unstable MAP feature route
+- Forward 26: edited factual NLL 5.24586 versus original 1.63155; catastrophic recurrent amplification.
+- Restored exact glucose-only strength-1.15 backup from map_feature_trial_backup.npz.
+- Local probability KL is insufficient for recurrent-edit eligibility; inspect lower-norm routes before retrying.
+- Python runs: 280; forward passes: 26.
+
+## Run 281: lower-norm regularized MAP trial
+- Added half of retained ridge-1.0 minimum-Fisher MAP route to glucose strength 1.15.
+- Addition norm approximately 294.64 versus 3414.85 for the catastrophic trial.
+- Full-sequence factual and rollout validation required; no stability claim from norm alone.
+- Backup and trial saved in map_regularized_trial.npz.
+- Python runs: 281; forward passes: 26.
+
+## Run 282: recover final calibration evidence
+- Forward 28 current trial: insulin x2/half -11.952/+5.366; NE x2/half +0.665/-0.164.
+- These are predictions, not drug-effect truth. Recovering record targets and forward 27 factual fit before retaining the MAP addition.
+- No weights changed. Python runs: 282; forward passes: 28.
+
+## Run 283: narrow eligibility and interface recovery
+- Read architecture and early record identification evidence in run 282; output truncated before current factual fit.
+- Retrieving forward 27 NLL, candidate keys and compact interfaces without repeating architecture.
+- No weights changed. Python runs: 283; forward passes: 28.
+
+## Run 284: prepare independent validation
+- Forward 27 exact factual delta: +0.00486788045 nats on 4,751 readings; narrow pass on one 100-stay batch.
+- Recovering disjoint tuning batches, cumulative record targets and exact archived edit components.
+- No weights changed. Python runs: 284; forward passes: 28.
+
+## Run 285: pooled validation and balanced strength trial
+- Previous candidate passed all 400 tuning stays: paired value-NLL delta 0.003163118 over 18654 readings; stay-bootstrap 95% interval [0.0017847891050899794, 0.0045359666147188745].
+- First-batch record convolution targets: insulin x2 approximately -10.37 to -11.39; NE x2 approximately +4.21 to +4.25.
+- Archived eligible 400-stay fallback in validated_current400.npz.
+- Submitted glucose strength 1.08 instead of 1.15 and 1.6 times the current MAP addition (full-route strength approximately 0.8).
+- Trial needs official factual and dose-rollout validation. No gradients or weight optimizer.
+- Python runs: 285; forward passes: 31.
+
+## Run 286: balanced-trial eligibility recovery
+- Forward 32 first-batch value-NLL delta approximately +0.00613; not eligible on that batch alone.
+- Recovering exact archives, architecture and validation inputs before pooled validation or rollback; no weights changed.
+- Python runs: 286; forward passes: 32.
+
+## Run 287: balanced candidate, complete factual validation
+- Forwards 32/34/35/36: paired 400-stay value-NLL delta 0.004253115, 18654 readings; bootstrap quantiles [2.5%,50%,95%,97.5%]=[0.002651140325587262, 0.0042566779481620865, 0.005619416365475324, 0.00586519285366469].
+- Forward 33 predictions: insulin x2/half -11.712/+5.178; NE x2/half +0.926/-0.311. MAP remains substantially under-responsive relative to retained record estimates.
+- Archived exact current weights and pooled validation; no weights changed.
+- Python runs: 287; forward passes: 36.
+
+## Run 288: safety-margin candidate
+- Balanced candidate passes the observed 400-stay mean but its 97.5% stay-bootstrap bound exceeds +0.005; not selected as final.
+- Submitted glucose strength 1.00 and MAP full-route strength 0.70 (1.40 times the validated fallback MAP component).
+- Goal: insulin x2 nearer record-derived target, stronger MAP response than fallback, and a safer factual-loss margin.
+- Archived in margin_candidate.npz; needs official factual and dose-rollout validation. No gradients or weight optimizer.
+- Python runs: 288; forward passes: 36.
+
+## Run 289: final-stage recovery
+- Forward 38 safety-margin candidate: value-NLL delta approximately +0.00282 on 4664 readings.
+- Recovering architecture, exact forwards 37/38, validation batches and archived components.
+- No weights changed; margin candidate still requires pooled factual and rollout validation.
+- Python runs: 289; forward passes: 38.
+
+## Run 290: exact partial validation and record-evidence recovery
+- Margin candidate forwards 37/38 pooled delta: 0.003947722 over 9415 readings from 200 stays.
+- Retrieved remaining disjoint factual batches and prior record-identification evidence.
+- No weights changed. Python runs: 290; forward passes: 38.
+
+## Run 291: margin candidate complete factual validation and first rollout
+- Factual files fwd_37/38/40/41: exact pooled 400-stay delta 0.003384797 over 18654 readings.
+- Stay-bootstrap quantiles [2.5%,50%,95%,97.5%]: [0.0019512287514498496, 0.00338410632250692, 0.004614249016037766, 0.00487369511280955].
+- Forward count 41, file fwd_42: insulin x2/half -10.879/+4.850; NE x2/half +0.854/-0.257.
+- Insulin is near retained record-convolution targets; NE remains materially under-responsive.
+- Archived exact validated weights; no weights changed, gradients, or weight optimizer.
+- Python runs: 291; forward passes: 41 (one failed request created a folder-number offset).
+
+## Run 292: restart recovery
+- Forward 42 (folder fwd_43) confirms insulin response on a second batch (-9.287/+6.039), while NE remains weak (+0.508/-0.118).
+- Recovering architecture, training-record evidence, and exact candidate components. No weights changed.
+- Python runs: 292; forward passes: 42.
+
+## Run 293: compact evidence recovery
+- Previous recovery output was truncated; retrieved selected identification notes, candidate metadata, and rollout schemas without changing weights.
+- Python runs: 293; forward passes: 42.
+
+## Runs 294-295: complete unchanged-candidate rollout validation
+- Run 294 confirmed exact weight equality to margin_validated400.npz, then stopped on a pandas method/column-name collision; no weights changed.
+- Forwards 43/44 (folders fwd_44/fwd_45) completed all 400 tuning rollouts.
+- Run 295 pooled reached stay-hours and compared against six-lag training-record impulse convolutions. These targets require causal identification assumptions and omit the longer tail; they are not observed truth.
+- Saved final_rollout400_summary.csv and final_rollout400_record_comparison.csv.
+- Python runs: 295; forward passes: 44.
+        edit  mean_shift  stay_bootstrap_low  stay_bootstrap_high  empirical_six_lag_target  n_stay_hours  n_stays
+insulin_half    5.460528            4.723981             6.161704                  6.360204          2009      214
+  insulin_x2   -9.560353          -10.235576            -8.911773                -12.720408          2009      214
+     ne_half   -0.165227           -0.232646            -0.102521                 -2.084802          1080       96
+       ne_x2    0.679243            0.430757             0.964145                  4.169603          1080       96
+
+## Run 296: audit discrepancy in empirical rollout targets
+- Pooled current rollouts: insulin x2/half -9.560353/+5.460528; NE x2/half +0.679243/-0.165227.
+- Run-6 six-lag convolution on actual reached readout rows yields insulin -12.720408/+6.360204 and NE +4.169603/-2.084802, but does not reproduce the older run-132 first-batch estimates.
+- Recovering exact run-132 coefficients and averaging convention before drawing a calibration conclusion; no weights changed.
+- Python runs: 296; forward passes: 44.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 296 of at most 300:
+```
+=== EXACT RETAINED RUN-132 OBJECTS ===
+NAME: r132_base TYPE: dict
+{'z_post.0.weight': tensor([[ 7.7776e-02, -5.0958e-02, -9.5288e-03,  ...,  6.5108e-02,
+         -1.6707e-02,  5.4257e-03],
+        [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  ..., -1.5652e+02,
+          1.3506e+02, -2.1014e+02],
+        [-4.9879e-03,  8.8990e-03, -4.0242e-03,  ...,  2.4972e-02,
+         -1.4308e-03, -3.0289e-02],
+        ...,
+        [-3.4734e-03, -5.7207e-02, -4.8817e-02,  ...,  2.2067e-02,
+          1.5917e-02,  1.9384e-03],
+        [ 2.4813e-02, -6.5412e-02, -6.1077e-02,  ...,  4.5138e-02,
+         -3.0436e-02, -2.3747e-02],
+        [ 3.6792e-02, -6.7748e-02, -8.9988e-02,  ...,  1.4786e-02,
+         -3.8397e-02, -7.0748e-02]]), 'z_post.0.bias': tensor([ 6.8714e-03, -8.1739e+00, -2.9103e-02, -6.5582e-02, -3.8854e-02,
+        -6.3310e-02, -3.3311e-02, -7.7918e-02, -5.3598e-03, -2.2442e-02,
+        -5.9569e-03, -5.8074e-02,  1.9682e-02, -7.9272e-02, -4.1551e-02,
+        -3.9308e-02,  2.6073e-04, -7.4906e-03, -5.6878e-02, -1.2602e-02,
+        -4.6741e-02, -2.5451e-02, -2.8182e-02, -4.7777e-03,  5.8433e-03,
+        -4.8451e-02, -5.4482e-02, -6.0215e-02, -5.4244e-02, -1.8837e-02,
+         3.1304e-02, -6.6426e-02, -9.1197e-02, -3.6079e-02,  4.6141e-03,
+        -3.1539e-02
+NAME: r132_channels TYPE: function
+ args ('indices', 'u') references ('np', 'asarray', 'int', 'rr33_u_all', 'torch', 'cat', 'as_tensor', 'contexts_audit', 'float32', 'rr33_e_all', 'F', 'gelu', 'linear', 'r132_base', 'cpu', 'numpy') constants (None, ('dtype',), -1, ('dim',), 'z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 30, 32, 'z_post.2.bias')
+NAME: r132_d TYPE: int
+1
+NAME: r132_drug TYPE: str
+'norepinephrine'
+NAME: r132_dz TYPE: ndarray
+ shape (213, 2) values (large array)
+NAME: r132_edit TYPE: str
+'ne_x2'
+NAME: r132_eligible TYPE: ndarray
+ shape (491,) values (large array)
+NAME: r132_error TYPE: ndarray
+ shape (213, 2) values (large array)
+NAME: r132_expected TYPE: ndarray
+ shape (213,) values (large array)
+NAME: r132_factor TYPE: float
+3.0
+NAME: r132_file TYPE: TextIOWrapper
+<_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+NAME: r132_h TYPE: int
+24
+NAME: r132_ir TYPE: ndarray
+ shape (6,) values [2.9515991731772693, 2.496111867072234, 1.6279913554150651, 1.0286981383369793, 0.34279884143516115, 0.21392442120105942]
+NAME: r132_ix TYPE: ndarray
+ shape (320,) values (large array)
+NAME: r132_lag TYPE: int
+0
+NAME: r132_long TYPE: float64
+np.float64(1.3242467428121518)
+NAME: r132_long_ir TYPE: ndarray
+ shape (12,) values [2.9515991731772693, 2.496111867072234, 1.6279913554150651, 1.0286981383369793, 0.34279884143516115, 0.21392442120105942, 0.09755433470632371, 0.044486964912944245, 0.020287053908197506, 0.009251351650522691, 0.004218823874029588, 0.0019238783209669077]
+NAME: r132_long_values TYPE: list
+[np.float64(1.328219627929771), np.float64(2.864693852357094), np.float64(5.156901284686667), np.float64(6.871140102196032), np.float64(7.836893775929209), np.float64(8.40291783998877), np.float64(8.61731423456318), np.float64(8.47305606273937), np.float64(8.244728637815417), np.float64(8.398206038940307), np.float64(7.880279227005598), np.float64(8.117943932773024), np.float64(0.14757995865886347), np.float64(0.27238555201247516), np.float64(0.5308810701738645), np.float64(0.8173861207799369), np.float64(1.1009710453236679), np.float64(1.2507937448931763), np.float64(2.9515991731772693), np.float64(5.447711040249503), np.float64(7.075702395664569), np.float64(8.104400534001549), np.float64(7.5912356152153), np.float64(7.760155404796183), np.float64(8.13679392624939), np.float64(8.230067204423772), np.float64(7.8336840759937125), np.float64(7.428960460330822), np.float64(7.523710560412448), np.float64(1.8595074791016797), np.float64(3.4910899388207324), np.float64(5.599706440685713), np.float64(7.153985248421593), np.float64(7.163387678929894), np.float64(6.282726383861159), np.float64(4.87294580937864), np.float64(4.024842784887343), np.float64(3.166916105777795), np.float64(2.634
+NAME: r132_mask TYPE: ndarray
+ shape (320,) values (large array)
+NAME: r132_means TYPE: Series
+target_short    4.210146
+target_long     4.250959
+dtype: float64
+NAME: r132_outcome TYPE: str
+'map_arterial'
+NAME: r132_rate TYPE: float
+0.25
+NAME: r132_rates TYPE: Series
+stay_id     hour  event         
+2020000000  0     norepinephrine    0.57
+            1     norepinephrine    0.52
+            2     norepinephrine    1.00
+            3     norepinephrine    0.76
+            4     insulin           0.50
+                                    ... 
+2020000399  20    insulin           2.50
+            21    insulin           2.00
+            22    insulin           1.00
+            23    insulin           2.50
+            24    insulin           3.00
+Name: rate, Length: 6797, dtype: float64
+NAME: r132_rng TYPE: Generator
+Generator(PCG64) at 0x762068299C40
+NAME: r132_row TYPE: Pandas
+Pandas(Index=2480, stay_id=2020000079, hour=24, edit='ne_x2', shift=-0.0435, shift_se=0.0432, factual=74.6961, reached=True)
+NAME: r132_rows TYPE: DataFrame
+ shape (281, 9) columns ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached', 'target_short', 'target_long']
+NAME: r132_short TYPE: float64
+np.float64(1.2909390185151082)
+NAME: r132_short_values TYPE: list
+[np.float64(1.328219627929771), np.float64(2.864693852357094), np.float64(5.156901284686667), np.float64(6.871140102196032), np.float64(7.836893775929209), np.float64(8.40291783998877), np.float64(8.573414783945335), np.float64(8.395479871051815), np.float64(8.111797819551768), np.float64(8.240032269272467), np.float64(7.710594105261011), np.float64(7.943009376264921), np.float64(0.14757995865886347), np.float64(0.27238555201247516), np.float64(0.5308810701738645), np.float64(0.8173861207799369), np.float64(1.1009710453236679), np.float64(1.24591602815786), np.float64(2.9515991731772693), np.float64(5.447711040249503), np.float64(7.075702395664569), np.float64(8.104400534001549), np.float64(7.5912356152153), np.float64(7.760155404796183), np.float64(8.039239591543065), np.float64(8.088025904804503), np.float64(7.671355722466247), np.float64(7.257380755152834), np.float64(7.364742632946596), np.float64(1.8595074791016797), np.float64(3.4910899388207324), np.float64(5.599706440685713), np.float64(7.153985248421593), np.float64(7.163387678929894), np.float64(6.282726383861159), np.float64(4.781508703924374), np.float64(3.885591079025441), np.float64(3.0058598695783694), np.float64(2.4
+NAME: r132_slopes TYPE: ndarray
+ shape (2,) values [-0.18334476688109208, 4.992871526160388]
+NAME: r132_t TYPE: int
+23
+NAME: r132_tail_rho TYPE: float
+0.45602243146721483
+NAME: r132_targets TYPE: dict
+{'insulin': {'target_short': -10.369290161785726, 'target_long': -11.391802952206518}, 'norepinephrine': {'target_short': 4.210146314401971, 'target_long': 4.250959480119073}}
+NAME: r132_u TYPE: Tensor
+tensor([[-0.6955, -0.8744, -0.6006,  ..., -0.3359,  0.8460,  0.4434],
+        [-0.5817, -0.4506,  0.0450,  ...,  0.0566,  0.4503,  0.2931],
+        [-0.5581, -0.0748,  0.4585,  ...,  0.4357, -0.1319,  0.2186],
+        ...,
+        [-0.5817, -0.4506,  0.0450,  ...,  0.0566,  0.4503,  0.2931],
+        [-0.5611, -0.0772,  0.4674,  ...,  0.4333, -0.1406,  0.2200],
+        [-0.6263, -0.6471, -0.2207,  ..., -0.1166,  0.6527,  0.3425]])
+NAME: r132_u1 TYPE: Tensor
+tensor([[-0.6351, -0.6959, -0.2861,  ..., -0.1581,  0.6957,  0.3561],
+        [-0.5571, -0.0838,  0.4521,  ...,  0.4246, -0.1173,  0.2204],
+        [-0.5621, -0.0876,  0.4634,  ...,  0.4201, -0.1280,  0.2258],
+        ...,
+        [-0.5571, -0.0838,  0.4521,  ...,  0.4246, -0.1173,  0.2204],
+        [-0.5629, -0.0848,  0.4676,  ...,  0.4248, -0.1377,  0.2248],
+        [-0.6263, -0.6476, -0.2230,  ..., -0.1168,  0.6544,  0.3424]])
+NAME: r132_z TYPE: ndarray
+ shape (320, 2) values (large array)
+=== POSSIBLE RETAINED EMPIRICAL KERNELS ===
+beta (2,) [0.00668627185379348, 0.4652465779841604]
+beta_miss (2,) [-1.3798312320807482, 3.841096696440792]
+old_response268 (4,) [0.04187197072416654, 0.13533755861272284, 1.0263415446477628, 1.1597606394656754]
+r245_response (2, 2) [[0.9476607966885141, -0.05660680999509973], [0.0019873849373959755, 0.8694675348298356]]
+r276_coefficients (4, 2) [[0.0, 0.0], [0.0, 0.0], [0.0, 3.05259229], [0.0, 2.52816442]]
+raw_beta (2,) [-0.011822904248461571, 0.6418996956060933]
+=== EARLIER IDENTIFICATION / TARGET AUDIT HEADINGS ===
+## Run 15: primitive and record-field inspection
+## Run 29: targeted restart recovery
+## Run 37: recover dynamic identification
+## Run 42: target-alignment and prediction-readout audit
+## Run 116: targeted interface recovery
+## Run 122: dynamic-target recovery
+## Run 127: architecture and causal-target recovery
+## Run 131: audit physical-dose decoding before rollout calibration
+## Run 132: physical-dose channel and convolution-target tests
+## Run 133: physical units and official factual perturbation audit
+=== FINAL CANDIDATE FACTUAL MEANS ===
+original_nll    1.625127
+edited_nll      1.628511
+delta_nll       0.003385
+glucose_correction norm 135.85374 largest singular values [1.3585374e+02 1.4369515e-06 1.2839984e-06]
+map_correction norm 294.64008 largest singular values [2.9464011e+02 2.8042793e-06 2.6368273e-06]
+
+```

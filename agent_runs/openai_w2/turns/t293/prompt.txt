@@ -1,0 +1,221 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 292 replies happened before. Forward passes used: 44 of 50; Python runs used: 237 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_36', 'fwd_37', 'fwd_38', 'fwd_39', 'fwd_4', 'fwd_40', 'fwd_41', 'fwd_42', 'fwd_43', 'fwd_44', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+idate_B219 = original + 1.20*delta_ins218 + 1.35*delta_ne218, only core.b_in.weight. Exact fallback_B219 is candidate_B212 (hash 973acf3505). Motivation: on untouched matched reached hours current shifts are -11.26594/+4.61005 versus record targets -14.87714/+7.43857; NE +5.55432/-2.54535 versus +8.69952/-4.34976. Targets assume the fitted latent persistence and identified drug slopes. This stronger trial is NOT accepted; require paired factual budget and rollout validation.
+
+## Run220: stronger-trial validation recovery
+No weight changes. Recovering architecture, exact difficult-cohort IDs, and cached evidence before paired factual testing. candidate_B219 remains provisional; fallback_B219 is preserved.
+
+## Forward29 / Run221: stronger trial fails difficult cohort
+Paired difficult-cohort factual summary: {'forward': 29, 'stays': 100, 'readings': 4664, 'min_id': 2020000199, 'max_id': 2020000298, 'delta': 0.008066402229845627, 'cluster_se': 0.0018793886854765963}. candidate_B219 is not accepted. Recovering complete tuning coverage and prior evidence before choosing gain reduction; weights unchanged and fallback_B219 remains exact.
+
+## Forwards29–32 / Run222: complete stronger-trial factual failure
+All 400 tuning stays: {'stays': 400, 'readings': 18977, 'original': 1.6108130631817463, 'edited': 1.6159265690045843, 'delta': 0.0051135058228381726, 'cluster_se': 0.0010240357303300742, 'upper_95_one_sided': 0.006798044599231144}. The 1.20 insulin / 1.35 NE trial is not accepted. Next measure its matched untouched-cohort dose responses to inform a reduced-NE candidate; no weight changes in this run.
+
+## Forward33 / Run223: reduced-NE controlled trial
+Strong trial dose shifts on matched untouched hours: -13.111/+5.246 glucose; +7.078/-3.230 MAP. Strong trial fails full tuning factual budget (+0.00511351). Installed candidate_B223 = original + 1.20*delta_ins218 + 1.05*delta_ne218, only core.b_in.weight. Retains main insulin gain while reducing MAP disturbance. NOT accepted until full factual and dose validation. fallback_B219 (candidate_B212) remains exact.
+
+## Forwards34–37 / Run224: complete reduced-NE factual validation
+Current edit unchanged: original + 1.20*delta_ins218 + 1.05*delta_ne218; only core.b_in.weight.
+{"stays": 400, "readings": 18977, "original": 1.6103412288559835, "edited": 1.6136449544185065, "delta": 0.0033037255625230537, "cluster_se": 0.0008822539730740794, "upper_95_one_sided": 0.004755033348229914}
+Need matched dose rollout validation; training-record effect targets remain estimates, not revealed simulator truth.
+
+## Forward38 / Run225: reduced-NE trial validated and frozen
+Validated fallback validated_B225: only core.b_in.weight; gains 1.20 insulin / 1.05 NE.
+Four matched rollout shifts: {"insulin_half": 5.338694567404427, "insulin_x2": -12.99491046277666, "ne_half": -2.784615853658537, "ne_x2": 5.7445625}
+Full tuning factual delta 0.00330373, clustered SE 0.000882254, one-sided 95% upper 0.00475503.
+Further changes require factual and rollout validation; no weights changed in this run.
+
+## Runs226–227: half-dose decoder blend diagnostics
+Run226 inventory error occurred before any edits. No weight changes in either run.
+Verified standardization and LayerNorm-to-weight mapping.
+ linear_half_fraction  old_factual_RMS  insulin_double  insulin_half  NE_double_cross  mapping_error
+                 0.00         0.083019        0.335548     -0.132855         0.097055   7.840183e-06
+                 0.25         0.084013        0.335548     -0.141585         0.097055   5.946201e-06
+                 0.50         0.085945        0.335548     -0.150314         0.097055   4.052219e-06
+                 0.75         0.088753        0.335548     -0.159044         0.097055   2.158237e-06
+                 1.00         0.092358        0.335548     -0.167774         0.097055   2.642548e-07
+Residual RMS is only a disturbance proxy; any trial needs direct paired factual NLL and dose rollouts.
+
+## Runs228–231: restart verification
+Architecture and causal-evidence notes recovered. Drug slopes and latent persistence remain record-based estimates with identification assumptions. No weight changes. Current validated_B225 reconstruction checks: {'current_vs_validated': np.float64(0.0), 'insulin_factor_error': np.float64(3.006803694916016e-10), 'NE_factor_error': np.float64(1.983117670079082e-09), 'mapped_base_error': np.float64(8.870681966755001e-14), 'validated_gain_error': np.float64(3.301189497761925e-06)}. Preparing a controlled half-dose decoder trial.
+
+## Run232: isolated half-dose blend trial installed
+Only core.b_in.weight edited. Candidate_B232 uses 50% linear-half decoder blend, retaining insulin gain 1.20 and NE gain 1.05. Mapping error 4.05e-06. Exact accepted fallback is validated_B225 / fallback_B232. Trial is provisional: require paired factual NLL and exact dose rollouts.
+
+## Run233: restarted half-dose-blend factual audit
+Only core.b_in.weight remains edited; no weights changed in this run.
+Forwards39–42 paired factual summary: {"forwards": [39, 40, 41, 42], "stays": 400, "readings": 18977, "original": 1.6103411972387627, "edited": 1.6138125889234336, "delta": 0.0034713916846709166, "cluster_se": 0.0009053962524777084, "upper_95_one_sided": 0.004960636332143885}
+Accepted fallback forwards34–37: {"forwards": [34, 35, 36, 37], "stays": 400, "readings": 18977, "original": 1.6103412288559835, "edited": 1.6136449544185065, "delta": 0.0033037255625230537, "cluster_se": 0.0008822539730740794, "upper_95_one_sided": 0.004754904539149845}
+Dose-blend trial remains provisional until exact rollout validation.
+
+## Run234: rollout-cohort and causal-evidence recovery
+No weight changes. Half-dose blend factual delta is 0.00347139, one-sided 95% upper 0.00496064; fallback delta is 0.00330373.
+Recovered 99 matched rollout stays from forward38 for direct response comparison.
+
+## Forward43 / Run235: half-dose-blend rollout comparison
+[{"edit":"insulin_half","fallback":5.3386945674,"blend":5.5372092555,"difference":0.1985146881,"paired_stay_se":0.1702139203,"equal_stay_blend":4.4292739589},{"edit":"insulin_x2","fallback":-12.9949104628,"blend":-13.1459040241,"difference":-0.1509935614,"paired_stay_se":0.2159453205,"equal_stay_blend":-11.2810891603},{"edit":"ne_half","fallback":-2.7846158537,"blend":-2.6234759146,"difference":0.161139939,"paired_stay_se":0.0619548504,"equal_stay_blend":-2.5625114838},{"edit":"ne_x2","fallback":5.7445625,"blend":5.7246381098,"difference":-0.0199243902,"paired_stay_se":0.0717695659,"equal_stay_blend":5.6401008934}]
+Current candidate_B232 remains provisional; no weights changed. Factual cost +0.00347139. Insulin benefit is modest; NE half worsens slightly.
+
+## Run236: gain-only versus half-blend diagnostics
+No weights changed. Half-blend insulin improvements have paired stay SEs larger than their means; NE-half worsening is clearer.
+[{"candidate":"base","insulin_gain":1.0,"NE_gain":1.0,"stays":200,"paired_delta_common_stays":0.0026316517},{"candidate":"strong","insulin_gain":1.2,"NE_gain":1.35,"stays":200,"paired_delta_common_stays":0.0049395251},{"candidate":"accepted","insulin_gain":1.2,"NE_gain":1.05,"stays":200,"paired_delta_common_stays":0.0032247282},{"candidate":"half_blend","insulin_gain":1.2,"NE_gain":1.05,"stays":200,"paired_delta_common_stays":0.0032167071}]
+Gain-only diagnostics are planning proxies; any new candidate requires full paired factual validation and the exact rollout.
+
+## Run237: final gain-only controlled trial installed
+Only core.b_in.weight edited: original + 1.40*delta_ins218 + 1.00*delta_ne218. Half-dose blend removed.
+Exact accepted fallback is fallback_B237 = validated_B225. candidate_B232 remains saved but is not the fallback.
+Three-point additive quadratic common-cohort factual proxy: 0.0033930105540897083; this is extrapolation, not acceptance evidence.
+Require all-400 paired factual validation and exact matched rollouts. Record-based drug slopes and persistence remain assumption-dependent estimates.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 44 of 50 done (factual); files in /work/fwd_44/. Summary:
+```
+{
+ "type": "factual",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "value_nll_per_value": 1.64706,
+   "n_values": 4664,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1439,
+     "nll": 1.4355,
+     "mean_abs_error": 10.505
+    },
+    "glucose_lab": {
+     "n": 529,
+     "nll": 1.2977,
+     "mean_abs_error": 8.635
+    },
+    "map_arterial": {
+     "n": 967,
+     "nll": 1.5392,
+     "mean_abs_error": 3.769
+    },
+    "map_cuff": {
+     "n": 1729,
+     "nll": 1.9903,
+     "mean_abs_error": 6.078
+    }
+   },
+   "file": "factual_original.csv"
+  },
+  "edited": {
+   "value_nll_per_value": 1.65375,
+   "n_values": 4664,
+   "by_event": {
+    "glucose_finger": {
+     "n": 1439,
+     "nll": 1.444,
+     "mean_abs_error": 10.613
+    },
+    "glucose_lab": {
+     "n": 529,
+     "nll": 1.3,
+     "mean_abs_error": 8.645
+    },
+    "map_arterial": {
+     "n": 967,
+     "nll": 1.544,
+     "mean_abs_error": 3.774
+    },
+    "map_cuff": {
+     "n": 1729,
+     "nll": 1.9979,
+     "mean_abs_error": 6.123
+    }
+   },
+   "file": "factual_edited.csv"
+  }
+ },
+ "seconds": 2.8
+}
+```
+Forward passes left: 6.
+Edits used in this pass: core.b_in.weight (edit hash cb38a9796d).

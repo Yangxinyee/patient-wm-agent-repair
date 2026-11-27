@@ -1,0 +1,384 @@
+OUTPUT of Python run 115 of at most 300:
+```
+=== ACTION SET ENCODING ===
+LOAD_GLOBAL NULL + np
+LOAD_ATTR asarray
+LOAD_FAST rates
+LOAD_GLOBAL np
+LOAD_ATTR float64
+KW_NAMES ('dtype',)
+CALL 
+STORE_FAST rates
+LOAD_GLOBAL NULL + np
+LOAD_ATTR asarray
+LOAD_FAST presence
+LOAD_GLOBAL bool
+KW_NAMES ('dtype',)
+CALL 
+STORE_FAST presence
+LOAD_GLOBAL NULL + torch
+LOAD_ATTR zeros
+LOAD_GLOBAL NULL + len
+LOAD_FAST rates
+CALL 
+LOAD_CONST 192
+BUILD_TUPLE 
+LOAD_GLOBAL torch
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+STORE_FAST aggregate
+LOAD_GLOBAL NULL + enumerate
+LOAD_CONST 'insulin'
+LOAD_CONST 'norepinephrine'
+BUILD_LIST 
+CALL 
+GET_ITER 
+FOR_ITER to 454
+UNPACK_SEQUENCE 
+STORE_FAST d
+STORE_FAST drug
+LOAD_GLOBAL NULL + np
+LOAD_ATTR flatnonzero
+LOAD_FAST presence
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_FAST d
+BUILD_TUPLE 
+BINARY_SUBSCR 
+CALL 
+STORE_FAST use
+LOAD_GLOBAL NULL + len
+LOAD_FAST use
+CALL 
+POP_JUMP_IF_TRUE to 344
+JUMP_BACKWARD to 252
+LOAD_GLOBAL NULL + action_atom_exact
+LOAD_FAST drug
+LOAD_FAST rates
+LOAD_FAST use
+LOAD_FAST d
+BUILD_TUPLE 
+BINARY_SUBSCR 
+CALL 
+STORE_FAST atoms
+LOAD_CONST 0
+LOAD_FAST atoms
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_GLOBAL tracked105
+BUILD_TUPLE 
+STORE_SUBSCR 
+LOAD_FAST aggregate
+LOAD_FAST use
+COPY 
+COPY 
+BINARY_SUBSCR 
+LOAD_GLOBAL NULL + mlp0
+LOAD_FAST atoms
+LOAD_CONST 'encode_action.mlp1'
+LOAD_CONST 'gelu'
+CALL 
+BINARY_OP +=
+SWAP 
+SWAP 
+STORE_SUBSCR 
+JUMP_BACKWARD to 252
+END_FOR 
+LOAD_FAST presence
+LOAD_ATTR NULL|self + sum
+LOAD_CONST 1
+KW_NAMES ('axis',)
+CALL 
+STORE_FAST counts
+LOAD_FAST aggregate
+LOAD_GLOBAL NULL + torch
+LOAD_ATTR tensor
+LOAD_GLOBAL NULL + np
+LOAD_ATTR sqrt
+LOAD_GLOBAL NULL + np
+LOAD_ATTR maximum
+LOAD_FAST counts
+LOAD_CONST 1
+CALL 
+CALL 
+LOAD_GLOBAL torch
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+BUILD_TUPLE 
+BINARY_SUBSCR 
+BINARY_OP /=
+STORE_FAST aggregate
+LOAD_GLOBAL NULL + torch
+LOAD_ATTR tensor
+LOAD_GLOBAL NULL + np
+LOAD_ATTR log1p
+LOAD_FAST counts
+CALL 
+LOAD_GLOBAL torch
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+BUILD_TUPLE 
+BINARY_SUBSCR 
+STORE_FAST size
+LOAD_FAST aggregate
+LOAD_GLOBAL NULL + lin0
+LOAD_FAST size
+LOAD_CONST 'encode_action.size'
+CALL 
+BINARY_OP +
+STORE_FAST mixed
+LOAD_GLOBAL NULL + F
+LOAD_ATTR gelu
+LOAD_GLOBAL NULL + lin0
+LOAD_FAST mixed
+LOAD_CONST 'encode_action.mlp2.0'
+CALL 
+CALL 
+STORE_FAST hidden
+LOAD_GLOBAL NULL + lin0
+LOAD_FAST hidden
+LOAD_CONST 'encode_action.mlp2.2'
+CALL 
+STORE_FAST raw
+LOAD_GLOBAL NULL + array103
+LOAD_FAST hidden
+CALL 
+LOAD_GLOBAL NULL + array103
+LOAD_FAST raw
+CALL 
+BUILD_TUPLE 
+RETURN_VALUE 
+
+=== ATTENTION IMPLEMENTATION ===
+LOAD_FAST memory
+POP_JUMP_IF_NOT_NONE to 10
+LOAD_FAST x
+JUMP_FORWARD to 12
+LOAD_FAST memory
+STORE_FAST source
+LOAD_GLOBAL NULL + wm_lin
+LOAD_FAST x
+LOAD_FAST prefix
+LOAD_CONST '.q'
+BINARY_OP +
+LOAD_FAST weights
+CALL 
+STORE_FAST q
+LOAD_FAST memory
+POP_JUMP_IF_NONE to 274
+LOAD_FAST prefix
+LOAD_ATTR NULL|self + rsplit
+LOAD_CONST '.'
+LOAD_CONST 1
+CALL 
+LOAD_CONST 0
+BINARY_SUBSCR 
+LOAD_CONST '.norm2'
+BINARY_OP +
+STORE_FAST norm_prefix
+LOAD_GLOBAL wm_memory_mode
+LOAD_CONST 'norm_then_age'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 142
+LOAD_GLOBAL NULL + wm_norm
+LOAD_FAST source
+LOAD_FAST norm_prefix
+LOAD_FAST weights
+CALL 
+STORE_FAST source
+LOAD_FAST agevec
+POP_JUMP_IF_NONE to 166
+LOAD_FAST age_mode
+LOAD_CONST 'input'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 166
+LOAD_FAST source
+LOAD_FAST agevec
+BINARY_OP +
+STORE_FAST source
+LOAD_GLOBAL wm_memory_mode
+LOAD_CONST 'age_then_norm'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 212
+LOAD_GLOBAL NULL + wm_norm
+LOAD_FAST source
+LOAD_FAST norm_prefix
+LOAD_FAST weights
+CALL 
+STORE_FAST source
+JUMP_FORWARD to 274
+LOAD_GLOBAL wm_memory_mode
+LOAD_CONST 'age_then_plainnorm'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 274
+LOAD_GLOBAL F
+LOAD_ATTR NULL|self + layer_norm
+LOAD_FAST source
+LOAD_CONST (192,)
+CALL 
+STORE_FAST source
+LOAD_FAST q
+LOAD_ATTR shape
+UNPACK_SEQUENCE 
+STORE_FAST batch
+STORE_FAST nt
+STORE_FAST _
+LOAD_FAST source
+LOAD_ATTR shape
+LOAD_CONST 1
+BINARY_SUBSCR 
+STORE_FAST ns
+LOAD_GLOBAL NULL + wm_lin
+LOAD_FAST source
+LOAD_FAST prefix
+LOAD_CONST '.kv'
+BINARY_OP +
+LOAD_FAST weights
+CALL 
+STORE_FAST kv
+LOAD_GLOBAL wm_kv_layout
+LOAD_CONST 'global'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 574
+LOAD_FAST kv
+LOAD_ATTR NULL|self + chunk
+LOAD_CONST 2
+LOAD_CONST -1
+CALL 
+UNPACK_SEQUENCE 
+STORE_FAST k
+STORE_FAST v
+LOAD_FAST k
+LOAD_ATTR NULL|self + reshape
+LOAD_FAST batch
+LOAD_FAST ns
+LOAD_CONST 4
+LOAD_CONST 48
+CALL 
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+STORE_FAST k
+LOAD_FAST v
+LOAD_ATTR NULL|self + reshape
+LOAD_FAST batch
+LOAD_FAST ns
+LOAD_CONST 4
+LOAD_CONST 48
+CALL 
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+STORE_FAST v
+JUMP_FORWARD to 752
+LOAD_FAST kv
+LOAD_ATTR NULL|self + reshape
+LOAD_FAST batch
+LOAD_FAST ns
+LOAD_CONST 4
+LOAD_CONST 2
+LOAD_CONST 48
+CALL 
+STORE_FAST kv
+LOAD_FAST kv
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST 0
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+LOAD_FAST kv
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST 1
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_ATTR NULL|self + transpose
+LOAD_CONST 1
+LOAD_CONST 2
+CALL 
+STORE_FAST v
+STORE_FAST k
+LOAD_FAST agevec
+POP_JUMP_IF_N
+
+=== ACTION-AUDIT OBJECTS ===
+j110 1
+drug110 'norepinephrine'
+cap110 3.0
+firstfits110 {'atom': {'fit': Ridge(alpha=1e-07), 'coef': array([[ 6.70853166e+02, -4.57428560e+03, -1.65655376e+02,
+         3.54793825e+02, -9.61728449e+02, -3.76145689e+01,
+        -2.68801488e+03,  8.56006771e+01, -7.67273295e+01,
+         5.74596768e+02,  8.15216834e+02, -3.39713428e+04,
+        -5.16964969e+02,  5.91336110e+02, -3.58224263e+03,
+         0.00000000e+00, -1.61317026e+03,  2.49126328e+03,
+         2.49136770e+03, -5.38775550e+03,  6.12399608e+02,
+         0.00000000e+00,  5.00640436e+03, -2.01580897e+03,
+         8.87549170e+02,  5.63161019e+03,  1.86121042e+03,
+         4.10238382e+03,  2.48997150e+02, -4.67963705e+03,
+        -1.60923533e+02,  2.12349453e+02, -2.64119312e+03,
+        -6.33440305e+03, -5.58969850e+03,  1.07415416e+04,
+        -1.48483130e+03,  2.49217009e+02, -1.52
+label110 'mlp1_hidden'
+alpha110 0.1
+fit110 Ridge coef shape (4, 768)
+metrics110 {'alpha': 0.1, 'rmse': [0.000471, 0.000189, 3.3e-05, 3.3e-05], 'max_abs': [0.01794, 0.00118, 0.00023, 0.00023]}
+score110 np.float64(9.482385016992848e-07)
+
+tracked / temporary: [61 21 15 66] [ 95 110 179  50]
+
+=== VOCAB NUMERIC NORMALISATION ===
+vocab keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+numeric [{'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 66.0, 70.0, 74.0, 78.0, 81.0, 84.0, 89.0, 92.0, 95.0, 98.0]}, {'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0, 'fine_bin_edges': [39.0, 46.0, 52.0, 60.0, 69.0, 74.0, 78.0, 81.0, 84.0, 87.0, 91.0, 95.0, 99.0, 102.0, 106.0]}, {'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0, 'fine_bin_edges': [78.0, 87.0, 96.0, 109.0, 128.0, 144.0, 155.0, 164.0, 173.0, 183.0, 196.0, 215.0, 231.0, 244.0, 261.0]}, {'code': 'glucose_lab', 'attribute': 'value', 'median': 141.0, 'iqr': 53.0, 'fine_bin_edges': [73.0, 81.0, 89.0, 98.0, 111.0, 121.0, 131.0, 141.0, 151.0, 163.0, 177.0, 199.0, 216.0, 231.0, 248.0]}, {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.256, 'iqr': 2.832, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.384, 0.768, 1.2, 1.6800000000000002, 2.256, 2.832, 3.456, 4.224, 4.8, 4.8, 4.8, 4.8]}, {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}, {'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.47, 'iqr': 0.5900000000000001, 'fine_bin_edges': [0.03, 0.04, 0.05, 0.08, 0.16, 0.25, 0.35, 0.47
+numeric_note 'z = (x - median) / iqr per code, clipped to [-10, 10]; fine bin b in 1..16 is 1 + the number of edges below x (0 = no value). value_bin, rate_bin and dose_bin use these bins.'
+
+=== ATOM REGRESSION TEST ===
+insulin input (5200, 192) target (5200, 4) target first [[0.         0.         1.         0.        ]
+ [0.00443247 0.         1.         0.        ]
+ [0.00886495 0.         1.         0.        ]]
+held-out RMSE [0.0004728 0.        0.        0.       ] max abs [0.01809 0.      0.      0.     ]
+norepinephrine input (5200, 192) target (5200, 4) target first [[0.         0.         0.         1.        ]
+ [0.         0.00115429 0.         1.        ]
+ [0.         0.00230858 0.         1.        ]]
+held-out RMSE [0. 0. 0. 0.] max abs [0. 0. 0. 0.]
+
+```

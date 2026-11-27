@@ -1,0 +1,213 @@
+OUTPUT of Python run 34 of at most 300:
+```
+=== RECORD SCHEMA ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== RELEVANT TENSORS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+
+=== VOCAB STRUCTURE ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config: {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes: [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': False}, {'id': 12, 'name': 'icu_admission', 'event_kind': 'visit_detail', 'unit': None, 'is_action': False}]
+
+=== DECODER FEATURE FUNCTION ===
+ 21           0 RESUME                   0
+
+ 22           2 LOAD_FAST                0 (spec)
+              4 UNPACK_SEQUENCE          6
+              8 STORE_FAST               1 (cfg)
+             10 STORE_FAST               2 (side)
+             12 STORE_FAST               3 (age_unit)
+             14 STORE_FAST               4 (zp)
+             16 STORE_FAST               5 (ap)
+             18 STORE_FAST               6 (flags)
+
+ 23          20 LOAD_FAST                1 (cfg)
+             22 UNPACK_SEQUENCE          7
+             26 STORE_FAST               7 (ga)
+             28 STORE_FAST               8 (unit)
+             30 STORE_FAST               9 (ps)
+             32 STORE_FAST              10 (vs)
+             34 STORE_FAST              11 (pa)
+             36 STORE_FAST              12 (ha)
+             38 STORE_FAST              13 (ti)
+
+ 24          40 LOAD_GLOBAL              0 (torch)
+             50 LOAD_ATTR                3 (NULL|self + log1p)
+             70 LOAD_GLOBAL              4 (r32_dt)
+             80 LOAD_FAST                8 (unit)
+             82 LOAD_CONST               1 ('hours')
+             84 COMPARE_OP              40 (==)
+             88 POP_JUMP_IF_FALSE        2 (to 94)
+             90 LOAD_CONST               2 (3600)
+             92 JUMP_FORWARD             1 (to 96)
+        >>   94 LOAD_CONST               3 (1)
+        >>   96 BINARY_OP               11 (/)
+            100 CALL                     1
+            108 STORE_FAST              14 (ld)
+
+ 25         110 LOAD_GLOBAL              7 (NULL + r30_mlp)
+            120 LOAD_GLOBAL              8 (r32_base)
+            130 LOAD_GLOBAL              7 (NULL + r30_mlp)
+
+ 26         140 LOAD_FAST               14 (ld)
+            142 LOAD_FAST                9 (ps)
+            144 BINARY_OP                5 (*)
+            148 LOAD_CONST               0 (None)
+            150 LOAD_CONST               0 (None)
+            152 BUILD_SLICE              2
+            154 LOAD_CONST               0 (None)
+            156 BUILD_TUPLE              2
+            158 BINARY_SUBSCR
+            162 LOAD_CONST               4 ('gap')
+            164 LOAD_FAST                7 (ga)
+
+ 25         166 CALL                     3
+            174 BINARY_OP                0 (+)
+
+ 26         178 LOAD_CONST               5 ('z_prior')
+            180 LOAD_FAST               11 (pa)
+
+ 25         182 CALL                     3
+            190 STORE_FAST              15 (raw)
+
+ 27         192 LOAD_GLOBAL              8 (r32_base)
+            202 LOAD_GLOBAL              7 (NULL + r30_mlp)
+            212 LOAD_FAST               14 (ld)
+            214 LOAD_FAST               10 (vs)
+            216 BINARY_OP                5 (*)
+            220 LOAD_CONST               0 (None)
+            222 LOAD_CONST               0 (None)
+            224 BUILD_SLICE              2
+            226 LOAD_CONST               0 (None)
+            228 BUILD_TUPLE              2
+            230 BINARY_SUBSCR
+            234 LOAD_CONST               4 ('gap')
+            236 LOAD_FAST                7 (ga)
+            238 CALL                     3
+            246 BINARY_OP                0 (+)
+            250 STORE_FAST              16 (viewbase)
+
+ 28         252 LOAD_GLOBAL              0 (torch)
+            262 LOAD_ATTR               11 (NULL|self + zeros)
+            282 LOAD_GLOBAL             13 (NULL + len)
+            292 LOAD_GLOBAL             14 (ds22)
+            302 CALL                     1
+            310 LOAD_CONST               6 (8)
+            312 CALL                     2
+            320 STORE_FAST              17 (nf)
+
+ 29         322 LOAD_GLOBAL              0 (torch)
+            332 LOAD_ATTR               17 (NULL|self + tensor)
+            352 LOAD_GLOBAL             18 (last_z22)
+            362 CALL                     1
+            370 LOAD_FAST               17 (nf)
+            372 LOAD_CONST               0 (None)
+            374 LOAD_CONST               0 (None)
+            376 BUILD_SLICE              2
+            378 LOAD_FAST                4 (zp)
+            380 BUILD_TUPLE              2
+            382 STORE_SUBSCR
+
+ 30         386 LOAD_GLOBAL              0 (torch)
+            396 LOAD_ATTR               17 (NULL|self + tensor)
+
+ 31         416 LOAD_GLOBAL             20 (np)
+            426 LOAD_ATTR                3 (NULL|self + log1p)
+            446 LOAD_GLOBAL             22 (age_hours22)
+            456 LOAD_FAST                3 (age_unit)
+            458 LOAD_CONST               7 ('seconds')
+            460 COMPARE_OP              40 (==)
+            464 POP_JUMP_IF_FALSE        2 (to 470)
+            466 LOAD_CONST               2 (3600)
+            468 JUMP_FORWARD             1 (to 472)
+        >>  470 LOAD_CONST               3 (1)
+        >>  472 BINARY_OP                5 (*)
+            476 CALL                     1
+            484 LOAD_CONST               8 (10)
+            486 BINARY_OP               11 (/)
+
+ 32         490 LOAD_GLOBAL              0 (torch)
+            500 LOAD_ATTR               24 (float32)
+
+ 30         520 KW_NAMES                 9 (('dtype',))
+            522 CALL                     2
+            530 LOAD_FAST               17 (nf)
+            532 LOAD_CONST               0 (None)
+            534 LOAD_CONST               0 (None)
+            536 BUILD_SLICE              2
+            538 LOAD_FAST                5 (ap)
+            540 BUILD_TUPLE              2
+            542 STORE_SUBSCR
+
+ 33         546 LOAD_FAST                6 (flags)
+            548 GET_ITER
+        >>  550 FOR_ITER                34 (to 622)
+            554 STORE_FAST              18 (flag)
+
+ 34         556 LOAD_GLOBAL              0 (torch)
+            566 LOAD_ATTR               17 (NULL|self + tensor)
+            586 LOAD_GLOBAL             26 (has22)
+            596 CALL                     1
+            604 LOAD_FAST               17 (nf)
+            606 LOAD_CONST               0 (None)
+            608 LOAD_CONST               0 (None)
+            610 BUILD_SLICE              2
+            612 LOAD_FAST               18 (flag)
+            614 BUILD_TUPLE              2
+            616 STORE_SUBSCR
+            620 JUMP_BACKWARD           36 (to 550)
+
+ 33     >>  622 END_FOR
+
+ 35         624 LOAD_GLOBAL             28 (r31_bins)
+            634 LOAD_FAST                2 (side)
+            636 BINARY_SUBSCR
+            640 STORE_FAST              19 (lb)
+
+ 36         642 LOAD_GLOBAL             31 (NULL + r30_w)
+            652 LOAD_CONST              10 ('embed.code.weight')
+            654 CALL                     1
+            662 LOAD_GLOBAL          
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,111 @@
+OUTPUT of Python run 239 of at most 300:
+```
+RECENT FUNCTIONS:
+brief218 (obj, depth=0)
+  names: ('isinstance', 'dict', 'items', 'str', 'brief218', 'np', 'ndarray', 'shape', 'float', 'linalg', 'norm', 'min', 'max', 'list', 'tuple', 'repr')
+centre234 (y)
+  names: ('mean',)
+describe210 (obj, depth=0)
+  names: ('isinstance', 'np', 'ndarray', 'shape', 'str', 'dtype', 'torch', 'is_tensor', 'tuple', 'dict', 'list', 'items', 'describe210', 'type', '__name__')
+f218 (arch, eta, ridge)
+  names: ('headbase214', 'copy', 'fitmask179', 'reshape', 'Lorig179', 'offset204', 'np', 'maximum', 'sqrt', 'mean', 'T', 'len', 'zeros', 'paired214', 'items', 'linalg', 'solve', 'eye', 'nll179', 'probs214', 'C179', 'sum', 'valmask179', 'dict', 'float')
+f221 (x, prefix)
+  names: ('w63', 'T', 'SHAPES')
+fit_arch215 (arch, eta, ridge)
+  names: ('headbase214', 'copy', 'fitmask179', 'reshape', 'Lorig179', 'offset204', 'np', 'maximum', 'sqrt', 'mean', 'T', 'len', 'zeros', 'paired214', 'items', 'linalg', 'solve', 'eye', 'nll179', 'probs214', 'C179', 'sum', 'valmask179', 'dict', 'float')
+gelu214 (x)
+  names: ('ndtr',)
+make_arch215 (style, lam=0.1)
+  names: ('pruneorder214', 'copy', 'directions207', 'family204', 'gatecanon200', 'np', 'mean', 'Xraw204', 'paired214', 'items', 'append', 'max', 'stack', 'Hf214', 'gelu214', 'T', 'concatenate', 'ones', 'shape', 'dict')
+nll228 (logits, bins)
+  names: ('logsumexp', 'np', 'log', 'shape', 'arange', 'len')
+np212 (x)
+  names: ('torch', 'is_tensor', 'detach', 'cpu', 'numpy', 'np', 'asarray')
+np225 (x)
+  names: ('torch', 'is_tensor', 'detach', 'cpu', 'numpy', 'np', 'asarray')
+probs214 (l)
+  names: ('np', 'exp', 'logsumexp')
+probs228 (logits)
+  names: ('np', 'exp', 'logsumexp')
+score234 (arch, T, Ftune)
+  names: ('nll179', 'offset204', 'base_nll_train234', 'nll228', 'offset234', 'B225', 'base_nll_tune234', 'paired214', 'softmax', 'C179', 'sum', 'mean', 'valmask179', 'append', 'float', 'max', 'fitmask179')
+
+ARCHITECTURE CANDIDATE:
+style 'pair4'
+lam 0.1
+units (4,)
+rows (4, 193)
+F (8, 4828, 193)
+cf {('insulin', 0.0): (array([[[-1.62018007e-01, -4.99568390e-05, -2.35468525e-04, ...,
+         -1.90178017e-02, -2.09966512e-02,  1.00000000e+00],
+        [-1.61177923e-01, -8.78012889e-09, -2.32416088e-04, ...,
+          1.04188173e+00, -2.88715004e-03,  1.00000000e+00],
+        [ 2.66400903e+00, -1.74523377e-08, -1.66294584e-01, ...,
+         -2.34061647e-02, -1.61921584e-01,  1.00000000e+00],
+        ...,
+        [-3.45728996e-02, -4.61585225e-03, -3.15164480e-07, ...,
+         -1.69158629e-01
+chosen235: {'train_delta': 0.001687523110962529, 'val_delta': 0.0037185383503730513, 'tune_delta': 0.0025571165429547713, 'slopes': [-1.5882333346430055, -1.3778477358669075, 1.970496598363532, 1.7545535450012104]}
+
+RECENT DATA OBJECT NAMES:
+['Fquiet234', 'T235', 'W1235', 'a231', 'arch235', 'audit_ids236', 'b1235', 'b231', 'backup235', 'base_nll_train234', 'base_nll_tune234', 'centre234', 'chosen235', 'delta235', 'end230', 'expanded234', 'funcs230', 'key235', 'nll235', 'objs230', 'offset234', 'p233', 'rows235', 's231', 'score234', 'start230', 'stats234', 't234', 'text230', 'units235']
+
+EARLY RECORD-EFFECT EVIDENCE:
+# Weight repair notebook
+
+## Objective and constraints
+Infer drug effects only from simulated ICU records; edit weights analytically without gradients or a weight optimizer. Preserve factual value NLL within +0.005 nats and examine all-output loss where available.
+
+## Initial plan
+Read architecture and data schema; identify sources of dose variation and confounding; estimate and falsify causal responses separately for both drugs; inspect model dose-sensitive states; construct a narrowly targeted, dose-generalizing edit; validate factual predictions and paired rollouts.
+
+No drug effect has yet been assumed or estimated.
+
+## Run 1
+Read full architecture and schema. Action embeddings feed a shared recurrent state; last-value registers also feed value heads. No effect estimates or edits yet. Initial printed output was truncated; run 2 targets missing details.
+
+## Run 2
+Training has 30,000 stays and 1,997,441 events. Measurements at integer hours; actions at hour+0.0833, lasting one hour. Insulin rates are quantized in 0.5 steps; norepinephrine rates in 0.01 steps and capped at 1. No duplicate code/stay/hour rows. Constructed hourly panel and began raw/history/within-stay comparisons.
+
+## Baseline rollout
+First100 tuning original shifts: I x2 -3.680, I half +2.018, NE x2 +0.465, NE half -0.871. Rich regression results retained in rich_fits; they are diagnostic, not yet accepted causal estimates.
+
+## Strengthened record evidence (run 4)
+Nonlinear history controls restricted to active infusions give insulin next-hour coefficients around -2.0 (finger and lab agree); NE around +3.1 on arterial and +3.6 on cuff when both current sensors observed. Earlier near-zero estimates were misspecified, not evidence of absent effects. Original factual tuning first100 NLL = 1.63164, n=4751. Run 5 fits a separate two-sensor random-baseline state-space model to estimate persistence; this does not modify world-model weights.
+glucose SSM parameters [144.1680625841136, 0.9263030096279322, 0.3154693959901756, 3.5763416283774636, 3.2934889974132835, 1.678039410652465, 2.1832857530220755, 1.1568945707731426, 0.037711265958233535], success True.
+MAP SSM parameters [75.25256805642357, 0.8879818156248919, -0.3778968848036003, 2.512353157927126, 2.005848208979782, 0.6511878302787533, 1.167060058781382, 1.7996778798728403, 3.091933533327739], success True.
+Provisional linear rollout targets: {"insulin_x2": 2.3193790074377105, "insulin_half": -1.1596895037188553, "ne_x2": -0.9474186067740055, "ne_half": 0.47370930338700273}
+
+## Restart / run 6
+SSM and rich-history coefficients disagree in sign. Treat SSM rollout targets as unvalidated, not causal truth. Recovering architecture, timing, and persistent analyses before choosing an edit.
+
+## Run 7
+Built independently aligned P (readings at integer hour) and A (drug records floored to their start hour). Inspecting treatment support and previous fit implementation; no causal target or edit accepted yet.
+
+## Run 8
+Insulin has sharp recorded-glucose dosing thresholds. Computing local-linear discontinuity ratios at 150.5,179.5,219.5,259.5, two bandwidths, both next-hour sensors, and pre-dose lab/observation-placebo checks. Also testing which MAP sensor drives NE selection. Results remain subject to placebo and precision checks.
+
+## Run 9
+Threshold evidence: insulin at 179.5 gives beta -2.04 (cluster SE .26, width12); at219.5 -2.28 (.48). Pre-dose lab jumps near zero; first150.5 threshold changes monitoring, so do not use that finger estimate alone. Implemented independent SSM with explicit observations -1..24 and action a[h] only in transition h->h+1, to test whether the old opposite-sign estimates arose from time alignment. No edits.
+
+## Run 10
+Explicitly aligned random-baseline SSM still conflicts with threshold evidence (glucose rho at .9999, beta -.033; MAP beta -.377). Therefore timing alone does not explain it. Fitting a separate profiled fixed-effect SSM with unrestricted stay-specific intercept and initial state; random-effect independence from adaptively selected treatments is suspect. This is a small record model, not world-model training.
+
+## Run 11
+Profiled fixed-effect SSM also gives incompatible effects (I -.419,rho .772; NE .435,rho .602), so neither simple SSM is accepted as a causal model. Insulin dose/base SD .343 overall and .330 within stay provides substantial within-stay variation. Built pre-action history features only and ran two-fold stay-separated flexible residualization (small statistical regressions, not world-model training), comparing all/active/both-current subsets and both sensors.
+
+## Run 12 / second restart
+Recovered architecture and persistent-variable inventory after original state export. No edits; insulin threshold evidence remains provisional, and neither conflicting SSM is accepted as causal truth. Next: inspect flexible residualization results and state/head pathways.
+
+## Run 14
+Recomputed cross-fitted two-treatment residual regressions with stay-clustered uncertainty and observation/active-treatment subsets; retained results in effects14. Inspecting NE policy support before accepting its effect.
+
+## Run 15 / alignment audit
+Run 14 subset masks mistakenly used columns 1:25 although P/A hour labels are 0:25. All-row residual coefficients were unaffected. Audited cross-fitted target reconstruction against offsets and recomputed masks with current hours 0:24; results retained in audit15 and effects15. No edits.
+
+## Run 16
+Alignment audit reconstructed d
+
+NOTES LENGTH: 54460
+
+```

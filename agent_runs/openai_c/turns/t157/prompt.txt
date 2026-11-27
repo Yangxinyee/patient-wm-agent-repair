@@ -1,0 +1,229 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes). The weight values themselves are not available to you.
+   - You edit the model with operations. They are applied in order to the original weights whenever the forward tool runs
+     the edited model, and at the evaluation:
+     scale(name, c): multiply a whole tensor by the number c;
+     rank1(name, vector, alpha, side="out"): a rank-1 update along the unit direction v of the vector. With side "out" (v
+     has shape[0] entries), W <- W + alpha * v (v^T W): the tensor's output component along v is scaled by 1 + alpha.
+     With side "in" (2-D tensors, v has shape[1] entries), W <- W + alpha * (W v) v^T. For a 1-D tensor,
+     w <- w + alpha * v (v . w);
+     ops() lists the operations, undo() removes the last one, and clear_ops() removes them all.
+     Directions can come from anything you compute: the records, or the states the forward tool returns.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 156 replies happened before. Forward passes used: 42 of 50; Python runs used: 110 of 300. Your kernel is still running with its variables. Operations so far: ['1. rank1 embed.numeric.weight', '2. scale core.b_in.weight']. Files in /work: ['fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_36', 'fwd_37', 'fwd_38', 'fwd_39', 'fwd_4', 'fwd_40', 'fwd_41', 'fwd_42', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md', 'ops.json', 'query_only_baseline_109.json', 'query_only_candidate_109.json', 'query_only_design_109.npz', 'recurrent_135_110.json', 'uniform_prelude_ops.json', 'vectors'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+.102, 'beta_at_record_rho': -0.3152, 'rmse_at_record_rho': 1.109}, 'insulin_half': {'n': 554, 'beta': -0.2581, 'rho': 0.9669, 'rmse': 1.174, 'beta_at_record_rho': -0.3953, 'rmse_at_record_rho': 1.187}, 'ne_x2+ne_half': {'n': 562, 'beta': -0.0747, 'rho': 0.6464, 'rmse': 1.335, 'beta_at_record_rho': -0.0704, 'rmse_at_record_rho': 1.335}, 'ne_x2': {'n': 281, 'beta': -0.2432, 'rho': 0.8148, 'rmse': 1.076, 'beta_at_record_rho': -0.3492, 'rmse_at_record_rho': 1.078}, 'ne_half': {'n': 281, 'beta': 0.5904, 'rho': 0.8838, 'rmse': 1.08, 'beta_at_record_rho': 1.0448, 'rmse_at_record_rho': 1.095}}, 'numeric_gain4': {'insulin_x2+insulin_half': {'n': 1108, 'beta': -0.3147, 'rho': 0.9185, 'rmse': 2.044, 'beta_at_record_rho': -0.4047, 'rmse_at_record_rho': 2.052}, 'insulin_x2': {'n': 554, 'beta': -0.2588, 'rho': 0.9165, 'rmse': 2.211, 'beta_at_record_rho': -0.3305, 'rmse_at_record_rho': 2.219}, 'insulin_half': {'n': 554, 'beta': -0.5377, 'rho': 0.9226, 'rmse': 1.469, 'beta_at_record_rho': -0.7016, 'rmse_at_record_rho': 1.483}, 'ne_x2+ne_half': {'n': 562, 'beta': 0.0264, 'rho': 1.04, 'rmse': 0.396, 'beta_at_record_rho': 0.0799, 'rmse_at_record_rho': 0.399}, 'ne_x2': {'n': 281, 'beta': 0.0304, 'rho': 0.9748, 'rmse': 0.387, 'beta_at_record_rho': 0.0725, 'rmse_at_record_rho': 0.39}, 'ne_half': {'n': 281, 'beta': 0.0396, 'rho': 1.04, 'rmse': 0.402, 'beta_at_record_rho': 0.1095, 'rmse_at_record_rho': 0.407}}}
+- These are descriptive fits to model rollouts, not new causal estimates.
+- Numeric gain 4 remains installed. Forward passes used: 34; 16 remain.
+
+## Python run 93: uniform-prelude attention diagnostic
+- Rollout impulse-response fits indicate weak immediate drug response, not inadequate persistence.
+- Numeric gain 4 retained; set core.prelude.0.attn.q.weight to zero, making prelude attention uniform.
+- Diagnostic only: factual safety is unknown. Testing whether learned attention excludes action information.
+- A materially stronger negative insulin and positive NE response would justify a partial, factual-tested edit.
+- Forward passes used: 34; 16 remain.
+
+## Python run 94 / forward 35: attention diagnostic
+- Uniform prelude attention weakened insulin responses to -0.188/+0.409; NE +0.060/-0.063.
+- Rejected and removed uniform-attention edit.
+- Installed numeric gain 4 plus prelude query weight x2 as a sharper-attention diagnostic.
+- Factual safety and rollout benefit unknown. Forward passes used: 35; 15 remain.
+
+## Python run 95: restart recovery
+- Numeric gain 4 plus prelude query x2 remains installed and unvalidated.
+- Recovering architecture, record-based effects, saved directions and probe IDs.
+- Forward passes used: 35; 15 remain. No edits changed.
+
+## Python runs 96–97 / forward 36: query sharpening rejected
+- Recovered record-based probe targets: insulin -12.04/+6.02; NE +4.73/-2.37.
+- Prelude query x2: insulin -2.633/+1.688; NE +0.134/-0.012.
+- Improvement is marginal, with factual safety untested. Removed query scaling.
+- Numeric gain 4 alone restored. Reviewing distinct recurrent action pathways.
+- Forward passes used: 36; 14 remain.
+
+## Python run 98: recurrent input-gain diagnostic
+- Numeric gain 4 retained; core.b_in.weight scaled by 2.
+- Tests whether stronger direct recurrent drive bypasses the weak action response.
+- Broad diagnostic: factual safety and rollout utility are unknown.
+- Forward passes used: 36; 14 remain.
+
+## Python run 99 / forwards 37–38: recurrent gain rejected; bin pilot
+- Recurrent input x2: insulin -3.768/+2.902; NE +0.259/-0.131.
+- Factual NLL increase +0.02422: unacceptable. Removed recurrent scaling.
+- Numeric gain 4 retained; dose/rate nonzero-bin contrasts amplified x3.
+- Preserves absent bins and common nonzero-bin embeddings; measurement bins unchanged.
+- Factual safety and rollout behavior unknown. Forward passes used: 38; 12 remain.
+
+## Python run 100: restart recovery
+- Nonzero dose/rate-bin contrast gain 3 remains installed with numeric gain 4.
+- Recovering architecture, probe IDs, and prior evidence; no edits changed.
+- Candidate factual safety and rollout benefit remain untested.
+- Forward passes used: 38; 12 remain.
+
+## Python run 101 / forward 39: bin amplification rejected
+- Bin-contrast gain 3: insulin -2.128/+0.339; NE +0.059/-0.357.
+- No useful improvement; removed all 30 bin operations.
+- Numeric gain 4 alone restored.
+- Reviewing saved state directions for selective recurrent amplification.
+- Forward passes used: 39; 11 remain.
+
+## Python run 102: selective recurrent design audit
+- Numeric gain 4 unchanged.
+- Reviewing treatment-direction provenance and recurrent tensor geometry.
+- No new candidate installed; forward passes used: 39.
+
+## Python run 103: selective recurrent-output pilot
+- Numeric gain 4 retained.
+- core.b_in output gain 4 on two orthonormal dose-innovation directions.
+- Directions use mean-slot gain-4 treatment coefficients, projected off the mean state.
+- Saved-state coordinates are a proxy for recurrent-drive coordinates; transfer is unproven.
+- Factual safety and rollout benefit are untested. Forward passes used: 39.
+
+## Python run 104 / forward 40: selective recurrent pilot rejected
+- Recurrent two-direction gain 4: insulin -2.409/+1.568; NE +0.171/-0.708.
+- No material main-readout improvement; removed both recurrent operations.
+- Numeric gain 4 restored; auditing head/register separation before another candidate.
+- Forward passes used: 40; 10 remain.
+
+## Python run 105: register-compensated head design
+- Numeric gain 4 unchanged; no new operations installed.
+- Proposed inverse basis change of atom embeddings and last-reading registers,
+  with compensating first-layer encoder transforms, to isolate a query-only head shear.
+- Auditing tensor coverage and transform algebra before installation.
+- Forward passes used: 40; 10 remain.
+
+## Python run 106: query-only transform recovery
+- Numeric gain 4 remains installed; no operations changed.
+- Recovering architecture and earlier head-transform evidence before installation.
+- Need exact compensation of every non-query embedding/register consumer.
+- Forward passes used: 40; 10 remain.
+
+## Python run 107: compensation feasibility
+- Architecture has a linear first layer before encoder nonlinearities.
+- A coordinated embedding/register basis change can isolate query modulation at the value head.
+- Recovering exact direction calibration and transform helpers; no edits changed.
+- Forward passes used: 40; 10 remain.
+
+## Python run 108: query-only calibration audit
+- Earlier uncompensated head shear had negligible rollout benefit.
+- Checking gain-4 sensors, shear orientation, and every input/register tensor.
+- No edits changed; numeric gain 4 remains installed. Forward passes: 40.
+
+## Python run 109: compensated query-only pilot installed
+- Numeric gain 4 retained; query shear strengths insulin=0.5, NE=0.5.
+- Uses R72 calibrated sensors, not W72. R72.T @ D72.T is identity.
+- Atom embeddings and reading registers transformed by H=I-S;
+  first encoder layers and value-head first layer compensated by G=I+S.
+- Algebra: encoders unchanged; value head sees G*q + original registers.
+- Independent rank-one factorization verified against saved operation vectors.
+- Tied code logits and unrelated attribute heads are not preserved;
+  factual value NLL and recorded-schedule rollouts are the required tests.
+- Candidate is unvalidated. Forward passes used: 40; 10 remain.
+
+## Python run 110 / forwards 41-42: query pilot rejected
+- Compensated query strengths 0.5/0.5: factual NLL 1.70475 vs 1.63461,
+  increase +0.07014, dominated by MAP degradation.
+- Rollouts: insulin -2.427/+1.551; NE +0.112/+0.119.
+- No useful causal improvement; removed all 176 query/basis operations.
+- Restored numeric gain 4 and installed core.b_in.weight gain 1.35.
+- Earlier recurrent gain 2 gave insulin -3.768/+2.902, NE +0.259/-0.131,
+  but factual +0.02422. Testing a smaller gain rather than treating that as safe.
+- Current two-operation candidate is unvalidated. Forward passes: 42; 8 remain.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 110 of at most 300:
+```
+Current operations: [{'op': 'rank1', 'name': 'embed.numeric.weight', 'vector': 'vectors/v001.npy', 'alpha': 3.0, 'side': 'in'}, {'op': 'scale', 'name': 'core.b_in.weight', 'c': 1.35}]
+Saved recurrent candidate: 2 operations
+
+=== EARLIER RECURRENT DIAGNOSTIC FILES ===
+Forward 9 ['factual_edited.csv', 'factual_original.csv']
+factual_edited.csv rows 4751 columns ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+nll 1.6358356556514417
+factual_original.csv rows 4751 columns ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+nll 1.6346150284150707
+Forward 10 ['dose_edit_edited.csv', 'dose_edit_original.csv']
+Forward 37 ['dose_edit_edited.csv', 'dose_edit_original.csv']
+Forward 38 ['factual_edited.csv', 'factual_original.csv']
+factual_edited.csv rows 4751 columns ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+nll 1.6588344769522205
+factual_original.csv rows 4751 columns ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+nll 1.6346149442222688
+
+```

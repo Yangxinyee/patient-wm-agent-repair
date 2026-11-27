@@ -1,0 +1,84 @@
+OUTPUT of Python run 47 of at most 300:
+```
+=== EARLY IDENTIFICATION NOTES ===
+# Weight repair notebook
+
+## Objective and constraints
+Infer drug effects only from simulated ICU records; edit weights analytically without gradients or a weight optimizer. Preserve factual value NLL within +0.005 nats and examine all-output loss where available.
+
+## Initial plan
+Read architecture and data schema; identify sources of dose variation and confounding; estimate and falsify causal responses separately for both drugs; inspect model dose-sensitive states; construct a narrowly targeted, dose-generalizing edit; validate factual predictions and paired rollouts.
+
+No drug effect has yet been assumed or estimated.
+
+## Run 1
+Read full architecture and schema. Action embeddings feed a shared recurrent state; last-value registers also feed value heads. No effect estimates or edits yet. Initial printed output was truncated; run 2 targets missing details.
+
+## Run 2
+Training has 30,000 stays and 1,997,441 events. Measurements at integer hours; actions at hour+0.0833, lasting one hour. Insulin rates are quantized in 0.5 steps; norepinephrine rates in 0.01 steps and capped at 1. No duplicate code/stay/hour rows. Constructed hourly panel and began raw/history/within-stay comparisons.
+
+## Baseline rollout
+First100 tuning original shifts: I x2 -3.680, I half +2.018, NE x2 +0.465, NE half -0.871. Rich regression results retained in rich_fits; they are diagnostic, not yet accepted causal estimates.
+
+## Strengthened record evidence (run 4)
+Nonlinear history controls restricted to active infusions give insulin next-hour coefficients around -2.0 (finger and lab agree); NE around +3.1 on arterial and +3.6 on cuff when both current sensors observed. Earlier near-zero estimates were misspecified, not evidence of absent effects. Original factual tuning first100 NLL = 1.63164, n=4751. Run 5 fits a separate two-sensor random-baseline state-space model to estimate persistence; this does not modify world-model weights.
+glucose SSM parameters [144.1680625841136, 0.9263030096279322, 0.3154693959901756, 3.5763416283774636, 3.2934889974132835, 1.678039410652465, 2.1832857530220755, 1.1568945707731426, 0.037711265958233535], success True.
+MAP SSM parameters [75.25256805642357, 0.8879818156248919, -0.3778968848036003, 2.512353157927126, 2.005848208979782, 0.6511878302787533, 1.167060058781382, 1.7996778798728403, 3.091933533327739], success True.
+Provisional linear rollout targets: {"insulin_x2": 2.3193790074377105, "insulin_half": -1.1596895037188553, "ne_x2": -0.9474186067740055, "ne_half": 0.47370930338700273}
+
+## Restart / run 6
+SSM and rich-history coefficients disagree in sign. Treat SSM rollout targets as unvalidated, not causal truth. Recovering architecture, timing, and persistent analyses before choosing an edit.
+
+## Run 7
+Built independently aligned P (readings at integer hour) and A (drug records floored to their start hour). Inspecting treatment support and previous fit implementation; no causal target or edit accepted yet.
+
+## Run 8
+Insulin has sharp recorded-glucose dosing thresholds. Computing local-linear discontinuity ratios at 150.5,179.5,219.5,259.5, two bandwidths, both next-hour sensors, and pre-dose lab/observation-placebo checks. Also testing which MAP sensor drives NE selection. Results remain subject to placebo and precision checks.
+
+## Run 9
+Threshold evidence: insulin at 179.5 gives beta -2.04 (cluster SE .26, width12); at219.5 -2.28 (.48). Pre-dose lab jumps near zero; first150.5 threshold changes monitoring, so do not use that finger estimate alone. Implemented independent SSM with explicit observations -1..24 and action a[h] only in transition h->h+1, to test whether the old opposite-sign estimates arose from time alignment. No edits.
+
+## Run 10
+Explicitly aligned random-baseline SSM still conflicts with threshold evidence (glucose rho at .9999, beta -.033; MAP beta -.377). Therefore timing alone does not explain it. Fitting a separate profiled fixed-effect SSM with unrestricted stay-specific intercept and initial state; random-effect independence from adaptively selected treatments is suspect. This is a small record model, not world-model training.
+
+## Run 11
+Profiled fixed-effect SSM also gives incompatible effects (I -.419,rho .772; NE .435,rho .602), so neither simple SSM is accepted as a causal model. Insulin dose/base SD .343 overall and .330 within stay provides substantial within-stay variation. Built pre
+
+=== VALIDATED FUNCTION DEPENDENCIES ===
+contexts37 (states, indices)
+globals: ('np', 'asarray', 'all', 'torch', 'tensor', 'float32', 'reshape', 'exp', 'wc37', 'norm37', 'mean', 'mlp37', 'log1p')
+locals: ('states', 'indices', 'prev', 'dt', 'x', 'h', 'flowed')
+constants: (None, 1, 'stay_id', 'hour', 3600, ('dtype',), 'x', 192, 960, -1, 4, 'core.flow.a', 'core.out_norm', 10, 'gap')
+start_u43 (layout, unitmap, kq=None, act1='gelu', act2='gelu')
+globals: ('atommeta42', 'np', 'zeros', 'float32', 'num42', 'clip', 'searchsorted', 'enumerate', 'wt42', 'code42', 'defaults42', 'sum', 'torch', 'F', 'linear', 'tensor', 'append', 'net42', 'stack', 'len', 'idx42', 'index_add_', 'counts42', 'sqrt', 'affine42', 'log1p', 'ln42')
+locals: ('layout', 'unitmap', 'kq', 'act1', 'act2', 'style', 'order', 'embrows', 'owners', 'owner', 'drug', 'rate', 'dose', 'v', 'zs', 'fs', 'attribute', 'x', 'spec', 'j', 'unit', 'rateunit', 'emb', 'transformed', 'pooled')
+constants: (None, 6, ('value', 'dose', 'rate'), 'value', (0.0, 0.0, 0), 'dose', 'median', 'iqr', -10, 10, 1.0, 1, 'fine_bin_edges', 'left', ('side',), 'interleaved_zfirst', 2, 'interleaved_flagfirst', 'grouped_zfirst', 3, 'embed.code.weight', 'embed.kind.weight', 0, 'embed.ekind.weight', 'embed.categorical.unit.weight', 'embed.categorical.rate_unit.weight', <code object <genexpr> at 0x720ce8935df0, file "<run>", line 44>, 192, 'embed.numeric.weight', 'embed.numeric.bias', 'embed.kq.weight', 'encode_action.mlp1', 'encode_action.size', 'encode_action.mlp2', 'encode_action.norm')
+affine42 (x, prefix)
+globals: ('F', 'linear', 'wt42')
+locals: ('x', 'prefix')
+constants: (None, '.weight', '.bias')
+net42 (x, prefix, activation='gelu')
+globals: ('affine42', 'F', 'gelu', 'silu', 'relu')
+locals: ('x', 'prefix', 'activation', 'y')
+constants: (None, '.0', ('gelu', 'silu', 'relu'), '.2')
+ln42 (x, prefix)
+globals: ('F', 'layer_norm', 'wt42')
+locals: ('x', 'prefix')
+constants: (None, (192,), '.weight', '.bias', 1e-05)
+
+=== RECENT RETAINED NAMES ===
+wc37, linear37, activation37, mlp37, norm37, state_train37, numeric37, code_ids37, contexts37, raw_lookup37, action_candidates37, eligible, inputs38, raw_lookup38, keys, ctx, ns, records, atoms, side, unit, rate_unit, action, route, status, nums, attr, zcol, flagcol, spec, values, atom, bins, field, ix, ctx_batch, e_batch, ranked, act, mid, sized, u, post_input, post_act, mean, errors, shape, filename, arrays, fn, s40, raw_candidates40, raw40, ids40, records40, bundle40, candidates, id41, r41, b41, r41all, world41, ends41, endcounts41, compact41, W42, wt42, affine42, net42, ln42, ids42, dr42, end42, starts42, ends42, eligible42, i, g, idx42, ctx42, targetz42, num42, code42, catnames42, defaults42, pairs42, counts42, atommeta42, row, pooled_start42, results42, activation, pi, pooled, context_part, hidden, za, post, rms, layouts43, order, start_u43, empty43, emap43, umaps43, base43, results43, layout, m, umap, kq, ename, evec, error, prev44, dt44, xp44, hf44, cb44, contexts44, ga, logkind, ginput, eoptions44, ea, es, results44, layout44, umap44, afs44, up, ck, cx, base, ek, ev, af, best44, edges45, results45, details45, ctxpart45, binmode, extra, hb, cfg, best45, err45, ee, g46
+
+=== RELEVANT ARRAYS AND CONFIGURATIONS ===
+kernels18 [-2.0, -2.833701932078345, -2.2939384626089256, -1.5662332544028423, -1.9974355933520223]
+kernels19 {'glucose_finger': [-1.95, -2.309560823294822, -2.005241875550968, -1.603850386577875, -1.0841092995363333, -0.7821710394651412, -0.5042097400050339, -0.3755434211764299], 'glucose_lab': [-1.95, -2.2385165930306914, -2.0225015960408346, -1.4554437429171376, -1.1695181660533853, -0.8137586123330646, -0.5099624860342239, -0.2911248267002852], 'map_arterial': [3.1, 2.4754436954395387, 1.6581693284572787, 0.9433639872491649, 0.35728376967602093, 0.2745472164579554, 0.01817551193633286, 0.1668406960610107], 'map_cuff': [3.1, 1.9664501612741299, 1.3711487169076348, 0.5140990885791327, 0.6131312288760626, -0.17057540601591642, -0.06638572299454995, 0.07700460977812486]}
+kernel_se19 {'glucose_finger': [nan, 0.052100810661096904, nan, 0.06303908876574935, 0.06955648002736058, 0.07518004365412334, 0.08126528697614618, 0.08816539122023806], 'glucose_lab': [nan, 0.09114955265061758, nan, 0.11460606466173195, 0.13429322244265682, 0.14746948066270718, 0.1580415227278025, 0.17861583169021844], 'map_arterial': [nan, 0.10484798879112031, nan, 0.12572317968028965, 0.13756874724515106, 0.1472821106716003, 0.15898095863446499, 0.1738688074750682], 'map_cuff': [nan, 0.18553661205969535, nan, 0.2108525380715946, 0.22286784072488997, 0.23765538476929365, 0.2516336931447468, 0.2704386881136374]}
+kernels22 {'insulin': array([-1.95   , -2.30956, -2.00524, -1.60385, -1.08411, -0.78217,
+       -0.50421, -0.37554, -0.24   , -0.15   , -0.1    , -0.06   ]), 'norepinephrine': array([3.1    , 2.47544, 1.65817, 0.94336, 0.35728, 0.27455, 0.01818,
+       0.16684, 0.     , 0.     , 0.     , 0.     ])}
+kernel22 ndarray (12,)
+layouts43 [('interleaved_zfirst', ('value', 'dose', 'rate')), ('interleaved_flagfirst', ('value', 'dose', 'rate')), ('grouped_zfirst', ('value', 'dose', 'rate')), ('grouped_flagfirst', ('value', 'dose', 'rate')), ('interleaved_zfirst', ('value', 'rate', 'dose')), ('interleaved_flagfirst', ('value', 'rate', 'dose')), ('grouped_zfirst', ('value', 'rate', 'dose')), ('grouped_flagfirst', ('value', 'rate', 'dose')), ('interleaved_zfirst', ('dose', 'value', 'rate')), ('interleaved_flagfirst', ('dose', 'value', 
+layout ('grouped_flagfirst', ('rate', 'dose', 'value'))
+layout44 ('interleaved_zfirst', ('val
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,197 @@
+OUTPUT of Python run 254 of at most 300:
+```
+=== EARLY EVIDENCE NOTES ===
+# Weight-repair notebook
+## Initial plan
+- Inspect architecture and data before choosing an edit.
+- Infer drug effects solely from the supplied simulated-ICU records.
+- Distinguish treatment-selection associations from treatment effects.
+- Use statistical fits and algebraic weight edits only; no gradients or optimiser.
+- Validate factual value NLL and rollout effects, including cross-sensor consistency.
+- No findings or edits yet.
+
+## Inspection
+- Architecture: drug action embeddings affect the recurrent state shared by all heads.
+- Value heads also have code-specific last-reading transitions.
+- Broad action edits may affect all-output log loss; prefer selective, evidence-based edits.
+- Python runs: 2. Forward passes: 0. No edits yet.
+
+## Hourly panel and preliminary associations
+- Infusions begin at hour t+0.0833, after hour-t measurements.
+        sensor          controls      n   insulin  insulin_se  norepinephrine  norepinephrine_se  residual_sd
+glucose_finger  current readings 298450 -2.098636    0.042771       -0.243935           0.140247    13.540091
+glucose_finger full past history 298450 -2.169121    0.039892       -0.064443           0.280626    12.713684
+   glucose_lab  current readings  28483 -1.108132    0.095744        0.520534           0.234678     7.135888
+   glucose_lab full past history  28483 -1.475258    0.104063        0.347124           0.488524     7.053169
+  map_arterial  current readings 312563  0.021053    0.016460       -0.616412           0.050659     4.727718
+  map_arterial full past history 312563 -0.001370    0.016657        1.982264           0.085269     4.380650
+      map_cuff  current readings 333382 -0.035490    0.031285       -6.659195           0.153377     7.988392
+      map_cuff full past history 333382 -0.035838    0.027808       -0.664094           0.218828     7.302487
+- These are conditional associations, not established causal effects.
+- Python runs: 3. Forward passes: 0. No edits yet.
+
+## Baseline rollout and flexible residualisation
+- Original tuning first 100: insulin x2 -3.68; half +2.018; NE x2 +0.465; half -0.871.
+- Two-fold cross-fitting by stay; flexible history controls and treatment-presence indicators.
+        sensor                  sample      n   insulin  insulin_se  norepinephrine  norepinephrine_se
+glucose_finger       all next readings 400154 -2.009795    0.045709        0.385314           0.264109
+glucose_finger current sensor observed 298450 -2.018225    0.046122        0.520053           0.302609
+   glucose_lab       all next readings 143791 -2.090995    0.076287       -0.342455           0.364291
+   glucose_lab current sensor observed  28483 -1.846260    0.158770       -0.031431           0.581099
+  map_arterial       all next readings 328940  0.008857    0.021188        3.121313           0.089562
+  map_arterial current sensor observed 312563  0.001712    0.021342        3.150740           0.090147
+      map_cuff       all next readings 439865 -0.049094    0.029712        2.723798           0.176977
+      map_cuff current sensor observed 333382 -0.044717    0.033971        2.787206           0.228032
+- Residualised estimates still require overlap, placebo and stability checks.
+- Python runs: 4. Forward passes: 1. No edits yet.
+
+## Factual baseline and latent dynamics
+- Orig
+
+=== HELPERS: PARAMETER NAMES ONLY ===
+load ['name']
+load_original ['name']
+save_edit ['name', 'tensor']
+drop_edit ['name']
+edited []
+make_panel ['df']
+cluster_ols ['X', 'target', 'groups']
+nuisance_model []
+kalman_nll ['theta', 'readings', 'rates', 'return_filter']
+iv_ratio ['d', 'a', 'y', 'groups', 'C']
+iv_2sls ['X', 'y', 'Z', 'groups']
+estimate_response_kernel ['dj', 'horizons']
+kernel_readout ['doses', 'hours', 'rho', 'beta', 'factor', 'start']
+wt ['name']
+ln ['x', 'prefix']
+activation ['x', 'kind']
+mlp ['x', 'prefix', 'kind']
+score_head_variant ['label', 'query_input', 'reg', 'normalize']
+tensor_rmse ['x', 'y']
+reconstruct_reading_head ['meta', 'state_array', 'flow_factor', 'age_before_bundle', 'norm_mode', 'head_activation']
+func ['meta', 'state_array', 'flow_factor', 'age_before_bundle', 'norm_mode', 'head_activation']
+score_view_local ['view', 'register']
+ols_cluster_small ['x', 'y', 'groups']
+fn0 ['meta', 'state_array', 'flow_factor', 'age_before_bundle', 'norm_mode', 'head_activation']
+helper ['meta', 'state_array', 'flow_factor', 'age_before_bundle', 'norm_mode', 'head_activation']
+latent_context_at ['indices', 'state_data']
+encode_single_debug ['atoms', 'prefix']
+helper_obj ['meta', 'state_array', 'flow_factor', 'age_before_bundle', 'norm_mode', 'head_activation']
+fun ['atoms', 'prefix']
+repair_atom_vectors ['end_numbers', 'end_units']
+repair_set_encode ['atom_vectors', 'mask', 'prefix', 'zero_empty']
+fit_post_contrast ['drug', 'dj', 'mode', 'factual_weight', 'alpha', 'fitting_mask']
+function_obj ['atom_vectors', 'mask', 'prefix', 'zero_empty']
+repair_self_attention ['x', 'prefix']
+repair_simple_block ['x', 'prefix']
+repair_cross_attention ['x', 'memory', 'ages', 'memory_mask', 'prefix', 'age_scale', 'age_mode']
+repair_core_step ['h', 'e', 'u', 'z', 'memory', 'ages', 'memory_mask', 'age_scale', 'age_mode']
+repair_changed_action ['drug', 'factor']
+repair_core_rows ['rows', 'all_u', 'all_z', 'batch_size']
+repair_centres_for_meta ['meta']
+fn_obj ['meta', 'state_array', 'flow_factor', 'age_before_bundle', 'norm_mode', 'head_activation']
+repair_centres17 ['meta']
+repair_tilt ['P', 'tau']
+fn90 ['label', 'query_input', 'reg', 'normalize']
+f92 ['x', 'kind']
+capture100 ['frame', 'event', 'arg']
+corrected_register_head ['meta', 'base']
+fu ['x', 'prefix']
+r121_np ['x']
+r122_tilt ['P', 'tau']
+audit_head_logits ['inputs', 'weights', 'transition']
+wm_meta145 ['records', 'state_data', 'factual']
+wm_mc145 ['meta', 'state_data', 'draws', 'seed']
+wm_mc_raw146 ['meta', 'raw', 'noise']
+wm_probs151 ['logits', 'tau']
+wm_loss151 ['mc', 'w']
+wm_moments151 ['mask']
+wm_rawloss152 ['mc', 'w', 'glucose_mask']
+_r156_v ['P', 'tau']
+trial158_audit ['mc', 'glucose_mask']
+trial159_mean ['mc']
+_fn ['mc', 'base_logits', 'coef', 'centres', 'mask']
+map164_mean ['mc', 'raw_coef', 'mask', 'centres']
+fn168 ['doses', 'hours', 'rho', 'beta', 'factor', 'start']
+cal170_nll ['mc', 'addition']
+map172_tau ['mc', 'insulin_coef', 'map_coef', 'glucose_mask']
+map172_mean ['mc', 'tau', 'centres']
+head177_make ['map_coef']
+head177_eval ['mc', 'weights', 'centres']
+fn188 ['mc', 'insulin_coef', 'map_coef', 'glucose_mask']
+fn189 ['mc', 'raw_coef', 'mask', 'centres']
+mixture_nll190 ['logits', 'target']
+scalar_nll190 ['mc', 'base_logits', 'coef', 'mask']
+fisher_fit191 ['mc', 'probs', 'fitmask']
+scalar_mean192 ['mc', 'base_logits', 'coef', 'centres', 'mask']
+np197 ['t']
+f205 ['mc', 'weights', 'centres']
+response_design208 ['mc', 'pred']
+scalar_eval208 ['mc', 'baseline', 'coef', 'mask', 'centres']
+raw_coef208 ['cs']
+factual_curvature218 ['mc', 'pred', 'mask']
+screen_map218 ['key', 'total_coef']
+_summary223 ['_v']
+audit229_fn ['mc', 'weights', 'centres']
+audit230_fn ['mc', 'baseline', 'coef', 'mask', 'centres']
+fn233 ['map_coef']
+affine234 ['mc', 'coef']
+contrast235 ['drug', 'factor', 'event', 'subset']
+curve_eval236 ['key', 'gamma']
+slope237 ['cfmean', 'factmean', 'drug', 'factor', 'event', 'subset']
+make242 ['ins_strength', 'map_gain']
+compact_source251 ['fn', 'limit']
+
+=== KEY OBJECT NAMES ===
+candidate (720000, 2)
+targets (93413, 4)
+target_table (10, 4)
+target_mu (320,)
+register_candidates keys: ['plus_absent_dose', 'without_absent_rate', 'plus_dose_without_rate', 'without_status']
+target_mean_local (320,)
+target_nll_local (320,)
+coefficients (6,)
+innovation_targets (4510, 2)
+raw_dose_targets (4510, 2)
+target_array (4510, 2)
+target0 (2481,)
+coef (193,)
+coef_d (192,)
+candidates (30,)
+target_tilt (1381,)
+repair_head_coef (192,)
+target93 (4510,)
+audit_targets (10, 4)
+coefs keys: ['insulin', 'norepinephrine']
+r125_coef (193,)
+r131_candidate keys: ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+wm_tau_targets151 keys: [('insulin', 0.5), ('insulin', 2.0), ('norepinephrine', 0.5), ('norepinephrine', 2.0)]
+wm_frontier151 (14, 10)
+wm_frontier152 (14, 11)
+wm_frontier153 (9, 9)
+wm_gate_coef153 (193,)
+trial158_coef (193,)
+map164_frontier (20, 12)
+sensor165_frontier (30, 9)
+map172_candidates keys: [(0.3, 0.0), (0.3, 1.0), (0.3, 2.0), (0.3, 3.0), (0.3, 4.0), (0.3, 6.0), (0.3, 8.0), (1.0, 0.0)]
+coef172 (193,)
+map172_frontier (21, 8)
+head177_coef (193,)
+cal190_candidates keys: [(0.001, 0.0), (0.001, 10.0), (0.003, 0.0), (0.003, 10.0), (0.01, 0.0), (0.01, 10.0), (0.03, 0.0), (0.03, 10.0)]
+gcal191_candidates keys: [(0.03, 0.0), (0.03, 10.0), (0.1, 0.0), (0.1, 10.0), (0.3, 0.0), (0.3, 10.0), (1.0, 0.0), (1.0, 10.0)]
+map192_candidates keys: [(1.0, 1.5), (0.3, 1.0), (0.3, 2.0), (0.3, 3.0), (0.3, 4.0), (0.3, 6.0), (0.3, 8.0), (1.0, 1.0)]
+coef192 (193,)
+candidate197 keys: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+map208_candidates keys: [(0.1, 0.0, 0.003)]
+target217 keys: ['balanced', 'double_focus']
+moment217_candidates keys: [('balanced', 0.001, 0.03), ('balanced', 0.001, 0.1), ('balanced', 0.001, 0.3), ('balanced', 0.001, 1.0), ('balanced', 0.001, 3.0), ('balanced', 0.001, 10.0), ('balanced', 0.01, 0.03), ('balanced', 0.01, 0.1)]
+target (8,)
+moment218_candidates keys: [('pooled', 'balanced', 0.1, 0.003), ('pooled', 'balanced', 0.1, 0.01), ('pooled', 'balanced', 0.1, 0.03), ('pooled', 'balanced', 0.1, 0.1), ('pooled', 'balanced', 0.1, 0.3), ('pooled', 'balanced', 0.1, 1.0), ('pooled', 'balanced', 1.0, 0.003), ('pooled', 'balanced', 1.0, 0.01)]
+_r224_candidates keys: [4.0, 6.0, 7.0, 8.0, 9.0, 10.0, 12.0]
+_coef (193,)
+audit227_targets (10, 4)
+candidates236 keys: [(0.01, 0.01, 0.25), (0.01, 0.01, 0.5), (0.01, 0.01, 1.0), (0.01, 0.1, 0.25), (0.01, 0.1, 0.5), (0.1, 0.01, 0.25), (0.1, 0.01, 0.5), (0.1, 0.01, 1.0)]
+frontier236 (64, 7)
+frontier237 (23,
+[output cut at 10,000 characters]
+```

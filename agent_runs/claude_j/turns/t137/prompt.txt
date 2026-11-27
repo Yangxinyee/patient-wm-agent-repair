@@ -1,0 +1,15 @@
+OUTPUT of Python run 120 of at most 300:
+```
+91 lines; 10 hits
+33 - h: 4 slots x 192;
+34 - a memory M of the last 128 bundle vectors e;
+39 1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+41    - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+45    - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+48    slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+50    - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+51      `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+52 5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+56 **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+
+```

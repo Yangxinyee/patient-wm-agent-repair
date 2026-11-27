@@ -1,0 +1,224 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes). The weight values themselves are not available to you.
+   - You edit the model with operations. They are applied in order to the original weights whenever the forward tool runs
+     the edited model, and at the evaluation:
+     scale(name, c): multiply a whole tensor by the number c;
+     rank1(name, vector, alpha, side="out"): a rank-1 update along the unit direction v of the vector. With side "out" (v
+     has shape[0] entries), W <- W + alpha * v (v^T W): the tensor's output component along v is scaled by 1 + alpha.
+     With side "in" (2-D tensors, v has shape[1] entries), W <- W + alpha * (W v) v^T. For a 1-D tensor,
+     w <- w + alpha * v (v . w);
+     ops() lists the operations, undo() removes the last one, and clear_ops() removes them all.
+     Directions can come from anything you compute: the records, or the states the forward tool returns.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 72 replies happened before. Forward passes used: 22 of 50; Python runs used: 48 of 300. Your kernel is still running with its variables. Operations so far: ['1. rank1 embed.numeric.weight']. Files in /work: ['fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md', 'ops.json', 'vectors'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+rd passes: 13.
+
+## Python run 21: paired-state geometry
+- Compared gain-4 and original states using generalized delta/factual second moments.
+- Ratios: {'out': 1.1637545257572386, 'h0': 1.2496169933065107, 'h1': 1.2495189336363508, 'h2': 1.1449731622522863, 'h3': 1.2496636229526032, 'z': 0.43184577403443003}
+- Python runs: 21; forward passes: 13.
+
+## Python run 22: selective correction design
+- Examined stored dose-state estimators and inferred the slot-to-out normalization from observable states, without accessing weight files.
+- Slot-to-out reconstruction RMSE: 7.449458051528166e-08
+- Python runs: 22; forward passes: 13; edits unchanged.
+
+## Python run 23: calibrated slot shear design
+- Designed separate minimum-variance insulin/NE sensors with zero factual mean, and reading-output directions orthogonal to the sensors.
+- Candidate matrices add approximate immediate responses -1.5 insulin/glucose and +2.5 NE/MAP at full strength; approximation must be checked by forward passes.
+- No additional edits applied. Python runs: 23; forward passes: 13.
+
+## Python run 24: candidate D, selective slot shear
+- Applied numeric gain 4 plus a 15%-strength, rank-two left transformation of core.c_out.weight, factored exactly into allowed rank-one operations.
+- Based on dose-innovation state coefficients and reading surrogates; the output directions are orthogonal to the dose sensors (nilpotent correction).
+- Full-strength sensor noise was too high; this is a small empirical pilot, not a validated causal repair.
+- Next test factual NLL. Python runs: 24; forward passes: 13.
+
+## Forward 14 / Python run 25: reduce candidate D
+- Slot shear 0.15 plus numeric gain 4: factual NLL 1.64052 versus 1.63461, +0.00591, exceeding the limit; rejected at that strength.
+- Reduced shear to 0.08. Next inspect dose rollouts before further tuning.
+- repair_candidates now stores copied vector arrays; replay_ops restores candidates. pilot_basis and pilot_design define the shear.
+- Python runs: 25; forward passes: 14.
+
+## Forward 15 / restart
+- Numeric gain 4 + slot shear 0.08: insulin x2 -2.644, half +1.736; NE x2 +0.103, half -0.037.
+- The shear adds little beyond numeric gain 4; factual safety at 0.08 is untested.
+- Recovering identification evidence and architecture before further edits.
+- Python runs: 26; forward passes: 15.
+
+## Python run 27
+- Run 26 output truncated; retrieving causal evidence and saved variable names compactly.
+- Edits unchanged; forward passes: 15.
+
+## Python run 28
+- Recovered record-based sensor-masked probe targets: insulin -12.036/+6.018; NE +4.732/-2.366. These are estimates, not counterfactual truth.
+- Restored factual-safe numeric gain 4 alone; slot shear gave too little benefit.
+- Inspecting direct reading-head corrections. Forward passes: 15.
+
+## Python run 29
+- Assessing centered diagonal edits to reconstructible core.out_norm, rather than assuming c_out shear propagates unchanged through coda.
+- No new edits. Forward passes: 15.
+
+## Python run 30: direct NE reading-head pilot
+- Rejected large diagonal out_norm designs without applying them.
+- Applied numeric gain 4 plus a rank-one input shear of value_bin.0.weight, factored into allowed rank-one operations.
+- Sensor minimizes factual second moment with NE sensitivity 1, insulin sensitivity 0, and zero means in both reading-state samples. Output targets MAP +0.5, glucose 0; sensor/output orthogonality makes the shear nilpotent.
+- Head input also contains unobserved code/register terms; factual and rollout passes must validate the surrogate approximation.
+- Python runs: 30; forward passes: 15.
+
+## Restart / Python run 31
+- Forward 17: numeric gain 4 plus direct NE head pilot gives insulin -2.521/+1.720, NE +0.129/-0.077; little benefit over numeric gain alone.
+- Recovering architecture, factual result 16, causal identification evidence, and persistent variables before selecting the next edit.
+- Python runs: 31; forward passes: 17.
+
+## Python run 32
+- Architecture recovered; run 31 output truncated before the saved variables and factual result.
+- Retrieving compact evidence and candidate inventory. Edits unchanged; forward passes: 17.
+
+## Python run 33
+- Compact inspection of factual pass 16 and head edit design; no edits changed.
+- Python runs: 33; forward passes: 17.
+
+## Python run 34: numeric-value mixing pilot
+- Head NE pilot factual NLL 1.636318 vs original 1.634615 (+0.001703), but rollout benefit negligible; removed.
+- Retained numeric gain 4 and added a drug-dose/rate-to-numeric-value input shear with coefficient -2.
+- Measurement numeric inputs are unchanged; signs and factual safety require forward validation.
+- Candidate saved as numeric_value_mix_m2. Python runs: 34; forward passes: 17.
+
+## Python run 35 / forwards 18–19
+- Numeric-value mix -2 factual +0.00117, rollouts insulin -2.462/+1.646, NE +0.129/-0.072: rejected for no useful gain.
+- Restored numeric gain 4. Inspecting saved centered out_norm designs as an alternative to head-input shears.
+- Python runs: 35; forward passes: 19.
+
+## Python run 36
+- Direct NE head sensor has factual SD about 1.8 rate units, too noisy for a large extrapolation.
+- Inspecting world-state versus register contributions before considering a compensated query-gain edit.
+- Numeric gain 4 remains installed. Python runs: 36; forward passes: 19.
+
+## Python run 37: restart inspection
+- Numeric gain 4 remains installed. Recovering architecture and saved estimators before designing a latent-state correction.
+- Last diagnostic shows a strong NE signal in z but does not establish that amplifying it produces the correct MAP response.
+- Forward passes used: 19.
+
+## Python run 38: causal and pathway audit
+- Separating posterior z_in state updates from prior z_head readouts.
+- Recovering identification estimates and prior ablations; no edits changed. Forward passes: 19.
+
+## Python run 39: latent candidate preparation
+- Record-based identification supports approximately -2 insulin/glucose and +3 NE/MAP immediate effects, with persistence.
+- Current rollout responses remain far weaker; inspecting latent dose geometry for a small, factual-checked amplification test.
+- No edit changes; forward passes: 19.
+
+## Python run 40: latent-input gain pilot
+- Installed numeric gain 4 plus gain 21 on the low-factual-variance latent dose-sensor subspace of z_in.weight.
+- Direct z_head and observation inputs unchanged. This tests posterior-latent participation in recurrent dose effects.
+- Factual safety and rollout direction remain untested. Forward passes: 19.
+
+## Python run 41 / forwards 20-21: latent candidate rejected
+- z_in latent gain 21: factual increase +0.00122, rollouts insulin -2.494/+1.741 and NE +0.123/+0.017.
+- No material gain over numeric gain 4. Saved candidate and restored numeric gain 4 alone.
+- Inspecting direct out_norm diagonal designs. Forward passes used: 21.
+
+## Python runs 42-47: architecture recovery and centered diagonal pilot
+- Recovered independent threshold and cross-fitted causal evidence: insulin immediate effect about -2, NE about +3, both persistent.
+- The 1e-4-penalty diagonal design has lowest surrogate factual variance among saved designs.
+- Installed numeric gain 4 plus 10%-strength out_norm gamma change and compensating beta change.
+- Inferred gamma/beta reconstruct observed h-to-out mapping nearly exactly; no weight values were read.
+- Linear immediate response increments: insulin/glucose -0.15, NE/MAP +0.25 per rate unit.
+- Run 46 applied both edits but failed only while saving; run 47 saved the installed candidate.
+- Factual safety and rollout effects untested. Forward passes used: 21.
+
+## Forward 22 / Python run 48: diagonal pilot rejected
+- out_norm diagonal 0.10 factual NLL 1.70378 vs 1.63461, increase +0.06917; rejected without a rollout pass.
+- Restored numeric gain 4. Observational readout coefficients are not reliable intervention gradients.
+- Auditing factored input/output shears before selecting the next pathway.
+- Forward passes used: 22.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 48 of at most 300:
+```
+HEAD FACTORIZATION ERRORS {'direct': 8.229348321764768e-15, 'transpose': 0.6178847517237882, 'saved_reduced': 8.33154122076164e-15}
+NUMERIC MIX ONLY [[1.0, 0.0, -1.414214, 0.0, -1.414214, 0.0], [0.0, 1.0, 0.0, 0.0, 0.0, 0.0], [-0.0, 0.0, 1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0], [-0.0, 0.0, -0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]
+SAVED NUMERIC MIX [[1.0, -1.414214, -1.414214], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+PILOT DESIGN KEYS {'R': {'shape': (192, 2), 'norm': 8.859599724473355, 'values': None}, 'T': {'shape': (192, 2), 'norm': 2.062284471250904, 'values': None}, 'S': {'shape': (192, 192), 'norm': 12.779230066377812, 'values': None}, 'predicted_shift': {'shape': (4035, 2), 'norm': 120.78092865514228, 'values': None}}
+LATENT FACTUAL PROJECTION SD [0.05547469511335596, 0.030627262040801753]
+CURRENT OPERATION COUNT 1
+
+```

@@ -1,0 +1,74 @@
+OUTPUT of Python run 143 of at most 300:
+```
+Aligned readings: 4716
+dt seconds: {'count': 4716.0, 'mean': 3462.9254961832053, 'std': 511.3243528769118, 'min': 3300.1199999999953, '25%': 3300.1199999999985, '50%': 3300.1200000000017, '75%': 3600.0, 'max': 14100.120000000003}
+   stay_id  hour          event  last_value  last_hour  dt_seconds
+2020000000  -1.0    glucose_lab         NaN        NaN     3600.00
+2020000000  -1.0       map_cuff         NaN        NaN     3600.00
+2020000000  -1.0 glucose_finger         NaN        NaN     3600.00
+2020000000   0.0       map_cuff        58.0       -1.0     3600.00
+2020000000   1.0       map_cuff        50.0        0.0     3300.12
+2020000000   2.0       map_cuff        65.0        1.0     3300.12
+
+=== HEAD INTERFACES ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+Config: {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+Categorical keys: []
+
+=== RETAINED FEATURE FUNCTIONS ===
+r59_features
+46: BUILD_LIST | BUILD_LIST | S:DEREF captures | S:DEREF probabilities
+47: L:GLOBAL NULL + globals | CALL | L:CONST 'mlp0' | BINARY_SUBSCR | L:GLOBAL torch | L:ATTR softmax | S:DEREF previous_mlp | S:DEREF previous_softmax
+48: BUILD_TUPLE | L:CONST <code object capture_mlp at 0x76205aaac1b0, file "<run>", line 48> | MAKE_FUNCTION closure | S:FAST capture_mlp
+55: BUILD_TUPLE | L:CONST <code object capture_softmax at 0x76206ba0b870, file "<run>", line 55> | MAKE_FUNCTION closure | S:FAST capture_softmax
+59: L:FAST capture_mlp | L:FAST capture_softmax | L:GLOBAL NULL + globals | CALL | L:CONST 'mlp0' | S:SUBSCR | L:GLOBAL torch | S:ATTR softmax
+61: L:GLOBAL NULL + r49_readouts | L:FAST out | L:FAST h | L:FAST indices | CALL | S:FAST means
+63: L:DEREF previous_mlp | L:DEREF previous_softmax | L:GLOBAL NULL + globals | CALL | L:CONST 'mlp0' | S:SUBSCR | L:GLOBAL torch | S:ATTR softmax
+64: L:GLOBAL torch | L:ATTR NULL|self + stack | L:DEREF captures | L:CONST 1 | CALL | S:FAST H
+65: L:GLOBAL torch | L:ATTR NULL|self + stack | L:DEREF probabilities | L:CONST 1 | CALL | S:DEREF probabilities
+66: L:GLOBAL r49_centres | L:CONST None | L:CONST None | L:CONST None | BUILD_SLICE | L:CONST None | L:CONST None | L:CONST None | BUILD_SLICE | BUILD_TUPLE | BINARY_SUBSCR | S:FAST centres
+67: L:DEREF probabilities | L:FAST centres | BINARY_OP * | L:ATTR NULL|self + sum | L:CONST -1 | L:CONST True | KW_NAMES ('keepdim',) | CALL | S:FAST sample_mean
+68: L:DEREF probabilities | L:FAST centres | L:FAST sample_mean | BINARY_OP - | BINARY_OP * | L:GLOBAL beta59 | BINARY_OP * | L:ATTR NULL|self + sum | L:CONST -1 | CALL | S:FAST gain
+69: L:FAST H | L:FAST gain | L:CONST (Ellipsis, None) | BINARY_SUBSCR | BINARY_OP * | L:ATTR NULL|self + mean | L:CONST 2 | CALL | S:FAST G
+70: L:FAST means | L:ATTR NULL|self + numpy | CALL | L:FAST G | L:ATTR NULL|self + numpy | CALL | L:FAST H | L:DEREF probabilities | BUILD_TUPLE | RETURN_VALUE | PUSH_EXC_INFO
+63: L:DEREF previous_mlp | L:DEREF previous_softmax | L:GLOBAL NULL + globals | CALL | L:CONST 'mlp0' | S:SUBSCR | L:GLOBAL torch | S:ATTR softmax | RERAISE | POP_EXCEPT | RERAISE
+prior_features74
+16: L:GLOBAL capture74 | L:ATTR NULL|self + clear | CALL
+17: L:GLOBAL NULL + r59_core | L:FAST indices | L:FAST u | KW_NAMES ('u',) | CALL | UNPACK_SEQUENCE | S:FAST o | S:FAST h
+18: L:GLOBAL NULL + r59_features | L:FAST o | L:FAST h | L:FAST indices | CALL
+19: L:GLOBAL capture74 | POP_JUMP_IF_TRUE to 134
+20: L:GLOBAL NULL + RuntimeError | L:CONST 'Prior context was not captured.' | CALL | RAISE_VARARGS
+21: L:GLOBAL capture74 | L:CONST -1 | BINARY_SUBSCR | S:FAST ctx
+22: L:GLOBAL NULL + F | L:ATTR gelu | L:GLOBAL NULL + F | L:ATTR linear | L:FAST ctx | L:GLOBAL W0 | L:CONST 'z_prior.0.weight' | BINARY_SUBSCR | L:GLOBAL W0 | L:CONST 'z_prior.0.bias' | BINARY_SUBSCR | CALL | CALL | S:FAST hidden
+23: L:GLOBAL NULL + arr71 | L:FAST hidden | CALL | S:FAST hidden
+24: L:GLOBAL np | L:ATTR c_ | L:FAST hidden | L:GLOBAL NULL + np | L:ATTR ones | L:GLOBAL NULL + len | L:FAST hidden | CALL | CALL | BUILD_TUPLE | BINARY_SUBSCR | RETURN_VALUE
+
+=== OFFICIAL EDIT DELTAS ===
+                    mean       std     min     max
+event                                             
+glucose_finger  0.193124  0.964798 -2.4455  8.2524
+glucose_lab     0.128829  0.839303 -2.3188  6.7679
+map_arterial   -0.003453  0.392501 -1.8397  8.0339
+map_cuff        0.026444  0.325787 -2.1403  2.8082
+State delta RMS: 1.3942608
+
+```

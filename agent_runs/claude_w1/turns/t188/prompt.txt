@@ -1,0 +1,33 @@
+OUTPUT of Python run 175 of at most 300:
+```
+34 - a memory M of the last 128 bundle vectors e;
+35 - `out` (192): the summary every head reads.
+36 
+37 **One step for bundle k**, arriving dt seconds after the previous one:
+38 
+39 1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+40 2. **Latent z_k (32-dimensional).**
+41    - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+42    - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+43    - The state update uses the posterior mean.
+44 3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+45    - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+46    - The 4 slot outputs, through `core.prelude_norm`, give E.
+47 4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+48    slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+49    - `u = blocks(h + E)`.
+50    - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+51      `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+52 5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+53 
+54 ## Heads: predicting bundle k+1 from what is known before it
+55 
+56 **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+57 - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+58 - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+59 
+60 **Heads:**
+61 - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+['z_head.bias', 'z_head.weight', 'z_prior.0.bias', 'z_prior.0.weight', 'z_prior.2.bias', 'z_prior.2.weight']
+
+```

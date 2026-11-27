@@ -1,0 +1,1 @@
+This diagnostic makes no weight changes.

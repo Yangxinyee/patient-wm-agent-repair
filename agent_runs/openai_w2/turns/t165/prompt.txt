@@ -1,0 +1,116 @@
+OUTPUT of Python run 143 of at most 300:
+```
+=== CURRENT EDIT AND COEFFICIENTS === ['core.b_in.weight']
+Wdose134 ndarray (192, 2)
+V128 ndarray (192, 2)
+fallback_recurrent139 ndarray (192, 192)
+fit128 dict None
+{'B': (193, 2), 'mu': (192,), 'sd': (192,), 'report': "{'family': 'E', 'probe_weight': 0.3, 'insulin_rms': 0.10123088680402641, 'insulin_half_gain': 0.21637638374023566, 'insulin_x2_gain': 0.16368916327053964, 'insulin_rms_per_gain': 0.5327022541254253, 'norepinephrine_rms': 0.023106168430645002, 'norepinephrine_half_gain': 0.12991996177915002, 'norepinephrine_x2_gain': 0.09763358083373878, 'norepinephrine_rms_per_gain': 0.20308335493552762}"}
+repair_head_cfg dict None
+{'activation': 'str', 'gap_mode': 'str', 'type_id': 'int', 'status_id': 'int', 'age_mode': 'str', 'zcol': 'int', 'acol': 'int', 'flags': 'tuple', 'gap_activation': 'str', 'prior_activation': 'str', 'value_activation': 'str'}
+raw_coef134 ndarray (192, 2)
+affine_b134 ndarray (2,)
+=== FACTUAL DIAGNOSTICS ===
+original (4809, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour        event  observed  predicted_mean    nll
+2020000000  -1.0  glucose_lab     124.0        143.9852 1.9303
+2020000000  -1.0 map_arterial      54.0         69.0877 1.6159
+NLL means: {'nll': 1.5747370763152422}
+                     nll      
+                    mean  size
+event                         
+glucose_finger  1.441013  1480
+glucose_lab     1.234137   537
+map_arterial    1.478473  1325
+map_cuff        1.921270  1467
+fallback (4809, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour        event  observed  predicted_mean    nll
+2020000000  -1.0  glucose_lab     124.0        154.7940 2.1001
+2020000000  -1.0 map_arterial      54.0         67.7848 1.5199
+NLL means: {'nll': 1.5763957579538366}
+                     nll      
+                    mean  size
+event                         
+glucose_finger  1.442357  1480
+glucose_lab     1.233838   537
+map_arterial    1.482911  1325
+map_cuff        1.921452  1467
+stronger (4809, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour        event  observed  predicted_mean    nll
+2020000000  -1.0  glucose_lab     124.0        168.8484 2.3672
+2020000000  -1.0 map_arterial      54.0         66.9048 1.4631
+NLL means: {'nll': 1.5805943647327925}
+                     nll      
+                    mean  size
+event                         
+glucose_finger  1.449165  1480
+glucose_lab     1.240631   537
+map_arterial    1.486627  1325
+map_cuff        1.922504  1467
+=== RESEARCH OBJECT NAMES ===
+['tuning', 'make_panel', 'panel', 'tune_panel', 'dml_results', 'dml_models', 'fit_dml', 'effect', 'rich_dml', 'linear_rollout_targets', 'target_ranges', 'effects', 'head_panel_index', 'decoder_target_rows', 'decoder_targets', 'drug_effects', 'fit_latent_record_model', 'record_impulse_targets', 'record_targets', 'aligned_targets', 'probe_state_targets', 'target', 'posterior_cf_targets_repair', 'target_z', 'delta_target', 'target_scale', 'residual_targets102', '_target102', 'target112']
+=== RECORD-EFFECT NOTE SECTIONS ===
+## Run 12: persistence and rollout target sensitivity
+          drug     n  assumed_effect  persistence  cluster_se  cross_sensor_residual_cov
+       insulin 15266           -1.55      0.99773     0.00781                  108.17329
+       insulin 15266           -1.80      1.00763     0.00782                  108.17329
+       insulin 15266           -2.00      1.01556     0.00784                  108.17329
+norepinephrine 28031            3.00      0.89761     0.02096                   10.64188
+norepinephrine 28031            3.60      0.89803     0.02098                   10.64188
+norepinephrine 28031            4.00      0.89831     0.02099                   10.64188
+          drug     b    a  eligible_stays       x2    half
+       insulin -1.55 0.80             205  -6.8094  3.4047
+       insulin -1.55 0.90             205  -9.0062  4.5031
+       insulin -1.55 0.95             205 -10.5409  5.2705
+       insulin -1.80 0.80             205  -7.9077  3.9539
+       insulin -1.80 0.90             205 -10.4588  5.2294
+       insulin -1.80 0.95             205 -12.2411  6.1205
+       ins
+## Restart, run 13: recovering architecture and kernel state
+No edits yet. Drug-effect evidence is promising, but glucose persistence near one requires further checks before fixing rollout targets. Inspecting architecture to identify a constrained, factual-preserving edit.
+
+
+## Run 22: consolidated evidence and alignment audit
+Insulin clean lab threshold estimates approximately -1.55/rate unit; history-adjusted lab estimates approximately -1.97. NE rich-history estimates approximately +3.5 to +3.9/rate unit. Positive persistence is supported, but accumulated rollout targets remain uncertain. No edits; inspecting state/head alignment and exact features.
+
+
+## Run 33: head-only route rejected; within-stay persistence check
+Held-out factual-zero decoders cannot recover much probe response: at weight 512 insulin gain 0.112 costs factual RMS 1.427 rate units; NE gain 0.280 costs 0.873. Do not install decoder edits. Next route: amplify action pathway and recalibrate factual predictions using code/last-value transition weights. Differenced IV removes stay intercepts; cross-sensor lag1 and same-sensor lag2 instruments check persistence conditional on externally supported drug coefficients. Interpret with missing-reading selection and instrument-strength caution.
+[{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-1.55,"rho":-4.9046918397,"cluster_se":2.5152764014,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-1.8,"rho":-4.8978516129,"cluster_se":2.5155655386,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-2.0,"rho":-4.8923794314,"cluster_se":2.5158191282,"instrument_x_cov":-2.5765004757},{"sensor":
+## Runs 34?37: recovered context
+Architecture reread. Clean insulin lab RD about -1.55/unit, rich-history estimate -1.97; NE estimates +3.5 to +3.9/unit. Original 100-stay rollout -3.226/+1.825/+1.373/-0.846. No edits. Persistence must separate stable stay heterogeneity from dynamic propagation; plan a small latent-state fit.
+
+
+## Run 38: latent-state persistence diagnostic
+Fitted own two-sensor Gaussian state models, with stable random stay baselines, measurement noise, missing readings and known hourly drugs. Drug coefficients fixed to record-supported -1.8 and +3.6. This is a statistical diagnostic, not world-model training. Results:
+insulin: {'rho': 0.9297708867835622, 'b': -1.8, 'drift': array([0.71915881, 0.89788434]), 'Q': 29.547189040390034, 'R': array([73.44903309,  9.77865272]), 'bias': array([ 0.        , -0.03495557]), 'initial_mean': array([145.30419481, 153.04341247]), 'initial_cov': array([[1182.66875936, 1591.02488485],
+       [1591.02488485, 3924.7130875 ]])}
+norepinephrine: {'rho': 0.7682574913774728, 'b': 3.6, 'drift': array([ 0.02225472, -0.27350641]), 'Q': 7.533270817867828, 'R': array([ 7.62901515, 33.99916423]), 'bias': array([0.        , 3.08272929]), 'initial_mean': array([74.6301833 , 72.69902581]), 'initial_cov': array([[135.91466218, 162.02437263],
+       [162.02437263, 272.29117857]])}
+
+
+## Run 39: converged persistence and first action candidate
+insulin: {'rho': 0.9641085379393141, 'b': -1.8, 'drift': array([0.98483209, 0.78975363]), 'Q': 23.593656044205655, 'R': array([76.75776955, 12.33854852]), 'bias': array([ 0.        , -0.02751273]), 'initial_mean': array([145.0370579 , 153.09561383]), 'initial_cov': array([[1164.91170681, 2119.69166412],
+       [2119.69166412, 8135.17530494]])}
+norepinephrine: {'rho': 0.8445405942374236, 'b': 3.6, 'drift': array([-0.16167194, -0.27209607]), 'Q': 4.739124223305644, 'R': array([ 9.44581897, 35.72410687]), 'bias': array([0.       , 3.0834658]), 'initial_mean': array([74.71138896, 72.6813748 ]), 'initial_cov': array([[129.69680217, 176.37021955],
+       [176.37021955, 346.19154784]])}
+Benchmark targets:
+                 shift     target
+edit                             
+insulin_half  1.825296   7.398104
+insulin_x2   -3.225785 -14.796209
+ne_half      -0.845804  -3.571673
+ne_x2         1.372628   7.143345
+Installed reversible numeric dose/rate slope amplification 3.0, with per-drug code-embedding offsets analytically preserving the
+## Runs 128?132: direct recurrent steering candidate
+Recovered finite-difference h-pre-coda steering V128 with near-unit glucose/MAP responses and negligible cross-response. E dose residual is folded into Wdose128 using the layer-normalization invariant (max conversion error about 2.5e-5). Installed only core.b_in.weight:
+delta_B = diag(1/softplus(delta_in)) @ V128 @ diag([-5,8]) @ Wdose128.T.
+This is a conservative diagnostic, not an accepted final repair. Record-supported immediate effects remain insulin roughly -1.55 to -1.97/rate and NE +3.5 to +3.9/rate; statistical accumulation targets on 100 tuning stays roughly -14.8/+7.4 and +7.1/-3.6, with persistence uncertainty. Next require exact factual budget and paired rollout improvement.
+
+
+## Forward 14: corrected recurrent steering succeeds directionally
+99 tuning stays, paired exact rollouts: original insulin x2/half -3.226/+1.825, NE +1.373/-0.846; corrected edited gains [-5,+8] give -9.016/+4.485 and +3.372/-1.557. Factual cost from forward13 +0.00166. Retain this as a viable fallback; audit record-supported accumulation targets before stronger gains.
+
+
+
+```

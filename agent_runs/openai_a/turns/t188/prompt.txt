@@ -1,0 +1,160 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 187 replies happened before. Forward passes used: 11 of 50; Python runs used: 171 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+t -0.00008.
+- CPU register-offset audit still mismatches GPU; not adequate for an unvalidated stronger edit.
+- Recovering architecture, causal evidence, and retained construction before further trials.
+
+## Protected synthetic-contrast regression; Python 168, forwards 11/50
+- Synthetic contrasts are edit-design probes, not causal evidence; recurrent reconstruction remains approximate.
+- lambda=1e-05: rmse=0.044994, norm=2969, CPU NLL deltas={'first': 10.77877962589264, 'extra': 10.458292722702026, 'tuning': 10.026473879814148}, local shifts={0.5: 0.5845948457717896, 2.0: -1.637196660041809}.
+- lambda=0.0001: rmse=0.050752, norm=864.8, CPU NLL deltas={'first': 40.168659806251526, 'extra': 39.027674436569214, 'tuning': 38.26569068431854}, local shifts={0.5: 0.7514326572418213, 2.0: -1.8307675123214722}.
+- lambda=0.001: rmse=0.054398, norm=286.1, CPU NLL deltas={'first': 6.04556143283844, 'extra': 5.586848497390747, 'tuning': 4.845047831535339}, local shifts={0.5: 0.6454774737358093, 2.0: -1.896890640258789}.
+- lambda=0.01: rmse=0.057879, norm=109.7, CPU NLL deltas={'first': 0.2523996829986572, 'extra': 0.19969582557678223, 'tuning': 0.21552026271820068}, local shifts={0.5: 0.5231385827064514, 2.0: -1.861480474472046}.
+- lambda=0.1: rmse=0.062806, norm=57.58, CPU NLL deltas={'first': 1.9037364721298218, 'extra': 1.7400689125061035, 'tuning': 1.7564269304275513}, local shifts={0.5: 0.27300065755844116, 2.0: -1.6210180521011353}.
+- lambda=1.0: rmse=0.081456, norm=21.29, CPU NLL deltas={'first': 0.3024500608444214, 'extra': 0.2421814203262329, 'tuning': 0.25722694396972656}, local shifts={0.5: -0.06812599301338196, 2.0: -0.983767569065094}.
+- lambda=10.0: rmse=0.095932, norm=3.558, CPU NLL deltas={'first': 0.002898693084716797, 'extra': -0.0024608373641967773, 'tuning': 0.0014445781707763672}, local shifts={0.5: -0.13461636006832123, 2.0: -0.5130984783172607}.
+- lambda=100.0: rmse=0.098973, norm=0.4023, CPU NLL deltas={'first': -0.0005514621734619141, 'extra': -0.001093149185180664, 'tuning': -0.0005784034729003906}, local shifts={0.5: -0.11634435504674911, 2.0: -0.3920133411884308}.
+- CPU-eligible choice: None; weights unchanged pending review.
+
+## Register-protected contrast regression; Python 169, forwards 11/50
+- Protected ['last_numeric.weight', 'embed.bins.rate.weight', 'embed.bins.value.weight', 'last_status.weight']; remaining dimension=151.
+- Prior variability penalized through factual covariance; synthetic targets remain design-only.
+- (0.0001, 1.0): NLL={'first': 8.051831841468811, 'extra': 7.795879125595093, 'tuning': 7.014154314994812}, shifts={0.5: 0.6631659269332886, 2.0: -1.9231616258621216}, rmse=0.05438.
+- (0.0001, 10.0): NLL={'first': 7.487581849098206, 'extra': 7.110296010971069, 'tuning': 6.521767497062683}, shifts={0.5: 0.663094162940979, 2.0: -1.9232141971588135}, rmse=0.05438.
+- (0.001, 1.0): NLL={'first': 7.092543244361877, 'extra': 6.795738935470581, 'tuning': 5.971243739128113}, shifts={0.5: 0.7128139138221741, 2.0: -1.990995168685913}, rmse=0.057421.
+- (0.001, 10.0): NLL={'first': 6.711177468299866, 'extra': 6.2663915157318115, 'tuning': 5.602711081504822}, shifts={0.5: 0.7128129601478577, 2.0: -1.9909915924072266}, rmse=0.057421.
+- (0.01, 1.0): NLL={'first': 1.3242086172103882, 'extra': 1.2396118640899658, 'tuning': 1.0566743612289429}, shifts={0.5: 0.44182509183883667, 2.0: -1.764758825302124}, rmse=0.060327.
+- (0.01, 10.0): NLL={'first': 1.3243132829666138, 'extra': 1.2388567924499512, 'tuning': 1.05652916431427}, shifts={0.5: 0.44182273745536804, 2.0: -1.7647632360458374}, rmse=0.060327.
+- (0.1, 1.0): NLL={'first': 0.03838038444519043, 'extra': 0.040759921073913574, 'tuning': 0.03241610527038574}, shifts={0.5: 0.12663444876670837, 2.0: -1.268332839012146}, rmse=0.070582.
+- (0.1, 10.0): NLL={'first': 0.03837931156158447, 'extra': 0.04075157642364502, 'tuning': 0.03241157531738281}, shifts={0.5: 0.126636803150177, 2.0: -1.2683361768722534}, rmse=0.070582.
+- (1.0, 1.0): NLL={'first': 0.0009480714797973633, 'extra': 0.0012160539627075195, 'tuning': 0.0007036924362182617}, shifts={0.5: -0.10581579059362411, 2.0: -0.6176739931106567}, rmse=0.092207.
+- (1.0, 10.0): NLL={'first': 0.0009480714797973633, 'extra': 0.001211404800415039, 'tuning': 0.0007036924362182617}, shifts={0.5: -0.10581481456756592, 2.0: -0.6176710724830627}, rmse=0.092207.
+- (10.0, 1.0): NLL={'first': 1.537799835205078e-05, 'extra': 1.990795135498047e-05, 'tuning': -2.944469451904297e-05}, shifts={0.5: -0.1151469275355339, 2.0: -0.40752822160720825}, rmse=0.098486.
+- (10.0, 10.0): NLL={'first': 1.537799835205078e-05, 'extra': 1.919269561767578e-05, 'tuning': -2.9325485229492188e-05}, shifts={0.5: -0.11514634639024734, 2.0: -0.40752801299095154}, rmse=0.098486.
+- CPU-eligible candidate=None; no weight changes.
+
+## Glucose-code-invariant contrast graft; Python 171, forwards 11/50
+- Event audit located the moderate candidate's factual cost mainly in a glucose_lab code offset; MAP correction was zero.
+- Added exact glucose_lab minus glucose_finger code protection to full register protection.
+- (0.01, 1.0): NLL={'first': 0.015619158744812012, 'extra': 0.0077152252197265625, 'tuning': 0.0157778263092041}, shifts={0.5: 0.4394701421260834, 2.0: -1.7626984119415283}, rmse=0.060385.
+- (0.01, 2.0): NLL={'first': 0.0634911060333252, 'extra': 0.04774463176727295, 'tuning': 0.06815123558044434}, shifts={0.5: 1.0001099109649658, 2.0: -3.0626914501190186}, rmse=0.088926.
+- (0.01, 4.0): NLL={'first': 0.25528836250305176, 'extra': 0.2155674695968628, 'tuning': 0.28950726985931396}, shifts={0.5: 2.1299238204956055, 2.0: -5.432288646697998}, rmse=0.21887.
+- (0.03, 1.0): NLL={'first': 0.00954890251159668, 'extra': 0.0032134056091308594, 'tuning': 0.008621573448181152}, shifts={0.5: 0.3120942711830139, 2.0: -1.5963592529296875}, rmse=0.062783.
+- (0.03, 2.0): NLL={'first': 0.04078805446624756, 'extra': 0.02522730827331543, 'tuning': 0.041014671325683594}, shifts={0.5: 0.7389978170394897, 2.0: -2.746265411376953}, rmse=0.07701.
+- (0.03, 4.0): NLL={'first': 0.1671144962310791, 'extra': 0.12907087802886963, 'tuning': 0.18411016464233398}, shifts={0.5: 1.5892707109451294, 2.0: -4.855529308319092}, rmse=0.18352.
+- (0.1, 1.0): NLL={'first': 0.0035964250564575195, 'extra': -7.808208465576172e-05, 'tuning': 0.0026171207427978516}, shifts={0.5: 0.1256052702665329, 2.0: -1.267952799797058}, rmse=0.070605.
+- (0.1, 2.0): NLL={'first': 0.017010092735290527, 'extra': 0.007724761962890625, 'tuning': 0.015634536743164062}, shifts={0.5: 0.36483293771743774, 2.0: -2.1243650913238525}, rmse=0.062965.
+- (0.1, 4.0): NLL={'first': 0.07221126556396484, 'extra': 0.048576951026916504, 'tuning': 0.07451748847961426}, shifts={0.5: 0.8430987596511841, 2.0: -3.731196403503418}, rmse=0.11635.
+- (0.3, 1.0): NLL={'first': 0.0005168914794921875, 'extra': -0.001046895980834961, 'tuning': -2.6226043701171875e-05}, shifts={0.5: -0.030627714470028877, 2.0: -0.9111212491989136}, rmse=0.08235.
+- (0.3, 2.0): NLL={'first': 0.003769516944885254, 'extra': 3.147125244140625e-05, 'tuning': 0.002870917320251465}, shifts={0.5: 0.05203697085380554, 2.0: -1.4354525804519653}, rmse=0.070292.
+- (0.3, 4.0): NLL={'first': 0.018366336822509766, 'extra': 0.008799433708190918, 'tuning': 0.01724255084991455}, shifts={0.5: 0.21830710768699646, 2.0: -2.447556972503662}, rmse=0.070879.
+- (1.0, 1.0): NLL={'first': -0.00018727779388427734, 'extra': -0.0006564855575561523, 'tuning': -0.0003771781921386719}, shifts={0.5: -0.10597972571849823, 2.0: -0.6177104115486145}, rmse=0.092209.
+- (1.0, 2.0): NLL={'first': 3.504753112792969e-05, 'extra': -0.0009984970092773438, 'tuning': -0.00028383731842041016}, shifts={0.5: -0.09892038255929947, 2.0: -0.8580365180969238}, rmse=0.085882.
+- (1.0, 4.0): NLL={'first': 0.0017136335372924805, 'extra': -0.0007361173629760742, 'tuning': 0.0012015104293823242}, shifts={0.5: -0.08446972072124481, 2.0: -1.3323767185211182}, rmse=0.076581.
+- Choice=None, applied=False; beta=-2 rollback retained. GPU acceptance pending.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 171 of at most 300:
+```
+REGISTER + GLUCOSE-CODE PROTECTION (192, 150)
+{'lambda': 0.01, 'scale': 1.0, 'rmse': 0.0604, 'NLL_delta': {'first': 0.015619, 'extra': 0.007715, 'tuning': 0.015778}, 'half': 0.439, 'double': -1.763}
+{'lambda': 0.01, 'scale': 2.0, 'rmse': 0.0889, 'NLL_delta': {'first': 0.063491, 'extra': 0.047745, 'tuning': 0.068151}, 'half': 1.0, 'double': -3.063}
+{'lambda': 0.01, 'scale': 4.0, 'rmse': 0.2189, 'NLL_delta': {'first': 0.255288, 'extra': 0.215567, 'tuning': 0.289507}, 'half': 2.13, 'double': -5.432}
+{'lambda': 0.03, 'scale': 1.0, 'rmse': 0.0628, 'NLL_delta': {'first': 0.009549, 'extra': 0.003213, 'tuning': 0.008622}, 'half': 0.312, 'double': -1.596}
+{'lambda': 0.03, 'scale': 2.0, 'rmse': 0.077, 'NLL_delta': {'first': 0.040788, 'extra': 0.025227, 'tuning': 0.041015}, 'half': 0.739, 'double': -2.746}
+{'lambda': 0.03, 'scale': 4.0, 'rmse': 0.1835, 'NLL_delta': {'first': 0.167114, 'extra': 0.129071, 'tuning': 0.18411}, 'half': 1.589, 'double': -4.856}
+{'lambda': 0.1, 'scale': 1.0, 'rmse': 0.0706, 'NLL_delta': {'first': 0.003596, 'extra': -7.8e-05, 'tuning': 0.002617}, 'half': 0.126, 'double': -1.268}
+{'lambda': 0.1, 'scale': 2.0, 'rmse': 0.063, 'NLL_delta': {'first': 0.01701, 'extra': 0.007725, 'tuning': 0.015635}, 'half': 0.365, 'double': -2.124}
+{'lambda': 0.1, 'scale': 4.0, 'rmse': 0.1163, 'NLL_delta': {'first': 0.072211, 'extra': 0.048577, 'tuning': 0.074517}, 'half': 0.843, 'double': -3.731}
+{'lambda': 0.3, 'scale': 1.0, 'rmse': 0.0824, 'NLL_delta': {'first': 0.000517, 'extra': -0.001047, 'tuning': -2.6e-05}, 'half': -0.031, 'double': -0.911}
+{'lambda': 0.3, 'scale': 2.0, 'rmse': 0.0703, 'NLL_delta': {'first': 0.00377, 'extra': 3.1e-05, 'tuning': 0.002871}, 'half': 0.052, 'double': -1.435}
+{'lambda': 0.3, 'scale': 4.0, 'rmse': 0.0709, 'NLL_delta': {'first': 0.018366, 'extra': 0.008799, 'tuning': 0.017243}, 'half': 0.218, 'double': -2.448}
+{'lambda': 1.0, 'scale': 1.0, 'rmse': 0.0922, 'NLL_delta': {'first': -0.000187, 'extra': -0.000656, 'tuning': -0.000377}, 'half': -0.106, 'double': -0.618}
+{'lambda': 1.0, 'scale': 2.0, 'rmse': 0.0859, 'NLL_delta': {'first': 3.5e-05, 'extra': -0.000998, 'tuning': -0.000284}, 'half': -0.099, 'double': -0.858}
+{'lambda': 1.0, 'scale': 4.0, 'rmse': 0.0766, 'NLL_delta': {'first': 0.001714, 'extra': -0.000736, 'tuning': 0.001202}, 'half': -0.084, 'double': -1.332}
+CHOICE None APPLIED False ; beta=-2 rollback retained.
+
+```

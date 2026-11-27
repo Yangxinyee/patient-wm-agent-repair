@@ -1,0 +1,40 @@
+OUTPUT of Python run 66 of at most 300:
+```
+=== IMPLEMENTATION CONSTANTS ===
+latent_step61 ['Original recurrent step, varying only its supplied posterior mean.', ('dtype',), 'x', 1, 192, 960, 4, 'hour', 3600, 'core.flow.a', -1, 'core.slots', 'z_in', ('dim',), 'core.prelude.0', 'core.prelude_norm', 'stay_id', 128, 'core.age', 2, 'core.blocks.0.', 'input', 'core.delta_in', 'core.a_in', 'core.b_in', 'core.c_out', 'core.coda.0']
+wm_attention ['.q', '.', 1, 0, '.norm2', 'norm_then_age', 'input', 'age_then_norm', 'age_then_plainnorm', (192,), '.kv', 'global', 2, -1, 4, 48, 'key', -2, 192, '.out']
+wm_layer ['.norm1', '.attn', ('weights',), 1, '.norm2', '.cross', '.norm3', '.ffn']
+wm_mlp ['.0', '.2']
+
+=== RECURRENCE AFTER BOUNDARY FIX ===
+global unnormalized h RMSE [4.5254 5.8198 5.8334 6.5764 6.1531 5.2383] out RMSE [0.06798 0.06337 0.06615 0.07364 0.08487 0.08771]
+global norm_then_age h RMSE [4.7763 5.2391 5.5739 5.6922 5.2047 5.4484] out RMSE [0.07066 0.06544 0.07062 0.07054 0.07771 0.09047]
+global age_then_norm h RMSE [5.141  4.6587 3.7403 4.3367 4.8379 5.6603] out RMSE [0.07129 0.07072 0.06303 0.06457 0.07359 0.08168]
+global age_then_plainnorm h RMSE [4.736  4.2735 3.4518 4.0974 4.8583 5.7427] out RMSE [0.06621 0.06571 0.0591  0.06173 0.07252 0.08169]
+perhead unnormalized h RMSE [13.2074  8.0745  8.0729 17.255  15.2323 13.7799] out RMSE [0.10251 0.08996 0.10131 0.12536 0.13293 0.13605]
+perhead norm_then_age h RMSE [13.56    8.5744  8.5393 17.3321 15.4299 14.0598] out RMSE [0.10648 0.09454 0.10462 0.12596 0.13506 0.13858]
+perhead age_then_norm h RMSE [13.6076  9.54   10.1415 17.5226 16.2207 14.5989] out RMSE [0.10891 0.10908 0.11825 0.12826 0.13727 0.13897]
+perhead age_then_plainnorm h RMSE [13.5689  9.5591 10.2393 17.5794 16.3241 14.6497] out RMSE [0.10682 0.1076  0.11843 0.12869 0.13815 0.13992]
+
+=== REMAINING LATENT-STEP OPERATIONS ===
+
+34: | LOAD_GLOBAL wm_e4 | LOAD_FAST begin | LOAD_FAST j | BINARY_SLICE  | LOAD_CONST None | BINARY_SUBSCR  | LOAD_ATTR NULL|self + expand | LOAD_FAST K | LOAD_CONST -1 | LOAD_CONST -1 | CALL  | STORE_FAST memory | 
+35: | LOAD_GLOBAL NULL + torch | LOAD_ATTR as_tensor | 
+36: | LOAD_GLOBAL s4 | LOAD_CONST 'hour' | BINARY_SUBSCR  | LOAD_FAST j | BINARY_SUBSCR  | LOAD_GLOBAL s4 | LOAD_CONST 'hour' | BINARY_SUBSCR  | LOAD_FAST begin | LOAD_FAST j | BINARY_SLICE  | BINARY_OP - | LOAD_CONST 3600 | BINARY_OP * | 
+37: | LOAD_GLOBAL torch | LOAD_ATTR float32 | 
+35: | KW_NAMES ('dtype',) | CALL  | 
+37: | LOAD_ATTR NULL|self + reshape | LOAD_CONST 1 | LOAD_CONST -1 | LOAD_CONST 1 | CALL  | 
+35: | STORE_FAST ages | 
+38: | LOAD_GLOBAL NULL + wm_mlp | LOAD_GLOBAL NULL + torch | LOAD_ATTR log1p | LOAD_FAST ages | CALL  | LOAD_CONST 'core.age' | CALL  | LOAD_ATTR NULL|self + expand | LOAD_FAST K | LOAD_CONST -1 | LOAD_CONST -1 | CALL  | STORE_FAST age_vectors | 
+39: | LOAD_FAST hh | LOAD_FAST E | BINARY_OP + | STORE_FAST bb | 
+40: | LOAD_GLOBAL NULL + range | LOAD_CONST 2 | CALL  | GET_ITER  | FOR_ITER to 1264 | STORE_FAST layer | 
+41: | LOAD_GLOBAL NULL + wm_layer | LOAD_FAST bb | LOAD_CONST 'core.blocks.0.' | LOAD_FAST layer | FORMAT_VALUE  | BUILD_STRING  | 
+42: | LOAD_FAST memory | LOAD_FAST age_vectors | LOAD_CONST 'input' | 
+41: | CALL  | STORE_FAST bb | JUMP_BACKWARD to 1220 | 
+40: | END_FOR  | 
+43: | LOAD_GLOBAL NULL + F | LOAD_ATTR softplus | LOAD_GLOBAL W0 | LOAD_CONST 'core.delta_in' | BINARY_SUBSCR  | CALL  | STORE_FAST delta | 
+44: | LOAD_GLOBAL NULL + torch | LOAD_ATTR exp | LOAD_FAST delta | UNARY_NEGATIVE  | LOAD_GLOBAL NULL + torch | LOAD_ATTR exp | LOAD_GLOBAL W0 | LOAD_CONST 'core.a_in' | BINARY_SUBSCR  | CALL  | BINARY_OP * | CALL  | STORE_FAST abar | 
+45: | LOAD_FAST abar | LOAD_FAST hh | BINARY_OP * | LOAD_FAST delta | LOAD_GLOBAL NULL + wm_lin | LOAD_FAST E | LOAD_CONST 'core.b_in' | CALL  | BINARY_OP * | BINARY_OP + | LOAD_FAST bb | BINARY_OP + | LOAD_FAST hh | LOAD_FAST E | BINARY_OP + | BINARY_OP - | STORE_FAST new_h | 
+46: | LOAD_GLOBAL NULL + wm_layer | LOAD_GLOBAL NULL + wm_lin | LOAD_FAST new_h | LOAD_CONST 'core.c_out' | CALL  | LOAD_CONST 'core.coda.0' | CALL  | RETURN_VALUE 
+
+```

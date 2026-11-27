@@ -1,0 +1,163 @@
+OUTPUT of Python run 276 of at most 300:
+```
+FACTUAL AUDIT: forward, stays, readings, original NLL, edited NLL, delta
+4 50 2342 1.6406285 1.6466002 0.0059717
+6 50 2342 1.6406284 1.6401508 -0.0004776
+8 100 4751 1.634615 1.6476887 0.0130737
+9 100 4767 1.6088276 1.6116104 0.0027828
+11 98 4697 1.605163 1.6385505 0.0333875
+13 100 4767 1.6088275 1.6260487 0.0172211
+14 100 4767 1.6088275 1.6128458 0.0040183
+16 100 4751 1.634615 1.7293228 0.0947079
+17 100 4751 1.634615 1.6456832 0.0110682
+19 100 4751 1.634615 1.6458702 0.0112552
+20 100 4751 1.634615 1.6411281 0.006513
+21 100 4751 1.634615 1.6392515 0.0046365
+23 100 4751 1.634615 1.6573096 0.0226946
+24 100 4751 1.634615 1.6392957 0.0046807
+26 100 4548 1.630433 1.6360965 0.0056635
+27 100 4548 1.6304331 1.6363515 0.0059184
+28 100 4548 1.6304331 1.6348451 0.0044119
+30 100 4664 1.6204352 1.6433849 0.0229497
+31 100 4664 1.6204352 1.6261484 0.0057132
+33 100 4664 1.6204353 1.6256682 0.0052329
+34 100 4664 1.6204352 1.6257898 0.0053546
+36 100 4664 1.6204352 1.62476 0.0043248
+  cohort range 2020000100 2020000199
+  event deltas {'glucose_finger': 0.0041782, 'glucose_lab': 0.0157873, 'map_arterial': 0.0031179, 'map_cuff': 0.0016471}
+37 100 4676 1.6424875 1.6445478 0.0020603
+  cohort range 2020000300 2020000399
+  event deltas {'glucose_finger': 0.0029318, 'glucose_lab': -0.0023535, 'map_arterial': 0.0018265, 'map_cuff': 0.0028796}
+
+DOSE FILE SCHEMA
+1 original shape (2500, 7) columns ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+[{'stay_id': 2020000000, 'hour': 15, 'edit': 'insulin_x2', 'shift': 0.0, 'shift_se': 0.0, 'factual': 154.496, 'reached': False}, {'stay_id': 2020000000, 'hour': 16, 'edit': 'insulin_x2', 'shift': -0.1953, 'shift_se': 0.027, 'factual': 161.1528, 'reached': True}]
+35 original shape (2546, 7) columns ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+[{'stay_id': 2020000112, 'hour': 13, 'edit': 'insulin_x2', 'shift': 0.0575, 'shift_se': 0.0044, 'factual': 145.4609, 'reached': True}, {'stay_id': 2020000112, 'hour': 17, 'edit': 'insulin_x2', 'shift': -0.0277, 'shift_se': 0.0448, 'factual': 143.9722, 'reached': True}]
+35 edited shape (2546, 7) columns ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+[{'stay_id': 2020000112, 'hour': 13, 'edit': 'insulin_x2', 'shift': 0.1131, 'shift_se': 0.0058, 'factual': 142.807, 'reached': True}, {'stay_id': 2020000112, 'hour': 17, 'edit': 'insulin_x2', 'shift': 0.0177, 'shift_se': 0.0825, 'factual': 143.6684, 'reached': True}]
+
+EARLY RECORD-IDENTIFICATION NOTES
+# World-model repair notebook
+
+## Initial plan
+- Read architecture and record definitions before choosing an identification strategy.
+- Infer drug effects only from the simulated ICU records; impose no medical assumptions.
+- Use no gradients or weight optimiser.
+- Validate weight edits against original factual NLL and paired dose rollouts.
+- Required factual NLL degradation: at most 0.005 nats per reading.
+- Python runs: 1. Forward requests: 0.
+
+## Run 2: architecture
+Drug atoms have their own action encoder, but enter posterior and recurrent updates. Value heads also use last-reading registers and code-specific bin transitions. No causal conclusion yet. Full records loaded for timing and identification analysis.
+Python runs: 2. Forward requests: 0.
+
+## Run 3: hourly panel
+Readings occur on integer hours; infusions start at hour + 0.0833 and last one hour. Built full panels with absent infusion=0, prior reading registers, ages, and next-hour outcomes. Initial regressions are diagnostics, not yet accepted causal estimates.
+Validation IDs chosen randomly once (seed 731), 100 tuning stays.
+Python runs: 3. Forward requests: 0.
+
+## Run 4: selection and threshold identification
+Unadjusted insulin/glucose slope +23.36, adjusted about -1.92 per unit/hour. NE/MAP slope changes from -30.02 raw to -1.90 with current reading and +2.25 with history. These are not accepted as causal. Insulin dose thresholds near 150/180/220 motivate fuzzy RD. Test independent lab outcomes and observation availability to diagnose selection artifacts.
+Python runs: 4. Forward requests: 0.
+
+## Forward 1: original rollout, first 100 tuning stays
+Insulin x2 -1.847; insulin half +0.777; NE x2 -0.498; NE half -0.600. Insulin reaches 554 stay-hours/60 stays; NE 281/26. These are predictions, not truth.
+RD roughly -2 per additional insulin unit/hour, with serious observation jump at 150; prefer thresholds 180/220 and check temporal persistence. Boundary observations are mixtures because measurements are rounded.
+Python runs: 5. Forward requests: 1.
+
+## Run 5?6: dynamic identification
+Pooled insulin RD excludes rounded cutoff values at 180/220. Immediate glucose jump -2.2131 (SE .1583), dose jump 1.0361. Reduced-form outcome discontinuity fades over six hours; downstream dosing also changes. Joint impulse fit beta=-2.2778, persistence=.85743; provisional, not exact truth. NE polynomial-history coefficients remain about +3.09, but dose-policy nonlinearity may bias them. Cross-fitted flexible nuisance models now test residual-dose effects.
+NE DML beta=3.248868, cluster SE=0.096302.
+Python runs: 6. Forward requests: 1.
+
+## Run 7: restart and factual baseline
+Original factual value NLL on the fixed 100-stay tuning sample: 1.63461 (4751 readings); allowed sample ceiling 1.63961. Recovering architecture and retained analysis state before choosing an edit.
+Python runs: 7. Forward requests: 2.
+
+## Run 8: action pathway and identification audit
+Architecture recovered: action-specific encoder feeds posterior, prelude, and recurrent state; value heads also have same-code last-reading registers. Inspecting exact dose support, RD results, and layer dimensions before surgery.
+Python runs: 8. Forward requests: 2.
+
+## Run 9: compact units and causal audit
+Retrieved dynamic identification, dose units/support, exact action/posterior shapes, and head-input configuration. No weights edited yet.
+Python runs: 9. Forward requests: 2.
+
+## Run 10: states and target scale
+Loaded original 4356 bundle states for tuning stays 2020000000..99 and all original tensors. Computed provisional fixed-dose schedule responses over several persistence values; these are statistical targets, not hidden truth. No weights edited.
+Python runs: 10. Forward requests: 3.
+
+## Run 11: local reading decoder reconstruction
+Enumerated register layouts and activation types. Best: gelu, (6, 3, (0,)); decoder RMSE 1.5651. Provisional insulin x2 target on recorded reached hours: -13.586; half target +6.793, assuming beta=-2.2778 and persistence=.8574.
+Python runs: 11. Forward requests: 3.
+
+## Run 12: policy residual probes
+Fitted training-record dose-policy nuisance models (260000 sampled intervals). Cross-stay ridge probes test residual dose and raw-dose recovery from reading-head features; separately quantified prior-sampling noise. Probe results: [(0.1, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0309, 'raw_dose_R2': 0.7405, 'other_event_leakage_RMS': 0.0716}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0588, 'raw_dose_R2': 0.5973, 'other_event_leakage_RMS': 0.0171}]), (1.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.03, 'raw_dose_R2': 0.7384, 'other_event_leakage_RMS': 0.067}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0447, 'raw_dose_R2': 0.6053, 'other_event_leakage_RMS': 0.0166}]), (10.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.028, 'raw_dose_R2': 0.7306, 'other_event_leakage_RMS': 0.0539}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0171, 'raw_dose_R2': 0.6227, 'other_event_leakage_RMS': 0.0132}]), (100.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -
+
+RELEVANT RETAINED CONTRACTS
+NE_DML 3.2488677881108567
+action_targets ndarray (1497, 2)
+base_delta200 ndarray (192, 192)
+base_delta67 Tensor (192, 192)
+baseline_b77 ndarray (192, 192)
+baseline_b83 Tensor (192, 192)
+baseline_delta103 ndarray (192, 192)
+baseline_delta147 ndarray (192, 192)
+baseline_delta154 ndarray (192, 192)
+baseline_delta199 ndarray (192, 192)
+baseline_delta235 ndarray (192, 192)
+baseline_delta77 ndarray (192, 192)
+baseline_delta83 ndarray (192, 192)
+baseline_means45 Tensor (31,)
+baseline_original77 ndarray (192, 192)
+baseline_rollout DataFrame (2500, 7)
+baseline_shift151 ndarray (4356, 4, 192)
+baseline_weight156 ndarray (192, 192)
+blend219 0.15
+bootstrap_targets76 ndarray (160,)
+bundle_target115 (key)
+candidate_delta58 ndarray (192, 192)
+candidate_delta63 ndarray (192, 192)
+core_target_h Tensor (32, 4, 192)
+core_target_out Tensor (32, 192)
+delta ndarray (734, 4, 768)
+delta0 Tensor (192,)
+delta1 Tensor (108, 192)
+delta102 ndarray (1497, 193)
+delta121 Tensor (192,)
+delta133 Tensor (192,)
+delta141 ndarray (192,)
+delta148 ndarray (192,)
+delta154 ndarray (192, 192)
+delta196 ndarray (192, 192)
+delta219 ndarray (192, 192)
+delta46 Tensor (192,)
+delta47 ndarray (1497, 4, 192)
+delta56 ndarray (192, 192)
+delta57 ndarray (1497, 4, 192)
+deltaE142 ndarray (1497, 4, 192)
+delta_b262 ndarray (192,)
+delta_logits176 ndarray (4510, 17)
+delta_step114 ndarray (192,)
+delta_w262 ndarray (192, 768)
+delta_weight47 ndarray (192, 192)
+deltas Tensor (96, 192)
+end_target Tensor (80, 32)
+factual_targets57 ndarray (13968, 2)
+fit_impulse76 (horizons, estimates, dose_moments, grid=array([-0.5  , -0.499, -0.498, ...,  1.048,  1.049,  1.05 ], shape=(1551,)))
+full_insulin_slope58 (coefficient)
+inferred_delta142 ndarray (192,)
+innovation_delta51 ndarray (1497, 4, 192)
+insulin_blend236 0.35
+insulin_delta236 ndarray (192, 192)
+insulin_feature47 ndarray (192,)
+insulin_scale236 0.85
+insulin_slope47 0.16939213021379554
+joint_delta236 ndarray (192, 192)
+ne_G73 dict keys [1, 2, 3, 4, 6, 8]
+ne_G75 dict keys [1, 2, 3, 4, 6, 8]
+ne_beta83 3.0
+ne_checks76 dict keys ['map_arterial', 'map_cuff']
+ne_delta103 ndarray (192, 192)
+
+```

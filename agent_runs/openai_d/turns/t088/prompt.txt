@@ -1,0 +1,236 @@
+OUTPUT of Python run 78 of at most 300:
+```
+=== CONTROLLED-RESPONSE SUMMARY ===
+       "lag": 9,
+        "total_LP": 2.246,
+        "controlled_impulse": 0.1012,
+        "total_LP_SE": 0.19735,
+        "next_dose_feedback": 0.7482,
+        "n": 92036
+      },
+      {
+        "lag": 10,
+        "total_LP": 1.8218,
+        "controlled_impulse": -0.0967,
+        "total_LP_SE": 0.21019,
+        "next_dose_feedback": 0.7529,
+        "n": 85957
+      },
+      {
+        "lag": 11,
+        "total_LP": 1.6283,
+        "controlled_impulse": 0.0394,
+        "total_LP_SE": 0.23231,
+        "next_dose_feedback": 0.754,
+        "n": 79945
+      },
+      {
+        "lag": 12,
+        "total_LP": 1.4078,
+        "controlled_impulse": -0.0408,
+        "total_LP_SE": 0.25115,
+        "next_dose_feedback": 0.7563,
+        "n": 73880
+      }
+    ],
+    "geometric": [
+      3.4251262905273707,
+      0.6730035660080467
+    ],
+    "kernel": [
+      3.293228277726093,
+      2.5878650009977466,
+      1.7746983768126912,
+      0.9873506803028125,
+      0.4273030715972208,
+      0.2756797388201844,
+      0.007392273242067926,
+      0.03180661616606528,
+      0.10121714894504308,
+      -0.09665213231440539,
+      0.03943189864870522,
+      -0.04081733879812144
+    ]
+  }
+}
+
+## Run 7
+Recovered architecture. Separate action encoder feeds posterior and prelude; reading heads also use same-code last-reading registers and transition logits. No edits. Run 6 record-based rollout targets remain provisional: insulin x2 about -14.18, half +7.09; norepinephrine x2 +4.68, half -2.34 on training schedules.
+
+## Run 8
+Recovered persistent analysis variables and exact tensor shapes. Value-bin head is Linear(192,192), activation, Linear(192,17). Action encoder is separate two-stage DeepSets MLP. Last_numeric has 8 inputs; exact reconstruction must be checked rather than assuming the architecture summary lists every feature.
+
+## Forward 4
+Original factual predictions on the 100 training stays with saved states: NLL 1.63841 over 4510 readings. By event: finger 1.4350, lab 1.3445, arterial 1.5024, cuff 1.9645. No edits. Intended for validating a local reconstruction of the reading head.
+
+## Run 10
+Loaded original tensors and matched training factual CSV schema. Established complete numeric normalisation and fine-bin tables. Preparing a forward-head reconstruction; no model edits or external information used.
+
+## Run 11
+Matched 4510 factual reading rows to their preceding saved states. Initial local head reconstruction identifies measurement type index 1 but mean RMSE is about 3.76, too large to assume exact reconstruction. Checking bin boundaries, register layout, status and latent details before editing.
+
+## Run 12
+Register search supports [has_last, age, z_value, has_value, ...], measurement type 1 and zero status. Bin-edge convention has negligible effect here. Residual reconstruction error remains ~3.76; checking mixed MLP activations and latent Monte Carlo noise next. No edits.
+
+## Restart / Run 14
+No edits. Head reconstruction error exceeds four-draw Monte Carlo noise; recovering architecture, persistent variables, and baseline rollout results before attempting a causal weight edit.
+
+## Run 15
+Original rollout on the initial tuning sample: reached-hour means insulin x2 -1.85, half +0.78; norepinephrine x2 -0.50, half -0.60. These are substantially weaker than controlled record-based estimates (and NE x2 has the wrong sign). Still no edits.
+
+## Runs 16?19
+State alignment and out=norm(mean h) verified. Status embedding for readings is zero. Separate gap conventions did not resolve local head error (~3.36 versus ~0.93 four-draw noise RMS). Testing register age at saved-state time versus forecast time, type index, and numeric layout. No edits.
+
+
+
+=== RESIDUAL SLOPE DIAGNOSTICS ===
+insulin {'n': 675, 'innovation_SD': 0.5145807777466095, 'record_slope': -21.17239360862936, 'model_slope': -19.31541690195023, 'missing_slope': -1.8569767066791327}
+norepinephrine {'n': 437, 'innovation_SD': 0.11999193090845188, 'record_slope': -36.605220751623044, 'model_slope': -40.438156100868206, 'missing_slope': 3.83293534924517}
+
+=== GATE / QUERY GLOBAL NAMES ===
+['wc', 'wc0', 'zdraw', 'wc1', 'repair_wc_mean', 'rec_reg_projector', 'rec_gate_y', 'rec_gate_pred', 'rec_gate_fit', 'rec_gate_v', 'rec_gate_b', 'trial_gate_candidates', 'gate', 'trial_gate_result', 'trial_gated_va', 'trial_gate_fit', 'trial_gate_margins', 'trial_gate_strength', 'rowcheck', 'newcheck', 'wcm', 'q_draws', 'draw', 'q_alt_draws', 'viewcheck', 'wc_draws', 'wc_alt_draws', 'mc_code_gate', 'draw66', 'draws68', 'draw68', 'latent_sd68']
+
+=== SAMPLE-ARRAY SHAPES ===
+h0 (1000, 4, 192)
+flowh (1000, 4, 192)
+view (16, 1000, 192)
+wc (16, 1000, 192)
+hh (16, 1000, 192)
+zz (16, 1000, 32)
+vv (16, 1000, 192)
+qq (16, 1000, 192)
+ww (16, 1000, 192)
+ll (16, 1000, 17)
+mc_mu (1000,)
+qq0 (48, 1000, 192)
+wc0 (48, 1000, 192)
+rc_noise (48, 1000, 32)
+zdraw (48, 1000, 32)
+vv0 (48, 1000, 192)
+pp0 (48, 1000, 17)
+z (16, 1000, 32)
+rh_x (1000, 992)
+rh_out (1000, 192)
+rh_h (1000, 4, 192)
+rh_dt (1000, 1)
+rh_flow (1000, 4, 192)
+rh_codes (1000,)
+rh_lb (1000,)
+rh_centres (1000, 17)
+rh_fixed (1000, 192)
+rh_trans (1000, 17)
+rh_tool (1000,)
+rh_iqr (1000,)
+rh_has (1000,)
+rh_last (1000,)
+rh_nf (1000, 8)
+rh_hidden (1000, 192)
+rh_probs (1000, 17)
+rh_means (1000,)
+rh_vg (1000, 192)
+rh_baseview (1000, 192)
+rh_eps (128, 1000, 32)
+hid (16, 1000, 192)
+ppred (16, 1000, 17)
+allp (128, 1000, 17)
+wr_h (4510, 4, 192)
+wr_flow (4510, 4, 192)
+wr_eps_half (16, 4510, 32)
+wr_eps (32, 4510, 32)
+rec_val (1000, 192)
+rec_ln (192, 8)
+rec_vb (17, 192)
+rec_basis (192, 25)
+rec_u (192, 25)
+rec_s (25,)
+rec_reg_projector (192, 192)
+rec_mask (4510,)
+rec_indices (437,)
+rec_y (1295,)
+rec_groups (437,)
+rec_x (1295, 192)
+rec_pred (1295,)
+rec_tr (972,)
+rec_va (323,)
+rec_head_X (4510, 192)
+rec_head_groups (4510,)
+rec_finger (4510,)
+rec_gate_y (4510,)
+rec_gate_pred (4510,)
+rec_gate_v (192,)
+rec_ins_target (4510,)
+rec_ins_indices (1295,)
+rec_g (1295,)
+rec_ins_v (192,)
+eps_t (32, 4510, 32)
+q_draws (32, 4510, 192)
+q_alt_draws (32, 4510, 192)
+wc_draws (32, 4510, 192)
+wc_alt_draws (32, 4510, 192)
+mc_code_gate (32, 4510)
+mc_dose_signal (32, 4510)
+mc_pre (32, 4510, 2)
+mc_correction (32, 4510, 17)
+rep_eps65 (16, 4510, 32)
+rep_h66 (4510, 4, 192)
+rep_flow66 (4510, 4, 192)
+rep_eps67 (8, 1000, 32)
+rep_half68 (16, 4510, 32)
+rep_eps68 (32, 4510, 32)
+rep_Q68 (32, 4510, 192)
+rep_H68 (32, 4510, 192)
+rep_Qproj68 (32, 4510, 192)
+draws68 (32, 4510, 192)
+
+=== STORED FEATURE COMPARISONS ===
+wr_out RMS difference 1.59271
+wr_fixed RMS difference 0.9539
+wr_gap RMS difference 1.69902
+wr_base RMS difference 2.14497
+wr_phi RMS difference 1.36503
+qj RMS difference 0.47833
+phij RMS difference 1.37711
+wr_flowbase RMS difference 2.35357
+gapj RMS difference 11.6816
+_r37_phi RMS difference 1.37711
+repair_phi RMS difference 1.37711
+repair_P RMS difference 1.36137
+_raw RMS difference 0.5287
+_r40_q RMS difference 0.47833
+_r40_fixed RMS difference 0.9539
+repair_wc_mean RMS difference 0.5287
+rec_head_X RMS difference 0.0
+trial_X RMS difference 0.0
+trial_phi RMS difference 1.36503
+XX RMS difference 0.0
+xcheck RMS difference 0.0
+txcheck RMS difference 0.5287
+wcm RMS difference 0.5287
+base_t RMS difference 2.14497
+viewcheck RMS difference 2.13599
+q_mean_check RMS difference 1.65547
+inp RMS difference 0.584
+alt RMS difference 0.74691
+a64 RMS difference 1.36503
+rep_fixed65 RMS difference 0.9539
+qq65 RMS difference 1.63289
+hh65 RMS difference 1.53526
+rep_out66 RMS difference 1.59271
+rep_flowbase66 RMS difference 2.35357
+rep_fixed68 RMS difference 0.95392
+rep_base68 RMS difference 1.51568
+q68 RMS difference 1.31145
+h68 RMS difference 1.37566
+mean68 RMS difference 1.05717
+draw68 RMS difference 1.05733
+xgate RMS difference 0.0
+rec_gate_v norm 1.8817483313925831 intercept -0.18976838349791242
+wr_dt range 3300.1201171875 10800.0
+wr_nf first two rows [[0. 0. 0. 0. 0. 0. 0. 0.]
+ [0. 0. 0. 0. 0. 0. 0. 0.]]
+wr_codes first ten [ 7  6  7  5  6 10  7  6 10  7]
+
+=== ORIGINAL WEIGHT-CACHE NAMES ===
+['SHAPES', 'W0', 'rep_W']
+
+```

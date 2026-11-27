@@ -1,0 +1,249 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 97 replies happened before. Forward passes used: 4 of 50; Python runs used: 89 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+irst', ('value', 'dose', 'rate')), 0, 1, 'encoded_empty')]. No edits.
+
+## Run 44
+Independent activation/context search after no-END RMS 0.0466. Best: (0.04658462479710579, 'gelu', 'gelu', 0, ('gelu', 'log1p'), 'silu', 'gelu'). No edits.
+
+## Run 45
+Float32-boundary/unit search best: (2.107061845890712e-05, ('float32', 0, 'empty', (3, 2), (4, 3))). No edits.
+
+## Run 46 / restart recovery
+Run 45 reproduced no-END action posterior means with RMS 2.1e-5. Critical conventions: float32 bin boundaries, kq 0, empty measurement encoding, insulin units (3,2), NE units (4,3). Recovering validated functions and full update equations before a residual-dose edit. No tensors edited; forward passes 4/50.
+
+## Run 47
+Recovered full architecture. Actions affect both latent posterior and prelude attention; an unconditional embedding rescale is not justified. Recovering encoder dependencies and early causal identification notes to construct a residual-dose correction. No edits.
+
+## Run 48
+Threshold and innovation evidence, not rejected simple SSM fits, remain the basis for causal targets. Recovering exact action metadata and all-bundle export schema to validate END atoms before fitting any factual-preserving edit. No edits.
+
+## Run 49 / all-action reconstruction
+Generic start encoder test: (1.0064547240062893e-07, 2). Best END convention: (0.0728285163640976, ('zero', 'zero', 2, 0)). Validated bundle counts for 1602 drug bundles. No tensors edited.
+
+## Run 50 / END partition test
+Generic WORLD start encoder matches validated encoder to 1e-7; start event-kind index is 2. Treating all END atoms as actions failed (best RMS 0.0728285). END-as-observation best: (2.104543636960443e-05, ('missing', 'zero', 2, 0)). No weight edit until all-bundle reconstruction is validated.
+
+## Runs 53–56 / recovery and measurement bin audit
+Recovered architecture and causal evidence. No tensors edited. Testing float32 measurement boundaries, independently by bundle type. Best posterior test: (0.051534343510866165, False, 'left', 1); errors retained in err56.
+
+## Run 57 / empty-action audit
+Float32 measurement boundaries did not change errors. All 1602 action bundles match to ~2.1e-5 RMS; errors are on no-action bundles. Empty-action candidates: [('current', 0.051534347236156464), ('zero', 0.051534347236156464), ('encoded_empty', 0.012977438047528267)]. No tensors edited.
+
+## Run 58 / corrected measurement search
+The GPU uses encoded-empty u, contrary to the architecture's 'zero if none' statement. Correcting that reduces posterior RMS from .05153 to .01298. Measurement search best=(0.012922094203531742, 3, 2, 1, 'left'). No tensors edited.
+
+## Run 59 / targeted remaining-encoder audit
+Measurement categorical candidates: [('base', 0, 0.012977438047528267), ('embed.categorical.discharged_to.weight', 1, 0.013058122247457504), ('embed.categorical.action.weight', 1, 0.013269678689539433), ('embed.categorical.route.weight', 1, 0.013551345095038414)]; per-code unit fit {'glucose_finger': 0, 'glucose_lab': 5, 'map_arterial': 2, 'map_cuff': 2}. Action-only local posterior already validated; no tensors edited.
+
+## Run 60 / encoders validated
+Per-code measurement units are finger=0, lab=5, arterial=cuff=2. All-bundle posterior RMS=0.00003553; e_valid60/u_valid60 retained. Next: validate recurrent transition and construct an analytic, policy-residual correction. No weights edited.
+
+## Run 61 / restart recovery
+Posterior reconstruction is validated to 3.55e-5 RMS. Recovering recurrence equations and original causal evidence before choosing a factual-preserving residual-dose weight edit. No tensors edited.
+
+## Run 62
+Recovered architecture and reviewed rejected versus accepted causal estimates. Retrieving compact state/function schema after output truncation. No edits.
+
+## Run 63 / recurrence reconstruction
+Implemented no-gradient one-step recurrence and compared memory-age, activation and current-memory conventions against exported states. Best candidate: (0.0016396890860050917, 1.0700925486162305e-05, 'gelu', True, 'seconds', 1.0, 'both'). No edits.
+
+## Run 64
+Best recurrence uses GELU, includes the current e in memory, and adds core.age(log1p(age_seconds)) to both cross-attention keys and values. Out-state reconstruction RMS is approximately 1e-5. Inspecting interfaces for an analytic head-only correction before altering recurrence. No edits.
+
+## Run 65 / decoder and action interfaces
+Verifying generic dose re-encoding and exact value-register constants. Preparing a least-squares head-only residual-action correction, with factual features as a preservation constraint. No tensors edited.
+
+## Runs 66–67
+Run 66 stopped before editing because rate/dose unit table indices were reversed. Corrected dose-unit table I=3/NE=4, rate-unit table I=2/NE=3; verifying generic encoder, decoder and prediction-row alignment. No edits.
+
+## Run 68 / recovery
+Run 67's generic register is exact, but its explicit action encoder check has RMS 1.0097 and cannot support an edit. Recovering the previously validated encoder, recurrence, decoder, and record-based causal estimates. No edits; forward passes 4/50.
+
+## Run 69
+Architecture recovered; run 68 output truncated before function inventory. Retrieving compact retained interfaces and accepted causal kernels. No edits.
+
+## Runs 70–71 / pooling audit
+Explicit and trusted generic atom embeddings agree to 3.1e-8, but pooled u differs from u_valid60 by RMS 1.0097. Run 70 stopped at a metadata inspection error. Localizing pooling versus bundle alignment; no edits.
+
+## Run 72 / action-owner alignment fix
+Located run 65–67 mismatch: owners65 addresses the 1602 drug-bundle subset, not the 4491 full sequence. Remapped through drug_indices49 and rebuilt full counts. Testing against validated u_valid60. No edits.
+
+## Runs 73–74
+Run 73 stopped because transition64 requires age shape [N,128,1]. Corrected scalar axis and repeated state validation and factual-feature construction. No weights edited; forward passes 4/50.
+
+## Run 75 / recurrent memory-mask audit
+Posterior RMS=2.15e-5; factual decoder means track the observed means. Recurrent out RMS=.1306 and h RMS=12.29 are not acceptable. Testing mask polarity and inspecting retained validated memory inputs before using counterfactual state features. No edits.
+
+## Run 76 / mask resolved
+True denotes valid memory entries. With that convention, one-step out RMS is 1.51e-5 and h RMS is .00251. Recovering causal targets and validated interfaces before computing a factual-preserving dose correction. No edits.
+
+## Runs 77–80 / head-only plan
+Recovered accepted DML/RD insulin anchor ~-1.95, NE ~+3.1 and cross-sensor dynamic kernels. Provisional stay-weighted x2 targets I=-10.675, NE=+4.326; row-weighted I=-12.769, NE=+4.504. Simple SSM targets remain rejected. Plan: analytically fit a final value-head correction using dose-altered hidden features and factual preservation constraints. No edits yet.
+
+## Run 84 / restart recovery
+Run 83's head-only ridge edit cannot reach the causal slopes without factual loss: lambda=1 held-out dNLL=.001114, slopes I~-0.89/NE~.43-.58; lambda=.3 held-out dNLL=.006454 exceeds the .005 limit. Recovering fit interfaces before choosing a more selective edit. No tensors edited.
+
+## Run 85 / inspect head objective and causal evidence
+Inspecting the existing fit, original dose-rollout output, and latent-update interfaces to distinguish a weak head-only parameterization from a target/alignment error. No edits.
+
+## Run 88 / latent-direction finite-difference probe
+Original tuning rollout summaries: I2=-3.0206, Ihalf=1.6282 (60 reached stays); NE2=.4330, NEhalf=-.8431 (26 reached stays). Record-kernel targets remain provisional I2~-10.675/NE2~4.326. Probing sensor-selective latent directions with no gradients and no edits.
+
+## Run 89 / reject unvalidated latent probe
+Run 88 baseline RMSE=25.09, so its near-zero sensitivities and large latent direction are not evidence. Checking decoder return shapes and state alignment; no edits.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 89 of at most 300:
+```
+=== STATE RECONSTRUCTION ===
+out RMS: 0.12986552715301514
+h RMS: 11.935111045837402
+posterior RMS: 1.9511799109750427e-05
+
+=== OUTPUT SHAPES ===
+0 (8, 100)
+1 (8, 100, 17)
+2 (8, 100, 192)
+3 (8, 100, 17)
+probe baseline: (100,)
+cached factual means: (8, 100)
+eps: (8, 100, 32)
+('insulin', 1.0) {'rows': (2340,), 'hidden': torch.Size([8, 2340, 192]), 'logits': torch.Size([8, 2340, 17]), 'means': torch.Size([8, 2340]), 'probs': torch.Size([8, 2340, 17]), 'delta_rate': (2340,)}
+('insulin', 2.0) {'rows': (2340,), 'hidden': torch.Size([8, 2340, 192]), 'logits': torch.Size([8, 2340, 17]), 'means': torch.Size([8, 2340]), 'probs': torch.Size([8, 2340, 17]), 'delta_rate': (2340,)}
+('norepinephrine', 2.0) {'rows': (1643,), 'hidden': torch.Size([8, 1643, 192]), 'logits': torch.Size([8, 1643, 17]), 'means': torch.Size([8, 1643]), 'probs': torch.Size([8, 1643, 17]), 'delta_rate': (1643,)}
+
+=== DECODER RETURN ===
+BINARY_SUBSCR 
+BINARY_OP +
+STORE_FAST logits
+LOAD_FAST logits
+LOAD_ATTR NULL|self + softmax
+LOAD_CONST -1
+CALL 
+STORE_FAST probs
+LOAD_FAST probs
+LOAD_FAST centres
+LOAD_CONST None
+BINARY_SUBSCR 
+BINARY_OP *
+LOAD_ATTR NULL|self + sum
+LOAD_CONST -1
+CALL 
+STORE_FAST means
+LOAD_FAST return_features
+POP_JUMP_IF_FALSE to 406
+LOAD_FAST means
+LOAD_FAST probs
+LOAD_FAST hidden
+LOAD_FAST logits
+BUILD_TUPLE 
+RETURN_VALUE 
+LOAD_FAST means
+LOAD_ATTR NULL|self + mean
+LOAD_CONST 0
+CALL 
+LOAD_FAST probs
+LOAD_ATTR NULL|self + mean
+LOAD_CONST 0
+CALL 
+BUILD_TUPLE 
+RETURN_VALUE 
+
+=== SAMPLE PREDICTIONS ===
+map_cuff local 81.61128997802734 cached 91.81782531738281
+map_arterial local 70.85304260253906 cached 64.59748840332031
+map_arterial local 69.46656799316406 cached 60.998260498046875
+glucose_lab local 176.5076904296875 cached 118.13990783691406
+map_arterial local 79.67229461669922 cached 83.59916687011719
+glucose_lab local 184.66610717773438 cached 256.42327880859375
+map_cuff local 80.92048645019531 cached 84.96064758300781
+glucose_lab local 176.6470489501953 cached 160.55355834960938
+
+```

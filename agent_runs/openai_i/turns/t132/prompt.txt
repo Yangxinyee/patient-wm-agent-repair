@@ -1,0 +1,148 @@
+OUTPUT of Python run 121 of at most 300:
+```
+=== RELEVANT NOTEBOOK SECTIONS ===
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        6 173732           -0.935967                0.076301
+glucose_finger        7 162848           -0.683029                0.083131
+glucose_finger        8 152159           -0.529864                0.0909
+## Register-flag search ? Python 21; forward 4
+- Tested 64 binary flag layouts and five age encodings without changing weights.
+- Original rollout responses are weak relative to record-based impulse estimates.
+               age flag_columns      rms     bias      nll  mask_id
+              zero         (4,) 4.246606 1.894217 1.687699        4
+   hours_log_div10         (4,) 4.279984 2.014240 1.689289        4
+hours_linear_div10         (4,) 4.371322 2.171057 1.693805        4
+              zero           () 4.627127 1.905579 1.705522        0
+   hours_log_div10           () 4.673152 2.009212 1.706651        0
+              zero    (0, 3, 4) 4.680979 2.030317 1.754868        7
+   hours_log_div10    (0, 3, 4) 4.753480 2.146869 1.757741        7
+hours_linear_div10           () 4.776523 2.145068 1.711134        0
+
+
+## Restart ? Python 24; forward 4
+- No weights changed. Local head reconstruction is approximate and cannot certify factual loss.
+- Inspecting full architecture and tensor shapes to design a reversible dose-sensitive edit.
+- Record-based impulse estimates remain provisional; factual certification will use the forward tool.
+
+
+## Python 29; forward 4 ? first reversible edit
+- Estimated rollout targets by convolving recorded post-hour-12 rates with controlled impulse estimates; these are not intervention truth.
+        edit  exposed_stays  original_prediction  record_estimate_8_lags  record_estimate_with_tail
+  insulin_x2             52              -1.6118                -10.6853                   -10.9705
+insulin_half             52               0.7488                  5.3426                     5.4852
+       ne_x2             21               0.3234                  3.8352                     3.8352
+     ne_half             21              -0.0292                 -1.9176                    -1.9176
+- Probe only: multiplied encode_action.norm.weight and bias by 2, scaling action bundle vectors while leaving action-free bundles unchanged.
+- Must verify factual value-NLL <= original +0.005 and inspect paired dose responses; revert if unsuitable.
+
+
+## Python 32; forward 5
+- Recovered record-based identification: insulin immediate slope near -2; RD estimates agree and pre-dose lab placebo is near zero.
+- Printing only the rollout request, lag estimates, and relevant tensor shapes to avoid output truncation.
+
+
+## Python 48; forward 6 ? correction proposal
+- Retrieved controlled impulse estimates: insulin initially -1.99 per rate unit, with a multi-hour tail; NE initially +3.29 with a shorter tail.
+- Considering a posterior-mean low-rank edit driven by decoded dose innovations, with synthetic rate changes used only to test representation/extrapolation.
+- Effects are estimated from records, not medical assumptions. No weights changed.
+
+
+## Python 68; forward 6 ? recovered identification
+- No weights edited. Record-based crossfit estimates support insulin about -2 and NE about +3 per rate unit at the next reading.
+- Insulin RD and pre-dose placebo provide complementary evidence; hour-0 NE estimates are less reliable.
+- Recovering impulse persistence and exact recurrent computations to choose a shared-state correction, not a sensor-only adjustment.
+
+
+## Python 82; forward 6 ? edit plan
+- Recovered original rollout means: insulin x2 -1.864, half +0.975; NE x2 +0.342, half -0.032.
+- Proximal record estimates near insulin -2 and NE +3 require lag propagation to obtain rollout targets.
+- Plan: fit a posterior-hidden dose-innovation feature, constrain it on factual bundles, and validate a reversible low-rank recurrent edit.
+
+
+## Python 83; forward 6 ? reconstruction reset
+- Controlled impulse estimates have a multi-hour tail; matching only next-hour effects is insufficient.
+- Raw measurement rows have absent unit fields. Event metadata units must not be injected into their embeddings.
+- Inspecting exposed-state schema and retained conventions to rebuild posterior features directly.
+
+
+
+=== FUNCTIONS (NAMES ONLY) ===
+load load_original save_edit drop_edit edited compact make_panel clustered_ols new_nuisance innovation_slope rd_estimate fine_bin linear_named mlp_named norm_named reconstruct_head _fn head2 fn original_linear21 capture_linear21 linear_base23 head_exact brief26 fn27 repair_linear repair_norm repair_mlp repair_atom_base repair_mlp_act fn39 latent_context latent_categories latent_action_encode latent_hidden latent_encode_batch latent_post_mean latent_start_atom summary49 action_vector50 compact_instructions complete_atom57 single_set57 empty_set58 post_mean59 helper small_description62 mlp65 encode_grouped65 f69 x82 atom84 pooled84 old_mlp85 context84 posterior84 encode_sum86 sum_units86 unit_score86 show90 fn91 _fn95 _fn96 end_atom99 drug_u99 _fn100 o103 cosine104 fn108 mlp109 pool109 posterior109
+
+=== POSTERIOR AND ACTION TENSORS ===
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+
+=== RECENT RETAINED OBJECTS ===
+ctx109 Tensor torch.Size([64, 192])
+target109 Tensor torch.Size([64, 32])
+e109 Tensor torch.Size([64, 192])
+u109 Tensor torch.Size([64, 192])
+z109 Tensor torch.Size([64, 32])
+err109 Tensor torch.Size([64])
+ci109 ndarray (160,)
+ce109 Tensor torch.Size([160, 192])
+cu109 Tensor torch.Size([160, 192])
+ch109 Tensor torch.Size([160, 192])
+cz109 Tensor torch.Size([160, 32])
+ct109 Tensor torch.Size([160, 32])
+drug_idx110 ndarray (1312,)
+drug_ctx110 Tensor torch.Size([1312, 192])
+drug_e110 Tensor torch.Size([1312, 192])
+drug_u110 Tensor torch.Size([1312, 192])
+drug_hidden110 ndarray (1312, 192)
+drug_z110 Tensor torch.Size([1312, 32])
+drug_rates110 ndarray (1312, 2)
+hidden_edits110 dict [('insulin', 0.0), ('insulin', 0.5), ('insulin', 1.5), ('insulin', 2.0), ('insulin', 3.0), ('norepinephrine', 0.0), ('norepinephrine', 0.5), ('norepinephrine', 1.5)]
+hh110 Tensor torch.Size([1312, 192])
+active110 ndarray (1312,)
+dh110 ndarray (1312, 192)
+panel_pos111 ndarray (1312,)
+_bad ndarray (53,)
+_bi ndarray (53,)
+repair_H119 ndarray (4035, 192)
+repair_ids119 ndarray (4035,)
+repair_valid119 ndarray (4035,)
+repair_train119 ndarray (4035,)
+repair_test119 ndarray (4035,)
+repair_targets119 ndarray (4035, 2)
+repair_active119 ndarray (4035, 2)
+_good ndarray (1312,)
+_record_rates ndarray (1259,)
+repair_D119 ndarray (13120, 192)
+repair_Y119 ndarray (13120, 2)
+repair_DI119 ndarray (13120,)
+_h ndarray (1312, 192)
+repair_dtrain119 ndarray (13120,)
+repair_dtest119 ndarray (13120,)
+repair_X119 ndarray (4035, 193)
+repair_DX119 ndarray (13120, 193)
+repair_decoders119 dict [(0.25, 0.1), (0.25, 1.0), (0.25, 10.0), (1.0, 0.1), (1.0, 1.0), (1.0, 10.0), (4.0, 0.1), (4.0, 1.0)]
+_X ndarray (8762, 193)
+_Y ndarray (8762, 2)
+_pf ndarray (4035, 2)
+_pd ndarray (13120, 2)
+_non ndarray (4035,)
+_truth ndarray (445,)
+
+```

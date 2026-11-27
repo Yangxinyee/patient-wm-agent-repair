@@ -1,0 +1,43 @@
+OUTPUT of Python run 225 of at most 300:
+```
+## Heads: predicting bundle k+1 from what is known before it  **The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`. - At evaluation, z is drawn from the prior 4 times and the probabilities are averaged. - Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.  **Heads:** - **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals). - **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type   (Poisson). - **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`. - **Attributes.** They are read from:        with_code = q + embed.code[code]                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]    The "last" fields are a register: the most recent earlier value of the same code in this stay.   - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax     over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`     (`vocab.json["value_bin_centres"]`).   - **rate:** `rate_bin` works the same way for dru
+attr_heads.status.0.bias (192,)
+attr_heads.status.0.weight (192, 192)
+attr_heads.status.2.bias (2,)
+attr_heads.status.2.weight (2, 192)
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+embed.code.weight (13, 192)
+embed.ekind.weight (5, 192)
+embed.kind.weight (3, 192)
+embed.kq.weight (4, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+embed.text.weight (2, 192)
+last_numeric.bias (192,)
+last_numeric.weight (192, 8)
+last_status.weight (2, 192)
+query_norm.bias (192,)
+query_norm.weight (192,)
+type_emb.weight (15, 192)
+prelude_parts('Pp', 'hf', 'e', 'u', 'z')
+tf_loop('P_', 'ds', 'keep') def=(None,)
+tf_nll('P', 'ret') def=(False,)
+tf_eval('P', 'ds', 'ret_states') def=(False,)
+rollout_stay('df', 's', 'P', 'n_paths', 'seed', 'prep') def=(20, 0, None)
+head_value('out_prev', 'h_prev', 'dt', 'code_idx', 'has_last', 'age_s', 'z_last', 'last_vbin', 'eps', 'P') def=(None,)
+tf_views('df', 's', 'P', 'mods', 'seed') def=(0,)
+true_shift('sid_', 't', 'ed')
+build_ds('df', 'stays', 'seed') def=(0,)
+Traceback (most recent call last):
+  File "<run>", line 10, in <module>
+KeyError: 'internals'
+
+```

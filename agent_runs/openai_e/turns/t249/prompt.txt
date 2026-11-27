@@ -1,0 +1,105 @@
+OUTPUT of Python run 216 of at most 300:
+```
+=== INITIAL IDENTIFICATION EVIDENCE ===
+# World-model repair notebook
+
+## Initial plan
+- Read architecture and record definitions before choosing an identification strategy.
+- Infer drug effects only from the simulated ICU records; impose no medical assumptions.
+- Use no gradients or weight optimiser.
+- Validate weight edits against original factual NLL and paired dose rollouts.
+- Required factual NLL degradation: at most 0.005 nats per reading.
+- Python runs: 1. Forward requests: 0.
+
+## Run 2: architecture
+Drug atoms have their own action encoder, but enter posterior and recurrent updates. Value heads also use last-reading registers and code-specific bin transitions. No causal conclusion yet. Full records loaded for timing and identification analysis.
+Python runs: 2. Forward requests: 0.
+
+## Run 3: hourly panel
+Readings occur on integer hours; infusions start at hour + 0.0833 and last one hour. Built full panels with absent infusion=0, prior reading registers, ages, and next-hour outcomes. Initial regressions are diagnostics, not yet accepted causal estimates.
+Validation IDs chosen randomly once (seed 731), 100 tuning stays.
+Python runs: 3. Forward requests: 0.
+
+## Run 4: selection and threshold identification
+Unadjusted insulin/glucose slope +23.36, adjusted about -1.92 per unit/hour. NE/MAP slope changes from -30.02 raw to -1.90 with current reading and +2.25 with history. These are not accepted as causal. Insulin dose thresholds near 150/180/220 motivate fuzzy RD. Test independent lab outcomes and observation availability to diagnose selection artifacts.
+Python runs: 4. Forward requests: 0.
+
+## Forward 1: original rollout, first 100 tuning stays
+Insulin x2 -1.847; insulin half +0.777; NE x2 -0.498; NE half -0.600. Insulin reaches 554 stay-hours/60 stays; NE 281/26. These are predictions, not truth.
+RD roughly -2 per additional insulin unit/hour, with serious observation jump at 150; prefer thresholds 180/220 and check temporal persistence. Boundary observations are mixtures because measurements are rounded.
+Python runs: 5. Forward requests: 1.
+
+## Run 5?6: dynamic identification
+Pooled insulin RD excludes rounded cutoff values at 180/220. Immediate glucose jump -2.2131 (SE .1583), dose jump 1.0361. Reduced-form outcome discontinuity fades over six hours; downstream dosing also changes. Joint impulse fit beta=-2.2778, persistence=.85743; provisional, not exact truth. NE polynomial-history coefficients remain about +3.09, but dose-policy nonlinearity may bias them. Cross-fitted flexible nuisance models now test residual-dose effects.
+NE DML beta=3.248868, cluster SE=0.096302.
+Python runs: 6. Forward requests: 1.
+
+## Run 7: restart and factual baseline
+Original factual value NLL on the fixed 100-stay tuning sample: 1.63461 (4751 readings); allowed sample ceiling 1.63961. Recovering architecture and retained analysis state before choosing an edit.
+Python runs: 7. Forward requests: 2.
+
+## Run 8: action pathway and identification audit
+Architecture recovered: action-specific encoder feeds posterior, prelude, and recurrent state; value heads also have same-code last-reading registers. Inspecting exact dose support, RD results, and layer dimensions before surgery.
+Python runs: 8. Forward requests: 2.
+
+## Run 9: compact units and causal audit
+Retrieved dynamic identification, dose uni
+
+=== SELECTED EXPERIMENT NOTES ===
+## Run 76: independent MAP channels and causal uncertainty
+Arterial/cuff dynamic checks={'map_arterial': {'estimates': {1: {'n': 51893, 'beta': 2.9387948130277888, 'se': 0.21964029906671806}, 2: {'n': 51940, 'beta': 4.680009584019375, 'se': 0.24861714255824788}, 3: {'n': 51932, 'beta': 5.397717206666027, 'se': 0.2767427349355862}, 4: {'n': 51859, 'beta': 5.2585434808298, 'se': 0.302682560828227}, 6: {'n': 51949, 'beta': 4.3645044465687475, 'se': 0.33745937444494684}, 8: {'n': 51920, 'beta': 3.048246026717235, 'se': 0.367529180249146}}, 'fit': {'loss': 2.555341569475786, 'beta': 3.1670730232094746, 'phi': 0.704}, 'target': {'mean': 4.56014447356125, 'n': 314}}, 'map_cuff': {'estimates': {1: {'n': 69058, 'beta': 2.1020666470455396, 'se': 0.44006518418597923}, 2: {'n': 69251, 'beta': 4.102621742717178, 'se': 0.45135341680031926}, 3: {'n': 69
+## Run 77: freeze insulin baseline and recover NE edit machinery
+Independent arterial/cuff persistence is about .70; placebo effects are near zero. Working NE x2 target about +4.2 to +4.6, half about -2.1 to -2.3. Saved current insulin-only b_in delta to /work/baseline77.npz before NE surgery. No weights changed. Python runs: 77; forwards: 10.
+
+
+## Run 78: restart recovery for NE surgery
+Baseline77 is preserved. Recovering architecture and constrained-feature objects before a reversible NE edit; no weights changed. Python runs: 78; forwards: 10.
+
+
+## Forward 19 / Run 155: state penalty fails; direct shrinkage trial
+Gamma=1 candidate factual NLL=1.64587 (+.01126), rejected. Installed original + verified baseline77 + .4*NE_candidate151_delta, saved as ne_candidate155.npz. Recovery of historical factual results and insulin baseline evidence accompanies this reversible, unaccepted trial. Python runs: 155; forwards: 19.
+
+
+## Forward 20 / Run 156: isolate insulin baseline factual cost
+Candidate155 NLL=1.64113 vs original=1.63461 (+.00652) on first 100 tuning stays. Installed insulin-only baseline77 to measure its contribution on this exact sample. Recovered decoder interfaces and original-state archive layouts for a possible algebraic calibration, not a gradient-based weight fit. Python runs: 156; forwards: 20.
+
+
+## Run 158: bounded recovery
+Recovered factual-test stay IDs and selected later causal/baseline evidence after truncated output. No weights changed. Python runs: 158; forwards: 20.
+
+
+## Run 175: corrected local decoder and paired training distributions
+One numeric projection is correct by GPU agreement. Proper log(dt)/10 query gives deterministic original NLL=1.62508 vs GPU=1.63461 and mean RMSE=1.565; duplicate projection is worse. Built common-prior-draw original/insulin-baseline training probabilities for calibration diagnostics. No weights changed. Python runs: 175; forwards: 22.
+
+
+## Run 183: reject hidden-head distillation; inspect posterior inference pathway
+Hidden-feature distillation reduced KL but all tested penalties increased stay-held-out NLL; no decoder edit installed. Inspecting whether a record-predictable action component can replace dose-dependent posterior inference while leaving the direct action pathway intact. No weights changed. Python runs: 183; forwards: 22.
+
+
+## Runs 195?196: archive lookup recovery
+Run195 confirmed paired train contrasts but stopped on a missing archive key. No weights changed. Located saved direction schemas and recovered prior NE construction notes. Python runs: 196; forwards: 22.
+
+
+## Runs 212?213: measured GPU frontier and helper recovery
+Run212 stopped on pandas shift-method collision; fixed with explicit column indexing. Aggregating factual costs and stay-weighted dose readouts; recovering decoder/detector contracts. No weights changed. Python runs: 213; forwards: 23.
+
+
+
+=== VALUE-HEAD TENSORS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+embed_transition.value_bin.weight (221, 17)
+
+=== LATE DECODER HELPERS ===
+reading_metadata162 referenced names: ('groupby', 'np', 'flatnonzero', 'argsort', 'sort_values', 'itertuples', 'event', 'numeric162', 'pd', 'isna', 'value', 'searchsorted', 'hour', 'codes162', 'asarray', 'get', 'float', 'int', 'append', 'DataFrame')
+string constants: ['stay_id', 'hour', 'stable', 'value', 'left', 'fine_bin_edges', 'median', 'iqr']
+build_static167 referenced names: ('np', 'zeros', 'len', 'float32', 'has_last', 'to_numpy', 'log1p', 'age', 'last_z', 'torch', 'tensor', 'code', 'long', 'last_bin', 'W0', 'linear0')
+string constants: ['embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'embed_transition.value_bin.weight']
+decode_states175 referenced names: ('next', 'files', 'state_row', 'to_numpy', 'astype', 'np', 'int64', 'torch', 'as_tensor', 'float32', 'dt', 'reshape', 'exp', 'W0', 'norm0', 'mean', 'mlp0', 'log', 'clamp_min', 'Generator', 'manual_seed', 'randn', 'len', 'zeros', 'shape', 'range', 'clamp', 'linear0', 'F', 'gelu', 'softmax', 'numpy')
+string constants: ['core.flow.a', 'core.out_norm', 'gap', 'z_prior', 'attr_heads.value_bin.2.weight', 'z_head', 'type_emb.weight', 'query_norm', 'attr_heads.value_bin.0', 'attr_heads.value_bin.2']
+
+=== FACTUAL OUTPUT SCHEMA ===
+
+```

@@ -1,0 +1,203 @@
+OUTPUT of Python run 214 of at most 300:
+```
+Saved ridge1_scale16_checkpoint.
+FIRST 100 TUNING IDS: [2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007, 2020000008, 2020000009, 2020000010, 2020000011, 2020000012, 2020000013, 2020000014, 2020000015, 2020000016, 2020000017, 2020000018, 2020000019, 2020000020, 2020000021, 2020000022, 2020000023, 2020000024, 2020000025, 2020000026, 2020000027, 2020000028, 2020000029, 2020000030, 2020000031, 2020000032, 2020000033, 2020000034, 2020000035, 2020000036, 2020000037, 2020000038, 2020000039, 2020000040, 2020000041, 2020000042, 2020000043, 2020000044, 2020000045, 2020000046, 2020000047, 2020000048, 2020000049, 2020000050, 2020000051, 2020000052, 2020000053, 2020000054, 2020000055, 2020000056, 2020000057, 2020000058, 2020000059, 2020000060, 2020000061, 2020000062, 2020000063, 2020000064, 2020000065, 2020000066, 2020000067, 2020000068, 2020000069, 2020000070, 2020000071, 2020000072, 2020000073, 2020000074, 2020000075, 2020000076, 2020000077, 2020000078, 2020000079, 2020000080, 2020000081, 2020000082, 2020000083, 2020000084, 2020000085, 2020000086, 2020000087, 2020000088, 2020000089, 2020000090, 2020000091, 2020000092, 2020000093, 2020000094, 2020000095, 2020000096, 2020000097, 2020000098, 2020000099]
+SECOND 100 TUNING IDS: [2020000100, 2020000101, 2020000102, 2020000103, 2020000104, 2020000105, 2020000106, 2020000107, 2020000108, 2020000109, 2020000110, 2020000111, 2020000112, 2020000113, 2020000114, 2020000115, 2020000116, 2020000117, 2020000118, 2020000119, 2020000120, 2020000121, 2020000122, 2020000123, 2020000124, 2020000125, 2020000126, 2020000127, 2020000128, 2020000129, 2020000130, 2020000131, 2020000132, 2020000133, 2020000134, 2020000135, 2020000136, 2020000137, 2020000138, 2020000139, 2020000140, 2020000141, 2020000142, 2020000143, 2020000144, 2020000145, 2020000146, 2020000147, 2020000148, 2020000149, 2020000150, 2020000151, 2020000152, 2020000153, 2020000154, 2020000155, 2020000156, 2020000157, 2020000158, 2020000159, 2020000160, 2020000161, 2020000162, 2020000163, 2020000164, 2020000165, 2020000166, 2020000167, 2020000168, 2020000169, 2020000170, 2020000171, 2020000172, 2020000173, 2020000174, 2020000175, 2020000176, 2020000177, 2020000178, 2020000179, 2020000180, 2020000181, 2020000182, 2020000183, 2020000184, 2020000185, 2020000186, 2020000187, 2020000188, 2020000189, 2020000190, 2020000191, 2020000192, 2020000193, 2020000194, 2020000195, 2020000196, 2020000197, 2020000198, 2020000199]
+
+EDIT HELPER SIGNATURES:
+make_contrast_graft (w, b, scale=1.0)
+make_selective_contrast_graft (w, b, scale, gate_strength=30.0)
+cache_losses (cache, w, b, scale)
+
+RELEVANT CONFIGURATIONS:
+alt_contrast_config keys: ['regularization', 'scale', 'gate_strength']
+r3_choice None
+r3_applied False
+stronger6_checkpoint keys: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+protected_separators keys: [0.01, 0.1, 1.0, 10.0]
+r3_candidates keys: [(0.01, 1.0), (0.01, 2.0), (0.01, 4.0), (0.03, 1.0), (0.03, 2.0), (0.03, 4.0), (0.1, 1.0), (0.1, 2.0), (0.1, 4.0), (0.3, 1.0), (0.3, 2.0), (0.3, 4.0), (1.0, 1.0), (1.0, 2.0), (1.0, 4.0)]
+
+FIRST CAUSAL NOTES:
+# Weight-repair notebook
+
+## Initial inspection
+- Python runs: 1. Forward requests: 0.
+- No drug effects assumed; all effect estimates must come from these simulated records.
+- First inspect architecture, event ordering, dose encoding, and available histories.
+- Then estimate dose effects, measure original rollouts/factual fit, and test targeted weight edits with the factual NLL constraint.
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.024098411603330767,
+    "first_stage_t": 34.65836012846078,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'past_difference')": {
+    "beta": -1.7098169631722566,
+    "se": 0.49571479741038577,
+    "first_stage": 0.024088881089054243,
+    "first_stage_t": 34.682785128203996,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'stayFE')": {
+    "beta": 0.6604909236239173,
+    "se": 0.531745510423111,
+    "first_stage": 0.027494693802790897,
+    "first_stage_t": 23.486841143670325,
+    "n": 15729
+  },
+  "('norepinephrine', 'map_arterial', 'history')": {
+    "beta": -18.770179837459043,
+    "se": 10.725044751264742,
+    "first_stage": 0.00023924704982281593,
+    "first_stage_t": 4.630621380691009,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'past_difference')": {
+    "beta": -18.46746024463273,
+    "se": 10.79598180969503,
+    "first_stage": 0.00023698386029265031,
+    "first_stage_t": 4.589330754374463,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'stayFE')": {
+    "beta": 45.967013136779165,
+    "se": 17.626632496359736,
+    "first_stage": 0.0001960059721602588,
+    "first_stage_t": 3.583611528216762,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_cuff', 'history')": {
+    "beta": -44.76692008065325,
+    "se": 44.17355258218645,
+    "first_stage": 0.0001653959279835562,
+    "first_stage_t": 1.8429218212513345,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'past_difference')": {
+    "beta": -
+
+CAUSAL SECTION HEADINGS:
+## Architecture inspected; Python 2, forward 0
+## Record transition analysis; Python 3, forward 0
+## Original rollout and identification checks; Python 4, forward 1
+## Factual baseline and dynamic identification; Python 5, forward 2
+## More efficient dynamic checks; Python 6, forward 2
+## Restart: Python 7, forward 2
+## Sensor-contrast local projections; Python 9, forward 2
+## Dynamic identification; Python 10, forward 2
+## Representation inspection; Python 12, forward 3
+## Kernel recovery; Python 18, forward 4
+## Recovery and threshold identification; Python 23, forward 4
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+## Restart recovery; Python 26, forward 4
+## CPU head diagnostics; Python 32, forward 4
+## Register layout test; Python 38, forward 4
+## Restart diagnostics; Python 44, forward 4
+## Recovery; Python 50, forward 4
+## Cross-stay dose-policy fitting; Python 51, forward 4
+## Residual-dose decoder; Python 52, forward 4
+## Restart after Python 52; forward 4/50
+## Decoder unit check; Python 56, forward 4
+## Additional training states; Python 57, forward 5/50
+## First reversible insulin head probe; Python 58, forward 5/50
+## Rank-one probe rejected; Python 60, forward 7/50
+## Raw-input decoder recovery; Python 64, forward 7/50
+## Gated raw-input insulin graft; Python 65, forward 7/50
+## Graft failure localization; Python 70, forward 7/50
+## Latent-robust gated graft; Python 72, forward 7/50
+## GPU validation of latent-robust graft; Python 73, forwards 8?9
+## Stronger reversible insulin trial; Python 77
+## Stronger insulin probe rejected; Python 80, forwards 10?11
+## Restart recovery; Python 84, forwards 11/50
+## Feedback diagnosis; Python 87, forwards 11/50
+## Local-step encoding check; Python 89, forwa
+[output cut at 10,000 characters]
+```

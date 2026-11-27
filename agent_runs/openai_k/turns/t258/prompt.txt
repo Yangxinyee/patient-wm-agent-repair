@@ -1,0 +1,290 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 257 replies happened before. Forward passes used: 17 of 50; Python runs used: 231 of 300. Your kernel is still running with its variables. Tensors currently edited: ['z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+iagnostic indexing failure.
+- Reading architecture and schema and locating retained replay functions before further edits.
+- No weights changed. Python runs: 207; forward passes: 14.
+
+## Run 208: focused dose-channel recovery
+- Architecture confirms parallel direct-action and posterior-latent routes; a common latent sign reversal is not a drug-specific causal calibration.
+- Recovering exact physical-channel construction and candidate interfaces with bounded output.
+- No weights changed. Python runs: 208; forward passes: 14.
+
+## Run 209: official test-history comparison
+- Comparing all official rollout/factual results before selecting new routing directions; local-head diagnostics alone were refuted.
+- No weights changed. Python runs: 209; forward passes: 14.
+
+## Run 210: assess guarded physical-dose routing
+- Repeated run-209 output supplied no new validation. Official tested edits remain far from record-derived targets.
+- Inspecting reserved neurons and replay interfaces to assess stronger routing guarded against factual dose variation.
+- No weights changed. Python runs: 210; forward passes: 14.
+
+## Run 211: distinguish reserved neurons and bundle-input errors
+- Run 210 output truncated; visible dose channels are distributed posterior readouts, not simple two-neuron gates.
+- Checking reserved input rows and official bundle flags before altering their construction.
+- No weights changed. Python runs: 211; forward passes: 14.
+
+## Run 212: verify empty-action convention against official states
+- Local empty-action vectors have norm 11.67 despite architecture specifying zero; testing this as a replay mismatch, not assuming it is causal evidence.
+- Comparing original posterior means against official state dumps under both conventions.
+- No weights changed. Python runs: 212; forward passes: 14.
+
+## Run 213: reject zero-empty-action change; audit downstream surrogate
+- Zeroing empty actions worsened original posterior RMS (0.105 to 0.112) and created large false reserved-channel values; rejected.
+- Drug-bundle posterior RMS is 1.57e-5 under existing encoding, supporting its use for direct drug-bundle tests.
+- Auditing official paired-state readout calibration before another routing edit. No weights changed.
+- Python runs: 213; forward passes: 14.
+
+## Run 214: recover authoritative architecture and targets
+- Drug-bundle posterior encoding is validated; prior local value-head calibration is not.
+- Recovering architecture, official results, and record identification evidence before further edits.
+- No weights changed. Python runs: 214; forward passes: 14.
+
+## Run 215: compact recovery after truncated output
+- Architecture confirms nonlinear, parallel action/posterior routing.
+- Recovering only official scalar results, causal evidence, and head implementation metadata.
+- No weights changed. Python runs: 215; forward passes: 14.
+
+## Run 216: quantify targets and untested routing candidate
+- Official current shifts: insulin -2.682/+1.339; NE -0.069/+0.369.
+- Training one-hour effects are approximately -2 and +3 per rate unit; persistence matters for rollout targets.
+- Inspecting retained candidate158 and channel scales before selecting a test.
+- No weights changed. Python runs: 216; forward passes: 14.
+
+## Run 217: quantify cumulative targets and channel selectivity
+- Computing six-lag record-identified rollout targets on the official tuning sample.
+- Measuring factual versus doubled-dose channel activity and injection sizes for retained candidates.
+- No weights changed. Python runs: 217; forward passes: 14.
+
+## Run 218: submit untested paired-state routing candidate
+- Six-lag record-identified tuning targets: insulin x2 -12.3739, half +6.1870; NE x2 +4.3837, half -2.1918. These omit any effects beyond lag six.
+- Existing routing remains much too weak. Candidate158 uses paired official-state readout calibration rather than the refuted reconstructed value head.
+- Submitted its six tensors; backup218 retains the previous edit.
+- Large factual injections make preservation uncertain; official factual test comes first.
+- Python runs: 218; forward passes: 14.
+
+## Run 219: recover after candidate158 factual validation
+- Forward 15 factual delta: +0.00002 nats/reading on 100 tuning stays, comfortably within the limit.
+- Candidate158 remains submitted; its dose response still requires official rollout validation.
+- Recovering architecture, schema, and tuning IDs before the next forward request.
+- Python runs: 219; forward passes: 15.
+
+## Run 220: candidate158 rollout refuted
+- Forward 16: edited insulin x2/half -1.823/+1.007; NE x2/half -0.004/+0.009.
+- Factual delta remains +0.00002, but paired-state calibration did not repair causal rollout.
+- Inspecting saved physical-dose channels and downstream routing before another edit.
+- Python runs: 220; forward passes: 16.
+
+## Run 221: official latent-channel audit
+- Forward 17 supplied paired factual states for candidate158.
+- Measuring reserved posterior channels, latent-token injection, and recurrent-state differences.
+- No weights changed. Python runs: 221; forward passes: 17.
+
+## Run 222: active channels, weak downstream routing
+- Official candidate158 channels are nonzero; median injection norms ~23-24.
+- Output-state changes are much smaller, often nearly zero, despite sizable slot-state changes.
+- This rejects an inactive-channel explanation and motivates a different downstream edit boundary.
+- Recovering previous head experiments and targeted routing matrices; no weights changed.
+- Python runs: 222; forward passes: 17.
+
+## Run 223: inspect normalization and recurrent injection boundary
+- Large latent-token injections did not yield the needed official response.
+- Checking exact out normalization and interfaces for a low-rank core.b_in correction.
+- No weights changed. Python runs: 223; forward passes: 17.
+
+## Run 225: authoritative replay recovery
+- Run 224 failed through tuple indexing in the local diagnostic; no weights changed.
+- Current six-tensor candidate preserves factual fit but fails causal rollout.
+- Recovering exact architecture and replay definitions before choosing a different edit boundary.
+- Python runs: 225; forward passes: 17.
+
+## Run 226: focused replay definitions
+- Architecture recovered; prior output truncation hid diagnostics.
+- Inspecting the core helper and argument types only, to resolve tuple indexing.
+- No weights changed. Python runs: 226; forward passes: 17.
+
+## Run 227: compact core and head recovery
+- Confirmed retained replay context contains correctly shaped tensors.
+- Recovering compact instructions for token substitution, recurrent update and value readout.
+- No weights changed. Python runs: 227; forward passes: 17.
+
+## Run 228: explicit prelude/recurrent replay
+- Built tensor-only replay exposing E and the pre-coda recurrent state.
+- Restored an original-weight local linear helper; submitted weights unchanged.
+- Replay must match official original states before it guides core.b_in edits.
+- Python runs: 228; forward passes: 17.
+
+## Run 229: validate local core against official states
+- Record-based immediate and multi-hour effects recovered; no medical assumptions used.
+- Inspecting official state files and matching captured contexts before any core edit.
+- No weights changed. Python runs: 229; forward passes: 17.
+
+## Run 230: dose sensitivity at the prelude boundary
+- Comparing factual versus doubled-dose E under original and scaled latent routing.
+- Testing whether a low-rank core.b_in correction can use dose-sensitive features with low factual variance.
+- No submitted weights changed. Python runs: 230; forward passes: 17.
+
+## Run 231: prepare constrained recurrent correction
+- Core replay validated: output RMS 1.38e-5; h RMS .00122; posterior RMS 1.57e-5.
+- Factor-one action encoding is exact. Dose changes reach E but are attenuated in out.
+- Recovering generic replay and head reference to constrain factual side effects.
+- No weights changed. Python runs: 231; forward passes: 17.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 231 of at most 300:
+```
+=== GENERIC CORE CONTEXT CONSTRUCTION ===
+9: RESUME
+10: L_GLOBAL np; L_ATTR NULL|self + asarray; L_FAST indices; L_GLOBAL int; CALL; S_FAST indices
+11: L_FAST indices; L_CONST 1; BINARY_OP -; S_FAST prev
+12: L_GLOBAL np; L_ATTR NULL|self + all; L_GLOBAL rr33_stays; L_FAST prev; BINARY_SUBSCR; L_GLOBAL rr33_stays; L_FAST indices; BINARY_SUBSCR; COMPARE_OP ==; CALL; POP_JUMP_IF_TRUE to 144; L_ASSERTION_ERROR; RAISE_VARARGS
+13: L_GLOBAL torch; L_ATTR NULL|self + tensor; L_GLOBAL rr33_hours; L_FAST indices; BINARY_SUBSCR; L_GLOBAL rr33_hours; L_FAST prev; BINARY_SUBSCR; BINARY_OP -; L_CONST 3600; BINARY_OP *; KW_NAMES ('dtype',); CALL; S_FAST dt
+14: L_GLOBAL torch; L_ATTR float32
+15: L_GLOBAL torch; L_ATTR NULL|self + tensor; L_GLOBAL sx; L_FAST prev; L_CONST 192; L_CONST 960; BUILD_SLICE; BUILD_TUPLE; BINARY_SUBSCR; L_ATTR NULL|self + reshape; L_CONST -1; L_CONST 4; L_CONST 192; CALL; CALL; S_FAST h
+16: L_FAST h; L_GLOBAL torch; L_ATTR NULL|self + exp; L_FAST dt; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST None; L_CONST None; BUILD_TUPLE; BINARY_SUBSCR; UNARY_NEGATIVE; L_GLOBAL torch; L_ATTR NULL|self + exp; L_GLOBAL W0; L_CONST 'core.flow.a'; BINARY_SUBSCR; CALL; BINARY_OP *; CALL; BINARY_OP *=; S_FAST h
+18: L_FAST indices; S_FAST i
+17: GET_ITER; L_FAST_AND_CLEAR i; SWAP; BUILD_LIST; SWAP; FOR_ITER to 592; L_GLOBAL groups59; L_GLOBAL rr33_stays; L_FAST i; BINARY_SUBSCR; BINARY_SUBSCR; L_GLOBAL NULL + max; L_CONST 0; L_GLOBAL position59; L_FAST i; BINARY_SUBSCR; L_CONST 128; BINARY_OP -; CALL; L_GLOBAL position59; L_FAST i; BINARY_SUBSCR; BINARY_SLICE; LIST_APPEND; JUMP_BACKWARD to 492; END_FOR; S_FAST histories; S_FAST i; SWAP; S_FAST i; RERAISE
+19: L_GLOBAL NULL + max; L_GLOBAL NULL + map; L_GLOBAL len; L_FAST histories; CALL; CALL; S_FAST L
+20: L_GLOBAL torch; L_ATTR NULL|self + zeros; L_GLOBAL NULL + len; L_FAST indices; CALL; L_FAST L; L_CONST 192; BUILD_TUPLE; CALL; S_FAST memory
+21: L_GLOBAL torch; L_ATTR NULL|self + zeros; L_GLOBAL NULL + len; L_FAST indices; CALL; L_FAST L; BUILD_TUPLE; L_GLOBAL torch; L_ATTR bool; KW_NAMES ('dtype',); CALL; S_FAST mask
+22: L_GLOBAL torch; L_ATTR NULL|self + zeros; L_GLOBAL NULL + len; L_FAST indices; CALL; L_FAST L; L_CONST 1; BUILD_TUPLE; CALL; S_FAST ages
+23: L_GLOBAL NULL + enumerate; L_GLOBAL NULL + zip; L_FAST indices; L_FAST histories; CALL; CALL; GET_ITER; FOR_ITER to 1140; UNPACK_SEQUENCE; S_FAST j; UNPACK_SEQUENCE; S_FAST i; S_FAST rows; END_FOR
+24: L_GLOBAL NULL + len; L_FAST rows; CALL; S_FAST n
+25: L_GLOBAL rr33_e_all; L_FAST rows; BINARY_SUBSCR; L_FAST memory; L_FAST j; L_CONST None; L_FAST n; BUILD_SLICE; BUILD_TUPLE; S_SUBSCR
+26: L_CONST True; L_FAST mask; L_FAST j; L_CONST None; L_FAST n; BUILD_SLICE; BUILD_TUPLE; S_SUBSCR
+27: L_GLOBAL torch; L_ATTR NULL|self + tensor; KW_NAMES ('dtype',); CALL; L_FAST ages; L_FAST j; L_CONST None; L_FAST n; BUILD_SLICE; L_CONST 0; BUILD_TUPLE; S_SUBSCR; JUMP_BACKWARD to 918
+28: L_GLOBAL rr33_hours; L_FAST i; BINARY_SUBSCR; L_GLOBAL rr33_hours; L_FAST rows; BINARY_SUBSCR; BINARY_OP -; L_CONST 3600; BINARY_OP *; L_GLOBAL torch; L_ATTR float32
+29: L_GLOBAL rr33_e_all; L_FAST indices; BINARY_SUBSCR; S_FAST e
+30: L_FAST u; POP_JUMP_IF_NOT_NONE to 1182
+31: L_GLOBAL rr33_u_all; L_FAST indices; BINARY_SUBSCR; S_FAST u
+32: L_GLOBAL torch; L_ATTR NULL|self + tensor; L_GLOBAL contexts_audit; L_FAST indices; BINARY_SUBSCR; L_GLOBAL torch; L_ATTR float32; KW_NAMES ('dtype',); CALL; S_FAST ctx
+33: L_GLOBAL NULL + mlp0; L_GLOBAL torch; L_ATTR NULL|self + cat; L_FAST ctx; L_FAST e; L_FAST u; BUILD_
+=== VALUE HEAD, REMAINING INSTRUCTIONS ===
+
+33: L_GLOBAL NULL + norm0; L_FAST ctx49; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST None; L_CONST None; L_CONST None; BUILD_SLICE; BUILD_TUPLE; BINARY_SUBSCR; L_GLOBAL NULL + lin0; L_FAST zs49; L_CONST 'z_head'; CALL; BINARY_OP +; BINARY_OP +; CALL; S_FAST q49
+34: L_GLOBAL W0; L_CONST 'type_emb.weight'; BINARY_SUBSCR; L_CONST 1; BINARY_SUBSCR; L_CONST 'query_norm'
+35: BUILD_LIST; S_FAST readings49
+36: L_GLOBAL NULL + enumerate; L_GLOBAL r49_sensors; CALL; GET_ITER; EXTENDED_ARG; FOR_ITER to 2046; UNPACK_SEQUENCE; S_FAST j49; S_FAST sensor49; END_FOR
+37: L_GLOBAL num_spec0; L_FAST sensor49; L_CONST 'value'; BUILD_TUPLE; BINARY_SUBSCR; S_FAST spec49
+38: L_GLOBAL r49_register; L_FAST indices; L_FAST j49; BUILD_TUPLE; BINARY_SUBSCR; L_ATTR T; UNPACK_SEQUENCE; S_FAST lv49; S_FAST lh49
+39: L_GLOBAL np; L_ATTR NULL|self + isfinite; L_FAST lv49; CALL; S_FAST has49
+40: L_GLOBAL np; L_ATTR NULL|self + where; L_FAST has49; L_FAST lv49; L_FAST spec49; L_CONST 'median'; BINARY_SUBSCR; CALL; S_FAST value49
+41: L_GLOBAL np; L_ATTR NULL|self + where; L_FAST has49; L_CONST 1; L_GLOBAL np; L_ATTR NULL|self + searchsorted; KW_NAMES ('side',); CALL; BINARY_OP +; CALL; S_FAST bins49
+42: L_FAST spec49; L_CONST 'fine_bin_edges'; BINARY_SUBSCR; L_FAST value49; L_CONST 'left'; L_CONST 0
+43: L_GLOBAL np; L_ATTR NULL|self + zeros; L_GLOBAL NULL + len; L_FAST indices; CALL; L_CONST 8; BUILD_TUPLE; L_GLOBAL np; L_ATTR float32; KW_NAMES ('dtype',); CALL; S_FAST numeric49
+44: L_FAST has49; L_FAST numeric49; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST 0; BUILD_TUPLE; S_SUBSCR
+45: L_GLOBAL np; L_ATTR NULL|self + where; L_FAST has49; L_GLOBAL np; L_ATTR NULL|self + maximum; CALL; BINARY_OP *; CALL; S_FAST age49
+46: L_FAST hours49; L_FAST dt_np49; L_CONST 3600; BINARY_OP /; BINARY_OP +; L_FAST lh49; BINARY_OP -; L_CONST 0; L_CONST 3600; L_CONST 0
+47: L_GLOBAL np; L_ATTR NULL|self + log1p; L_FAST age49; CALL; L_CONST 10; BINARY_OP /; L_FAST numeric49; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST 1; BUILD_TUPLE; S_SUBSCR
+48: L_GLOBAL np; L_ATTR NULL|self + where; L_FAST has49; L_GLOBAL np; L_ATTR NULL|self + clip; CALL; CALL; L_FAST numeric49; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST 2; BUILD_TUPLE; S_SUBSCR
+49: L_FAST value49; L_FAST spec49; L_CONST 'median'; BINARY_SUBSCR; BINARY_OP -; L_FAST spec49; L_CONST 'iqr'; BINARY_SUBSCR; BINARY_OP /; L_CONST -8; L_CONST 8; L_CONST 0
+50: L_FAST has49; L_FAST numeric49; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST 3; BUILD_TUPLE; S_SUBSCR
+51: L_GLOBAL code_id0; L_FAST sensor49; BINARY_SUBSCR; S_FAST code49
+52: L_GLOBAL torch; L_ATTR NULL|self + tensor; L_FAST bins49; CALL; S_FAST bins49
+53: L_FAST q49; L_GLOBAL W0; L_CONST 'embed.code.weight'; BINARY_SUBSCR; L_FAST code49; BINARY_SUBSCR; BINARY_OP +; BINARY_OP +; BINARY_OP +; BINARY_OP +; BINARY_OP +; S_FAST wc49
+54: L_GLOBAL NULL + lin0; L_GLOBAL torch; L_ATTR NULL|self + tensor; L_FAST numeric49; CALL; L_CONST 'last_numeric'; CALL; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST None; L_CONST None; L_CONST None; BUILD_SLICE; BUILD_TUPLE; BINARY_SUBSCR
+55: L_GLOBAL W0; L_CONST 'embed.bins.value.weight'; BINARY_SUBSCR; L_FAST bins49; BINARY_SUBSCR; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST None; L_CONST None; L_CONST None; BUILD_SLICE; BUILD_TUPLE; BINARY_SUBSCR
+56: L_GLOBAL W0; L_CONST 'embed.bins.rate.weight'; BINARY_SUBSCR; L_CONST 0; BINARY_SUBSCR
+57: L_GLOBAL W0; L_CONST 'last_status.weight'; BINARY_SUBSCR; L_CONST 0; BINARY_SUBSCR
+58: L_GLOBAL NULL + mlp0; L_FAST wc49; L_CONST 'attr_heads.value_bin'; CALL; S_FAST logits49
+59: L_FAST logits49; L_GLOBAL W0; L_CONST 'embed_transition.value_bin.weight'; BINARY_SUBSCR; L_FAST code49; L_CONST 17; BINARY_OP *; L_FAST bins49; BINARY_OP +; BINARY_SUBSCR; L_CONST None; L_CONST None; BUILD_SLICE; L_CONST None; L_CONST None; L_CONST None; BUILD_SLICE; BUILD_TUPLE; BINARY_SUBSCR; BINARY_OP +=; 
+=== AVAILABLE FACTUAL REFERENCES ===
+/work/fwd_11/factual_original.csv {'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 148.5525, 'nll': 2.2732}
+/work/fwd_13/factual_original.csv {'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 148.5525, 'nll': 2.2732}
+/work/fwd_15/factual_original.csv {'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 148.5525, 'nll': 2.2732}
+/work/fwd_2/factual_original.csv {'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 148.5525, 'nll': 2.2732}
+/work/fwd_4/factual_original.csv {'stay_id': 1010000000, 'hour': -1.0, 'event': 'map_arterial', 'observed': 73.0, 'predicted_mean': 74.3559, 'nll': 2.0686}
+/work/fwd_5/factual_original.csv {'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 148.5525, 'nll': 2.2732}
+/work/fwd_8/factual_original.csv {'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 148.5525, 'nll': 2.2732}
+columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+original insulin E dose RMS 0.08694765716791153
+original norepinephrine E dose RMS 0.08238426595926285
+base mean-E covariance range: [0.09454531 0.23055808 0.37266639 0.59664769 1.38020003]
+
+```

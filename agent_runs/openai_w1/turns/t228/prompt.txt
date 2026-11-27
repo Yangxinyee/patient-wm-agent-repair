@@ -1,0 +1,399 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 227 replies happened before. Forward passes used: 18 of 50; Python runs used: 202 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+idated.
+
+## Run 173
+Compared preserved fresh contexts and encoder conventions. Dose contrasts will be anchored to the best factual input, so raw-encoder mismatch cannot create a spurious baseline correction. No new edit yet.
+
+## Run 174
+Built anchored counterfactual posterior features for x0, x0.5, x1.5, x2, x3, and fit closed-form two-output dose-contrast regressions with factual-zero penalties. Holdout is by stay. No new model weights installed.
+
+## Run 175
+Final-layer contrast decoder failed NE x2 despite reasonable pooled slopes. Tested input-level linear decoders conditional on active drug, with separate presence gates; this distinguishes genuine dose sensitivity from pooled-bin artifacts. No edit installed.
+
+## Run 176
+Installed reversible gated dose-residual posterior branch, gains I=4 and NE=4. Four low-impact GELU neurons repurposed; original removed contributions compensated by a held-out-checked regression. Numeric 5x fallback preserved in rp_fallback_numeric and restored to original in the active candidate. Edits: z_post.0/.2 weights and biases. Awaiting GPU factual and rollout validation.
+
+## Forward 12–13 / Run 177
+Posterior four-neuron branch gains 4/4: tuning factual NLL unchanged at reported precision (1.53139). Paired rollout shifts original -> candidate: insulin x2 -1.773 -> -1.811; half .816 -> .807; NE x2 .048 -> .070; half -.481 -> -.473. Branch is too weak; recovering exact construction and transmission pathway before a controlled gain or pathway test. Counts: 177 Python runs, 13 forwards.
+
+## Run 178
+Inspecting posterior gates and counterfactual activation before gain changes; recovering record-derived targets and data caches. No weights changed. Counts: 178 Python runs, 13 forwards.
+
+## Forward 14 / Run 179
+Exported paired states for posterior branch gain 4/4; comparing actual latent, slot and output changes to distinguish gate inactivity from weak transmission. No new edit. Counts: 179 Python runs, 14 forwards.
+
+## Run 180
+Actual gain-4 branch changes posterior RMS .07939 but out RMS only 6.75e-6 (drug-bundle out about 6–7e-7): active posterior, weak transmission. Installed reversible gain-200/200 probe with original numeric embedding. Six-lag observational x2 projections on enriched tuning reached hours: {'insulin': -11.309633077887218, 'norepinephrine': 4.568496535822766}. These are inferred projections, not supplied truth. Counts: 180 Python runs, 14 forwards.
+
+## Run 181
+Gain-200 posterior probe still yields negligible rollout changes (forward 16). This rejects gain amplification of the present posterior pathway as a useful repair. Recovering direct action/state architecture and factual forward 15 before replacing it. Counts: 181 Python runs, 16 forwards.
+
+## Run 182
+Forward 15 confirms posterior gain-200 factual NLL delta +0.000000663 on 5,128 readings, but forward 16 confirms ineffective rollouts. Recovering prior experiments and CPU helpers to design a direct state/readout correction.
+
+## Run 183
+Preserved gain-200 posterior tensors in saved_posterior183, then restored original z_post weights because the route is ineffective. All weights are now original. Bounded recovery of helpers and state caches.
+
+## Run 184
+Investigating direct value-head correction using existing dose-sensitive state contrasts, with factual-zero anchoring and stay-held-out validation. Recovering only necessary CPU helpers and prior approach summaries. No edits.
+
+## Run 185
+Measuring original/edited state transmission and direct readout cache availability before choosing an algebraic pathway edit. No edits.
+
+## Run 186
+Posterior-to-h gain is weak; full CPU core replay error remains too large. Checking whether a localized two-coordinate dose-residual carrier can drive z_in directly, instead of injecting into observational latent directions. No edits.
+
+## Runs 187–188
+Run 187 inspected 1.5x (not 5x) cached head contrasts; largest contrast/factual generalized sensitivity was 0.05786. Run 187 stopped on list/dict mismatch before any edits. Run 188 checks normalization and reconstructs matched 5x head features. No edits.
+
+## Run 189
+Matched original/5x states and value-head inputs are aligned. Recovering exact architecture, usable helpers, and early identification evidence before choosing a direct, factual-preserving dose pathway. No weights changed.
+
+## Runs 190–191
+Recovered pre-dose-history-adjusted associations: insulin negative, norepinephrine positive, with alternate channels broadly agreeing. Run 190 weight inspection failed because load_original returns torch tensors; run 191 converts explicitly to numpy. No weights changed.
+
+## Run 192
+Located exact latent tensor names and recovered posterior branch arrays and matched value-head cache layouts. No edits; testing whether a latent carrier can be connected rather than merely amplified.
+
+## Run 193
+z_in has substantial weights; weak transmission cannot be blamed on a zero projection. Fitted closed-form value-head tilt candidates against original/5x matched-state contrasts, with factual-zero penalties and stay-held-out checks. Targets use recovered six-lag record-derived kernels and centered numeric dose differences. No edit installed.
+
+## Run 194
+Direct output-head contrast fit rejected: factual-safe lambda=30 captured only ~2% of contrast targets; stronger fits violated the NLL bound. Recovering gated dose residuals for a separate latent carrier and direct state transmission. No edits installed.
+
+## Run 195
+Measured gated branch factual and held-out multiplier responses; selected two predictable posterior coordinates and fitted a closed-form z_in compensation from the remaining coordinates. No edits installed; compensation and carrier behavior must be validated before GPU testing.
+
+## Run 196
+Two latent coordinates [16,9] admit accurate factual compensation. Original insulin branch leaked on inactive bundles; tested 10x presence-gate margin. Derived glucose/MAP token directions from original observation encodings, using only supplied weights and vocab. No edit installed.
+
+## Run 197
+Strong presence gates eliminate inactive-bundle leakage. Recovering exact state equations and latent compensation before installing a direct carrier; observation directions alone are not proof of causal transmission. Counts: 197 Python runs, 16 forwards.
+
+## Run 198
+Architecture confirms the latent token enters prelude attention, but prior probes show negligible effective transmission. Inspecting carrier compensation and recovering numeric-dose fallback validation before choosing a candidate. Counts: 198 Python runs, 16 forwards.
+
+## Run 199
+Recovering carrier cache and actual saved forward summaries. Six-lag record-derived response kernels suggest substantial insulin and NE effects; large hidden-slot changes alone are not sufficient validation. No edits installed. Counts: 199 Python runs, 16 forwards.
+
+## Run 200
+Installed reversible two-coordinate latent carrier [16,9], four strongly gated GELU neurons, compensated removed posterior contributions and original z_in coordinates. Direct token directions: insulin -12 times glucose encoding derivative, NE +6 times MAP derivative. Numeric embedding remains original. Candidate requires paired GPU factual/rollout validation; no efficacy claimed. Counts: 200 Python runs, 16 forwards.
+
+## Forward 17–18 / Run 201
+Carrier gains 12/6: factual NLL unchanged at displayed precision; rollout insulin x2 -1.814 vs -1.773, half .791 vs .816; NE x2 .122 vs .048, half -.311 vs -.481. Rejected as ineffective; preserved tensors in carrier201_saved and restored all originals. Investigating attention/state transmission rather than further latent gain amplification. Counts: 201 Python runs, 18 forwards.
+
+## Run 202
+Testing the specific hypothesis that prelude attention ignores the latent token. Recovering CPU attention implementation and core scales to construct a dedicated carrier relay with algebraic factual compensation. All weights remain original. Counts: 202 Python runs, 18 forwards.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 202 of at most 300:
+```
+=== CORE SCALES ===
+core.delta_in RMS 0.5483978 quantiles [0.41131544 0.48744755 0.5527851  0.59497513 0.68120664]
+core.a_in RMS 0.052290827 quantiles [-0.11294398 -0.02970761  0.02004719  0.08634784  0.15980248]
+core.b_in.weight RMS 0.052694306 quantiles [-0.19477588 -0.06914107  0.00044659  0.06853065  0.20859098]
+core.c_out.weight RMS 0.049627014 quantiles [-1.99797213e-01 -6.30715951e-02 -2.63514048e-05  6.26311675e-02
+  1.83302164e-01]
+core.prelude.0.norm1.weight RMS 1.0266505 quantiles [0.88524127 0.97428725 1.03121442 1.07193662 1.1088165 ]
+core.prelude.0.norm1.bias RMS 0.020069439 quantiles [-0.0564385  -0.02385408  0.00035787  0.02217082  0.06143963]
+core.prelude_norm.weight RMS 0.9936604 quantiles [0.75722402 0.92242128 0.99653816 1.05708265 1.20539117]
+out RMS 1.0081580548433415
+h RMS 46.81509355464504
+z RMS 0.5981827518029819
+
+=== CPU ATTENTION IMPLEMENTATION ===
+rx_attn arguments ('x', 'p')
+  2           0 RESUME                   0
+
+  3           2 LOAD_GLOBAL              1 (NULL + rx_linear)
+             12 LOAD_FAST                0 (x)
+             14 LOAD_FAST                1 (p)
+             16 LOAD_CONST               1 ('.q')
+             18 BINARY_OP                0 (+)
+             22 CALL                     2
+             30 STORE_FAST               2 (q)
+
+  4          32 LOAD_GLOBAL              1 (NULL + rx_linear)
+             42 LOAD_FAST                0 (x)
+             44 LOAD_FAST                1 (p)
+             46 LOAD_CONST               2 ('.kv')
+             48 BINARY_OP                0 (+)
+             52 CALL                     2
+             60 STORE_FAST               3 (kv)
+
+  5          62 LOAD_FAST                2 (q)
+             64 LOAD_ATTR                2 (shape)
+             84 UNPACK_SEQUENCE          3
+             88 STORE_FAST               4 (B)
+             90 STORE_FAST               5 (L)
+             92 STORE_FAST               6 (D)
+
+  6          94 LOAD_FAST                2 (q)
+             96 LOAD_ATTR                5 (NULL|self + reshape)
+            116 LOAD_FAST                4 (B)
+            118 LOAD_FAST                5 (L)
+            120 LOAD_CONST               3 (4)
+            122 LOAD_CONST               4 (48)
+            124 CALL                     4
+            132 LOAD_ATTR                7 (NULL|self + transpose)
+            152 LOAD_CONST               5 (1)
+            154 LOAD_CONST               6 (2)
+            156 CALL                     2
+            164 STORE_FAST               2 (q)
+
+  7         166 LOAD_GLOBAL              8 (rx_layout)
+            176 LOAD_CONST               7 ('split')
+            178 COMPARE_OP              40 (==)
+            182 POP_JUMP_IF_FALSE       94 (to 372)
+
+  8         184 LOAD_FAST                3 (kv)
+            186 LOAD_ATTR               11 (NULL|self + chunk)
+            206 LOAD_CONST               6 (2)
+            208 LOAD_CONST               8 (-1)
+            210 CALL                     2
+            218 UNPACK_SEQUENCE          2
+            222 STORE_FAST               7 (k)
+            224 STORE_FAST               8 (v)
+
+  9         226 LOAD_FAST                7 (k)
+            228 LOAD_ATTR                5 (NULL|self + reshape)
+            248 LOAD_FAST                4 (B)
+            250 LOAD_FAST       
+rx_layer arguments ('x', 'p', 'act', 'memory', 'age', 'valid', 'mode', 'age_scale')
+ 45           0 RESUME                   0
+
+ 47           2 LOAD_FAST                0 (x)
+              4 LOAD_GLOBAL              1 (NULL + rx_attn)
+             14 LOAD_GLOBAL              3 (NULL + rx_norm)
+             24 LOAD_FAST                0 (x)
+             26 LOAD_FAST                1 (p)
+             28 LOAD_CONST               1 ('.norm1')
+             30 BINARY_OP                0 (+)
+             34 CALL                     2
+             42 LOAD_FAST                1 (p)
+             44 LOAD_CONST               2 ('.attn')
+             46 BINARY_OP                0 (+)
+             50 CALL                     2
+             58 BINARY_OP                0 (+)
+             62 STORE_FAST               0 (x)
+
+ 48          64 LOAD_FAST                3 (memory)
+             66 POP_JUMP_IF_NONE        37 (to 142)
+
+ 49          68 LOAD_FAST                0 (x)
+             70 LOAD_GLOBAL              5 (NULL + rx_cross)
+             80 LOAD_GLOBAL              3 (NULL + rx_norm)
+             90 LOAD_FAST                0 (x)
+             92 LOAD_FAST                1 (p)
+             94 LOAD_CONST               3 ('.norm2')
+             96 BINARY_OP                0 (+)
+            100 CALL                     2
+            108 LOAD_FAST                3 (memory)
+            110 LOAD_FAST                4 (age)
+            112 LOAD_FAST                5 (valid)
+
+ 50         114 LOAD_FAST                1 (p)
+            116 LOAD_CONST               4 ('.cross')
+            118 BINARY_OP                0 (+)
+            122 LOAD_FAST                6 (mode)
+            124 LOAD_FAST                7 (age_scale)
+            126 LOAD_FAST                2 (act)
+
+ 49         128 CALL                     8
+            136 BINARY_OP                0 (+)
+            140 STORE_FAST               0 (x)
+
+ 51     >>  142 LOAD_FAST                0 (x)
+            144 LOAD_GLOBAL              7 (NULL + rx_mlp)
+            154 LOAD_GLOBAL              3 (NULL + rx_norm)
+            164 LOAD_FAST                0 (x)
+            166 LOAD_FAST                1 (p)
+            168 LOAD_CONST               5 ('.norm3')
+            170 BINARY_OP                0 (+)
+            174 CALL                     2
+            182 LOAD_FAST                1 (p)
+            184 LOAD_CONST               6 ('.ffn')
+            186 BINARY_OP                0 (+)
+           
+rx_layer2 arguments ('x', 'p', 'ff_act', 'memory', 'age', 'valid', 'mode', 'age_act', 'age_scale')
+ 53           0 RESUME                   0
+
+ 55           2 LOAD_FAST                0 (x)
+              4 LOAD_GLOBAL              1 (NULL + rx_attn)
+             14 LOAD_GLOBAL              3 (NULL + rx_norm)
+             24 LOAD_FAST                0 (x)
+             26 LOAD_FAST                1 (p)
+             28 LOAD_CONST               1 ('.norm1')
+             30 BINARY_OP                0 (+)
+             34 CALL                     2
+             42 LOAD_FAST                1 (p)
+             44 LOAD_CONST               2 ('.attn')
+             46 BINARY_OP                0 (+)
+             50 CALL                     2
+             58 BINARY_OP                0 (+)
+             62 STORE_FAST               0 (x)
+
+ 56          64 LOAD_FAST                3 (memory)
+             66 POP_JUMP_IF_NONE        37 (to 142)
+
+ 57          68 LOAD_FAST                0 (x)
+             70 LOAD_GLOBAL              5 (NULL + rx_cross)
+             80 LOAD_GLOBAL              3 (NULL + rx_norm)
+             90 LOAD_FAST                0 (x)
+             92 LOAD_FAST                1 (p)
+             94 LOAD_CONST               3 ('.norm2')
+             96 BINARY_OP                0 (+)
+            100 CALL                     2
+            108 LOAD_FAST                3 (memory)
+            110 LOAD_FAST                4 (age)
+            112 LOAD_FAST                5 (valid)
+
+ 58         114 LOAD_FAST                1 (p)
+            116 LOAD_CONST               4 ('.cross')
+            118 BINARY_OP                0 (+)
+            122 LOAD_FAST                6 (mode)
+            124 LOAD_FAST                8 (age_scale)
+            126 LOAD_FAST                7 (age_act)
+
+ 57         128 CALL                     8
+            136 BINARY_OP                0 (+)
+            140 STORE_FAST               0 (x)
+
+ 59     >>  142 LOAD_FAST                0 (x)
+            144 LOAD_GLOBAL              7 (NULL + rx_mlp)
+            154 LOAD_GLOBAL              3 (NULL + rx_norm)
+            164 LOAD_FAST                0 (x)
+            166 LOAD_FAST                1 (p)
+            168 LOAD_CONST               5 ('.norm3')
+            170 BINARY_OP                0 (+)
+            174 CALL                     2
+            182 LOAD_FAST                1 (p)
+            184 LOAD_CONST               6 ('.ffn')
+            186 BINARY_OP                0 (+)
+       
+
+=== AVAILABLE CORE-REPLAY CACHE ===
+ce_centres dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+ce_code dict ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff', 'glucose_finger', 'map_arterial', 'insulin']
+ce_common_ids (199,)
+ce_decoder_models dict [1.0, 10.0, 100.0]
+ce_event134 (10054,)
+ce_event_col134 string 5 event
+ce_fitmask (10054,)
+ce_head dict ['rows', 'phi', 'logits', 'probs', 'centres', 'truebin', 'prior', 'withcode', 'previous']
+ce_hold134 (10054,)
+ce_hour (10054,)
+ce_ins_family (10054,)
+ce_ix (10054,)
+ce_make_heads function ('records', 'states')
+ce_meta dict [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_finger', 'value'), ('glucose_lab', 'value'), ('insulin', 'dose'), ('norepinephrine', 'dose'), ('norepinephrine', 'rate'), ('insulin', 'rate')]
+ce_mu (10054,)
+ce_rd (10054, 2)
+ce_si (10054,)
+ce_states dict ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+ce_stay_split (10054,)
+ce_target (10054, 2)
+ce_valid (10054,)
+rr_e4 (5215, 192)
+rr_e_count4 (5215,)
+rr_e_mask4 (11768,)
+rr_enc1_4 dict ['encode', 'encode_action']
+rr_enc_options4 dict [('all_drug_actions', False), ('all_drug_actions', True), ('drug_END_observation', False), ('drug_END_observation', True), ('drug_END_ignored', False), ('drug_END_ignored', True), ('drug_END_both', False), ('drug_END_both', True)]
+rr_encode4 function ('mask', 'prefix', 'empty_zero')
+rr_encode_atoms112 function ('atoms', 'mask', 'prefix', 'empty_zero')
+rr_has_active4 (5215,)
+rr_has_reading4 (5215,)
+rr_hidden4 (5215, 192)
+rr_mlp function ('x', 'prefix', 'activation', 'weights')
+rr_prev4 (5215,)
+rr_prevh4 (5
+[output cut at 10,000 characters]
+```

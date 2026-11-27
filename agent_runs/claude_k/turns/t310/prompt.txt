@@ -1,0 +1,74 @@
+OUTPUT of Python run 286 of at most 300:
+```
+edited now: []
+notes len 12979
+# Notebook
+## Setup (run 1-4)
+- Model: event-stream world model, actions (insulin, norepi) enter via encode_action -> u_k, used in z_post and prelude token.
+- Records: readings at integer hours; infusion records start at hour+0.0833, run 1h. Dose chosen after hour-t readings precedes hour t+1 readings.
+- Clinicians chose doses (confounded).
+
+## Data facts (runs 3-19)
+- All stays 25.17h; readings at integer hours -1..24; infusions at h+5min for h=0..24, 1h each.
+- finger vs lab glucose: same quantity (paired diff -0.02, sd 9). arterial MAP ~3 mmHg below cuff (sd 6.7).
+- INSULIN POLICY: off if last glucose<140, on if >160, random (hysteresis) 140-160. Rate = base(band)*mult noise (CV .33), round 0.5:
+  base 1 (<180), 2 (180-220), 3 (220-260), ~4.3 (>260). Noise ~iid (no stay persistence, uncorrelated w/ lab@t, past glucose).
+- INSULIN EFFECT (within-band dose noise): next-hr finger glucose -2.0/unit/h, linear across bands & rates 0.5-7.
+  lag response to dose shock at t: k=1..6: -2.01,-2.25,-1.81,-1.30,-0.73,-0.45 ; dose feedback on later doses only -0.03..-0.05.
+- NOREPI POLICY: titration on log rate, uses arterial MAP if present at t else cuff else last; <=64 up ~+0.15, 66-74 hold, >=76 down ~-0.25,
+  noise sd ~0.3 log; capped at 1.0 (13% of records at cap), step 0.01.
+- NOREPI EFFECT (crude shock, maybe biased): MAP resp k=1..7: 3.3,5.4,6.4,6.5,6.0,5.6,4.9 per +1 mcg/kg/min shock; shock persists in rate .85,.73,.64...
+  crude deconvolved impulse: 3.3,2.6,1.8,0.9,0.4,0.3 (~9 mmHg per sustained unit).
+
+## Effect estimates (runs 20-26): cross-fitted double-ML with GBM on history feats, deconvolved by first stage
+- INSULIN -> glucose impulse h_k (k=1..12, per unit/h for 1h): -1.99,-2.39,-2.11,-1.72,-1.22,-0.95,-0.69,-0.55,-0.35,-0.15,-0.12,-0.05
+  ~ -1.99*k*0.6^(k-1); sum ~ -12.3 per sustained unit/h. Homogeneous across subgroups (ne on/off, art, time, glucose band). Linear in dose.
+- NOREPI -> MAP impulse h_k: 3.35,2.60,1.75,1.03,0.42,0.27, ~0 after (sum ~9.6 per sustained 1 mcg/kg/min).
+  Heterogeneity: lag-1 effect lower (~2.5-3.4) when MAP<60; ~3.6-4 otherwise; no clear rate saturation in other strata.
+- Cross effects ~0 (insulin->MAP 0; norepi->glucose +0.6+-0.25 lag1 only).
+- Tuning: 217 stays insulin>=12, 153 norepi>=12, 87 both, 96 norepi>=12 w/ arterial line.
+
+## Model vs truth (fwd 1, original, 100 tuning stays: 87 both drugs + 13 norepi/art)
+- readout rows = stay-hours 13-24 with the readout reading recorded, 'reached' = hour > first dose hour (>=12).
+- model: ins x2 -2.15, ins half +1.23, ne x2 +0.34, ne half -0.06
+- my truth (impulse h applied to recorded doses): ins x2 -13.8, half +6.9, ne x2 +4.6, half -2.3
+- model direct (lag-1) sensitivity: insulin -0.35/unit (x2), -0.62 (half); norepi +0.11/unit. Truth: -2.0 and +3.35.
+- data conditional kernel (DML, holding 4h readings): insulin c_l = -2.01,-1.45,-0.47,+0.22,+0.73,+1.09 ; norepi 3.30,0.99,-0.25,-0.99,-1.09,-1.45
+  (positive late terms = baseline-correction / partly truncation confounding) -> calibrate empirically instead.
+- fwd 2: states (original) on 99 train stays (sel_states.json).
+
+## Architecture facts (run 40-41)
+- value_bin head: Linear192->192, act, Linear192->17 (shared by all reading codes); embed_transition.value_bin (13*17 x 17) bias by code x last bin.
+- z_post.0 (192x576) on [ctx,e,u]; dose reaches heads only via u_k -> z_post/prelude -> state -> view -> q.
+- Plan: code-gated linear correction term in value head hidden layer, reading a dose direction in q.
+
+## Reconstruction findings (runs 42-67)
+- ALL MLPs are GELU (not ReLU). LayerNorm eps 1e-5. type_emb row 1 for value atoms. gap input log(dt_s)/10. Time flow exp(-dt_s*exp(flow.a)) applies for heads view.
+- z_post order [ctx,e,u]; unit table rows: glucose 4, MAP 2; my posterior recon corr ~0.85 (not exact).
+- value head recon: last_numeric layout fitted (A2, 8x4 on [1,has,age,zlast]); held-out MAE 1.3 vs tool predicted means.
+- fwd3: factual 3 stays (mistake). fwd4: factual original on 99 states stays (value NLL 1.520).
+- State after insulin bundle encodes dose residual (dose - band-expected) with CV R2 ~0.42 (out/slotmean/h).
+- Model factual error regressed on dose shocks: insulin lag1 -1.47(.29), lag2 -1.43(.30), lag3-4 ~0 ; norepi lags1-4 2.5,2.5,1.4,2.5 (+-0.9) (shock persists in rates).
+- PLAN: repurpose never-active value-head hidden units (GELU) as gated linear units reading a probe of q for dose-minus-readings-implied-dose; calibrate gains with dose_edit.
+
+## Restart after run 73
+- run 73: no dead value-head units (most negative max pre -1.99 unit 35; 53 -1.84, 125/24 -1.66, 180 -1.47).
+- gate direction: glucose readings proj 1.16-1.26 (codes 6,10 emb 1.44), MAP -1.46..-1.57 (codes 5,7 emb -1.28), other codes 8,9,11,12 in [-0.33,0.21].
+- idea: paired units sharing the gate (one reads the probe) so gate variation cancels; needs cost check of repurposing.
+
+## Restart 2 (after run 121; runs 74-121 were NOT logged - recovered from kernel vars)
+- fwd5-7 = states(original) for new300.json stays (3x100) -> S5,S6,S7 / D5,D6,D7. errs[300]: some recon check, mean err .056.
+- Kernel arrays for 99 sel_states stays (5521 readings): Q99 (q), WC99 (with_code), PRE (value-head pre-acts), TR99 (transition bias), CENm (centres), pmall; eps_ins/eps_ne (30000x25) dose residuals per stay-hour.
+- No function source retrievable; rebuild key pieces explicitly.
+- PLAN: paired GELU units in value head (A = B + eps*probe, W2 cols +-lam*tilt; gate by code-direction), removed units' mean absorbed into embed_transition.value_bin; probe on q for dose-shock part of factual error; calibrate gains via dose_edit per-hour kernels. Everything analytic/regression-based, no optimiser over weights.
+- run130: with_code VERIFIED = Q99 + E_code + last_numeric(A2@[1,has,log1p(age_h)/10,zlast]) + E_val[lastbin], bins side=left; TR exact. WCA/TRA/lbA/obA in kernel. means MAE vs tool 1.26 (z-draw noise). recon NLL 1.528 vs tool 1.520.
+- run131: unit repurpose cost (act -> per (code,lastbin) mean, absorbed in embed_transition) tiny: cheapest 18,59,20,40,186,12,61,100 (~-0.0007), median 4e-5.
+- run133-135: model factual err ~ resid lags: INS beta (-1.72,-1.66,-.43,-.44); NE (2.7,2.7,1.5,2.5). Ridge probe on with_code: R2 lag1 .21 INS, .10 NE; unbiased GLS decoder hopeless (dose dir collinear w/ readings dirs).
+  probe-in-value-head route: factual cost too high (INS lam2 .0034, lam3 .0085; NE lam5 .004) for tiny cf response (-0.44/unit at lam1). -> REJECTED.
+- NEW PLAN (run138): clean d
+=====KEY LINES (middle)=====
+FUNCS: ['load', 'load_original', 'save_edit', 'drop_edit', 'edited', 'TT', 'lastrows', 'fe', 'set_inamp']
+ARRAYS: [('xo', (5244, 992)), ('xe', (5244, 992)), ('sid', (5244,)), ('hr', (5244,)), ('hi', (5244,)), ('hn', (5244,)), ('r', (54,)), ('rateI', (5244,)), ('rateN', (5244,)), ('lI1', (5244,)), ('lI2', (5244,)), ('lN1', (5244,)), ('lN2', (5244,)), ('kk', (5521,)), ('FD', (5521, 4)), ('isG', (5521,)), ('isM', (5521,)), ('msk', (5521,)), ('Xo', (2980, 192)), ('Xe', (2980, 192)), ('Y', (2980, 192)), ('Fm', (2980, 4)), ('Bc', (4, 192)), ('fit', (2980, 192)), ('a', (192,)), ('Sg', (192, 192)), ('EN', (192, 6)), ('BR', (17, 192)), ('BD', (17, 192))]
+NAMES: attr_heads.rate_bin.0.bias(192,) | attr_heads.rate_bin.0.weight(192, 192) | attr_heads.rate_bin.2.bias(17,) | attr_heads.rate_bin.2.weight(17, 192) | attr_heads.status.0.bias(192,) | attr_heads.status.0.weight(192, 192) | attr_heads.status.2.bias(2,) | attr_heads.status.2.weight(2, 192) | attr_heads.value_bin.0.bias(192,) | attr_heads.value_bin.0.weight(192, 192) | attr_heads.value_bin.2.bias(17,) | attr_heads.value_bin.2.weight(17, 192) | code_bias(13,) | cont_head.0.bias(192,) | cont_head.0.weight(192, 192) | cont_head.2.bias(3,) | cont_head.2.weight(3, 192) | core.a_in(192,) | core.age.0.bias(192,) | core.age.0.weight(192, 1) | core.age.2.bias(192,) | core.age.2.weight(192, 192) | core.b_in.weight(192, 192) | core.blocks.0.0.attn.kv.weight(384, 192) | core.blocks.0.0.attn.out.weight(192, 192) | core.blocks.0.0.attn.q.weight(192, 192) | core.blocks.0.0.cross.kv.weight(384, 192) | core.blocks.0.0.cross.out.weight(192, 192) | core.blocks.0.0.cross.q.weight(192, 192) | core.blocks.0.0.ffn.0.bias(768,) | core.blocks.0.0.ffn.0.weight(768, 192) | core.blocks.0.0.ffn.2.bias(192,) | core.blocks.0.0.ffn.2.weight(192, 768) | core.blocks.0.0.norm1.bias(192,) | core.blocks.0.0.norm1.weight(192,) | core.blocks.0.0.norm2.bias(192,) | core.blocks.0.0.norm2.weight(192,) | core.blocks.0.0.norm3.bias(192,) | core.blocks.0.0.norm3.weight(192,) | core.blocks.0.1.attn.kv.weight(384, 192) | core.blocks.0.1.attn.out.weight(192, 192) | core.blocks.0.1.attn.q.weight(192, 192) | core.blocks.0.1.cross.kv.weight(384, 192) | core.blocks.0.1.cross.out.weight(192, 192) | core.blocks.0.1.cross.q.weight(192, 192) | core.blocks.0.1.ffn.0.bias(768,) | core.blocks.0.1.ffn.0.weight(768, 192) | core.blocks.0.1.ffn.2.bias(192,) | core.blocks.0.1.ffn.2.weight(192, 768) | core.blocks.0.1.norm1.bias(192,) | core.blocks.0.1.norm1.weight(192,) | core.blocks.0.1.norm2.bias(192,) | core.blocks.0.1.norm2.weight(192,) | core.blocks.0.1.norm3.bias(192,) | core.blocks.0.1.norm3.weight(192,) | core.c_out.weight(192, 192) | core.coda.0.attn.kv.weight(384, 192) | core.coda.0.attn.out.weight(192, 192) | core.coda.0.attn.q.weight(192, 192) | core.coda.0.ffn.0.bias(768,) | core.coda.0.ffn.0.weight(768, 192) | core.coda.0.ffn.2.bias(192,) | core.coda.0.ffn.2.weight(192, 768) | core.coda.0.norm1.bias(192,) | core.coda.0.norm1.weight(192,) | core.coda.0.norm3.bias(192,) | core.coda.0.norm3.weight(192,) | core.delta_in(192,) | core.flow.a(192,) | core.out_norm.bias(192,) | core.out_norm.weight(192,) | core.prelude.0.attn.kv.weight(384, 192) | core.prelude.0.attn.out.weight(192, 192) | core.prelude.0.attn.q.weight(192, 192) | core.prelude.0.ffn.0.bias(768,) | core.prelude.0.ffn.0.weight(768, 192) | core.prelude.0.ffn.2.bias(192,) | core.prelude.0.ffn.2.weight(192, 768) | core.prelude.0.
+[output cut at 10,000 characters]
+```

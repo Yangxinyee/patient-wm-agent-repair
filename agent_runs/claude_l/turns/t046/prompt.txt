@@ -1,0 +1,43 @@
+OUTPUT of Python run 43 of at most 300:
+```
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+['stay_id', 'ih'] event          glucose_finger  glucose_lab  map_arterial  map_cuff  insulin  norepinephrine  g_last  gl_last  ma_last  mc_last  ins_prev  ne_prev
+stay_id    ih                                                                                                                                    
+1010000000 -1           165.0          NaN          73.0       NaN      0.0             0.0   165.0      NaN     73.0      NaN       NaN      NaN
+           0            168.0          NaN          67.0      70.0      1.0             0.0   168.0      NaN     67.0     70.0       0.0      0.0
+           1            175.0        167.0          70.0       NaN      0.5             0.0   175.0    167.0     70.0     70.0       1.0      0.0
+['stay_id', 'ih'] event          glucose_finger  glucose_lab  map_arterial  map_cuff  insulin  norepinephrine  g_level  m_level
+stay_id    ih                                                                                                
+2020000000 -1           145.0        148.0           NaN      58.0      0.0            0.00    145.0      NaN
+           0              NaN          NaN           NaN      50.0      0.0            0.57    145.0      NaN
+           1              NaN          NaN           NaN      65.0      0.0            0.52    145.0      NaN
+X_cols ['glucose_finger', 'g_prev', 'g_prev2', 'ins_prev', 'gl_prev_last', 'ih', 'ne_prev', 'mc_last', 'ma_last'] gb nfeat 9 gbn nfeat 9
+fwd2 stays 100 [2020000000, 2020000016, 2020000032, 2020000048, 2020000064] same as batch1: True same as stays_b1: True
+['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+      stay_id  hour        edit   shift  shift_se   factual  reached
+0  2020000000    15  insulin_x2  0.0000    0.0000  158.4045    False
+1  2020000000    16  insulin_x2 -0.3108    0.0112  164.9480     True
+2  2020000000    17  insulin_x2 -0.3677    0.2531  164.7300     True
+{'ok': True, 'type': 'dose_edit', 'split': 'tuning', 'n_stays': 100, 'results': {'original': {'edits': {'insulin_x2': {'what': 'insulin x2 -> glucose_finger', 'mean_shift': -3.247, 'n_stay_hours': 669, 'n_stays': 75}, 'insulin_half': {'what': 'insulin x1/2 -> glucose_finger', 'mean_shift': 1.767, 'n_stay_hours': 669, 'n_stays': 75}, 'ne_x2': {'what': 'norepinephrine x2 -> map_arterial', 'mean_shift': 0.616, 'n_stay_hours': 549, 'n_stays': 50}, 'ne_half': {'what': 'norepinephrine x1/2 -> map_arterial', 'mean_shift': -0.816, 'n_stay_hours': 549, 'n_stays': 50}}, 'file': 'dose_edit_original.csv', 'note': "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"}}, 'edited_tensors': None, 'edit_hash': 'none', 'seconds': 36.0, 'gpu_peak_mib': 1698}
+
+```

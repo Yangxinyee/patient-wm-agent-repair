@@ -1,0 +1,128 @@
+OUTPUT of Python run 50 of at most 300:
+```
+Head-helper constants: (None, 'x', ('dtype',), 192, 960, -1, 4, 'core.flow.a', 1, 'core.out_norm', 10, 'gap', 'z_prior', 8, 0, 2, 3, 'embed.code.weight', 'last_numeric', 'embed.bins.value.weight', 'embed.bins.rate.weight', 'last_status.weight', 'embed_transition.value_bin.weight', 17, ('base', 'prior', 'additive', 'transition'))
+State container 3 dict
+[('x', (4356, 992)), ('stay_id', (4356,)), ('hour', (4356,)), ('has_insulin', (4356,)), ('has_norepinephrine', (4356,)), ('n_atoms', (4356,))]
+State container 4 dict
+[('x', (4035, 992)), ('stay_id', (4035,)), ('hour', (4035,)), ('has_insulin', (4035,)), ('has_norepinephrine', (4035,)), ('n_atoms', (4035,))]
+Feature shapes: (4510, 192) (4751, 192)
+glucose_finger CPU/GPU mean RMSE 4.941131976213995 CPU NLL 1.5194803476333618 GPU NLL 1.4639111183355007
+map_arterial CPU/GPU mean RMSE 1.6188427980108748 CPU NLL 1.4836018085479736 GPU NLL 1.4711942290351667
+
+## Factual baseline and dynamic identification; Python 5, forward 2
+- Original factual value NLL = 1.63461 on first 100 tuning stays, 4751 readings.
+- NE sensor-difference first stage is weak; do not use its point estimates.
+- Tested replicate-sensor corrections and lag-instrumented first differences; each relies on explicit measurement-noise/innovation assumptions.
+{
+  "('map_arterial', 'norepinephrine', 'basic')": {
+    "persistence": 0.9982457546092935,
+    "effect": 0.25976722831925286,
+    "se_persistence": 0.0018481345452363164,
+    "se_effect": 0.07259737043369274,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "persistence": 0.9158430901733471,
+    "effect": 3.2667303775592043,
+    "se_persistence": 0.009083782933650895,
+    "se_effect": 0.1636034525210515,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'stayFE')": {
+    "persistence": 0.7479846009200942,
+    "effect": 3.610685143623699,
+    "se_persistence": 0.012280238981277945,
+    "se_effect": 0.17246200287179653,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history_interior')": {
+    "persistence": 0.9574567466723566,
+    "effect": 3.7778390489116442,
+    "se_persistence": 0.013217293064316842,
+    "se_effect": 0.1959188852393693,
+    "n": 36923
+  },
+  "('map_cuff', 'norepinephrine', 'basic')": {
+    "persistence": 1.002179540391177,
+    "effect": 0.5189648230656696,
+    "se_persistence": 0.005137497349731058,
+    "se_effect": 0.21187411701185913,
+    "n": 29358
+  },
+  "('map_cuff', 'norepinephrine', 'history')": {
+    "persistence": 0.9167489009317886,
+    "effect": 3.0586191243152263,
+    "se_persistence": 0.019627357899411266,
+    "se_effect": 0.48172997418062946,
+    "n": 29358
+  },
+  "('map_cuff', 'norepinephrine', 'stayFE')": {
+    "persistence": 0.6963059214339552,
+    "effect": 3.607914129367453,
+    "se_persistence": 0.030053332950615613,
+    "s
+
+## More efficient dynamic checks; Python 6, forward 2
+- Replicate-sensor NE estimates are positive but rely on dose/error independence.
+- Insulin replicate-sensor level estimates are invalid if dosing uses finger noise; the negative sensor-difference IV is more defensible for insulin.
+- Enlarged first-difference samples using own-sensor instruments at lags >=2, which avoid overlapping current measurement errors.
+{
+  "('map_arterial', 'admission')": {
+    "coefficients": [
+      0.9825267853113245,
+      0.5165933079110422,
+      0.029677058825007888
+    ],
+    "se": [
+      0.006061144800747398,
+      0.1349655273885699,
+      0.006965149985368135
+    ],
+    "n": 25283
+  },
+  "('map_cuff', 'admission')": {
+    "coefficients": [
+      0.9736397009521174,
+      0.4870228377565288,
+      0.04526212305580476
+    ],
+    "se": [
+      0.014298533258265632,
+      0.39942899381697966,
+      0.01616727199739762
+    ],
+    "n": 7995
+  },
+  "('glucose_finger', '(2, 3)', False)": {
+    "persistence": 1.0636624817043296,
+    "effect": -20.50967480255291,
+    "se_persistence": 0.6011473477865716,
+    "se_effect": 14.10406179320535,
+    "n": 187065,
+    "condition": 4278.111074394605
+  },
+  "('glucose_finger', '(2, 3)', True)": {
+    "persistence": 1.6853771922182748,
+    "effect": -28.31022511468185,
+    "se_persistence": 0.5252171736929621,
+    "se_effect": 16.30187699616657,
+    "n": 151972,
+    "condition": 4146.207612178202
+  },
+  "('glucose_finger', '(2, 3, 4)', False)": {
+    "persistence": 1.7622489453213448,
+    "effect": -32.365447466632254,
+    "se_persistence": 0.4640301018640856,
+    "se_effect": 14.770938349276275,
+    "n": 170139,
+    "condition": 3163.075474062332
+  },
+  "('glucose_finger', '(2, 3, 4)', True)": {
+    "persistence": 1.9119603835647734,
+    "effect": -30.143412757950454,
+    "se_persistence": 0.457167597898931,
+    "se_effect": 14.832568278064965,
+    "n"
+Edits: []
+
+```

@@ -1,0 +1,236 @@
+OUTPUT of Python run 75 of at most 300:
+```
+FUNCTION NAMES AND PARAMETER NAMES
+_fn ['parts', 'n_samples', 'seed']
+_obj ['mean', 'nll']
+approximate_edit_cost ['meta0', 'feature_tuple']
+as_numpy ['x']
+causal_shift_table ['panel_array', 'ids', 'outcome', 'drug', 'beta', 'rho']
+compact_panel ['df']
+cpu_head_parts ['meta', 'states']
+cpu_head_probs ['parts', 'n_samples', 'seed']
+drop_edit ['name']
+edited []
+fn ['meta', 'states']
+fn0 ['panel_array', 'ids', 'outcome', 'drug', 'beta', 'rho']
+fn1 ['parts', 'n_samples', 'seed']
+func0 ['x', 'trans', 'tensors']
+graft_probs ['x', 'trans', 'tensors']
+head_dose_data ['meta', 'panel', 'ids', 'predicted_policy']
+head_score ['mean', 'nll']
+head_unit_target ['meta0', 'logits0', 'dose_data0']
+insulin_rd ['horizon', 'bandwidth', 'degree', 'history']
+lin ['x', 'prefix', 'weights']
+ln ['x', 'prefix', 'weights']
+load ['name']
+load_original ['name']
+make_head_features ['meta', 'states', 'gap_style', 'register_style', 'status', 'type_id', 'age_style', 'view_style']
+make_insulin_graft ['beta']
+make_ne_data ['n_lags']
+make_policy_data ['panel']
+mlp ['x', 'prefix', 'weights']
+np32 ['x']
+rd_dynamic_residual ['par']
+reading_metadata ['records', 'states']
+repair_feature_sets ['meta', 'sf']
+repair_head_features ['meta', 'states']
+save_edit ['name', 'tensor']
+shifted_col ['col', 'horizon']
+short_stats ['x']
+state_matrix ['obj']
+
+GRAFT METADATA
+beta 3.3899126865451534
+beta3 -8.0
+gatepool3 array (74144, 192)
+gateypool3 array (74144,)
+graft_alpha 0.01
+graft_applied True
+graft_beta -2.0
+graft_candidate keys ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_cpu_penalty 0.27281832695007324
+graft_decoder_b 0.9173281569044254
+graft_decoder_w array (192,)
+graft_gate_scale 20.0
+graft_names ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_nodes array (2,)
+graft_original keys ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_removed_mean array (2,)
+insulin_probe_beta -2.0
+robust_X keys ['first', 'extra', 'tuning']
+robust_candidates3 keys [0.0, -2.0, -4.0, -8.0]
+robust_costs3 keys [0.0, -2.0, -4.0, -8.0]
+robust_decoders keys [('register', 0.1), ('register', 10.0), ('register', 1000.0), ('register_prior', 0.1), ('register_prior', 10.0), ('register_prior', 1000.0)]
+robust_parts keys ['first', 'extra', 'tuning']
+robust_projectors keys ['register', 'register_prior']
+robust_samples 8
+robust_state_index keys ['first', 'extra', 'tuning']
+xpool3 array (27992, 192)
+ypool3 array (27992,)
+
+EARLY IDENTIFICATION NOTES
+# Weight-repair notebook
+
+## Initial inspection
+- Python runs: 1. Forward requests: 0.
+- No drug effects assumed; all effect estimates must come from these simulated records.
+- First inspect architecture, event ordering, dose encoding, and available histories.
+- Then estimate dose effects, measure original rollouts/factual fit, and test targeted weight edits with the factual NLL constraint.
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.024098411603330767,
+    "first_stage_t": 34.65836012846078,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'past_difference')": {
+    "beta": -1.7098169631722566,
+    "se": 0.49571479741038577,
+    "first_stage": 0.024088881089054243,
+    "first_stage_t": 34.682785128203996,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'stayFE')": {
+    "beta": 0.6604909236239173,
+    "se": 0.531745510423111,
+    "first_stage": 0.027494693802790897,
+    "first_stage_t": 23.486841143670325,
+    "n": 15729
+  },
+  "('norepinephrine', 'map_arterial', 'history')": {
+    "beta": -18.770179837459043,
+    "se": 10.725044751264742,
+    "first_stage": 0.00023924704982281593,
+    "first_stage_t": 4.630621380691009,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'past_difference')": {
+    "beta": -18.46746024463273,
+    "se": 10.79598180969503,
+    "first_stage": 0.00023698386029265031,
+    "first_stage_t": 4.589330754374463,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'stayFE')": {
+    "beta": 45.967013136779165,
+    "se": 17.626632496359736,
+    "first_stage": 0.0001960059721602588,
+    "first_stage_t": 3.583611528216762,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_cuff', 'history')": {
+    "beta": -44.76692008065325,
+    "se": 44.17355258218645,
+    "first_stage": 0.0001653959279835562,
+    "first_stage_t": 1.8429218212513345,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'past_difference')": {
+    "beta": -44.445574103820974,
+    "se": 44.36183449302977,
+    "first_stage": 0.00016465813087278928,
+    "first_stage_t": 1.836249722244463,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'stayFE')": {
+    "beta": -670.8096489513821,
+    "se": 406.4526866401043,
+    "first_stage": 0.00019082169114508174,
+    "first_stage_t": 1.659997261215908,
+    "n": 29358
+  }
+}
+
+## Factual baseline and dynamic identification; Python 5, forward 2
+- Original factual value NLL = 1.63461 on first 100 tuning stays, 4751 readings.
+- NE sensor-difference first stage is weak; do not use its point estimates.
+- Tested 
+
+```

@@ -1,0 +1,386 @@
+OUTPUT of Python run 151 of at most 300:
+```
+=== RECORD AND EMBEDDING CONVENTIONS ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+   stay_id  hour              event  value  rate rate_unit  dose dose_unit  end_hour
+1010000000  -2.0 hospital_admission    NaN   NaN       NaN   NaN       NaN   25.1667
+1010000000  -1.0     glucose_finger  165.0   NaN       NaN   NaN       NaN       NaN
+1010000000  -1.0       map_arterial   73.0   NaN       NaN   NaN       NaN       NaN
+1010000000   0.0     glucose_finger  168.0   NaN       NaN   NaN       NaN       NaN
+1010000000   0.0      icu_admission    NaN   NaN       NaN   NaN       NaN   25.1667
+1010000000   0.0       map_arterial   67.0   NaN       NaN   NaN       NaN       NaN
+unit convention: {'glucose_finger': 1, 'glucose_lab': 5, 'map_arterial': 2, 'map_cuff': 2, 'hospital_admission': 0, 'icu_admission': 0, 'insulin': 3, 'norepinephrine': 4}
+atom137: ('row', 'unit_index', 'rate_unit_index', 'end', 'end_ekind') defaults: (0, 0, False, None)
+event kinds: {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'} atom kinds: {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+embed.categorical.action.weight row norms [0.    0.277]
+embed.categorical.discharged_to.weight row norms [0.    0.265]
+embed.categorical.rate_unit.weight row norms [0.    0.273 0.734 1.214]
+embed.categorical.route.weight row norms [0.   0.29]
+embed.categorical.status.weight row norms [0.    0.267]
+embed.categorical.unit.weight row norms [0.    0.265 1.257 0.75  1.176 1.34 ]
+
+=== ACTION ATOM HELPER BYTECODE ===
+RESUME 
+LOAD_FAST row
+LOAD_CONST 'event'
+BINARY_SUBSCR 
+STORE_FAST event
+LOAD_GLOBAL event_kind_ids
+LOAD_GLOBAL code_info
+LOAD_FAST event
+BINARY_SUBSCR 
+LOAD_CONST 'event_kind'
+BINARY_SUBSCR 
+BINARY_SUBSCR 
+STORE_FAST ekind
+LOAD_FAST end_ekind
+POP_JUMP_IF_NONE to 58
+LOAD_FAST end_ekind
+STORE_FAST ekind
+LOAD_GLOBAL W
+LOAD_CONST 'embed.code.weight'
+BINARY_SUBSCR 
+LOAD_GLOBAL codes
+LOAD_FAST event
+BINARY_SUBSCR 
+BINARY_SUBSCR 
+LOAD_GLOBAL W
+LOAD_CONST 'embed.kind.weight'
+BINARY_SUBSCR 
+LOAD_FAST end
+POP_JUMP_IF_FALSE to 118
+LOAD_CONST 2
+JUMP_FORWARD to 120
+LOAD_CONST 0
+BINARY_SUBSCR 
+BINARY_OP +
+LOAD_GLOBAL W
+LOAD_CONST 'embed.ekind.weight'
+BINARY_SUBSCR 
+LOAD_FAST ekind
+BINARY_SUBSCR 
+BINARY_OP +
+LOAD_ATTR NULL|self + clone
+CALL 
+STORE_FAST x
+LOAD_GLOBAL np
+LOAD_ATTR NULL|self + zeros
+LOAD_CONST 6
+LOAD_GLOBAL np
+LOAD_ATTR float32
+KW_NAMES ('dtype',)
+CALL 
+STORE_FAST numbers
+LOAD_CONST (('value', 0), ('dose', 2), ('rate', 4))
+GET_ITER 
+FOR_ITER to 736
+UNPACK_SEQUENCE 
+STORE_FAST attr
+STORE_FAST offset
+LOAD_FAST end
+POP_JUMP_IF_FALSE to 310
+LOAD_GLOBAL np
+LOAD_ATTR nan
+JUMP_FORWARD to 372
+LOAD_FAST row
+LOAD_ATTR NULL|self + get
+LOAD_FAST attr
+LOAD_GLOBAL np
+LOAD_ATTR nan
+CALL 
+STORE_FAST value
+LOAD_GLOBAL numeric
+LOAD_ATTR NULL|self + get
+LOAD_FAST event
+LOAD_FAST attr
+BUILD_TUPLE 
+CALL 
+STORE_FAST spec
+LOAD_CONST 0
+STORE_FAST bin_id
+LOAD_FAST spec
+POP_JUMP_IF_NONE to 696
+LOAD_GLOBAL pd
+LOAD_ATTR NULL|self + notna
+LOAD_FAST value
+CALL 
+POP_JUMP_IF_FALSE to 696
+LOAD_GLOBAL np
+LOAD_ATTR NULL|self + clip
+LOAD_GLOBAL NULL + float
+LOAD_FAST value
+CALL 
+LOAD_FAST spec
+LOAD_CONST 'median'
+BINARY_SUBSCR 
+BINARY_OP -
+LOAD_GLOBAL NULL + max
+LOAD_FAST spec
+LOAD_CONST 'iqr'
+BINARY_SUBSCR 
+LOAD_CONST 1e-08
+CALL 
+BINARY_OP /
+LOAD_CONST -10
+LOAD_CONST 10
+CALL 
+LOAD_FAST numbers
+LOAD_FAST offset
+STORE_SUBSCR 
+LOAD_CONST 1.0
+LOAD_FAST numbers
+LOAD_FAST offset
+LOAD_CONST 1
+BINARY_OP +
+STORE_SUBSCR 
+LOAD_CONST 1
+LOAD_GLOBAL NULL + int
+LOAD_GLOBAL np
+LOAD_ATTR NULL|self + searchsorted
+LOAD_FAST spec
+LOAD_CONST 'fine_bin_edges'
+BINARY_SUBSCR 
+LOAD_GLOBAL NULL + float
+LOAD_FAST value
+CALL 
+LOAD_CONST 'left'
+KW_NAMES ('side',)
+CALL 
+CALL 
+BINARY_OP +
+STORE_FAST bin_id
+LOAD_FAST x
+LOAD_GLOBAL W
+LOAD_CONST 'embed.bins.'
+LOAD_FAST attr
+FORMAT_VALUE 
+LOAD_CONST '.weight'
+BUILD_STRING 
+BINARY_SUBSCR 
+LOAD_FAST bin_id
+BINARY_SUBSCR 
+BINARY_OP +=
+STORE_FAST x
+JUMP_BACKWARD to 262
+END_FOR 
+LOAD_FAST x
+LOAD_GLOBAL NULL + linear136
+LOAD_GLOBAL torch
+LOAD_ATTR NULL|self + from_numpy
+LOAD_FAST numbers
+CALL 
+LOAD_CONST 'embed.numeric'
+CALL 
+BINARY_OP +=
+STORE_FAST x
+LOAD_CONST ('unit', 'rate_unit', 'action', 'status', 'route', 'discharged_to')
+GET_ITER 
+FOR_ITER to 888
+STORE_FAST attr
+LOAD_FAST attr
+LOAD_CONST 'unit'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 830
+LOAD_FAST unit_index
+JUMP_FORWARD to 846
+LOAD_FAST attr
+LOAD_CONST 'rate_unit'
+COMPARE_OP ==
+POP_JUMP_IF_FALSE to 844
+LOAD_FAST rate_unit_index
+JUMP_FORWARD to 846
+LOAD_CONST 0
+STORE_FAST index
+LOAD_FAST x
+LOAD_GLOBAL W
+LOAD_CONST 'embed.categorical.'
+LOAD_FAST attr
+FORMAT_VALUE 
+LOAD_CONST '.weight'
+BUILD_STRING 
+BINARY_SUBSCR 
+LOAD_FAST index
+BINARY_SUBSCR 
+BINARY_OP +=
+STORE_FAST x
+JUMP_BACKWARD to 810
+END_FOR 
+LOAD_FAST x
+RETURN_VALUE 
+
+=== RECURRENT STEP BYTECODE ===
+LOAD_ATTR NULL|self + exp
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_TUPLE 
+BINARY_SUBSCR 
+UNARY_NEGATIVE 
+LOAD_ATTR NULL|self + exp
+LOAD_CONST 'core.flow.a'
+BINARY_SUBSCR 
+CALL 
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+BINARY_OP *
+CALL 
+BINARY_OP *
+LOAD_ATTR NULL|self + cat
+LOAD_CONST 'core.slots'
+BINARY_SUBSCR 
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+BINARY_OP +
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_CONST 'z_in'
+CALL 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+BUILD_LIST 
+LOAD_CONST 1
+KW_NAMES ('dim',)
+CALL 
+LOAD_CONST 'core.prelude.0'
+CALL 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST 4
+BUILD_SLICE 
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_CONST 'core.prelude_norm'
+CALL 
+BINARY_OP +
+LOAD_CONST 2
+CALL 
+GET_ITER 
+FOR_ITER to 466
+LOAD_CONST 'core.blocks.0.'
+FORMAT_VALUE 
+BUILD_STRING 
+CALL 
+JUMP_BACKWARD to 420
+END_FOR 
+LOAD_ATTR NULL|self + softplus
+LOAD_CONST 'core.delta_in'
+BINARY_SUBSCR 
+CALL 
+LOAD_ATTR NULL|self + exp
+UNARY_NEGATIVE 
+LOAD_ATTR NULL|self + exp
+LOAD_CONST 'core.a_in'
+BINARY_SUBSCR 
+CALL 
+BINARY_OP *
+CALL 
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+BINARY_OP *
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+LOAD_CONST None
+BUILD_SLICE 
+BUILD_TUPLE 
+BINARY_SUBSCR 
+LOAD_CONST 'core.b_in'
+CALL 
+BINARY_OP *
+BINARY_OP +
+BINARY_OP +
+BINARY_OP -
+LOAD_CONST 'core.c_out'
+CALL 
+LOAD_CONST 'core.coda.0'
+CALL 
+LOAD_ATTR NULL|self + mean
+LOAD_CONST 1
+CALL 
+LOAD_CONST 'core.out_norm'
+CALL 
+BUILD_TUPLE 
+RETURN_VALUE 
+
+=== EARLIER HEAD CONVENTIONS ===
+Head computation tests ? Python 16; forward 4
+- State layout verified: out equals normalized mean(h) to ~1e-7 RMS.
+- Reconstruction glucose bias is predominantly in rows with a last-value register.
+- Testing separate prior/view gap scaling, age units, latent modes and bin boundaries; no edits.
+
+
+Reconstruction recovery ? Python 17; forward 4
+- Gap, bin-boundary and latent tests did not reproduce original predictions.
+- Inspecting the exact architecture and retained helper code before editing weights.
+- No weights changed.
+
+
+
+```

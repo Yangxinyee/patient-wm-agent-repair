@@ -1,0 +1,23 @@
+OUTPUT of Python run 21 of at most 300:
+```
+NOTEBOOK LENGTH: 25579
+=== PRIOR EDIT AND VALIDATION NOTES ===
+## Initial plan
+No weights changed and no causal effects assumed. Read architecture and record timing first; estimate effects from training records, including confounding and identification checks. Compute only non-gradient weight edits, then test all four dose rollouts and factual NLL. Factual NLL must remain within 0.005 nats of the original.
+## Restart inspection
+Run 8's richer-history NE estimates are near zero at one hour. The twelve-hour association is concentrated before hour 4 and is much smaller thereafter; this suggests early-stay residual confounding. Working hypothesis: both drugs have little or no causal effect, subject to further later-hour checks. Inspecting architecture before choosing a minimal dose-sensitivity edit; factual NLL tolerance is +0.005 nats per reading.
+## Forward 2 and 3 validation, first 100 tuning stays
+Factual original NLL 1.50155; candidate 1.50136 (approximately -0.00019 nats). Paired cluster summary:
+{"n_readings": 4930, "n_stays": 100, "original_nll": 1.501545902636917, "edited_nll": 1.5013641379310345, "delta": -0.00018176470588235208, "cluster_se": 0.0001816280620308649, "ci95": [-0.0005421541854477836, 0.0001786247736830794]}
+Exact evaluation rollout: insulin x2 and half, NE x2 and half all have zero shift on every reached stay-hour. Original means were +0.113, -0.186, +0.050, +0.013 respectively. This confirms behavioral invariance, not causal truth. Need validate factual fit on remaining tuning stays and check causal estimates specifically at later ICU hours, using only pre-dose history.
+## Factual validation, first 200 tuning stays
+{"n_readings": 9709, "n_stays": 200, "original_nll": 1.4981878566278712, "edited_nll": 1.498180049438665, "delta": -7.807189205891541e-06, "cluster_se": 0.0001232125477955646, "ci95": [-0.0002493037828851981, 0.00023368940447341505]}
+Second batch remains far inside the +0.005 nats tolerance. Next: late-hour causal checks, retaining only pre-infusion covariates.
+=== FUNCTIONS ===
+[('load', '(name)'), ('load_original', '(name)'), ('save_edit', '(name, tensor)'), ('drop_edit', '(name)'), ('edited', '()'), ('lag_matrix', '(a, k)'), ('add_col', '(name, a)'), ('paired_nll_summary', '(table)'), ('paired_summary_v2', '(table)'), ('prefix_last_v2', '(v)'), ('pre_dose_features_v2', '(drug)'), ('crossfit_mean_v2', '(X, target, eligible, label)'), ('future_reading_v2', '(channel, horizon)'), ('orthogonal_coefficient_v2', '(a_res, y_res, selection)')]
+=== ARRAY / DATAFRAME VARIABLES ===
+Traceback (most recent call last):
+  File "<run>", line 12, in <module>
+TypeError: 'numpy._ArrayFunctionDispatcher' object is not iterable
+
+```

@@ -1,0 +1,107 @@
+OUTPUT of Python run 281 of at most 300:
+```
+REACHED-HOUR, EQUAL-STAY ROLLOUT MEANS
+ forward    model  stays  insulin_half  insulin_x2  ne_half    ne_x2
+       5 original     49       0.55992    -1.35461 -0.69446 -0.54741
+       5   edited     49       1.90049    -5.50958 -0.79852 -0.46084
+       7 original     49       0.55992    -1.35461 -0.69446 -0.54741
+       7   edited     49       2.00124    -6.30002 -0.99444 -0.31530
+      10 original     98       0.59202    -1.62660 -0.52978 -0.30300
+      10   edited     98       3.35698   -10.83107 -0.95453  0.09792
+      12 original     98       0.59202    -1.62660 -0.52978 -0.30300
+      12   edited     98       2.57970   -10.60803 -3.62128  1.47664
+      15 original     98       0.59202    -1.62660 -0.52978 -0.30300
+      15   edited     98       3.22274   -10.73286 -1.22493  0.56750
+      18 original     99       0.58068    -1.49998 -0.57737 -0.50599
+      18   edited     99       3.66966    -9.68761 -1.56790  1.77057
+      25 original     95       0.60041    -1.46784 -0.52555 -0.45135
+      25   edited     95       3.38551   -10.03355 -0.75744 -0.22353
+      29 original     99       0.58068    -1.49998 -0.57737 -0.50599
+      29   edited     99       3.00804    -9.55895 -0.84952  0.08057
+      32 original    100       0.64774    -1.56417 -0.63409 -0.31104
+      32   edited    100       4.13718    -9.41162 -1.04377  0.08941
+      35 original    100       0.64774    -1.56417 -0.63409 -0.31104
+      35   edited    100       3.99687    -9.00398 -0.89530  0.56987
+
+FACTUAL COST BY EVENT, SAME COHORT
+candidate          event  mean_delta  overall_contribution
+ joint236 glucose_finger    0.006890              0.002015
+ joint236    glucose_lab    0.018601              0.002006
+ joint236   map_arterial    0.002861              0.000802
+ joint236       map_cuff    0.001283              0.000410
+ joint268 glucose_finger    0.005925              0.001733
+ joint268    glucose_lab    0.018507              0.001996
+ joint268   map_arterial    0.003619              0.001015
+ joint268       map_cuff    0.001913              0.000611
+ joint274 glucose_finger    0.004178              0.001222
+ joint274    glucose_lab    0.015787              0.001703
+ joint274   map_arterial    0.003118              0.000874
+ joint274       map_cuff    0.001647              0.000526
+ joint278 glucose_finger    0.009869              0.002886
+ joint278    glucose_lab    0.023678              0.002554
+ joint278   map_arterial    0.002855              0.000801
+ joint278       map_cuff    0.001514              0.000483
+
+EARLY RECORD-IDENTIFICATION NOTEBOOK
+# World-model repair notebook
+
+## Initial plan
+- Read architecture and record definitions before choosing an identification strategy.
+- Infer drug effects only from the simulated ICU records; impose no medical assumptions.
+- Use no gradients or weight optimiser.
+- Validate weight edits against original factual NLL and paired dose rollouts.
+- Required factual NLL degradation: at most 0.005 nats per reading.
+- Python runs: 1. Forward requests: 0.
+
+## Run 2: architecture
+Drug atoms have their own action encoder, but enter posterior and recurrent updates. Value heads also use last-reading registers and code-specific bin transitions. No causal conclusion yet. Full records loaded for timing and identification analysis.
+Python runs: 2. Forward requests: 0.
+
+## Run 3: hourly panel
+Readings occur on integer hours; infusions start at hour + 0.0833 and last one hour. Built full panels with absent infusion=0, prior reading registers, ages, and next-hour outcomes. Initial regressions are diagnostics, not yet accepted causal estimates.
+Validation IDs chosen randomly once (seed 731), 100 tuning stays.
+Python runs: 3. Forward requests: 0.
+
+## Run 4: selection and threshold identification
+Unadjusted insulin/glucose slope +23.36, adjusted about -1.92 per unit/hour. NE/MAP slope changes from -30.02 raw to -1.90 with current reading and +2.25 with history. These are not accepted as causal. Insulin dose thresholds near 150/180/220 motivate fuzzy RD. Test independent lab outcomes and observation availability to diagnose selection artifacts.
+Python runs: 4. Forward requests: 0.
+
+## Forward 1: original rollout, first 100 tuning stays
+Insulin x2 -1.847; insulin half +0.777; NE x2 -0.498; NE half -0.600. Insulin reaches 554 stay-hours/60 stays; NE 281/26. These are predictions, not truth.
+RD roughly -2 per additional insulin unit/hour, with serious observation jump at 150; prefer thresholds 180/220 and check temporal persistence. Boundary observations are mixtures because measurements are rounded.
+Python runs: 5. Forward requests: 1.
+
+## Run 5?6: dynamic identification
+Pooled insulin RD excludes rounded cutoff values at 180/220. Immediate glucose jump -2.2131 (SE .1583), dose jump 1.0361. Reduced-form outcome discontinuity fades over six hours; downstream dosing also changes. Joint impulse fit beta=-2.2778, persistence=.85743; provisional, not exact truth. NE polynomial-history coefficients remain about +3.09, but dose-policy nonlinearity may bias them. Cross-fitted flexible nuisance models now test residual-dose effects.
+NE DML beta=3.248868, cluster SE=0.096302.
+Python runs: 6. Forward requests: 1.
+
+## Run 7: restart and factual baseline
+Original factual value NLL on the fixed 100-stay tuning sample: 1.63461 (4751 readings); allowed sample ceiling 1.63961. Recovering architecture and retained analysis state before choosing an edit.
+Python runs: 7. Forward requests: 2.
+
+## Run 8: action pathway and identification audit
+Architecture recovered: action-specific encoder feeds posterior, prelude, and recurrent state; value heads also have same-code last-reading registers. Inspecting exact dose support, RD results, and layer dimensions before surgery.
+Python runs: 8. Forward requests: 2.
+
+## Run 9: compact units and causal audit
+Retrieved dynamic identification, dose units/support, exact action/posterior shapes, and head-input configuration. No weights edited yet.
+Python runs: 9. Forward requests: 2.
+
+## Run 10: states and target scale
+Loaded original 4356 bundle states for tuning stays 2020000000..99 and all original tensors. Computed provisional fixed-dose schedule responses over several persistence values; these are statistical targets, not hidden truth. No weights edited.
+Python runs: 10. Forward requests: 3.
+
+## Run 11: local reading decoder reconstruction
+Enumerated register layouts and activation types. Best: gelu, (6, 3, (0,)); decoder RMSE 1.5651. Provisional insulin x2 target on recorded reached hours: -13.586; half target +6.793, assuming beta=-2.2778 and persistence=.8574.
+Python runs: 11. Forward requests: 3.
+
+## Run 12: policy residual probes
+Fitted training-record dose-policy nuisance models (260000 sampled intervals). Cross-stay ridge probes test residual dose and raw-dose recovery from reading-head features; separately quantified prior-sampling noise. Probe results: [(0.1, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0309, 'raw_dose_R2': 0.7405, 'other_event_leakage_RMS': 0.0716}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0588, 'raw_dose_R2': 0.5973, 'other_event_leakage_RMS': 0.0171}]), (1.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.03, 'raw_dose_R2': 0.7384, 'other_event_leakage_RMS': 0.067}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0447, 'raw_dose_R2': 0.6053, 'other_event_leakage_RMS': 0.0166}]), (10.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.028, 'raw_dose_R2': 0.7306, 'other_event_leakage_RMS': 0.0539}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0171, 'raw_dose_R2': 0.6227, 'other_event_leakage_RMS': 0.0132}]), (100.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0198, 'raw_dose_R2': 0.7251, 'other_event_leakage_RMS': 0.0339}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': 0.0015, 'raw_dose_R2': 0.6356, 'other_event_leakage_RMS': 0.0079}]), (1000.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0094, 'raw_dose_R2': 0.7131, 'other_event_leakage_RMS': 0.0186}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': 0.0017, 'raw_dose_R2': 0.6434, 'other_event_leakage_RMS': 0.0037}])]
+Python runs: 12. Forward requests: 3.
+
+## Run 13: test earlier representations
+Initial event-gated head probes failed held-out residual-dose recovery. Testing ungated probes across query, hidden head, full state, and posterior to locate the bottleneck; inspected atom encoder tables.
+Ungated results: [{'representation': 'query', 'alpha': 1.0, 'residual_R2': [-0.106, -0.006], 'raw_R2': [0.794, 0.679]}, {'representation': 'query', 'alpha': 30.0, 'residual_R2': [-0.015, -0.01], 'raw_R2': [0.806, 0.663]}, {'representation': 'query', 'alpha': 300.0, 'residual_R2': [0.005, -0.005], 'raw_R2': [0.797, 0.652]}, {'representation': 'head_input', 'alpha': 1.0, 'residual_R2': [-0.05, -0.025], 'raw_R2': [0.803, 0.672]}, {'representation': 'head_input', 'alpha': 30.0, 'residual_R2': [-0.011, -0.016], 'raw_R2': [0.803, 0.646]}, {'repres
+
+```

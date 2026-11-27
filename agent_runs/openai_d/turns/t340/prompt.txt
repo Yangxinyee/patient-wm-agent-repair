@@ -1,0 +1,196 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 339 replies happened before. Forward passes used: 49 of 50; Python runs used: 279 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'embed_transition.value_bin.weight']. Files in /work: ['cancellation50_f33.npz', 'candidate90_35_bin80x4.npz', 'candidate90_40_bin80x4.npz', 'edited', 'final_safe_checkpoint.npz', 'final_validation_before_f50.json', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_33', 'fwd_34', 'fwd_35', 'fwd_36', 'fwd_37', 'fwd_38', 'fwd_39', 'fwd_4', 'fwd_40', 'fwd_41', 'fwd_42', 'fwd_43', 'fwd_44', 'fwd_45', 'fwd_46', 'fwd_47', 'fwd_48', 'fwd_49', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'insulin_candidate_v1.npz', 'insulin_ne_candidate_v1.npz', 'lastbin80_scale4.npz', 'ne40_trial.npz', 'ne50_hidden_cancellation.npz', 'notes.md', 'rejected_8898bdc457.npz', 'safe_6288c226d6.npz', 'safe_before_ne40.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+35           4.0   0.002196          0.001139   0.002454
+0.90 0.40           0.0   0.002496          0.001882   0.003722
+0.90 0.40           2.0   0.002365          0.001536   0.003112
+0.90 0.40           4.0   0.002377          0.001307   0.002674
+0.86 0.40           0.0   0.002309          0.001768   0.003451
+0.86 0.40           2.0   0.002187          0.001438   0.002865
+0.86 0.40           4.0   0.002199          0.001216   0.002439
+0.86 0.45           0.0   0.002518          0.001988   0.003729
+0.86 0.45           2.0   0.002393          0.001644   0.003131
+0.86 0.45           4.0   0.002410          0.001416   0.002701
+0.94 0.50           0.0   0.003141          0.002472   0.004605
+0.94 0.50           2.0   0.002995          0.002083   0.003946
+0.94 0.50           4.0   0.003018          0.001834   0.003488
+
+## Runs 264–265: reduced-strength candidate installed
+Run264 stopped on vocabulary lookup before changing weights. Run265 resolved descriptor-list codes and verified transition corrections before installing insulin .90 / NE .35 with shrink80-scale4 cancellation; hash 636fbfa01a1c. Cached deltas: training fit .002196, held-out training .001139, tuning100 .002454. Exact candidate saved to /work/candidate90_35_bin80x4.npz. Prior rejected weights saved to /work/rejected_8898bdc457.npz. Awaiting GPU validation.
+
+## Runs 266–268 / Forwards 39–40: reduced candidate validation
+Recovered architecture and early causal robustness checks; no weights changed. Current insulin .90 / NE .35 with shrink80-scale4 previous-bin cancellation is unchanged (forward hash 864804d79e).
+         count      mean
+forward                 
+39        4751  0.004569
+40        4664  0.002596
+Reading-weighted pooled delta on first200 tuning stays: 0.00359164; stay-cluster SE 0.00124005, upper95 0.00602214. Need remaining-cohort factual validation and exact candidate rollout checks.
+
+## Forward 41–42 / Run 269: complete factual validation
+No weights changed. Current checkpoint is insulin .90 / NE .35 plus shrink80-scale4 previous-bin cancellation (forward hash 864804d79e).
+         count      mean
+forward                 
+39        4751  0.004569
+40        4664  0.002596
+41        4563  0.004719
+42        4676  0.001374
+All400 pooled original NLL 1.62936866, edited 1.63268008, delta 0.00331143; stay-cluster SE 0.00079085, upper95 0.00486150. All four 100-stay cohorts individually pass the .005 threshold. Rollout validation of this exact checkpoint is still pending.
+
+## Forward 43 / Run 270: exact-checkpoint rollout recovery
+Checkpoint 864804d79e is unchanged. First100 tuning dose shifts: original insulin x2 -1.847, half +0.777; edited -12.958, +5.870. Original NE x2 -0.498, half -0.600; edited +0.948, -0.689. These are model predictions, not causal truth. All400 factual delta +0.00331143 (cluster upper95 +0.00486150) previously validated. Recovering training-record causal estimates before further decisions.
+
+## Forward 44 / Run 272: second-cohort rollout consistency
+Checkpoint 864804d79e unchanged. Tuning100..199 edited shifts: insulin x2 -13.562, half +5.668; NE x2 +1.378, half -0.808. Strong insulin repair transfers; NE direction repaired but magnitude remains below provisional record-derived targets. Inspecting saved strength/cancellation interfaces before deciding whether another reversible trial is justified by the factual budget.
+
+## Run 273: bounded stronger-NE trial planning
+No weights changed. Considering insulin .90 / NE .40 with the same training-only shrink80-scale4 cancellation. Precommitment: retain only if all400 paired factual validation has upper95 below .005 and exact-checkpoint rollout improves NE without materially harming insulin. Otherwise restore candidate90_35_bin80x4.npz, already validated on all400 factual records and two rollout cohorts.
+
+## Runs 274–275: verified small stronger-NE trial
+Run274 stopped before changing weights because the cached table was unscaled. Run275 recovered its multiplier directly from the safe checkpoint (-4.00000001), with maximum reconstruction error 0, then installed .90 insulin / .40 NE with the same shrink80-scale4 cancellation. Exact safe backup is /work/safe_before_ne40.npz. Trial is NOT accepted: require all400 paired factual upper95 < .005 and improved exact-checkpoint rollout; otherwise restore the safe checkpoint.
+
+## Run 278 / Forwards 45–48: stronger-NE factual decision
+Paired reading-weighted deltas; uncertainty clustered by stay using delta-sum minus mean-delta times reading count, with finite-cluster correction.
+Safe: {"n_stays": 400, "n_readings": 18654, "original_nll": 1.6293686555162432, "edited_nll": 1.6326800847003322, "delta": 0.0033114291840892047, "stay_cluster_se": 0.0007908524903413655, "upper95": 0.004861500065158281}
+NE .40 trial: {"n_stays": 400, "n_readings": 18654, "original_nll": 1.6293686715985847, "edited_nll": 1.6329855741395949, "delta": 0.003616902541009972, "stay_cluster_se": 0.000825280317767343, "upper95": 0.005234451963833964}
+REJECTED stronger NE trial; restored exact validated insulin .90 / NE .35 checkpoint. Remaining rollouts will cover tuning cohorts 2 and 3.
+Trial backup: /work/ne40_trial.npz. Safe restoration, if triggered, was verified tensor-for-tensor against both saved safe files.
+
+## Run 279 / Forward 49: final checkpoint and rollout audit
+Forward49 confirmed restored hash 864804d79e. No weights changed.
+Final weights verified exactly against safe_before_ne40 and saved to /work/final_safe_checkpoint.npz. Edited reading-head layers and previous-value transition logits implement training-record-derived dose-innovation corrections with factual cancellation.
+Immediate effects were estimated with pre-treatment history adjustment and nonlinear cross-fitted nuisance models: insulin approximately -1.99 glucose units per rate unit; NE approximately +3.29 MAP units per rate unit. Controlled multi-hour kernels suggest larger cumulative effects, but those targets remain provisional.
+All400 factual validation: {"n_stays": 400.0, "n_readings": 18654.0, "original_nll": 1.6293686555162432, "edited_nll": 1.6326800847003322, "delta": 0.0033114291840892047, "stay_cluster_se": 0.0007908524903413655, "upper95": 0.004861500065158281}
+Reached-hour rollout aggregate over first300 tuning stays:
+{"original": {"insulin_half": {"hour_weighted_shift": 0.8760348268839104, "n_stay_hours": 1473.0, "n_stays": 156.0, "mean_of_stay_means": 0.6665879772311022}, "insulin_x2": {"hour_weighted_shift": -1.8881281059063137, "n_stay_hours": 1473.0, "n_stays": 156.0, "mean_of_stay_means": -1.5849104088272838}, "ne_half": {"hour_weighted_shift": -0.5999581145584726, "n_stay_hours": 838.0, "n_stays": 75.0, "mean_of_stay_means": -0.5870771821548821}, "ne_x2": {"hour_weighted_shift": -0.31342434367541766, "n_stay_hours": 838.0, "n_stays": 75.0, "mean_of_stay_means": -0.3168161811447811}}, "edited": {"insulin_half": {"hour_weighted_shift": 6.0725262050237605, "n_stay_hours": 1473.0, "n_stays": 156.0, "mean_of_stay_means": 4.885096096010471}, "insulin_x2": {"hour_weighted_shift": -13.448222606924643, "n_stay_hours": 1473.0, "n_stays": 156.0, "mean_of_stay_means": -11.188536192210567}, "ne_half": {"hour_weighted_shift": -0.7363207637231504, "n_stay_hours": 838.0, "n_stays": 75.0, "mean_of_stay_means": -0.7175755909090907}, "ne_x2": {"hour_weighted_shift": 1.2242921241050118, "n_stay_hours": 838.0, "n_stays": 75.0, "mean_of_stay_means": 1.183655360942761}}}
+NE .40 trial rejected because factual upper95 .005234 exceeded the precommitted .005 bound; safe checkpoint upper95 .004862 passes.
+Insulin rollout repair transfers across three cohorts. NE direction is repaired, but magnitude is still below provisional causal targets. No claim of complete causal recovery is warranted.
+Final remaining request: forward50, exact-checkpoint paired dose rollout on tuning IDs 2020000300..2020000399. No further edits planned. Final response will report expected shifts using all four cohorts, with factual increase +.003311 nats per reading.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 279 of at most 300:
+```
+
+=== ORIGINAL: FIRST 300 TUNING STAYS ===
+              hour_weighted_shift  n_stay_hours  n_stays  mean_of_stay_means
+edit                                                                        
+insulin_half             0.876035          1473      156            0.666588
+insulin_x2              -1.888128          1473      156           -1.584910
+ne_half                 -0.599958           838       75           -0.587077
+ne_x2                   -0.313424           838       75           -0.316816
+
+=== EDITED: FIRST 300 TUNING STAYS ===
+              hour_weighted_shift  n_stay_hours  n_stays  mean_of_stay_means
+edit                                                                        
+insulin_half             6.072526          1473      156            4.885096
+insulin_x2             -13.448223          1473      156          -11.188536
+ne_half                 -0.736321           838       75           -0.717576
+ne_x2                    1.224292           838       75            1.183655
+
+EDITED BY COHORT:
+                      count       mean
+forward edit                          
+43      insulin_half    554   5.869695
+        insulin_x2      554 -12.958304
+        ne_half         281  -0.689155
+        ne_x2           281   0.948035
+44      insulin_half    487   5.667766
+        insulin_x2      487 -13.561520
+        ne_half         300  -0.807896
+        ne_x2           300   1.377823
+49      insulin_half    432   6.788930
+        insulin_x2      432 -13.948777
+        ne_half         257  -0.704340
+        ne_x2           257   1.347129
+
+=== FINAL CHECKPOINT INTEGRITY ===
+attr_heads.value_bin.0.bias original-change norm 86.90953067416717 safe-checkpoint error 0.0
+attr_heads.value_bin.0.weight original-change norm 217.8654320467597 safe-checkpoint error 0.0
+attr_heads.value_bin.2.bias original-change norm 0.15766656935731285 safe-checkpoint error 0.0
+attr_heads.value_bin.2.weight original-change norm 61.51713398597314 safe-checkpoint error 0.0
+embed_transition.value_bin.weight original-change norm 5.6033384861511175 safe-checkpoint error 0.0
+
+Final report saved; notebook updated. No weights changed.
+
+```

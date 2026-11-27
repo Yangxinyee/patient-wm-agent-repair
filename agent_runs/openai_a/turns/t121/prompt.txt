@@ -1,0 +1,174 @@
+OUTPUT of Python run 105 of at most 300:
+```
+=== EARLY NOTES ===
+# Weight-repair notebook
+
+## Initial inspection
+- Python runs: 1. Forward requests: 0.
+- No drug effects assumed; all effect estimates must come from these simulated records.
+- First inspect architecture, event ordering, dose encoding, and available histories.
+- Then estimate dose effects, measure original rollouts/factual fit, and test targeted weight edits with the factual NLL constraint.
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.024098411603330767,
+    "first_stage_t": 34.65836012846078,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'past_difference')": {
+    "beta": -1.7098169631722566,
+    "se": 0.49571479741038577,
+    "first_stage": 0.024088881089054243,
+    "first_stage_t": 34.682785128203996,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'stayFE')": {
+    "beta": 0.6604909236239173,
+    "se": 0.531745510423111,
+    "first_stage": 0.027494693802790897,
+    "first_stage_t": 23.486841143670325,
+    "n": 15729
+  },
+  "('norepinephrine', 'map_arterial', 'history')": {
+    "beta": -18.770179837459043,
+    "se": 10.725044751264742,
+    "first_stage": 0.00023924704982281593,
+    "first_stage_t": 4.630621380691009,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'past_difference')": {
+    "beta": -18.46746024463273,
+    "se": 10.79598180969503,
+    "first_stage": 0.00023698386029265031,
+    "first_stage_t": 4.589330754374463,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'stayFE')": {
+    "beta": 45.967013136779165,
+    "se": 17.626632496359736,
+    "first_stage": 0.0001960059721602588,
+    "first_stage_t": 3.583611528216762,
+   
+
+=== VOCABULARY KEYS AND CODES ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+codes [{'id': 0, 'name': '(padding)'}, {'id': 1, 'name': '(unknown measurement)'}, {'id': 2, 'name': '(unknown drug_admin)'}, {'id': 3, 'name': '(unknown visit)'}, {'id': 4, 'name': '(unknown visit_detail)'}, {'id': 5, 'name': 'map_cuff', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 7, 'name': 'map_arterial', 'event_kind': 'measurement', 'unit': 'mmHg', 'is_action': False}, {'id': 8, 'name': 'insulin', 'event_kind': 'drug_admin', 'unit': 'units/hour', 'is_action': True}, {'id': 9, 'name': 'norepinephrine', 'event_kind': 'drug_admin', 'unit': 'mcg/kg/min', 'is_action': True}, {'id': 10, 'name': 'glucose_lab', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}, {'id': 11, 'name': 'hospital_admission', 'event_kind': 'visit', 'unit': None, 'is_action': F
+event_kinds {'1': 'measurement', '2': 'drug_admin', '3': 'visit', '4': 'visit_detail'}
+atom_kinds {'0': 'WORLD (the event happened)', '1': 'REVEAL (a result becomes known; not used in this data)', '2': 'END (an infusion record ends)'}
+
+=== RECENT RECONSTRUCTION VARIABLES ===
+r101_buffer <_io.StringIO object at 0x7802eec61240>
+r101_f <_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+r101_fn function (size_n, atom=None) names: ('torch', 'zeros', '_r96_B', 'rm_mlp', 'reshape', 'rm_lin', 'full', 'float', 'np', 'log1p', 'rm_ln') constants: (None, 192, 'encode.mlp1', 1, 'encode.size', 'encode.mlp2', 'encode.norm')
+r101_name 'core.slots'
+r101_obj Tensor (4751, 32)
+r101_source " 64           0 RESUME                   0\n\n 65           2 LOAD_GLOBAL              1 (NULL + len)\n             12 LOAD_GLOBAL              2 (rm_rates)\n             22 CALL                     1\n             30 STORE_FAST               5 (b)\n\n 66          32 LOAD_GLOBAL              4 (rm_W)\n             42 LOAD_CONST               1 ('embed.code.weight')\n             44 BINARY_SUBSCR\n             48 LOAD_CONST               2 (8)\n 
+r101_transition_names ['core.a_in', 'core.age.0.bias', 'core.age.0.weight', 'core.age.2.bias', 'core.age.2.weight', 'core.b_in.weight', 'core.blocks.0.0.attn.kv.weight', 'core.blocks.0.0.attn.out.weight', 'core.blocks.0.0.attn.q.weight', 'core.blocks.0.0.cross.kv.weight', 'core.blocks.0.0.cross.out.weight', 'core.blocks.0.0.cross.q.weight', 'core.blocks.0.0.ffn.0.bias', 'core.blocks.0.0.ffn.0.weight', 'core.blocks.0.0.ffn.2.bias', 'core.blocks.0.0.ffn.2.weight', 'core
+r102_buffer <_io.StringIO object at 0x7802eec61b40>
+r102_disassembly " 64           0 RESUME                   0\n\n 65           2 LOAD_GLOBAL              1 (NULL + len)\n             12 LOAD_GLOBAL              2 (rm_rates)\n             22 CALL                     1\n             30 STORE_FAST               5 (b)\n\n 66          32 LOAD_GLOBAL              4 (rm_W)\n             42 LOAD_CONST               1 ('embed.code.weight')\n             44 BINARY_SUBSCR\n             48 LOAD_CONST               2 (8)\n 
+r102_f <_io.TextIOWrapper name='/work/notes.md' mode='a' encoding='UTF-8'>
+r102_key ('norepinephrine', 'rate')
+r102_lines ['## GPU validation of latent-robust graft; Python 73, forwards 8?9', '- beta=-2 graft passed paired factual check on first 100 tuning stays:', '  original NLL 1.63461, edited 1.63453 (delta -0.00008).', '- Paired rollouts: insulin x2 -1.847 -> -2.375; half .777 -> 1.062.', '  NE x2 -.498 -> -.505; half -.600 -> -.605.', '- Insulin leverage is real but too weak relative to the earlier RD-derived target.', '- Inspecting the retained graft construc
+r102_section '## GPU validation of latent-robust graft; Python 73, forwards 8?9\n- beta=-2 graft passed paired factual check on first 100 tuning stays:\n  original NLL 1.63461, edited 1.63453 (delta -0.00008).\n- Paired rollouts: insulin x2 -1.847 -> -2.375; half .777 -> 1.062.\n  NE x2 -.498 -> -.505; half -.600 -> -.605.\n- Insulin leverage is real but too weak relative to the earlier RD-derived target.\n- Inspecting the retained graft construction before i
+r102_start 3373
+r102_value {'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.46, 'iqr': 0.5900000000000001, 'fine_bin_edges': [0.03, 0.04, 0.05, 0.08, 0.15, 0.25, 0.35, 0.46, 0.59, 0.72, 0.87, 1.0, 1.0, 1.0, 1.0]}
+r103_atoms Tensor (61, 192)
+r103_base Tensor (61, 192)
+r103_batch_atoms Tensor (1, 4, 192)
+r103_best {'rmse': 0.08667323738336563, 'spec': (3, 3, 2), 'e': tensor([[-0.5178,  0.3506,  0.1384,  ...,  2.3703,  0.3339,  0.0443],
+        [-0.6790,  0.3825,  0.2784,  ...,  2.3315, -0.2177, -0.5394],
+        [-0.5997,  0.7222,  0.0794,  ...,  2.6311, -0.2269, -0.1753],
+        ...,
+        [ 0.5567, -0.0053, -0.4030,  ...,  1.0249,  1.4227, -0.6607],
+        [ 0.3210,  0.7719,  0.9587,  ...,  0.8482,  0.5409, -0.5688],
+        [ 0.2050,  0.3656,  0.995
+r103_bins [np.int64(9), np.int64(8), np.int64(10), np.int64(11), np.int64(7), np.int64(9), np.int64(10), np.int64(7), np.int64(7), np.int64(10), np.int64(9), np.int64(6), np.int64(7), np.int64(8), np.int64(7), np.int64(8), np.int64(8), np.int64(8), np.int64(5), n
+[output cut at 10,000 characters]
+```

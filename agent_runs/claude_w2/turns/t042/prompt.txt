@@ -1,0 +1,99 @@
+OUTPUT of Python run 37 of at most 300:
+```
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+['fwd_2', 'notes.md', 'selT.json', 'sel1.json', 'fwd_1', 'fwd_3'] {'fwd_1': ['summary.json', 'dose_edit_original.csv'], 'fwd_2': ['summary.json', 'factual_original.csv'], 'fwd_3': ['summary.json', 'states_original.npz']}
+{'NAMES': ('list', None), 'SHAPES': ('dict', None), 'VOCAB': ('dict', None), 'V': ('dict', None), 'k': ('int', None), 's': ('DataFrame', (230, 96)), 'n': ('dict', None), 'nm': ('str', None), 'tr': ('DataFrame', (1999838, 10)), 'tu': ('DataFrame', (26629, 9)), 'drug': ('str', None), 'd': ('DataFrame', (259839, 41)), 'st': ('Series', (400,)), 'ne': ('DataFrame', (235970, 10)), 'w': ('DataFrame', (670613, 21)), 'notes': ('str', None), 'g': ('DataFrame', (780000, 8)), 'gt': ('DataFrame', (10400, 8)), 'gg': ('DataFrame', (780000, 96)), 'c': ('str', None), 'x': ('DataFrame', (720000, 20)), 'y': ('DataFrame', (263161, 20)), 'tab': ('DataFrame', (61, 4)), 'z': ('DataFrame', (7659, 19)), 'b': ('DataFrame', (53899, 20)), 'X': ('Tensor', torch.Size([5345, 992])), 'lr': ('LinearRegression', None), 't1': ('DataFrame', (115, 3)), 'prevon': ('bool', None), 'ww': ('DataFrame', (214260, 21)), 't2': ('DataFrame', (14, 3)), 'v': ('DataFrame', (214260, 23)), 'vv': ('DataFrame', (208683, 23)), 'b2': ('DataFrame', (846, 20)), 'bnd': ('float', None), 'dd': ('DataFrame', (121291, 92)), 'm': ('DataFrame', (5238, 20)), 'bm': ('Series', (5,)), 'both': ('DataFrame', (106469, 96)), 'col': ('str', None), 's2': ('DataFrame', (39461, 97)), 'lr2': ('LinearRegression', None), 'gsh': ('DataFrameGroupBy', None), 'F': ('list', None), 'R': ('list', None), 'RN': ('list', None), 'RM': ('list', None), 'L': ('int', None), 'K': ('list', None), 'val': ('float64', ()), 'nb': ('Series', (780000,)), 'on': ('DataFrame', (214260, 100)), 'dn': ('DataFrame', (208683, 98)), 'Fn': ('list', None), 'Rn_ma': ('list', None), 'Rn_mc': ('list', None), 'Rn_gf': ('list', None), 'Fi': ('list', None), 'rb': ('Interval', None), 'mb': ('Interval', None), 'di': ('DataFrame', (259839, 96)), 'bd': ('float', None), 'lo': ('float', None), 'hi': ('int', None), 'ss': ('DataFrame', (221, 96)), 'gt2': ('DataFrame', (10400, 8)), 'ti': ('DataFrame', (400, 2)), 'both_ids': ('list', None), 'ins_only': ('list', None), 'nor_only': ('list', None), 'none_ids': ('list', None), 'sel1': ('list', None), 'de': ('DataFrame', (3200, 7)), 'Kins': ('ndarray', (12,)), 'Knor': ('ndarray', (12,)), 'gtt': ('DataFrame', (10400, 6)), 'res': ('list', None), 'ed': ('str', None), 'mult': ('float', None), 'Kv': ('ndarray', (12,)), 'r': ('DataFrame', (626, 9)), 'fa': ('DataFrame', (5238, 7)), 'gtt2': ('DataFrame', (10400, 15)), 'gs2': ('DataFrameGroupBy', None), 'gfm': ('DataFrame', (1297, 21)), 'lr3': ('LinearRegression', None), 'mam': ('DataFrame', (1064, 20)), 'fa_': ('Tensor', torch.Size([192])), 't': ('ndarray', (13, 192)), 'nw': ('ndarray', (192, 6)), 'lw': ('ndarray', (192, 8)), 'tti': ('DataFrame', (30000, 2)), 'tr_both': ('list', None), 'rng': ('Generator', None), 'selT': ('list', None), 'S': ('NpzFile', None), 'st_ids': ('ndarray', (5345,)), 'hrs': ('ndarray', (5345,)), 'nat': ('ndarray', (5345,)), 'sid0': ('int', None), 'mask': ('ndarray', (5345,)), 'code_id': ('dict', None), 'ek_id': ('dict', None), 'trs': ('DataFrame', (1999838, 9)), 'bad': ('int', None), 'sid': ('int', None), 'A': ('DataFrame', (142, 8)), 'cnt': ('Series', (54,)), 'm_': ('ndarray', (5345,)), 'tool': ('Series', (54,)), 'W': ('dict', None), 'NUM': ('dict', None), 'ACTS': ('dict', None), 'names': ('dict', None), 'cands': ('list', None), 'idx': ('ndarray', (54,)), 'mins': ('list', None), 'j': ('int', None), 'mn': ('int64', ()), 'a': ('Series', (8,)), 'best': ('list', None), 'act': ('str', None), 'unit_row': ('int', None), 'side': ('str', None), 'gapmode': ('str', None), 'half': ('int', None), 'errs': ('list', None), 'ip': ('int64', ()), 'ik': ('int64', ()), 'dt': ('float64', ()), 'ctx': ('Tensor', torch.Size([192])), 'e': ('Tensor', torch.Size([192])), 'zo': ('Tensor', torch.Size([64])), 'zm': ('Tensor', torch.Size([32])), 'act_z': ('Tensor', torch.Size([59, 32])), 'variant': ('str', None), 'P': ('Tensor', torch.Size([59, 32])), 'err': ('float', None), 'corr': ('float64', ()), 'o': ('Tensor', torch.Size([5345, 192])), 'hh': ('Tensor', torch.Size([5345, 4, 192])), 'eps': ('float', None), 'pred_o': ('Tensor', torch.Size([5345, 192])), 'gscale': ('NoneType', None), 'perm': ('tuple', None), 'blocks': ('list', None), 'wz': ('Tensor', torch.Size([192, 576]))}
+['load', 'load_original', 'save_edit', 'drop_edit', 'edited', 'build_grid', 'band', 'deconv', 'true_shift_rows', 'stay_atoms', 'T', 'zsc', 'fbin', 'lin', 'mlp', 'ln', 'atom_vec', 'encode', 'ctx_from', 'zpred', 'atom_vec2', 'ctx_v']
+
+```

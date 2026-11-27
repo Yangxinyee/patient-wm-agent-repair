@@ -1,0 +1,90 @@
+OUTPUT of Python run 240 of at most 300:
+```
+=== CUSTOM FUNCTION NAMES ===
+_fn, _fn122, act_repair, arr177, arr64, array171, as_np184, atom_clean58, atom_clean60, atom_embedding_repair, atom_exact65, attention67, attention_features104, brief132, brief146, brief154, brief170, brief201, build_head_dataset_fixed, build_history_features, calibrated_prob80, capture_attention103, capture_call87, capture_ep111, capture_ep112, capture_q111, capture_transition102, centres_for159, collect_channel186, collect_selected187, compact, compact139, compact144, compact151, compact195, compact_dis155, cpu_factual129, deconvolve_lp136, describe175, describe198, dose_metrics192, drop_edit, edited, f0, f128, f200, factual_eval194, ffill_stay, fit_lp136, fn, fn139, fn143, fn146, fn149, fn157, fn158, fn170, fn172, fn212, fn56, fn57, fn64, fun, fun176, fun_obj, gated_innovation94, gated_ne185, gelu94, head_features_fixed, head_linear_fixed, head_mlp_fixed, head_norm_fixed, independent_copy164, insulin_labels_fixed, intervention_bank74, linear_repair, load, load_original, local_rd, make_panel, memory67, metrics80, mlp_repair, norm_before147, norm_capture147, norm_latent104, norm_repair, note, obj231, obj66, old_linear202, old_linear206, original_linear118, persistence_loss, pooled_encoder58, pre_context_repair, predicate, probabilities166, probe_means95, profile81, r215_brief, r216_fn, r2_185, r41_obj, reading_bin_fixed, replay_factual125, rp_action_encoder, rp_linear, rp_linear_original103, rp_linear_saved110, rp_mlp, rp_mlp_original95, rp_norm, sample_metrics_repair, save_edit, self_block67, shape150, shifted_linear118, short237, show_source190, singleton_action_repair, small_result202, summary189, summary91, tensor32_209, transition73, transition_with_b110, transition_with_z95, two_pole_kernel88, v158
+
+=== KERNEL / POLICY OBJECT NAMES ===
+kernel: boot_kernel, boot_kernels137, kernel, kernel238, kernel55, kernel_models88, kernels137, new_kernel, provisional_kernels, two_pole_kernel88
+policy: map_policy_summary, map_policy_table, policy, policy_errors, policy_g, policy_name, policy_pred_tuning
+direction: channel_direction111, channel_direction112, connection_direction123, direction, direction141, direction160, direction161, directions110, directions118, directions95, directions_ne187, ins_direction187, ne_direction194, ne_directions206, reader_direction112
+gain: gain, gain225, gain232
+
+=== INITIAL IDENTIFICATION NOTES ===
+# World-model weight repair
+
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+  180.5   5  38087     0.5698       -0.7370          -1.2935      0.5515
+  180.5  10  75667     0.7794       -1.1972          -1.5359      0.2877
+  180.5  15 112580     0.8600       -1.4093          -1.6386      0.2149
+  180.5  20 148824     0.9038       -1.5463          -1.7108      0.1791
+  220.5   5  13465     0.6094       -1.9360          -3.1771      1.0528
+  220.5  10  27007     0.8056       -1.8092          -2.2459      0.5494
+  220.5  15  41128     0.8857       -1.9515          -2.2034      0.4082
+  220.5  20  55451     0.9242       -2.0053          -2.1697      0.3407
+  260.5   5   2121     0.4853       -1.7844          -3.6771      3.6196
+  260.5  10   4328     0.7606       -2.5573          -3.3620      1.6647
+  260.5  15   6845     0.8875       -2.7845          -3.1374      1.1748
+  260.5  20   9743     0.9343       -2.9469          -3.1542      0.9651
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440       -1.8588          -1.7805      0.1641
+  220.0   5  10878     1.0678       -3.1426          -2.9430      0.7643
+  220.0  10  24707     1.0534       -2.2490          -2.1350      0.4629
+  220.0  15  39001     1.0530       -2.2109          -2.0996      0.3641
+  220.0  20  53461     1.0493       -2.1822          -2.0797      0.3138
+  260.0   5   1722     0.9170       -4.7440          -5.1732      2.5458
+  260.0  10   3976     1.0306       -3.9808          -3.8625      1.3933
+  260.0  15   6526     1.0794       -3.8052          -3.5254      1.0430
+  260.0  20   9462     1.0751       -3.7279   
+
+```

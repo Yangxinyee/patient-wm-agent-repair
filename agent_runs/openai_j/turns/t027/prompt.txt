@@ -1,0 +1,175 @@
+OUTPUT of Python run 22 of at most 300:
+```
+=== HEAD TENSORS ===
+embed.bins.value.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.dose.weight (17, 192)
+last_numeric.weight (192, 8)
+last_numeric.bias (192,)
+last_status.weight (2, 192)
+gap.0.weight (192, 1)
+gap.0.bias (192,)
+gap.2.weight (192, 192)
+gap.2.bias (192,)
+core.out_norm.weight (192,)
+core.out_norm.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.0.bias (192,)
+z_prior.2.weight (64, 192)
+z_prior.2.bias (64,)
+z_head.weight (192, 32)
+z_head.bias (192,)
+type_emb.weight (15, 192)
+query_norm.weight (192,)
+query_norm.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.2.weight (17, 192)
+attr_heads.value_bin.2.bias (17,)
+embed.code.weight (13, 192)
+embed_transition.value_bin.weight (221, 17)
+embed.kq.weight (4, 192)
+embed.kind.weight (3, 192)
+embed.ekind.weight (5, 192)
+core.slots (4, 192)
+
+=== HELPER DEFINITIONS ===
+
+ wt names: ('W_original', 'torch', 'as_tensor', 'np', 'asarray', 'load_original', 'float32') constants: (None, ('dtype',))
+
+ ln names: ('TF', 'layer_norm', 'wt') constants: (None, (192,), '.weight', '.bias', 1e-05)
+
+ activation names: ('TF', 'gelu', 'silu', 'relu') constants: (None, ('gelu', 'silu', 'relu'))
+
+ mlp names: ('TF', 'linear', 'activation', 'wt') constants: (None, '.0.weight', '.0.bias', '.2.weight', '.2.bias')
+
+ score_head_variant names: ('ln', 'TF', 'gelu', 'linear', 'wt', 'transition_t', 'softmax', 'centres_t', 'sum', 'numpy', 'torch', 'arange', 'len', 'hm', 'target_t', 'clamp_min', 'log', 'variant_results', 'append', 'np', 'sqrt', 'mean', 'target_mu', 'scale_mu', 'original_nll', 'to_numpy', 'variant_features') constants: (None, 'query_norm', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias', -1, 1e-12, 2, ('variant', 'scaled_mean_rmse', 'nll_rmse', 'mean_nll'))
+ 11           0 RESUME                   0
+
+ 12           2 LOAD_FAST                3 (normalize)
+              4 POP_JUMP_IF_FALSE       12 (to 30)
+              6 LOAD_GLOBAL              1 (NULL + ln)
+             16 LOAD_FAST                1 (query_input)
+             18 LOAD_CONST               1 ('query_norm')
+             20 CALL                     2
+             28 JUMP_FORWARD             1 (to 32)
+        >>   30 LOAD_FAST                1 (query_input)
+        >>   32 STORE_FAST               4 (query)
+
+ 13          34 LOAD_FAST                4 (query)
+             36 LOAD_FAST                2 (reg)
+             38 BINARY_OP                0 (+)
+             42 STORE_FAST               5 (inputs)
+
+ 14          44 LOAD_GLOBAL              2 (TF)
+             54 LOAD_ATTR                5 (NULL|self + gelu)
+             74 LOAD_GLOBAL              2 (TF)
+             84 LOAD_ATTR                7 (NULL|self + linear)
+            104 LOAD_FAST                5 (inputs)
+            106 LOAD_GLOBAL              9 (NULL + wt)
+            116 LOAD_CONST               2 ('attr_heads.value_bin.0.weight')
+            118 CALL                     1
+
+ 15         126 LOAD_GLOBAL              9 (NULL + wt)
+            136 LOAD_CONST               3 ('attr_heads.value_bin.0.bias')
+            138 CALL                     1
+
+ 14         146 CALL                     3
+            154 CALL                     1
+            162 STORE_FAST               6 (hidden)
+
+ 16         164 LOAD_GLOBAL              2 (TF)
+            174 LOAD_ATTR                7 (NULL|self + linear)
+            194 LOAD_FAST                6 (hidden)
+            196 LOAD_GLOBAL              9 (NULL + wt)
+            206 LOAD_CONST               4 ('attr_heads.value_bin.2.weight')
+            208 CALL                     1
+
+ 17         216 LOAD_GLOBAL              9 (NULL + wt)
+            226 LOAD_CONST               5 ('attr_heads.value_bin.2.bias')
+            228 CALL                     1
+
+ 16         236 CALL                     3
+
+ 17         244 LOAD_GLOBAL             10 (transition_t)
+
+ 16         254 BINARY_OP                0 (+)
+            258 STORE_FAST               7 (lp)
+
+ 18         260 LOAD_FAST                7 (lp)
+            262 LOAD_ATTR               13 (NULL|self + softmax)
+            282 LOAD_CONST               6 (-1)
+            284 CALL                     1
+            292 STORE_FAST               8 (pp)
+
+ 19         294 LOAD_FAST                8 (pp)
+            296 LOAD_GLOBAL             14 (centres_t)
+            306 BINARY_OP                5 (*)
+            310 LOAD_ATTR               17 (NULL|self + sum)
+            330 LOAD_CONST               6 (-1)
+            332 CALL                     1
+            340 LOAD_ATTR               19 (NULL|self + numpy)
+            360 CALL                     0
+            368 STORE_FAST               9 (means)
+
+ 20         370 LOAD_FAST                8 (pp)
+            372 LOAD_GLOBAL             20 (torch)
+            382 LOAD_ATTR               23 (NULL|self + arange)
+            402 LOAD_GLOBAL             25 (NULL + len)
+            412 LOAD_GLOBAL             26 (hm)
+            422 CALL                     1
+            430 CALL                     1
+            438 LOAD_GLOBAL             28 (target_t)
+            448 BUILD_TUPLE              2
+            450 BINARY_SUBSCR
+            454 LOAD_ATTR               31 (NULL|self + clamp_min)
+            474 LOAD_CONST               7 (1e-12)
+            476 CALL                     1
+            484 LOAD_ATTR               33 (NULL|self + log)
+            504 CALL                     0
+            512 LOAD_ATTR               19 (NULL|self + numpy)
+            532 CALL                     0
+            540 UNARY_NEGATIVE
+            542 STORE_FAST              10 (nll)
+
+ 21         544 LOAD_GLOBAL             34 (variant_results)
+            554 LOAD_ATTR               37 (NULL|self + append)
+
+ 22         574 LOAD_FAST                0 (label)
+            576 LOAD_GLOBAL             38 (np)
+            586 LOAD_ATTR               41 (NULL|self + sqrt)
+            606 LOAD_GLOBAL             38 (np)
+            616 LOAD_
+
+=== MATCHED READING METADATA ===
+['stay_id', 'hour', 'event', 'state_i', 'dt', 'has_last', 'age_s', 'zlast', 'last_bin', 'target_bin', 'original_mean', 'original_nll', 'scale', 'code']
+   stay_id  hour          event  state_i     dt  has_last  age_s  zlast  last_bin  target_bin  original_mean  original_nll  scale  code
+1010000000  -1.0   map_arterial        0 3600.0       0.0    0.0   0.00         0           8        68.8153        2.6815   20.0     7
+1010000000  -1.0 glucose_finger        0 3600.0       0.0    0.0   0.00         0           9       161.2808        2.6315   52.0     6
+1010000000   0.0   map_arterial        1 3600.0       1.0 3600.0  -0.05         8           7        72.9542        1.4759   20.0     7
+
+reconstruction sample:
+   stay_id  hour       event  state_i     dt  has_last   age_s     zlast  last_bin  target_bin  original_mean  original_nll  scale  code
+1010000084  11.0    map_cuff     1222 3600.0       1.0  3600.0  0.058824         9          10        86.8026        2.0443   17.0     5
+1010000082  19.0 glucose_lab      701 3600.0       1.0 50400.0 -0.433962         6           5       107.0357        0.6240   53.0    10
+1010000016  22.0    map_cuff       64 3600.0       1.0  3600.0 -0.294118         7          10        77.2309        2.6142   17.0     5
+
+factual sample:
+   stay_id  hour          event  observed  predicted_mean    nll
+1010000000  -1.0   map_arterial      73.0         68.8153 2.6815
+1010000000  -1.0 glucose_finger     165.0        161.2808 2.6315
+1010000000   0.0   map_arterial      67.0         72.9542 1.4759
+
+=== STATE ARCHIVES ===
+states_original.npz {'x': (4035, 992), 'stay_id': (4035,), 'hour': (4035,), 'has_insulin': (4035,), 'has_norepinephrine': (4035,), 'n_atoms': (4035,)}
+
+=== VOCAB ===
+keys: ['config', 'codes', 'event_kinds', 'atom_kinds', 'numeric', 'numeric_note', 'value_bin_centres', 'value_bin_note']
+config: {'d_model': 192, 'n_heads': 4, 'ff_mult': 4, 'n_prelude': 1, 'n_recurrent': 2, 'n_coda': 1, 'n_loops': 1, 'n_slots': 4, 'n_memory': 128, 'n_time_mix': 4, 'z_dim': 32, 'z_eval_samples': 4, 'tau_out_range_s': [600.0, 63115200.0], 'tau_max_s': 63115200.0}
+codes: {'(padding)': 0, '(unknown measurement)': 1, '(unknown drug_admin)': 2, '(unknown visit)': 3, '(unknown visit_detail)': 4, 'map_cuff': 5, 'glucose_finger': 6, 'map_arterial': 7, 'insulin': 8, 'norepinephrine': 9, 'glucose_lab': 10, 'hospital_admission': 11, 'icu_admission': 12}
+numeric example: (('map_arterial', 'value'), {'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0, 'fine_bin_edges': [35.0, 40.0, 45.0, 51.0, 59.0, 65.0, 70.0, 74.0, 77.0, 81.0, 84.0, 88.0, 92.0, 95.0, 98.0]})
+register first row: [1.         0.81889665 0.05882353 1.         0.         0.
+ 0.         0.        ]
+state consistency RMSE: 7.332057094799893e-08
+
+```

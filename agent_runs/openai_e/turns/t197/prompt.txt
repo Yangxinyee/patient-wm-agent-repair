@@ -1,0 +1,52 @@
+OUTPUT of Python run 167 of at most 300:
+```
+STATIC COMPARISONS
+head_static max 2.302432060241699 rms 0.41667935252189636
+  glucose_finger rms 0.40948498249053955 within-group residual rms 0.28220871090888977
+  glucose_lab rms 0.4025942385196686 within-group residual rms 0.2798307538032532
+  map_cuff rms 0.4155314564704895 within-group residual rms 0.30023419857025146
+  map_arterial rms 0.4339752197265625 within-group residual rms 0.2674499452114105
+static_all122 max 2.302432060241699 rms 0.41667935252189636
+  glucose_finger rms 0.40948498249053955 within-group residual rms 0.28220871090888977
+  glucose_lab rms 0.4025942385196686 within-group residual rms 0.2798307538032532
+  map_cuff rms 0.4155314564704895 within-group residual rms 0.30023419857025146
+  map_arterial rms 0.4339752197265625 within-group residual rms 0.2674499452114105
+base162 max 2.2170417308807373 rms 0.38662663102149963
+  glucose_finger rms 0.3839495778083801 within-group residual rms 0.35968533158302307
+  glucose_lab rms 0.39336979389190674 within-group residual rms 0.353791743516922
+  map_cuff rms 0.39043647050857544 within-group residual rms 0.36804741621017456
+  map_arterial rms 0.3817233443260193 within-group residual rms 0.338162362575531
+TRANSITION MAX ERROR 2.222703456878662
+METADATA ORDER 4751 4751 25.0
+FUNCTION fun160
+74: RESUME
+75: LOAD_FAST idx | POP_JUMP_IF_NOT_NONE to 32
+76: LOAD_GLOBAL head_transition | LOAD_GLOBAL head_centres | STORE_FAST ctr0 | STORE_FAST trans0 | JUMP_FORWARD to 68
+78: LOAD_GLOBAL head_transition | LOAD_FAST idx | BINARY_SUBSCR | LOAD_GLOBAL head_centres | LOAD_FAST idx | BINARY_SUBSCR | STORE_FAST ctr0 | STORE_FAST trans0
+79: LOAD_GLOBAL NULL + activation0 | LOAD_GLOBAL NULL + linear0 | LOAD_FAST input0 | LOAD_CONST 'attr_heads.value_bin.0' | CALL | LOAD_FAST kind | CALL | STORE_FAST hidden0
+80: LOAD_GLOBAL NULL + linear0 | LOAD_FAST hidden0 | LOAD_CONST 'attr_heads.value_bin.2' | CALL | LOAD_FAST trans0 | BINARY_OP + | STORE_FAST logits0
+81: LOAD_FAST logits0 | LOAD_ATTR NULL|self + softmax | LOAD_CONST -1 | CALL | STORE_FAST prob0
+82: LOAD_FAST prob0 | LOAD_FAST ctr0 | BINARY_OP * | LOAD_ATTR NULL|self + sum | LOAD_CONST -1 | CALL | LOAD_FAST hidden0 | LOAD_FAST logits0 | BUILD_TUPLE | RETURN_VALUE
+DETERMINISTIC LOCAL NLL 5.925722
+GPU ORIGINAL NLL 1.6346149652704693
+LOCAL/GPU MEAN RMSE 3.004705151897885
+CENTRES EXAMPLE {'map_arterial': [33.0, 38.0, 43.0, 49.0, 56.0, 63.0, 68.0, 73.0, 76.0, 79.0, 83.0, 86.0, 90.0, 94.0, 97.0, 101.0], 'map_cuff': [37.0, 44.0, 50.0, 57.0, 66.0, 72.0, 77.0, 80.0, 83.0, 86.0, 89.0, 93.0, 97.0, 101.0, 104.0, 109.0], 'glucose_lab': [69.0, 78.0, 86.0, 94.0, 105.0, 117.0, 128.0, 138.0, 147.0, 157.0, 170.0, 186.0, 206.0, 222.0, 238.0, 259.0], 'glucose_finger': [73.0, 84.0, 92.0, 103.0, 119.0, 137.0, 149.0, 160.0, 169.0, 178.0, 189.0, 204.0, 221.0, 236.0, 250.0, 272.0]}
+
+RECONSTRUCTION NOTES
+## Run 11: local reading decoder reconstruction
+Enumerated register layouts and activation types. Best: gelu, (6, 3, (0,)); decoder RMSE 1.5651. Provisional insulin x2 target on recorded reached hours: -13.586; half target +6.793, assuming beta=-2.2778 and persistence=.8574.
+Python runs: 11. Forward requests: 3.
+
+## Run 12: policy residual probes
+Fitted training-record dose-policy nuisance models (260000 sampled intervals). Cross-stay ridge probes test residual dose and raw-dose recovery from reading-head features; separately quantified prior-sampling noise. Probe results: [(0.1, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.0309, 'raw_dose_R2': 0.7405, 'other_event_leakage_RMS': 0.0716}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0588, 'raw_dose_R2': 0.5973, 'other_event_leakage_RMS': 0.0171}]), (1.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.03, 'raw_dose_R2': 0.7384, 'other_event_leakage_RMS': 0.067}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.0447, 'raw_dose_R2': 0.6053, 'other_event_leakage_RMS': 0.0166}]), (10.0, [{'drug': 'insulin', 'residual_SD': 0.4592, 'residual_R2': -0.028, 'raw_dose_R2': 0.7306, 'other_event_leakage_RMS': 0.0539}, {'drug': 'norepinephrine', 'residual_SD': 0.073, 'residual_R2': -0.017
+## Run 121: all-bundle reconstruction and distributional readout
+Slot sensitivities are nearly identical, supporting a slot-mean structured regression. Reconstructed all 4356 bundles; out RMSE=0.082293. Implemented generic mean/logit/probability readout and checked against retained decoder. No weights changed. Python runs: 121; forwards: 15.
+
+## Run 122: reject incorrect decoder and isolate mismatch
+Run121 local out RMSE=.0823, but generic decoder differed from trusted helper by 68.3 units; no fit or weight edit made. Auditing exact helper computation and register offsets before any distributional constraints. Python runs: 122; forwards: 15.
+
+## Run 125: correct reading query type
+Found generic decoder type_emb[0] versus trusted type_emb[1]. Implemented type-one distributional readout and checked identical-input equivalence. Inspecting retained GPU targets and all-bundle states before fitting. No weights changed. Python runs: 125; forwards: 15.
+
+
+```

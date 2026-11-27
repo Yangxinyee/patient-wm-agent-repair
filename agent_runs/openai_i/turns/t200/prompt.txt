@@ -1,0 +1,72 @@
+OUTPUT of Python run 178 of at most 300:
+```
+=== HELPER GLOBAL DEPENDENCIES ===
+replay_inputs161 ('int', 'stays156', 'np', 'flatnonzero', 'indices_all161', 'len', 'ValueError', 'concatenate', 'state_cal161', 'reshape', 'torch', 'tensor', 'hours156', 'float32', 'e_cal161', 'unsqueeze', 'u_cal161')
+call_core161 ('core_step136', 'ndim')
+core_step136 ('torch', 'exp', 'W', 'cat', 'linear136', 'norm136', 'block136', 'range', 'F', 'softplus', 'mean')
+readout153 ('np', 'floor', 'float', 'torch', 'exp', 'W', 'norm136', 'mean', 'mlp136', 'full', 'len', 'log1p', 'linear136', 'zeros', 'last_tables153', 'get', 'int', 'searchsorted', 'numeric', 'clip', 'max', 'codes', 'softmax', 'centres153')
+readout_capture156 ('readout153', '__code__', 'sys', 'getprofile', 'setprofile', 'torch', 'softmax', 'centres16_156')
+capture159 ('readout153', '__code__', 'sys', 'getprofile', 'setprofile', 'int', 'float')
+encode_actions168 ('act_rows152', 'dict', 'float', 'append', 'encode_rows152', 'act_groups152', 'len')
+features169 ('torch', 'cat', 'context', 'E166', 'as_tensor', 'float32', 'F', 'gelu', 'linear', 'base169', 'np', 'stack', 'range', 'neurons169', 'numpy')
+
+=== SOURCE STRINGS ===
+
+=== REFERENCED CACHE OBJECTS ===
+act_groups152 list 1483
+act_rows152 list 1483
+e_cal161 (4035, 192) Tensor
+hours156 (4035,) ndarray
+indices_all161 (4035,) ndarray
+state_cal161 (4035, 992) Tensor
+stays156 (4035,) ndarray
+u_cal161 (4035, 192) Tensor
+
+=== RETAINED READOUT CAPTURES ===
+glucose_finger tuple
+map_arterial tuple
+
+=== ACTION / HEAD WEIGHT SCALE ===
+attr_heads.value_bin.0.weight (192, 192) RMS 0.1033603698015213
+attr_heads.value_bin.2.weight (17, 192) RMS 0.17708039283752441
+core.c_out.weight (192, 192) RMS 0.04866443946957588
+last_numeric.weight (192, 8) RMS 0.23143276572227478
+
+=== NOTEBOOK: LAG IDENTIFICATION ===
+## Python 32; forward 5
+- Recovered record-based identification: insulin immediate slope near -2; RD estimates agree and pre-dose lab placebo is near zero.
+- Printing only the rollout request, lag estimates, and relevant tensor shapes to avoid output truncation.
+
+## Python 33; forward 6 ? scaling rejected
+- Paired tuning rollout: original/scale2 insulin x2 -1.845/-1.838, half +1.021/+1.044; NE x2 +0.342/+0.285, half -0.032/-0.009.
+- Reverted both action norm edits: scaling has no useful causal amplification.
+
+## Python 39; forward 6 ? edit design
+- Lag estimates favor a recurrent correction rather than a sensor-only shortcut.
+- Inspecting exact posterior features and transition weights for a reversible low-rank innovation edit.
+- No weights changed.
+
+## Python 40; forward 6
+
+## Python 90; forward 6 ? distinguish proximal and cumulative targets
+- Controlled-lag convolution previously suggested insulin x2 about -11 and NE x2 about +3.8 on a selected subset.
+- These are observationally identified estimates, not supplied intervention truth.
+- Inspecting atom/posterior implementations and earlier exact conventions; no weights changed.
+
+## Python 91; forward 6 ? compact convention audit
+
+## Python 150 ? choose response-based latent directions
+- Recovered controlled insulin lags [-1.99,-2.40,-2.10,-1.71,-1.22,-.94,-.68,-.53] and NE [3.29,2.62,1.75,.98,.41,.26,.02,.02].
+- Earlier selected-subset convolution targets: insulin x2 about -11, NE x2 about +3.8; these are conditional record estimates, not truth.
+- Inspecting readout reconstruction and relative state errors before finite-difference latent response calibration. No edits active.
+
+## Python 151 ? finite-difference preparation
+## Python 150 ? choose response-based latent directions
+- Recovered controlled insulin lags [-1.99,-2.40,-2.10,-1.71,-1.22,-.94,-.68,-.53] and NE [3.29,2.62,1.75,.98,.41,.26,.02,.02].
+- Earlier selected-subset convolution targets: insulin x2 about -11, NE x2 about +3.8; these are conditional record estimates, not truth.
+- Inspecting readout reconstruction and relative state errors before finite-difference latent response calibration. No edits active.
+
+## Python 151 ? finite-difference preparation
+- Recurrent discrepancies are roughly 9% relative to state scale; not an exact reconstruction and not factual certification.
+
+```

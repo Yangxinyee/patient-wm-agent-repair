@@ -1,0 +1,45 @@
+OUTPUT of Python run 283 of at most 300:
+```
+=== CANDIDATE STRUCTURES ===
+weighted281 dict 36 first keys [(0.2, 0.1, 2.0), (0.2, 0.1, 4.0), (0.2, 0.1, 8.0), (0.2, 0.15, 2.0), (0.2, 0.15, 4.0), (0.2, 0.15, 8.0)]
+grid269 dict 12 first keys [(0.05, 0.05), (0.1, 0.1), (0.15, 0.15), (0.2, 0.2), (0.25, 0.25), (0.15, 0.25)]
+arch263 dict 6 first keys ['style', 'lam', 'units', 'rows', 'F', 'cf']
+backup281 dict 7 first keys ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.b_in.weight', 'core.prelude.0.attn.kv.weight']
+T0 ndarray(193, 17) float32
+GF ndarray(193, 193) float64
+RF ndarray(193, 17) float64
+weighted281 (0.3, 0.25, 8.0) {'T': 'ndarray(193, 17) float64', 'score': {'type': 'tuple', 'length': 4, 'first': ['0.0007271325016132663', '0.0035264376911739344', '0.002972929086119403', {'type': 'list', 'length': 4, 'first': ['-1.796274751734415', '-1.800437833817999', '2.445534349326879', '2.287384243196949']}]}, 'slope_error': '0.03134561636899794'}
+weighted281 (0.25, 0.25, 8.0) {'T': 'ndarray(193, 17) float64', 'score': {'type': 'tuple', 'length': 4, 'first': ['0.000733259572413867', '0.0034730152358212786', '0.002540894562613203', {'type': 'list', 'length': 4, 'first': ['-1.7196223728868483', '-1.694313283472', '2.5112787876203937', '2.3203793506613937']}]}, 'slope_error': '0.03261594045625116'}
+grid269 (0.25, 0.25) {'T': 'ndarray(193, 17) float64', 'score': {'type': 'tuple', 'length': 4, 'first': ['0.0011808787521343182', '0.004462865703360019', '0.003732249812621575', {'type': 'list', 'length': 4, 'first': ['-1.761441945589043', '-1.8289859315201193', '3.0332635801712313', '1.9808749407050301']}]}}
+=== RELEVANT LIVE NAMES ===
+['D281', 'Ds281', 'Ff281', 'Fi281', 'G281', 'R281', 'T269', 'T281', 'Z281', 'aa263', 'alpha_targets97', 'anchor281', 'arch263', 'backup281', 'build_stats263', 'cf_targets83', 'check281', 'contrast116', 'contrasts104', 'd263', 'drug263', 'drug281', 'ei263', 'ei269', 'en263', 'en269', 'error281', 'errors263', 'etaI281', 'etaN281', 'f281', 'feasible281', 'grid269', 'k263', 'k281', 'key281', 'keys281', 'linear_targets', 'p281', 'paired', 'paired214', 'partial281', 'ratio281', 'rebuilt263', 'record_row_targets25', 'record_targets22', 'rr263', 's281', 'sc263', 'sc269', 'settings269', 'slope_target214', 'slopes281', 'solve269', 'solve281', 'stats263', 'target', 'target103', 'target15', 'target16', 'target179', 'target88', 'target_blocks153', 'target_logits83', 'target_paths22', 'target_z49', 'target_z51', 'targets116', 'targets179', 'targetz42', 'trial263', 'truth259', 'tt263', 'use281', 'v281', 'weighted281', 'weighted_fit281']
+=== LATER IDENTIFICATION NOTES ===
+## Run 9
+Threshold evidence: insulin at 179.5 gives beta -2.04 (cluster SE .26, width12); at219.5 -2.28 (.48). Pre-dose lab jumps near zero; first150.5 threshold changes monitoring, so do not use that finger estimate alone. Implemented independent SSM with explicit observations -1..24 and action a[h] only in transition h->h+1, to test whether the old opposite-sign estimates arose from time alignment. No edits.
+
+## Run 10
+Explicitly aligned random-baseline SSM still conflicts with threshold evidence (glucose rho at .9999, beta -.033; MAP beta -.377). Therefore timing alone does not explain it. Fitting a separate profiled fixed-effect SSM with unrestricted stay-specific intercept and initial state; random-effect independence from adaptively selected treatments is suspect. This is a small record model, not world-model training.
+
+## Run 11
+Profiled fixed-effect SSM also gives incompatible effects (I -.419,rho .772; NE .435,rho .602), so neither simple SSM is accepted as a causal model. Insulin dose/base SD .343 overall and .330 within stay provides substantial within-stay variation. Built pre-action history features only and ran two-fold stay-separated flexible residualization (small statistical regressions, not world-model training), comparing all/active/both-current subsets and both sensors.
+
+## Run 12 / second restart
+Recovered architecture and persistent-variable inventory after original state export. No edits; insulin threshold evidence remains provisional, and neither conflicting SSM is accepted as causal truth. Next: inspect flexible residualization results and state/head pathways.
+
+## Run 14
+Recomputed cross-fitted two-treatment residual regressions with stay-clustered uncertainty and observation/active-treatment subsets; retained results in effects14. Inspecting NE policy support before accepting its effect.
+
+## Run 15 / alignment audit
+Run 14 subset masks mistakenly used columns 1:25 although P/A hour labels are 0:25. All-row residual coefficients were unaffected. Audited cross-fitted target reconstruction against offsets and recomputed masks with current hours 0:24; results retained in audit15 and effects15. No edits.
+
+## Run 16
+Alignment audit reconstructed dose at h and reading at h+1 exactly. Corrected DML: finger I=-1.936(.045), lab=-1.968(.079), arterial NE=3.049(.088), cuff=2.529(.172); arterial active/both-current=3.150(.158), cuff active/both-current=3.297(.428). Running independent insulin/NE threshold and pre-dose/monitoring-placebo checks. No edits.
+
+## Run 17
+Independent RD confirms finger insulin effect around -2 with pre-dose lab and monitoring placebos near zero. NE has no strong threshold first stage, so its RD ratios are NOT evidence. Estimated persistence using cross-fitted current-dose innovations, future outcomes, and future-dose residuals; models are separate record regressions, not world-model training. Results: {'glucose_finger': {'beta_anchor': -1.95, 'rho_h2': 1.1843901657922165, 'rho_h2_SE': 0.026718364441588156, 'kernel_lag2': -2.005241875550968, 'lag2_over_beta': 1.0283291669492143, 'rho_squared': 1.402780064825314}, 'glucose_lab': {'beta_anchor': -1.95, 'rho_h2': 1.1479572271952263, 'rho_h2_SE': 0.04674336033365004, 'kernel_lag2': -2.0225015960408346, 'lag2_over_beta': 1.0371803056619664, 'rho_squared': 1.3178057954697524}, 'map_arterial': {'beta_anchor': 3.1, 'rho_h2': 0.798530224335335, 'rho_h2_SE': 0.033821931868103325, 'kernel_lag2': 1.6581693284572787, 'lag2_over_beta': 0.5348933317604124, 'rho_squared': 0.6376505191770405}, 'map_cuff': {'beta_anchor': 3.1, 'rho_h2': 0.6343387617013322, 'rho_h2_SE': 0.059850520019256566, 'kernel_lag2': 1.3711487169076348, 'lag2_over_beta': 0.4423060377121403, 'rho_squared': 0.4023856645967795}}
+
+## Run 18
+Innovation-based persistence is not accepted as AR(1
+=== AVAILABLE SOURCE HISTORY ===
+
+```

@@ -1,0 +1,188 @@
+OUTPUT of Python run 209 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== ACTIVE EDITS ===
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+
+=== RELAY / CARRIER CACHE INVENTORY ===
+carrier200_H (5215, 192) float64
+carrier200_W (192, 32) float64
+carrier200_Z (5215, 32) float64
+carrier200_b0 (192,) float32
+carrier200_b2 (64,) float64
+carrier200_names ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+carrier200_original dict {'z_post.0.weight': (192, 576), 'z_post.0.bias': (192,), 'z_post.2.weight': (64, 192), 'z_post.2.bias': (64,), 'z_in.weight': (192, 32), 'z_in.bias': (192,)}
+carrier200_token (5215, 192) float64
+carrier200_token_comp (5215, 192) float64
+carrier200_token_original (5215, 192) float64
+carrier200_w0 (192, 576) float32
+carrier200_w2 (64, 192) float32
+carrier201_saved dict {'z_in.bias': (192,), 'z_in.weight': (192, 32), 'z_post.0.bias': (192,), 'z_post.0.weight': (192, 576), 'z_post.2.bias': (64,), 'z_post.2.weight': (64, 192)}
+install_carrier200 function ('lc_zin_base', 'copy', 'lc_edirections', 'int', 'lc_dims', 'carrier200_w0', 'carrier200_b0', 'carrier200_w2', 'carrier200_b2', 'lc_zbias_base', 'items', 'save_edit', 'torch', 'as_tensor', 'float32')
+relay206 dict {'norm_tokens': (5215, 7, 192), 'head_features': (20860, 192), 'target': (20860, 192), 'pool': (20860, 192), 'train': (20860,), 'hold': (20860,), 'fits': 'dict'}
+relay207_base dict {'core.prelude.0.attn.q.weight': (192, 192), 'core.prelude.0.attn.kv.weight': (384, 192), 'core.prelude.0.attn.out.weight': (192, 192)}
+relay207_stays [2020000001, 2020000012, 2020000014, 2020000023, 2020000024, 2020000030, 2020000031, 2020000042, 2020000043, 2020000044, 2020000045, 2020000046, 2020000047, 2020000049, 2020000060, 2020000062, 2020000067, 2020000075, 2020000083, 2020000086, 2020000093, 2020000109, 2020000110, 2020000116, 2020000123,
+relay208_T0 (5215, 192) float32
+relay208_Tc (5215, 192) float32
+relay208_Z0 (5215, 32) float32
+relay208_Zc (5215, 32) float32
+relay208_input (5215, 576) float32
+rx_attn function ('rx_linear', 'shape', 'reshape', 'transpose', 'rx_layout', 'chunk', 'F', 'scaled_dot_product_attention')
+
+=== SAVED CARRIER INSTALLER ===
+ 43           0 RESUME                   0
+
+ 44           2 LOAD_GLOBAL              0 (rp_old_w0)
+             12 LOAD_ATTR                3 (NULL|self + copy)
+             32 CALL                     0
+             40 STORE_FAST               2 (w0)
+             42 LOAD_GLOBAL              4 (rp_old_b0)
+             52 LOAD_ATTR                3 (NULL|self + copy)
+             72 CALL                     0
+             80 STORE_FAST               3 (b0)
+
+ 45          82 LOAD_GLOBAL              6 (rp_comp_w2)
+             92 LOAD_ATTR                3 (NULL|self + copy)
+            112 CALL                     0
+            120 STORE_FAST               4 (w2)
+            122 LOAD_GLOBAL              8 (rp_comp_b2)
+            132 LOAD_ATTR                3 (NULL|self + copy)
+            152 CALL                     0
+            160 STORE_FAST               5 (b2)
+
+ 46         162 LOAD_CONST               1 ('insulin')
+            164 LOAD_FAST                0 (gain_insulin)
+            166 BUILD_TUPLE              2
+            168 LOAD_CONST               2 ('norepinephrine')
+            170 LOAD_FAST                1 (gain_norepinephrine)
+            172 BUILD_TUPLE              2
+            174 BUILD_TUPLE              2
+            176 GET_ITER
+        >>  178 FOR_ITER                97 (to 376)
+            182 UNPACK_SEQUENCE          2
+            186 STORE_FAST               6 (drug)
+            188 STORE_FAST               7 (gain)
+
+ 47         190 LOAD_GLOBAL             10 (rp_branch_specs)
+            200 LOAD_FAST                6 (drug)
+            202 BINARY_SUBSCR
+            206 STORE_FAST               8 (s)
+            208 LOAD_FAST                8 (s)
+            210 LOAD_CONST               3 ('rows')
+            212 BINARY_SUBSCR
+            216 UNPACK_SEQUENCE          2
+            220 STORE_FAST               9 (a)
+            222 STORE_FAST              10 (b)
+
+ 48         224 LOAD_FAST                8 (s)
+            226 LOAD_CONST               4 ('gw')
+            228 BINARY_SUBSCR
+            232 LOAD_FAST                8 (s)
+            234 LOAD_CONST               5 ('rw')
+            236 BINARY_SUBSCR
+            240 BINARY_OP                0 (+)
+            244 LOAD_FAST                2 (w0)
+            246 LOAD_FAST                9 (a)
+            248 STORE_SUBSCR
+            252 LOAD_FAST                8 (s)
+            254 LOAD_CONST               6 ('gb')
+            256 BINARY_SUBSCR
+            260 LOAD_FAST                8 (s)
+            262 LO
+[output cut at 10,000 characters]
+```

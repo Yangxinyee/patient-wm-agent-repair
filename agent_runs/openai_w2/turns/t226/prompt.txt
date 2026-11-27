@@ -1,0 +1,197 @@
+OUTPUT of Python run 193 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+RECORD FORMAT
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+RELEVANT FUNCTIONS
+action_encode_atoms (x)
+action_encode_variant (x, activation='gelu', return_hidden=False)
+bundle_inputs188 (records, meta)
+bundle_inputs189 (records, meta)
+bundle_inputs190 (records, meta, end_kind=0)
+bundle_inputs191 (records, meta, end_mode='manual')
+embed_end_repair (row)
+embed_record_atom (row1, kind1=0, end_mode1='same')
+embed_record_atom_v2 (row, kind=0, end_mode='same')
+encode_atom_set (atoms1, prefix1)
+encode_flat86 (atoms)
+encode_variable_sets_repair (atom_sets, prefix, zero_empty=False)
+prelude_features111 (h, e, u, z)
+
+RELEVANT SAVED OBJECTS
+C_probe ndarray (193, 193)
+E191 ndarray (4044, 4, 192)
+Efull134 ndarray (4250, 4, 192)
+Hprobe147 ndarray (193, 193)
+R_probe ndarray (193, 2)
+S187 NpzFile NpzFile '/work/fwd_24/states_original.npz' with keys: x, stay_id, hour, has_insulin, has_norepinephrine...
+S_probe dict ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+Wrepair dict ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'code_bias', 'cont_head.0.bias', 'cont_head.0.weight']
+action_cases_repair list length 1472
+action_records_repair list length 4250
+action_rows188 list length 4144
+action_rows189 list length 4144
+action_rows190 list length 4144
+action_rows191 list length 4144
+acts188 list length 4144
+acts189 list length 4144
+acts190 list length 4144
+acts191 list length 4144
+acts_old188 list length 4350
+acts_old189 list length 4350
+acts_old190 list length 4350
+bundle_test_rows_repair ndarray (240,)
+checks188 ndarray (40,)
+constraint_candidates147 dict [(0.0, 1e-06), (0.0, 0.0001), (0.0, 0.01), (0.03, 1e-06), (0.03, 0.0001), (0.03, 0.01), (0.3, 1e-06), (0.3, 0.0001), (0.3, 0.01), (3.0, 1e-06), (3.0, 0.0001), (3.0, 0.01)]
+counts188 ndarray (4144,)
+counts189 ndarray (4144,)
+counts_old188 ndarray (4350,)
+counts_old189 ndarray (4350,)
+ctx188 Tensor (4044, 192)
+ctx_check189 Tensor (40, 192)
+current_probe172 ndarray (13416,)
+dose_actual_repair ndarray (4250, 2)
+draw_probe dict ['mean', 'nll', 'prob', 'prior_logsd', 'sampling_mean_sd', 'hidden', 'input', 'pre', 'q']
+e188 Tensor (4044, 192)
+e189 Tensor (4044, 192)
+e190 Tensor (4044, 192)
+e191 Tensor (4044, 192)
+e_check188 Tensor (40, 192)
+e_check189 Tensor (40, 192)
+e_check190 Tensor (40, 192)
+e_check191 Tensor (40, 192)
+empty_e_repair Tensor (1, 192)
+end_checks_repair list length 3
+end_lookup_repair dict [(1010000431, 10.0833), (1010000431, 11.0833), (1010000431, 19.0833), (1010000431, 20.0833), (1010000431, 25.0833), (1010000682, 1.0833), (1010000682, 2.0833), (1010000682, 3.0833), (1010000682, 4.0833), (1010000682, 5.0833), (1010000682, 6.0833), (1010000682, 7.0833), (1010000682, 8.0833), (1010000682, 9.0833), (1010000682, 10.0833)]
+end_route_results_repair list length 108
+end_route_table_repair DataFrame (108, 5)
+end_search_repair list length 72
+end_search_table_repair DataFrame (72, 6)
+err190 ndarray (4044,)
+error191 float 0.13043981790542603
+head_probe_delta_hidden ndarray (4660, 192)
+head_probe_features dict ['mean', 'nll', 'prob', 'prior_logsd', 'sampling_mean_sd', 'hidden', 'input', 'pre', 'q']
+head_probe_global_backups dict ['S']
+hf188 Tensor (4044, 4, 192)
+hf_check189 Tensor (40, 4, 192)
+lines187 list length 740
+lookup188 dict [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+meta188 DataFrame (4144, 5)
+mode191 str empty_all
+notes187
+[output cut at 10,000 characters]
+```

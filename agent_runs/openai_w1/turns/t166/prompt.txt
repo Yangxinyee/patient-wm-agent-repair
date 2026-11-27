@@ -1,0 +1,95 @@
+OUTPUT of Python run 151 of at most 300:
+```
+FORWARD ARTIFACTS:
+1 ['summary.json', 'dose_edit_original.csv']
+DOSE FILE: dose_edit_original.csv shape: (2384, 7) columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour       edit  shift  shift_se  factual  reached
+2020000112    14 insulin_x2    0.0       0.0 124.3593    False
+2020000112    18 insulin_x2    0.0       0.0 126.3518    False
+2020000112    19 insulin_x2    0.0       0.0 127.6481    False
+2020000112    23 insulin_x2    0.0       0.0 125.9090    False
+                 shift  shift_se
+edit                            
+insulin_half  0.622619  0.242368
+insulin_x2   -1.077126  0.304378
+ne_half      -0.219421  0.068370
+ne_x2         0.051844  0.079275
+2 ['summary.json', 'states_original.npz']
+3 ['summary.json', 'factual_original.csv']
+4 ['summary.json', 'states_original.npz']
+5 ['summary.json', 'dose_edit_original.csv']
+DOSE FILE: dose_edit_original.csv shape: (3168, 7) columns: ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour       edit   shift  shift_se  factual  reached
+2020000144    15 insulin_x2  0.0000    0.0000 144.1460    False
+2020000144    16 insulin_x2 -0.0274    0.0124 146.0317     True
+2020000144    17 insulin_x2 -0.0075    0.0133 143.5540     True
+2020000144    18 insulin_x2 -0.1791    0.1804 143.7764     True
+                 shift  shift_se
+edit                            
+insulin_half  0.698482  0.341596
+insulin_x2   -1.517656  0.442893
+ne_half      -0.340559  0.133267
+ne_x2         0.033902  0.145977
+6 ['summary.json', 'factual_original.csv']
+7 ['summary.json', 'states_original.npz']
+8 ['summary.json', 'states_edited.npz']
+
+INITIAL NOTES:
+# World-model weight repair
+
+## Initial plan
+- Infer drug effects exclusively from the supplied simulated records.
+- Separate dose assignment from subsequent physiological response; do not assume either effect's sign or magnitude.
+- Read architecture before choosing a weight-editing method.
+- Use statistical fits and algebraic edits only; no model gradients or optimizers.
+- Validate all-output factual fit as well as dose-rollout behavior, including proportionality and alternate measurement channels.
+- Preserve the original model as the reference.
+
+## Run 1
+Read architecture, data documentation, vocabulary, tensor shapes, and record samples.
+Counts: 1 Python run, 0 forward passes.
+
+## Run 2
+Architecture: doses enter action embeddings, z posterior, state attention, and last-rate registers. Rollouts feed generated measurements back into state. Loaded both record splits and inspected timing/dose variation. Run 1 output was truncated, so later inspection uses compact summaries.
+Counts: 2 Python runs, 0 forward passes.
+
+Run 3 formatting failure fixed: use plain text, not optional tabulate.
+         event           drug      n     crude  adjusted  within_stay
+glucose_finger        insulin 299023 -2.291109 -2.138886    -1.956919
+   glucose_lab        insulin  28899 -0.486829 -1.605992    -1.615885
+  map_arterial norepinephrine 314645  0.363832  1.102109     1.757063
+      map_cuff norepinephrine 332093  0.550853 -2.990311     0.255970
+## Forward 1: original dose rollout, 100 tuning stays
+Insulin x2=-1.575, half=+0.910; norepinephrine x2=+0.178, half=-0.752. Norepinephrine arterial readout reaches only 13 stays in this batch.
+
+## Run 4: cross-fitted dose-innovation diagnostics
+Flexible dose/outcome regressions use only pre-infusion records, initial measurements, prior means, reading ages, and previous doses. Folds are separated by stay. Cluster standard errors use stays. Residual associations still require checking unmeasured confounding and outcome-history measurement noise.
+         event           drug      subset      n  dose_residual_sd      beta  cluster_se
+glucose_finger        insulin         all 299023          0.571650 -2.210592    0.045923
+glucose_finger        insulin     treated 256645          0.615635 -2.206701    0.046053
+glucose_finger        insulin hours_6plus 231375          0.579714 -2.256371    0.051238
+   glucose_lab        insulin         all  28899          0.396308 -1.874827    0.123856
+   glucose_lab        insulin     treated  11672          0.620436 -1.873376    0.124573
+   glucose_lab        insulin hours_6plus  21716          0.4061
+
+LATENT TENSORS:
+
+ACTION ENCODER SHAPES:
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+
+HEAD HELPER OPERATIONS: ('event', 'isin', 'repair_events', 'copy', 'sort_values', 'reset_index', 'len', 'np', 'zeros', 'float32', 'full', 'int64', 'unique', 'flatnonzero', 'argsort', 'rint', 'astype', 'int', 'groupby', 'iterrows', 'round', 'hour', 'searchsorted', 'max', 'ce_meta', 'value', 'log1p', 'torch', 'from_numpy', 'reshape', 'exp', 'W', 'norm', 'mean', 'mlp', 'log', 'clamp_min', 'lin', 'tensor', 'ce_code', 'long', 'TF', 'relu', 'softmax', 'stack', 'ce_centres')
+PAIRED HEAD ARRAYS: {'rows': (5065, 9), 'phi': torch.Size([5065, 192]), 'logits': torch.Size([5065, 17]), 'probs': torch.Size([5065, 17]), 'centres': torch.Size([5065, 17]), 'truebin': (5065,), 'prior': torch.Size([5065, 64]), 'withcode': torch.Size([5065, 192]), 'previous': (5065, 992)}
+REPLAY OBJECT NAMES: ['rx_replay_tests', 'rx_tests125', 'rx_tests126', 'rx_tests127', 'rx_replay_best127', 'rx_tests133']
+
+```

@@ -1,0 +1,147 @@
+OUTPUT of Python run 27 of at most 300:
+```
+=== NUMERIC ENTRIES ===
+{'code': 'map_arterial', 'attribute': 'value', 'median': 74.0, 'iqr': 20.0}
+{'code': 'map_cuff', 'attribute': 'value', 'median': 81.0, 'iqr': 17.0}
+{'code': 'glucose_lab', 'attribute': 'value', 'median': 142.0, 'iqr': 53.0}
+{'code': 'glucose_finger', 'attribute': 'value', 'median': 164.0, 'iqr': 52.0}
+{'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0}
+{'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.208, 'iqr': 2.832}
+{'code': 'insulin', 'attribute': 'rate', 'median': 1.5, 'iqr': 1.0}
+{'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.46, 'iqr': 0.5900000000000001}
+
+=== HELPER INTERFACES ===
+head_exact args: ('rows', 'z_samples', 'seed') defaults: (16, 917)
+reconstruct_head args: ('rows', 'age_unit', 'layout', 'status', 'type_index', 'gap_scale', 'z_samples', 'seed') defaults: ('seconds', 'interleaved', 0, 1, 0.1, 0, 821)
+clustered_ols args: ('y', 'raw_x', 'groups', 'fixed_effects') defaults: (False,)
+
+=== HEAD_EXACT IMPLEMENTATION ===
+  7           0 RESUME                   0
+
+  8           2 LOAD_CONST               1 (<code object corrected_linear at 0x7e723bcb79f0, file "<run>", line 8>)
+              4 MAKE_FUNCTION            0
+              6 STORE_FAST               4 (corrected_linear)
+
+ 17           8 LOAD_GLOBAL              0 (linear_named)
+             18 STORE_FAST               5 (previous_linear)
+
+ 18          20 LOAD_FAST                4 (corrected_linear)
+             22 STORE_GLOBAL             0 (linear_named)
+
+ 19          24 NOP
+
+ 20          26 LOAD_GLOBAL              3 (NULL + head2)
+             36 LOAD_FAST                0 (rows)
+             38 BUILD_TUPLE              1
+             40 LOAD_FAST                1 (z_samples)
+             42 LOAD_FAST                2 (seed)
+             44 LOAD_CONST               2 (('z_samples', 'seed'))
+             46 BUILD_CONST_KEY_MAP      2
+             48 LOAD_FAST                3 (kwargs)
+             50 DICT_MERGE               1
+             52 CALL_FUNCTION_EX         1
+
+ 22          54 LOAD_FAST                5 (previous_linear)
+             56 STORE_GLOBAL             0 (linear_named)
+             58 RETURN_VALUE
+        >>   60 PUSH_EXC_INFO
+             62 LOAD_FAST                5 (previous_linear)
+             64 STORE_GLOBAL             0 (linear_named)
+             66 RERAISE                  0
+        >>   68 COPY                     3
+             70 POP_EXCEPT
+             72 RERAISE                  1
+ExceptionTable:
+  26 to 52 -> 60 [0]
+  60 to 66 -> 68 [1] lasti
+
+Disassembly of <code object corrected_linear at 0x7e723bcb79f0, file "<run>", line 8>:
+  8           0 RESUME                   0
+
+  9           2 LOAD_FAST                0 (args)
+              4 LOAD_CONST               0 (None)
+              6 LOAD_CONST               1 (2)
+              8 BINARY_SLICE
+             10 UNPACK_SEQUENCE          2
+             14 STORE_FAST               2 (x)
+             16 STORE_FAST               3 (name)
+
+ 10          18 LOAD_FAST                3 (name)
+             20 LOAD_CONST               2 ('last_numeric')
+             22 COMPARE_OP              40 (==)
+             26 POP_JUMP_IF_FALSE       50 (to 128)
+
+ 11          28 LOAD_FAST                2 (x)
+             30 LOAD_ATTR                1 (NULL|self + clone)
+             50 CALL                     0
+             58 STORE_FAST               2 (x)
+
+ 12          60 LOAD_FAST                2 (x)
+             62 LOAD_CONST               0 (None)
+             64 LOAD_CONST               0 (None)
+             66 BUILD_SLICE              2
+             68 LOAD_CONST               1 (2)
+             70 BUILD_TUPLE              2
+             72 BINARY_SUBSCR
+             76 LOAD_FAST                2 (x)
+             78 LOAD_CONST               0 (None)
+             80 LOAD_CONST               0 (None)
+             82 BUILD_SLICE              2
+             84 LOAD_CONST               3 (6)
+             86 BUILD_TUPLE              2
+             88 STORE_SUBSCR
+
+ 13          92 LOAD_CONST               4 (0.0)
+             94 LOAD_FAST                2 (x)
+             96 LOAD_CONST               0 (None)
+             98 LOAD_CONST               0 (None)
+            100 BUILD_SLICE              2
+            102 LOAD_CONST               1 (2)
+            104 BUILD_TUPLE              2
+            106 STORE_SUBSCR
+
+ 14         110 LOAD_FAST                2 (x)
+            112 BUILD_TUPLE              1
+            114 LOAD_FAST                0 (args)
+            116 LOAD_CONST               5 (1)
+            118 LOAD_CONST               0 (None)
+            120 BINARY_SLICE
+            122 BINARY_OP                0 (+)
+            126 STORE_FAST               0 (args)
+
+ 15     >>  128 LOAD_GLOBAL              3 (NULL + linear_base23)
+            138 LOAD_FAST                0 (args)
+            140 BUILD_MAP                0
+            142 LOAD_FAST                1 (kw)
+            144 DICT_MERGE               1
+            146 CALL_FUNCTION_EX         1
+            148 RETURN_VALUE
+
+=== ORIGINAL ERROR VERSUS DOSE INNOVATION ===
+
+Decoder: insulin train/test readings: 437 371 innovation SD: 0.48851928751185464
+ alpha: 10.0 held-out R2: -0.1365 correlation: 0.0904
+ alpha: 100.0 held-out R2: -0.0543 correlation: 0.0295
+ alpha: 1000.0 held-out R2: -0.0077 correlation: 0.0362
+ alpha: 10000.0 held-out R2: 0.005 correlation: 0.0707
+
+Decoder: norepinephrine train/test readings: 429 367 innovation SD: 0.13088453252084126
+ alpha: 10.0 held-out R2: -0.1981 correlation: 0.0046
+ alpha: 100.0 held-out R2: -0.062 correlation: 0.0263
+ alpha: 1000.0 held-out R2: -0.0178 correlation: 0.0218
+ alpha: 10000.0 held-out R2: -0.0071 correlation: -0.0018
+
+         sensor   n  missing_effect_slope  stay_cluster_se
+glucose_finger 678             -1.711465         1.125185
+   glucose_lab 130             -1.694045         3.047887
+  map_arterial 437              4.028994         2.145740
+      map_cuff 359              3.016211         2.367138
+
+=== AVAILABLE STAY SUBSETS ===
+train_ids shape: (30000,) first: [1010000000 1010000001 1010000002 1010000003 1010000004 1010000005]
+tune_ids shape: (400,) first: [2020000104 2020000397 2020000002 2020000271 2020000281 2020000368]
+tune_dev shape: (100,) first: [2020000104 2020000397 2020000002 2020000271 2020000281 2020000368]
+tune_check shape: (100,) first: [2020000182 2020000378 2020000384 2020000027 2020000185 2020000285]
+tune_holdout shape: (200,) first: [2020000161 2020000357 2020000245 2020000204 2020000396 2020000337]
+
+```

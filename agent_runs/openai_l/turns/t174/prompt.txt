@@ -1,0 +1,172 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 173 replies happened before. Forward passes used: 5 of 50; Python runs used: 161 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight', 'core.c_out.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_6', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+repinephrine', 3.0): 0.887}}, (2, 0.3): {'factual_RMS': [0.688, 0.18], 'contrast_RMSE': [0.553, 0.149], 'slopes': {('insulin', 0.0): 0.932, ('insulin', 0.5): 0.91, ('insulin', 2.0): 0.904, ('insulin', 3.0): 0.768, ('norepinephrine', 0.0): 0.789, ('norepinephrine', 0.5): 0.751, ('norepinephrine', 2.0): 1.04, ('norepinephrine', 3.0): 0.83}}, (2, 3.0): {'factual_RMS': [0.349, 0.076], 'contrast_RMSE': [0.824, 0.221], 'slopes': {('insulin', 0.0): 0.816, ('insulin', 0.5): 0.568, ('insulin', 2.0): 0.661, ('insulin', 3.0): 0.546, ('norepinephrine', 0.0): 0.5, ('norepinephrine', 0.5): 0.341, ('norepinephrine', 2.0): 1.017, ('norepinephrine', 3.0): 0.711}}, (3, 0.03): {'factual_RMS': [0.0, 0.002], 'contrast_RMSE': [1.644, 0.496], 'slopes': {('insulin', 0.0): 0.0, ('insulin', 0.5): 0.0, ('insulin', 2.0): 0.0, ('insulin', 3.0): 0.0, ('norepinephrine', 0.0): -0.0, ('norepinephrine', 0.5): -0.0, ('norepinephrine', 2.0): 0.0, ('norepinephrine', 3.0): 0.0}}, (3, 0.3): {'factual_RMS': [0.0, 0.001], 'contrast_RMSE': [1.644, 0.496], 'slopes': {('insulin', 0.0): 0.0, ('insulin', 0.5): 0.0, ('insulin', 2.0): 0.0, ('insulin', 3.0): 0.0, ('norepinephrine', 0.0): -0.0, ('norepinephrine', 0.5): -0.0, ('norepinephrine', 2.0): 0.0, ('norepinephrine', 3.0): 0.0}}, (3, 3.0): {'factual_RMS': [0.0, 0.0], 'contrast_RMSE': [1.644, 0.496], 'slopes': {('insulin', 0.0): 0.0, ('insulin', 0.5): 0.0, ('insulin', 2.0): 0.0, ('insulin', 3.0): 0.0, ('norepinephrine', 0.0): -0.0, ('norepinephrine', 0.5): -0.0, ('norepinephrine', 2.0): 0.0, ('norepinephrine', 3.0): 0.0}}}
+No weights edited.
+
+## Run 117 / direct-attention controllability
+Head 2 preserves dose contrasts (I x2≈0.90, NE x2≈1.04 at penalty .3), but factual residual RMS≈.69/.18. Tested direct attention-output injection to distinguish weak latent attention from downstream suppression. Gradient RMS=0.0006628929630836985; fitted route norms=[15674.819786445529, 34275.906936299514]. No weights edited.
+
+## Run 118 / private-state readout feasibility
+Direct attention routes require norms≈15,675/34,276 and are rejected. Captured original pre-coda states and tested four low-variance state channels with covariance-penalized value-input readouts. State baseline RMS=[0.013631374845695361, 0.013241554470490004, 0.01301869408009892, 0.01310210398858578]; head baseline SD=[0.04169307177247208, 0.036776184078815034, 0.03405533666690212, 0.030618347900509577]. No weights edited.
+
+## Run 119 / restart recovery
+Private state directions have factual RMS≈0.013 and normalized readout SD≈0.03–0.04, with near-unit response across all four measurement types. Recovering architecture, causal evidence, and helpers to implement and validate a selective dose-effect state channel. No weights edited.
+
+## Run 123 / pre-coda dose extraction
+Private directions transmit through coda with gains≈0.998 and orthogonal RMS leakage≈0.001–0.003 per unit. Fit covariance-penalized linear dose extractors from factual and counterfactual pre-coda states, including x0/x0.5/x1.5/x2/x3. {0.01: {'factual_RMS': [2.7793, 0.9584], 'contrast_RMSE': [1.1027, 0.3927], 'coefficient_norms': [81.85, 28.7], 'slopes': {('insulin', 0.0): 0.905, ('insulin', 0.5): 0.803, ('insulin', 1.5): 0.701, ('insulin', 2.0): 0.564, ('insulin', 3.0): 0.386, ('norepinephrine', 0.0): 0.423, ('norepinephrine', 0.5): 0.688, ('norepinephrine', 1.5): 0.589, ('norepinephrine', 2.0): 0.405, ('norepinephrine', 3.0): 0.259}}, 0.1: {'factual_RMS': [0.8157, 0.2535], 'contrast_RMSE': [1.1803, 0.4186], 'coefficient_norms': [23.96, 6.91], 'slopes': {('insulin', 0.0): 0.827, ('insulin', 0.5): 0.687, ('insulin', 1.5): 0.625, ('insulin', 2.0): 0.5, ('insulin', 3.0): 0.334, ('norepinephrine', 0.0): 0.331, ('norepinephrine', 0.5): 0.57, ('norepinephrine', 1.5): 0.45, ('norepinephrine', 2.0): 0.313, ('norepinephrine', 3.0): 0.2}}, 1.0: {'factual_RMS': [0.3921, 0.1054], 'contrast_RMSE': [1.2321, 0.4342], 'coefficient_norms': [6.36, 2.13], 'slopes': {('insulin', 0.0): 0.662, ('insulin', 0.5): 0.573, ('insulin', 1.5): 0.524, ('insulin', 2.0): 0.422, ('insulin', 3.0): 0.28, ('norepinephrine', 0.0): 0.236, ('norepinephrine', 0.5): 0.42, ('norepinephrine', 1.5): 0.32, ('norepinephrine', 2.0): 0.226, ('norepinephrine', 3.0): 0.145}}, 10.0: {'factual_RMS': [0.1669, 0.0335], 'contrast_RMSE': [1.4011, 0.4669], 'coefficient_norms': [2.03, 0.56], 'slopes': {('insulin', 0.0): 0.29, ('insulin', 0.5): 0.262, ('insulin', 1.5): 0.231, ('insulin', 2.0): 0.19, ('insulin', 3.0): 0.127, ('norepinephrine', 0.0): 0.096, ('norepinephrine', 0.5): 0.166, ('norepinephrine', 1.5): 0.11, ('norepinephrine', 2.0): 0.078, ('norepinephrine', 3.0): 0.051}}}
+No weights edited.
+
+## Run 124 / reject passive pre-coda extraction
+Passive pre-coda extractors attenuate x2/x3 contrasts too much and are rejected. Investigating a new low-rank wire from dose-preserving attention features through quiet prelude/state directions, with measured private-state persistence. No edits.
+
+## Run 125 / private controller and attention wire
+Existing private-state transition gains are near zero. Fitted a covariance-penalized controller from finite state perturbations and an attention-output reconstruction after replacing two head-2 value channels. Variables P125/T125, QE125/SP125, Vnew125/Wrepair125/chosen125 hold the proposed analytical components. No weights saved.
+
+## Run 130 / compact recovery
+Recovered accepted immediate effects I≈-1.95 and NE≈+3.1, insulin supported by independent RD; rejected SSM targets are not used. Eight-lag kernels agree approximately across sensors and reject simple AR1. Provisional hour-12 targets remain -12.77,+6.38,+4.50,-2.25. Inspecting exact interfaces to assemble a reversible four-state correction. No edits saved; forward passes 4/50.
+
+## Reconstruction-only attention edit staged
+Saved original keys plus Vnew125 and Wrepair125. No causal injection or value-head change. Next: paired factual audit; undo if reconstruction harms fit. CPU cache remains original.
+
+## Run 133 / reconstruction factual audit
+Forward 5 (files fwd_6): 100 tuning stays, 4,751 values. Original and reconstruction-only edited NLL both 1.63164; all reported event NLL/MAE match. Reconstruction accepted provisionally. Recovering fitted controller/wire interfaces before causal injection. Forward passes 5/50; only attention kv/out tensors edited.
+
+## Runs 139–145 / recovered controller identities
+Recovered architecture and causal kernels; rejected SSM remains excluded. P125 decodes flowed private-state perturbations with RMS≈0.012; original private persistence is near zero. T125 satisfies P125.T@T125=I and is a write right-inverse, not an original-core inverse. SP125 equals QE125/core.prelude_norm.weight. Attention dose channels have factual SD≈0.688/0.180. Restored controller is Ccontroller145; clean and regularized write routes are routes145. No additional weights saved; reconstruction-only attention edit remains factual-NLL neutral.
+
+## Runs 146–152 / recovered repair geometry
+Ccontroller145 = Cperp145 + R118@P125.T; Cperp is the original c_out outside the four private directions. Uexact145 satisfies Cperp@U=0 and P.T@U=I, allowing an exact private write through b_in. No new weights saved. Fitting two-state record-kernel approximations and calibrating the attention wire locally.
+
+## Run 159 / factual-anchored controller
+Recovery found controllers153 used centered factual covariance but had large unpenalized means (about 30 in one channel). They are not safe to submit. Refit private c_out correction relative to the original mapping using complete raw factual slot states. controllers159 and routes159 contain the new candidates. No additional weights saved.
+
+## Run 160 / controller and dose wire staged
+Used factual-anchored controllers159[.01]; private states receive one raw-rate unit in both poles for each drug. Saved c_out, b_in, and wire_out152, retaining the reconstruction kv edit. Value head is untouched. Pending paired factual audit; these are not yet validated causal predictions.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 161 of at most 300:
+```
+=== TUNING STAYS FOR PAIRED FACTUAL AUDIT ===
+[2020000000, 2020000001, 2020000002, 2020000003, 2020000004, 2020000005, 2020000006, 2020000007, 2020000008, 2020000009, 2020000010, 2020000011, 2020000012, 2020000013, 2020000014, 2020000015, 2020000016, 2020000017, 2020000018, 2020000019, 2020000020, 2020000021, 2020000022, 2020000023, 2020000024, 2020000025, 2020000026, 2020000027, 2020000028, 2020000029, 2020000030, 2020000031, 2020000032, 2020000033, 2020000034, 2020000035, 2020000036, 2020000037, 2020000038, 2020000039, 2020000040, 2020000041, 2020000042, 2020000043, 2020000044, 2020000045, 2020000046, 2020000047, 2020000048, 2020000049, 2020000050, 2020000051, 2020000052, 2020000053, 2020000054, 2020000055, 2020000056, 2020000057, 2020000058, 2020000059, 2020000060, 2020000061, 2020000062, 2020000063, 2020000064, 2020000065, 2020000066, 2020000067, 2020000068, 2020000069, 2020000070, 2020000071, 2020000072, 2020000073, 2020000074, 2020000075, 2020000076, 2020000077, 2020000078, 2020000079, 2020000080, 2020000081, 2020000082, 2020000083, 2020000084, 2020000085, 2020000086, 2020000087, 2020000088, 2020000089, 2020000090, 2020000091, 2020000092, 2020000093, 2020000094, 2020000095, 2020000096, 2020000097, 2020000098, 2020000099]
+
+=== TRAIN STAYS WITH CACHED ORIGINAL STATES ===
+[1010000140, 1010000837, 1010001012, 1010001466, 1010001611, 1010002223, 1010002514, 1010002757, 1010002877, 1010003036, 1010003189, 1010003303, 1010003612, 1010003788, 1010003860, 1010004556, 1010005008, 1010005185, 1010006969, 1010007197, 1010007349, 1010007476, 1010007606, 1010008032, 1010008216, 1010009004, 1010009064, 1010009204, 1010009827, 1010009844, 1010010420, 1010011036, 1010011389, 1010011397, 1010011613, 1010012572, 1010013094, 1010014014, 1010014083, 1010014103, 1010014324, 1010014490, 1010014677, 1010015351, 1010015541, 1010015629, 1010015941, 1010016059, 1010016147, 1010016631, 1010016702, 1010016802, 1010016895, 1010017512, 1010017867, 1010017963, 1010018194, 1010018695, 1010019778, 1010019985, 1010020056, 1010020078, 1010020645, 1010020650, 1010021141, 1010021147, 1010021396, 1010021739, 1010021887, 1010021900, 1010022228, 1010022760, 1010022921, 1010023273, 1010023582, 1010023822, 1010024027, 1010024140, 1010024248, 1010024521, 1010024646, 1010025257, 1010025284, 1010025370, 1010025602, 1010025717, 1010025911, 1010026018, 1010026540, 1010026541, 1010026736, 1010027201, 1010027637, 1010027690, 1010028547, 1010028956, 1010029260, 1010029298, 1010029611, 1010029743]
+
+=== EXISTING FORWARD FILES ===
+fwd_1 ['summary.json', 'dose_edit_original.csv']
+fwd_2 ['summary.json', 'factual_original.csv']
+fwd_3 ['summary.json', 'states_original.npz']
+fwd_4 ['summary.json', 'states_original.npz']
+fwd_6 ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+
+=== RECORD SCHEMA ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+```

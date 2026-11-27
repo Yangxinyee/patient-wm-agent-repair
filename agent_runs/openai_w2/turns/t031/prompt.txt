@@ -1,0 +1,126 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 30 replies happened before. Forward passes used: 4 of 50; Python runs used: 26 of 300. Your kernel is still running with its variables. Tensors currently edited: ['embed.numeric.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+lu","gap_mode":"seconds_div10","type_id":1,"status_id":0,"age_mode":"seconds_div10","zcol":2,"acol":1,"flags":[0,3],"mean_rmse":4.4656973242,"nll_rmse":0.4518974922,"score":5.8213898009},{"activation":"relu","gap_mode":"seconds_div10","type_id":1,"status_id":0,"age_mode":"hours_div10","zcol":2,"acol":1,"flags":[0,3],"mean_rmse":4.9303510315,"nll_rmse":0.4887269886,"score":6.3965319972}]
+
+## Run 17: head reconstruction audit
+[{"gap_activation":"silu","prior_activation":"gelu","value_activation":"silu","bin_side":"left","zmode":"prior_mc","mean_rmse":3.3804607007,"nll_rmse":0.4042454013,"mean_bias":0.7131807546,"score":4.5931969045},{"gap_activation":"gelu","prior_activation":"gelu","value_activation":"silu","bin_side":"left","zmode":"prior_mean","mean_rmse":3.4121065303,"nll_rmse":0.4161632608,"mean_bias":0.2942680101,"score":4.6605963127},{"gap_activation":"gelu","prior_activation":"gelu","value_activation":"gelu","bin_side":"left","zmode":"prior_mc","mean_rmse":3.4678569554,"nll_rmse":0.4046162167,"mean_bias":0.1949307279,"score":4.6817056056},{"gap_activation":"gelu","prior_activation":"gelu","value_activation":"silu","bin_side":"left","zmode":"prior_mc","mean_rmse":3.4314455566,"nll_rmse":0.4190449924,"mean_bias":0.159751666,"score":4.6885805339},{"gap_activation":"silu","prior_activation":"gelu","value_activation":"silu","bin_side":"left","zmode":"prior_mean","mean_rmse":3.4818419202,"nll_rmse":0.4023464681,"mean_bias":0.8598995141,"score":4.6888813245}]
+[{"event":"map_cuff","n":141,"mean_rmse":2.4984212972,"mean_bias":-0.2137319476,"nll_rmse":0.4132155496,"nll_bias":0.0744951858,"predicted_four_draw_mean_rmse":1.2742730379},{"event":"map_arterial","n":92,"mean_rmse":2.0309635603,"mean_bias":-0.1182088646,"nll_rmse":0.4506170404,"nll_bias":0.0312715331,"predicted_four_draw_mean_rmse":0.9304040074},{"event":"glucose_finger","n":121,"mean_rmse":4.9379716184,"mean_bias":2.9124298134,"nll_rmse":0.3993214435,"nll_bias":0.0530405152,"predicted_four_draw_mean_rmse":1.8797078133},{"event":"glucose_lab","n":46,"mean_rmse":2.8174100146,"mean_bias":-0.2798770492,"nll_rmse":0.223822858,"nll_bias":0.1313037926,"predicted_four_draw_mean_rmse":1.9595211744}]
+
+## Run 18: expanded register audit
+{"hour":{"('glucose_finger', 'early_with_last')":0.0,"('glucose_finger', 'later_with_last')":13.0366614665,"('glucose_finger', 'no_previous_same_code')":0.77,"('glucose_lab', 'early_with_last')":0.0,"('glucose_lab', 'later_with_last')":13.5618811881,"('glucose_lab', 'no_previous_same_code')":2.8686868687,"('map_arterial', 'early_with_last')":0.0,"('map_arterial', 'later_with_last')":12.5257201646,"('map_arterial', 'no_previous_same_code')":-0.9302325581,"('map_cuff', 'early_with_last')":0.0,"('map_cuff', 'later_with_last')":12.6231221424,"('map_cuff', 'no_previous_same_code')":0.16},"has_last":{"('glucose_finger', 'early_with_last')":1.0,"('glucose_finger', 'later_with_last')":1.0,"('glucose_finger', 'no_previous_same_code')":0.0,"('glucose_lab', 'early_with_last')":1.0,"('glucose_lab', 'later_with_last')":1.0,"('glucose_lab', 'no_previous_same_code')":0.0,"('map_arterial', 'early_with_last')":1.0,"('map_arterial', 'later_with_last')":1.0,"('map_arterial', 'no_previous_same_code')":0.0,"('map_cuff', 'early_with_last')":1.0,"('map_cuff', 'later_with_last')":1.0,"('map_cuff', 'no_previous_same_code')":0.0},"mean_error":{"('glucose_finger', 'early_with_last')":3.2620172923,"('glucose_finger', 'later_with_last')":3.4011175469,"('glucose_finger', 'no_previous_same_code')":-3.7502090028,"('glucose_lab', 'early_with_last')":-0.1829546129,"('glucose_lab', 'later_with_last')":0.082403087,"('glucose_lab', 'no_previous_same_code')":0.0175114366,"('map_arterial', 'early_with_last')":-0.6287206978,"('map_arterial', 'later_with_last')":-0.157678132,"('map_arterial', 'no_previous_same_code')":0.8667915669,"('map_cuff', 'early_with_last')":-0.9905119593,"('map_cuff', 'later_with_last')":-0.2916451057,"('map_cuff', 'no_previous_same_code')":0.3902956651},"nll_error":{"('glucose_finger', 'early_with_last')":0.0843948693,"('glucose_finger', 'later_with_last')":0.0812757134,"('glucose_finger', 'no_previous_same_code')":-0.011269861,"('glucose_lab', 'early_with_last')":-0.1094083951,"('glucose_lab', 'later_with_last')":0.0675890326,"('glucose_lab', 'no_previous_same_code')":-0.0033935062,"('map_arterial', 'early_with_last')":-0.0741055434,"('map_arterial', 'later_with_last')":0.0478211463,"('map_arterial', 'no_previous_same_code')":-0.0778523591,"('map_cuff', 'early_with_last')":-0.0550270855,"('map_cuff', 'later_with_last')":0.0623687087,"('map_cuff', 'no_previous_same_code')":0.0153190197}}
+[{"zcol":6,"acol":3,"flags":[0],"age_mode":"seconds_div10","value_activation":"relu","mean_rmse":1.8684446713,"nll_rmse":0.2443487763,"score":2.6014910001},{"zcol":6,"acol":3,"flags":[0],"age_mode":"seconds_div10","value_activation":"gelu","mean_rmse":1.912238264,"nll_rmse":0.2391927505,"score":2.6298165156},{"zcol":6,"acol":3,"flags":[0],"age_mode":"seconds_div10","value_activation":"silu","mean_rmse":1.9303590645,"nll_rmse":0.2631136543,"score":2.7197000273},{"zcol":6,"acol":7,"flags":[0,3],"age_mode":"hours_div10","value_activation":"relu","mean_rmse":2.3047018548,"nll_rmse":0.2447328726,"score":3.0389004728},{"zcol":6,"acol":4,"flags":[0,3],"age_mode":"hours_div10","value_activation":"relu","mean_rmse":2.3141525567,"nll_rmse":0.24308286,"score":3.0434011368}]
+Head reconstruction remains provisional until systematic errors are explained.
+
+## Run 19: restart audit
+No edits. Best provisional head reconstruction still has mean RMSE 1.87 and NLL RMSE 0.24; recovering the exact architecture and previous evidence before deriving any factual-preserving weight edit.
+
+## Run 22: consolidated evidence and alignment audit
+Insulin clean lab threshold estimates approximately -1.55/rate unit; history-adjusted lab estimates approximately -1.97. NE rich-history estimates approximately +3.5 to +3.9/rate unit. Positive persistence is supported, but accumulated rollout targets remain uncertain. No edits; inspecting state/head alignment and exact features.
+
+## Run 24: register and activation audit
+MAP discrepancies can be explained by four-draw latent sampling. Searching glucose register flags and boundary conventions. Best config: {'activation': 'gelu', 'gap_mode': 'seconds_div10', 'type_id': 1, 'status_id': 0, 'age_mode': 'seconds_div10', 'zcol': 6, 'acol': 3, 'flags': (0,), 'mean_rmse': 3.579830679304847, 'nll_rmse': 0.40590378333394833, 'score': 4.797542029306692, 'gap_activation': 'gelu', 'prior_activation': 'gelu', 'value_activation': 'gelu'}; bin_side=left
+                    bias       mse  expected_sampling_mse
+event                                                    
+glucose_finger  0.075964  3.536782               3.391510
+glucose_lab    -0.232425  3.000851               3.494703
+map_arterial   -0.008901  0.559775               0.686899
+map_cuff        0.122907  1.171264               1.218299
+
+## Runs 25–26: successful head reconstruction and diagnostic dose probe
+All 4660 reading means reconstructed without meaningful channel bias (glucose_finger -0.040, lab -0.091, MAP arterial -0.0002, cuff +0.003).
+Head config: GELU for gap/prior/value; query type 1; status 0; last flags (0,), age column 3, value-z column 6; age log1p(seconds)/10; bin side left. Original states: S_reference; baseline head features: head_original_features, 64 prior draws, seed 917.
+Run 25 stopped before saving because load_original returns torch.Tensor; run 26 fixed with clone(). Temporary edit ONLY embed.numeric.weight: presence columns 3/5 receive 0.5 times numeric dose/rate columns 2/4. Equivalent rate increments: {'insulin': 0.5, 'norepinephrine': 0.30000000000000004}.
+Restore embed.numeric.weight after obtaining probe states. Bins are unchanged; the final correction must be tested with exact dose_edit.
+F includes current drug exposures: exclude the target drug's current exposure when estimating its assignment from pre-dose history.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 26 of at most 300:
+```
+Rate-equivalent increments: {'insulin': 0.5, 'norepinephrine': 0.30000000000000004}
+Edited tensors: ['embed.numeric.weight']
+Stays: [1010001344, 1010003888, 1010005808, 1010014800, 1010022688, 1010023984, 1010024912, 1010029456, 1010003937, 1010020817, 1010026881, 1010029265, 1010029313, 1010014466, 1010018322, 1010021234, 1010023586, 1010026818, 1010026994, 1010007891, 1010012099, 1010018371, 1010020515, 1010024931, 1010028979, 1010004932, 1010012484, 1010013764, 1010020196, 1010022564, 1010001013, 1010007269, 1010011733, 1010022805, 1010009334, 1010012582, 1010015462, 1010018070, 1010023750, 1010029094, 1010009687, 1010011223, 1010012535, 1010016071, 1010021143, 1010024615, 1010001192, 1010008744, 1010011240, 1010012456, 1010012776, 1010022808, 1010024920, 1010025432, 1010008553, 1010011705, 1010019209, 1010021897, 1010000682, 1010000842, 1010005770, 1010006618, 1010007386, 1010009418, 1010011674, 1010012666, 1010022570, 1010026618, 1010006811, 1010009179, 1010012667, 1010020491, 1010021227, 1010021339, 1010025179, 1010022540, 1010022844, 1010001133, 1010001869, 1010012893, 1010004574, 1010005806, 1010007662, 1010013214, 1010018574, 1010019214, 1010024158, 1010024238, 1010025790, 1010000431, 1010005551, 1010006079, 1010007807, 1010009439, 1010018559, 1010019327, 1010020287, 1010022639, 1010025327, 1010026671]
+
+```

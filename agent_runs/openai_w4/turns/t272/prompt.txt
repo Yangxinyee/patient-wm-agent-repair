@@ -1,0 +1,126 @@
+OUTPUT of Python run 236 of at most 300:
+```
+=== EARLY RECORD EVIDENCE ===
+# World-model weight repair
+
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+  180.5   5  38087     0.5698       -0.7370          -1.2935      0.5515
+  180.5  10  75667     0.7794       -1.1972          -1.5359      0.2877
+  180.5  15 112580     0.8600       -1.4093          -1.6386      0.2149
+  180.5  20 148824     0.9038       -1.5463          -1.7108      0.1791
+  220.5   5  13465     0.6094       -1.9360          -3.1771      1.0528
+  220.5  10  27007     0.8056       -1.8092          -2.2459      0.5494
+  220.5  15  41128     0.8857       -1.9515          -2.2034      0.4082
+  220.5  20  55451     0.9242       -2.0053          -2.1697      0.3407
+  260.5   5   2121     0.4853       -1.7844          -3.6771      3.6196
+  260.5  10   4328     0.7606       -2.5573          -3.3620      1.6647
+  260.5  15   6845     0.8875       -2.7845          -3.1374      1.1748
+  260.5  20   9743     0.9343       -2.9469          -3.1542      0.9651
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440 
+=== LATER CHANNEL CONSTRUCTION NOTES ===
+## Run 179
+Synchronized the CPU weight dictionary to submitted edits; previous CPU B_in was stale. Backed up submitted edits. Inspected NE decoder/gate candidates before selecting a held-out dose-sensitive channel. No saved weights changed.
+
+
+## Run 180
+Refitted NE action gates on factual and perturbed encodings, evaluating on held-out stays. Existing gate misses under half doses motivate this change. Recovered latent-normalization and response-design interfaces. No weights saved.
+
+## Run 181
+Run-180 NE gate with ridge 100 had held-out accuracy .99979, active miss rate .00171 and no inactive firing. This establishes bundle discrimination only, not dose decoding or causal effect. Recovering architecture and exact retained channel interfaces before testing an independent NE channel. No weights changed.
+
+## Run 182
+Architecture confirms the existing channel enters through z posterior and a reserved prelude attention head. Recovering gating/normalization algebra and NE decoder dictionaries to extend that head, rather than remove another head. No weights changed.
+
+## Runs 183?184
+Run-183 located raw_candidates87 (NE coefficient vectors length 577) and recovered latent normalization: signature plus .02*q*carrier. Its diagnostic stopped at a NumPy/Torch mismatch before changing any weights. Added a safe conversion and inspected exact wiring, retained dose perturbations and capture return structure. No weights changed.
+
+## Run 185
+Verified a rank-one latent channel and unused value dimensions in the existing reserved attention head. Tested gated NE innovation decoders on factual and imposed half/double-dose encodings. These tests concern faithful input transmission, not causal truth. No weights changed.
+
+## Run 186
+Run-185 NE decoders had near-unit imposed-dose slopes but poor held-out innovation R2. Constructed an UNSAVED dual channel using posterior rows 156/89, a second latent carrier and reserved-head value dimension 50; tested held-out prelude decoding and insulin preservation. CPU weights restored in finally; submitted edits unchanged. Factual fit and free rollouts, not channel decoding, will determine acceptance.
+
+## Run 187
+Run-186 preserved insulin posterior signal (RMS 1.5e-6) but NE prelude decoding R2 was .92 at amplitude 80. Tested amplitudes 10/20/40 with factual and half/double NE dose encodings, jointly fitting NE decoding and preservation of the cur
+## Run 195
+Saved provisional dual insulin/NE channel: amplitude 20, recalibrated NE decoder (.001,100), joint E ridge .0001, MAP-response direction ridge .1 at scale 1. Existing insulin response preserved by joint refit. Training replay dNLL +.0040994 versus original; scales 1.5/2 failed the budget. Previous submitted tensors backed up in backup_before195. GPU factual and rollout validation pending; causal readout targets remain record-based estimates subject to identification assumptions.
+
+
+## Run 196
+GPU factual validation on 98 tuning stays failed: original 1.59352, edited 1.60173, delta +.00821. Recovering architecture, evidence and retained candidate/replay interfaces to isolate the NE extension's damage before revising it. No weights changed.
+
+
+## Run 197
+Architecture and README recovered. Dose readout averages over stays, making equal-stay record estimates the relevant provisional targets (insulin x2 -13.2008, NE x2 +3.6087), not row-weighted estimates. Recovering compact candidate constructors and prior forward baselines after Run-196 output truncation. No weights changed.
+
+
+## Run 198
+Backed up failed dual candidate in backup_dual198. Inspecting response-scale CPU results, prior GPU rollouts and exact candidate/evaluation construction. No weights changed. Need to distinguish structural channel damage from response-strength damage on held-out stays.
+
+
+## Run 199
+Verified submitted B_in equals preserved insulin connection plus scale-1 NE rank-one response. Saved NE response scale .5, all channel and insulin weights unchanged. Training replay dNLL at .5 is +.0022796 versus original. Failed scale-1 dual weights remain backed up in backup_dual198. GPU factual and rollout checks pending; prior rollout CSVs summarized using eligible-hour, equal-stay aggregation.
+
+
+## Run 200
+Scale-.5 NE edit passed GPU factual (97 tuning stays, dNLL +.00233) but failed NE rollout signs (row means x2 -1.131, half +.797). Insulin row means x2 -10.463, half +12.317. Saved passing factual candidate in backup_passing200. Immediate NE Jacobian calibration is not sufficient for sustained rollout repair; investigating recurrent response/decoder feedback. Tool summaries explicitly report stay-hour means despite architecture's stay-averaging description, so retain both aggregates and matched targets. No weights changed.
+
+
+## Run 201
+Recovered architecture, record-based targets and e
+=== ALL RELEVANT NAMES, WITHOUT LARGE VALUES ===
+Ridge, _target_rows, _targets, backup_dual198, base_coef192, boot_kernel, boot_kernels137, channel_base117, channel_changed117, channel_direction111, channel_direction112, channel_fits111, channel_fits112, channel_probe147, channel_q160, channel_weights160, channel_x160, chosen_channel116, coef, coef102, coef209, coef_ne186, coefficients, coefs, connection128, connection_decoder123, connection_delta123, connection_direction123, connection_ridge123, connection_scale123, connection_tests160, connection_weight123, dml_residuals, dual_b202, dual_candidate193, dual_channel186, factual_target111, fit_target102, gate87, gate88, gate_bias186, gate_bias94, gate_coef94, gate_fits180, gate_models88, gate_ne186, gate_rows88, gate_scale94, head_innovation_probes, kernel, kernel55, kernel_models88, kernels137, new_kernel, nll_channel129, old_targets187, posterior_target_repair, prob_channel129, provisional_kernels, q_channel125, r45_target, replayed_channel125, residual166, residual192, residual_parts192, residuals, ridge, ridge102, ridge110, ridge118, ridge160, ridge206, ridge_scale80, ridge_value209, target, target102, target110, target118, target193, target65, target95, target_attention103, target_fact80, target_h67, target_ins186, target_ne186, target_ne187, target_ne206, target_out67, target_rate, target_rows88, target_rows89, target_table89, targetnotes230, targe
+[output cut at 10,000 characters]
+```

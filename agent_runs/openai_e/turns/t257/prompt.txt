@@ -1,0 +1,158 @@
+OUTPUT of Python run 221 of at most 300:
+```
+=== EARLY EVIDENCE ===
+# World-model repair notebook
+
+## Initial plan
+- Read architecture and record definitions before choosing an identification strategy.
+- Infer drug effects only from the simulated ICU records; impose no medical assumptions.
+- Use no gradients or weight optimiser.
+- Validate weight edits against original factual NLL and paired dose rollouts.
+- Required factual NLL degradation: at most 0.005 nats per reading.
+- Python runs: 1. Forward requests: 0.
+
+## Run 2: architecture
+Drug atoms have their own action encoder, but enter posterior and recurrent updates. Value heads also use last-reading registers and code-specific bin transitions. No causal conclusion yet. Full records loaded for timing and identification analysis.
+Python runs: 2. Forward requests: 0.
+
+## Run 3: hourly panel
+Readings occur on integer hours; infusions start at hour + 0.0833 and last one hour. Built full panels with absent infusion=0, prior reading registers, ages, and next-hour outcomes. Initial regressions are diagnostics, not yet accepted causal estimates.
+Validation IDs chosen randomly once (seed 731), 100 tuning stays.
+Python runs: 3. Forward requests: 0.
+
+## Run 4: selection and threshold identification
+Unadjusted insulin/glucose slope +23.36, adjusted about -1.92 per unit/hour. NE/MAP slope changes from -30.02 raw to -1.90 with current reading and +2.25 with history. These are not accepted as causal. Insulin dose thresholds near 150/180/220 motivate fuzzy RD. Test independent lab outcomes and observation availability to diagnose selection artifacts.
+Python runs: 4. Forward requests: 0.
+
+## Forward 1: original rollout, first 100 tuning stays
+Insulin x2 -1.847; insulin half +0.777; NE x2 -0.498; NE half -0.600. Insulin reaches 554 stay-hours/60 stays; NE 281/26. These are predictions, not truth.
+RD roughly -2 per additional insulin unit/hour, with serious observation jump at 150; prefer thresholds 180/220 and check temporal persistence. Boundary observations are mixtures because measurements are rounded.
+Python runs: 5. Forward requests: 1.
+
+## Run 5?6: dynamic identification
+Pooled insulin RD excludes rounded cutoff values at 180/220. Immediate glucose jump -2.2131 (SE .1583), dose jump 1.0361. Reduced-form outcome discontinuity fades over six hours; downstream dosing also changes. Joint impulse fit beta=-2.2778, persistence=.85743; provisional, not exact truth. NE polynomial-history coefficients remain about +3.09, but dose-policy nonlinearity may bias them. Cross-fitted flexible nuisance models now test residual-dose effects.
+NE DML beta=3.248868, cluster SE=0.096302.
+Python runs: 6.
+
+=== NOTEBOOK SECTION INDEX ===
+1142 ## Run 4: selection and threshold identification
+2045 ## Run 5?6: dynamic identification
+2898 ## Run 8: action pathway and identification audit
+3217 ## Run 9: compact units and causal audit
+13476 ## Run 28: recover architecture and causal evidence
+17676 ## Run 35: recover causal evidence before editing
+23174 ## Run 54: causal evidence and factual-calibration inventory
+32011 ## Run 69: independent NE identification audit
+33551 ## Run 72: dynamic NE identification setup
+33880 ## Run 73: dynamic NE innovation identification
+35591 ## Run 75: corrected dynamic NE identification
+36953 ## Run 76: independent MAP channels and causal uncertainty
+38688 ## Run 77: freeze insulin baseline and recover NE edit machinery
+39240 ## Run 79: NE feature and direction unit audit
+40170 ## Run 82: selective NE detector and multi-context MAP direction
+42681 ## Run 88: NE signal/leakage frontier
+46953 ## Run 102: posterior detector frontier and local reconstruction
+48064 ## Run 107: reduced corrected NE trial
+48379 ## Run 108: reduced NE passes, but insufficient causal correction
+49337 ## Run 112: recover direction construction
+50296 ## Run 116: reject innovation-probe route; recover causal targets and dose pathway
+50675 ## Run 117: compact calibration/helper recovery
+51589 ## Run 120: per-slot, multi-direction output sensitivities
+54989 ## Run 132: identify batch-selection error
+57011 ## Run 138: recover calibration and exact-anchor sensitivities
+57340 ## Run 139: bounded calibration recovery
+59301 ## Run 144: closed-form multi-direction NE correction frontier
+62071 ## Run 148: verified multi-direction NE trial
+62675 ## Forward 16 / Run 149: reject multi-direction mean-feature trial
+66320 ## Run 153: compact validation and causal-target recovery
+66997 ## Forward 19 / Run 155: state penalty fails; direct shrinkage trial
+68225 ## Forward 21 / Run 159: insulin-only cost and calibration feasibility
+68594 ## Run 160: decoder calibration diagnostics
+68879 ## Forward 22 / Run 161: training calibration inputs
+69151 ## Run 162: register and chronological alignment audit
+69405 ## Run 163: restart recovery before factual calibration
+69728 ## Run 164: compact decoder/calibration recovery
+70914 ## Run 168: correct calibration row ordering
+72873 ## Run 175: corrected local decoder and paired training distributions
+73602 ## Run 177: do not install weak calibration; audit measured candidates
+73921 ## Run 178: recover causal targets and accepted baseline
+74208 ## Run 179: bounded baseline and causal recovery
+79944 ## Run 197: stay-held-out factual-null NE detector frontier
+84979 ## Run 202: audit measured frontier and prior calibration
+85932 ## Runs 205?206: correct calibration buffer mismatch
+86403 ## Run 207: reject misaligned calibration diagnostic
+87719 ## Run 210: bounded target and measured-frontier recovery
+88350 ## Runs 212?213: measured GPU frontier and helper recovery
+88646 ## Run 214: align causal target weighting with evaluation
+
+=== GPU VALIDATION SUMMARY ===
+1 dose_edit 100 {'original': {'insulin_x2': -1.847, 'insulin_half': 0.777, 'ne_x2': -0.498, 'ne_half': -0.6}}
+2 factual tuning 100 {'original': 1.63461} none
+4 factual tuning 50 {'original': 1.64063, 'edited': 1.6466} ae18b48c19
+5 dose_edit 50 {'original': {'insulin_x2': -1.672, 'insulin_half': 0.784, 'ne_x2': -0.548, 'ne_half': -0.726}, 'edited': {'insulin_x2': -6.811, 'insulin_half': 2.535, 'ne_x2': -0.453, 'ne_half': -0.831}}
+6 factual tuning 50 {'original': 1.64063, 'edited': 1.64015} f36a70f05f
+7 dose_edit 50 {'original': {'insulin_x2': -1.672, 'insulin_half': 0.784, 'ne_x2': -0.548, 'ne_half': -0.726}, 'edited': {'insulin_x2': -7.81, 'insulin_half': 2.697, 'ne_x2': -0.311, 'ne_half': -1.036}}
+8 factual tuning 100 {'original': 1.63461, 'edited': 1.64769} f49fe3d402
+9 factual tuning 100 {'original': 1.60883, 'edited': 1.61161} d3680194fe
+10 dose_edit 100 {'original': {'insulin_x2': -1.915, 'insulin_half': 0.747, 'ne_x2': -0.321, 'ne_half': -0.557}, 'edited': {'insulin_x2': -12.708, 'insulin_half': 4.335, 'ne_x2': 0.099, 'ne_half': -1.004}}
+11 factual tuning 98 {'original': 1.60516, 'edited': 1.63855} 8c8704bf96
+12 dose_edit 98 {'original': {'insulin_x2': -1.915, 'insulin_half': 0.747, 'ne_x2': -0.321, 'ne_half': -0.557}, 'edited': {'insulin_x2': -12.512, 'insulin_half': 3.326, 'ne_x2': 1.543, 'ne_half': -3.791}}
+13 factual tuning 100 {'original': 1.60883, 'edited': 1.62605} 155d1bd36e
+14 factual tuning 100 {'original': 1.60883, 'edited': 1.61285} f37c27bac4
+15 dose_edit 100 {'original': {'insulin_x2': -1.915, 'insulin_half': 0.747, 'ne_x2': -0.321, 'ne_half': -0.557}, 'edited': {'insulin_x2': -12.555, 'insulin_half': 4.182, 'ne_x2': 0.587, 'ne_half': -1.282}}
+16 factual tuning 100 {'original': 1.63461, 'edited': 1.72932} 8035641051
+17 factual tuning 100 {'original': 1.63461, 'edited': 1.64568} c4f63f3824
+18 dose_edit 100 {'original': {'insulin_x2': -1.847, 'insulin_half': 0.777, 'ne_x2': -0.498, 'ne_half': -0.6}, 'edited': {'insulin_x2': -11.961, 'insulin_half': 4.922, 'ne_x2': 1.893, 'ne_half': -1.633}}
+19 factual tuning 100 {'original': 1.63461, 'edited': 1.64587} 568dbaca02
+20 factual tuning 100 {'original': 1.63461, 'edited': 1.64113} 095321e3f2
+21 factual tuning 100 {'original': 1.63461, 'edited': 1.63925} d3680194fe
+23 factual tuning 100 {'original': 1.63461, 'edited': 1.65731} 88b97efccd
+24 factual tuning 100 {'original': 1.63461, 'edited': 1.6393} 4325e2def9
+25 dose_edit 96 {'original': {'insulin_x2': -1.814, 'insulin_half': 0.805, 'ne_x2': -0.442, 'ne_half': -0.548}, 'edited': {'insulin_x2': -12.474, 'insulin_half': 4.53, 'ne_x2': -0.203, 'ne_half': -0.794}}
+
+=== TARGETED PERSISTENT OBJECTS ===
+head_static Tensor torch.Size([4751, 192])
+rng_decode Generator
+tpanel_probe DataFrame (10400, 80)
+pred_probe ndarray (4751, 2)
+valid_probe ndarray (4751,)
+record_schedule_target69 function (beta, phi, drug, edit_name)
+fit_impulse76 function (horizons, estimates, dose_moments, grid=array([-0.5  , -0.499, -0.498, ...,  1.048,  1.049,  1.05 ], shape=(1551,)))
+train_meta162 DataFrame (4510, 12)
+pt_orig175 ndarray (4510, 17)
+pt_edit175 ndarray (4510, 17)
+pt_tune175 ndarray (4751, 17)
+tuning214 DataFrame (26251, 9)
+schedule214 dict ['insulin', 'norepinephrine']
+targets214 function (path, insulin_beta=-2.2778, insulin_phi=0.85743, ne_beta=3.1670730232, ne_phi=0.704)
+k219 23
+p219 '/work/fwd_23/dose_edit_edited.csv'
+sm219 dict ['ok', 'type', 'split', 'n_stays', 'results', 'edited_tensors', 'edit_hash', 'seconds']
+rr219 dict ['original', 'edited']
+oo219 dict ['value_nll_per_value', 'n_values', 'by_event', 'file']
+ee219 dict ['value_nll_per_value', 'n_values', 'by_event', 'file']
+dd219 DataFrame (2500, 7)
+editcol219 'edit'
+staycol219 'stay_id'
+vals219 Series (288,)
+a58_219 NpzFile
+a63_219 NpzFile
+base219 ndarray (192, 192)
+balanced219 ndarray (192, 192)
+blend219 0.15
+delta219 ndarray (192, 192)
+fbase219 ndarray (192,)
+fbalanced219 ndarray (192,)
+ftrial219 ndarray (192,)
+direction219 ndarray (192,)
+guard219 1.3358203432289883e-12
+label219 'partial'
+ff219 ndarray (192,)
+orig219 Tensor torch.Size([192, 192])
+origarr219 ndarray (192, 192)
+w219 ndarray (192, 192)
+fact219 DataFrame (4751, 6)
+ids219 list
+f219 TextIOWrapper
+
+```

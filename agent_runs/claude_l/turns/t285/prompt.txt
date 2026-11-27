@@ -1,0 +1,26 @@
+OUTPUT of Python run 263 of at most 300:
+```
+def bview(W,out,h,dt,zs=None,gen=None,nz=4):
+    # returns views (B,nz,192) ; zs: if None draw from prior
+    hf=h*torch.exp(-dt*torch.exp(W['core.flow.a']))
+    base=out+bln(W,hf.mean(1),'core.out_norm')+bmlp(W,torch.tensor([[math.log(dt)/10]],dtype=T),'gap')
+    zp=bmlp(W,base,'z_prior')
+    if zs is None:
+        eps=torch.randn(base.shape[0],nz,32,generator=gen,dtype=T)
+    else: eps=zs
+    z=zp[:,None,:32]+torch.exp(zp[:,None,32:])*eps
+    return base[:,None,:]+blin(W,z,'z_head')
+def bvalue_probs(W,views,code,has,age_s,zlast,vblast):
+    # views (B,nz,192); has,age_s,zlast (B,), vblast (B,) long
+    q=bln(W,views+W['type_emb.weight'][1],'query_norm')
+    B=views.shape[0]; f=torch.zeros(B,8,dtype=T); f[:,0]=has; f[:,3]=torch.log1p(age_s)/10*has; f[:,6]=zlast
+    wc=q+(W['embed.code.weight'][code]+blin(W,f,'last_numeric')+W['embed.bins.value.weight'][vblast]+W['embed.bins.rate.weight'
+reads 8127 pert 4504 t 27
+drug 8 wc 1.0 R2 0.053 resp/dd own 0.1 sd 0.07 cross sd 0.102 err~rhat -3.06 err~r -1.57
+drug 8 wc 10.0 R2 -1.309 resp/dd own 0.38 sd 0.27 cross sd 0.368 err~rhat -0.86 err~r -1.57
+drug 8 wc 100.0 R2 -5.164 resp/dd own 0.59 sd 0.44 cross sd 0.527 err~rhat -0.62 err~r -1.57
+drug 9 wc 1.0 R2 0.007 resp/dd own 0.02 sd 0.06 cross sd 0.02 err~rhat 6.08 err~r 0.89
+drug 9 wc 10.0 R2 -0.797 resp/dd own 0.1 sd 0.28 cross sd 0.076 err~rhat 1.55 err~r 0.89
+drug 9 wc 100.0 R2 -5.984 resp/dd own 0.16 sd 0.68 cross sd 0.119 err~rhat 0.7 err~r 0.89
+
+```

@@ -1,0 +1,48 @@
+OUTPUT of Python run 143 of at most 300:
+```
+core.out_norm.bias (192,)
+core.out_norm.weight (192,)
+gap.0.bias (192,)
+gap.0.weight (192, 1)
+gap.2.bias (192,)
+gap.2.weight (192, 192)
+z_head.bias (192,)
+z_head.weight (192, 32)
+z_in.bias (192,)
+z_in.weight (192, 32)
+z_post.0.bias (192,)
+z_post.0.weight (192, 576)
+z_post.2.bias (64,)
+z_post.2.weight (64, 192)
+z_prior.0.bias (192,)
+z_prior.0.weight (192, 192)
+z_prior.2.bias (64,)
+z_prior.2.weight (64, 192)
+2307
+
+import json, math, numpy as np, pandas as pd, torch
+import torch.nn.functional as F
+exec(open('/work/wm.py').read())
+V=json.load(open('/model/vocab.json'))
+NUMV={(d['code'],d['attribute']):d for d in V['numeric']}
+CODE_ID={c['name']:c['id'] for c in V['codes']}
+UM={'mg/dL':2,'mmHg':5,'units':3,'mg':4}; RUM={'units/hour':2,'mcg/kg/min':3}
+def zsc(code,attr,x):
+    d=NUMV[(code,attr)]; return float(np.clip((x-d['median'])/d['iqr'],-10,10))
+def fbin(code,attr,x):
+    return 1+int(np.searchsorted(np.array(NUMV[(code,attr)]['fine_bin_edges']),x,side='left'))
+def build_bundles(ds, adm_end=('hospital_admission','icu_admission')):
+    ev=[]
+    for r in ds.itertuples():
+        t=round(r.hour*60)
+        if r.event in ('glucose_finger','glucose_lab','map_arterial','map_cuff'):
+            ev.append((t,dict(code=CODE_ID[r.event],kind=0,ekind=1,unit=UM['mg/dL' if 'glucose' in r.event else 'mmHg'],rate_unit=0,
+                vb=fbin(r.event,'value',r.value),db=0,rb=0,num=(zsc(r.event,'value',r.value),1,0,0,0,0),act=False)))
+        elif r.event in ('insulin','norepinephrine'):
+            a=dict(code=CODE_ID[r.event],kind=0,ekind=2,unit=UM[r.dose_unit],rate_unit=RUM[r.rate_unit],vb=0,
+                   db=fbin(r.event,'dose',r.dose),rb=fbin(r.event,'rate',r.rate),num=(0,0,zsc(r.event,'dose',r.dose),1,zsc(r.event,'rate',r.rate),1),act=True)
+            ev.append((t,a)); b=dict(a); b['kind']=2; ev.append((round(r.end_hour*60),b))
+        elif r.event in ('hospital_admission','icu_admis
+[('X', (4932, 992)), ('sid_arr', (4932,)), ('hr_arr', (4932,)), ('bad', (15,)), ('tb', (53,)), ('th', (54,)), ('W1', (192, 576)), ('b1', (192,)), ('W2', (32, 192)), ('b2', (32,)), ('Zi', (96, 32)), ('res_', (96,)), ('rr', (96,)), ('allres', (96,)), ('Ev7', (21, 192)), ('Vv7', (21, 192)), ('Z7', (21, 32)), ('a0_', (192,)), ('P', (32, 576)), ('W1n', (192, 576)), ('b1n', (192,)), ('W2n', (64, 192)), ('b2n', (64,)), ('Xp', (4932, 992)), ('Pc', (10, 192)), ('Pe', (11, 192)), ('Pu', (11, 192)), ('ee', (4932,)), ('eu', (4932,)), ('rows', (54,)), ('e', (192,)), ('u', (192,)), ('zt', (32,)), ('prev', (992,)), ('out', (192,)), ('h', (4, 192)), ('hf', (4, 192)), ('act', (2025,)), ('noact', (2751, 11)), ('nomeas', (2181, 11)), ('ue', (192,)), ('ee_', (192,)), ('p', (1501,)), ('a', (64, 192)), ('b', (64, 192)), ('sid_tr', (30000,)), ('sid_tu', (400,)), ('Xtr', (30000, 25, 31)), ('Xtu', (400, 25, 31)), ('ytr', (30000, 25)), ('ytu', (400, 25)), ('ptu', (400, 25)), ('on', (400, 25)), ('B', (2025, 192)), ('w', (5, 192)), ('hr', (4932,)), ('sid', (4932,)), ('frac', (4932,)), ('isdrug', (4932,)), ('t', (4932,)), ('si', (4932,)), ('ok', (4932,)), ('grp', (2025,)), ('y', (1501,)), ('Xb', (1501, 192)), ('IRF_I', (12,)), ('IRF_N', (6,)), ('irf', (6,)), ('errE', (4932,)), ('errU', (4932,)), ('bad_i', (5,)), ('u_empty', (192,)), ('errU2', (4932,)), ('Xs', (4932, 992)), ('sid_s', (4932,)), ('er', (159,)), ('W1p', (192, 576)), ('b1p', (192,)), ('W2p', (64, 192)), ('b2p', (64,))]
+
+```

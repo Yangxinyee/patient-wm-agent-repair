@@ -1,0 +1,78 @@
+OUTPUT of Python run 204 of at most 300:
+```
+=== PRIOR CALIBRATION RESULT ===
+Run 182: cross-validated hidden-feature factual distillation
+Hidden/logit max identity error=7.50723e-06. Five-fold by-stay auxiliary ridge results=[{'alpha': 10.0, 'NLL_change': 0.00157151176752628, 'KL_before': 0.0043922488448866195, 'KL_after': 0.003329595885940907, 'correction_RMS': 0.1366230347878041, 'glucose_NLL_change': 0.0008177769995274611}, {'alpha': 100.0, 'NLL_change': 0.001330771916144981, 'KL_before': 0.0043922488448866195, 'KL_after': 0.0033394540145260092, 'correction_RMS': 0.12052933442618059, 'glucose_NLL_change': 0.000641442823491322}, {'alpha': 1000.0, 'NLL_change': 0.0010053267423189734, 'KL_before': 0.0043922488448866195, 'KL_after': 0.0034964333143941203, 'correction_RMS': 0.09479743179856669, 'glucose_NLL_change': 0.00014516387002541873}, {'alpha': 10000.0, 'NLL_change': 0.0003472309006365475, 'KL_before': 0.0043922488448866195, 'KL_after': 0.0037697548187539238, 'correction_RMS': 0.0660786215088665, 'glucose_NLL_change': -0.0004477830297046002}]. No model-weight optimiser or gradients; no weights installed. Python runs: 182; forwards: 22.
+
+
+=== EARLY CAUSAL ESTIMATION ===
+# World-model repair notebook
+
+Initial plan
+- Read architecture and record definitions before choosing an identification strategy.
+- Infer drug effects only from the simulated ICU records; impose no medical assumptions.
+- Use no gradients or weight optimiser.
+- Validate weight edits against original factual NLL and paired dose rollouts.
+- Required factual NLL degradation: at most 0.005 nats per reading.
+- Python runs: 1. Forward requests: 0.
+
+Run 2: architecture
+Drug atoms have their own action encoder, but enter posterior and recurrent updates. Value heads also use last-reading registers and code-specific bin transitions. No causal conclusion yet. Full records loaded for timing and identification analysis.
+Python runs: 2. Forward requests: 0.
+
+Run 3: hourly panel
+Readings occur on integer hours; infusions start at hour + 0.0833 and last one hour. Built full panels with absent infusion=0, prior reading registers, ages, and next-hour outcomes. Initial regressions are diagnostics, not yet accepted causal estimates.
+Validation IDs chosen randomly once (seed 731), 100 tuning stays.
+Python runs: 3. Forward requests: 0.
+
+
+=== SAVED EDIT SCALES ===
+baseline77.npz {'delta': {'shape': (192, 192), 'norm': 500.6107}}
+ne_candidate82.npz {'feature': {'shape': (192,), 'norm': 1.0217}, 'direction': {'shape': (192,), 'norm': 12.2812}, 'x2_slope': 0.05268984731541728, 'choice': {'shape': (3,), 'norm': 300.0033}, 'jacobian': {'shape': (31, 192), 'norm': 3.9472}}
+ne_trial103.npz {'delta': {'shape': (192, 192), 'norm': 1104.4037}, 'feature': {'shape': (192,), 'norm': 0.0855}, 'direction': {'shape': (192,), 'norm': 12.2812}, 'strength': 1051.8064001950565, 'beta': 1.0}
+ne_candidate151.npz {'ne_delta': {'shape': (192, 192), 'norm': 411.6573}, 'total_delta': {'shape': (192, 192), 'norm': 660.2035}, 'gamma': 0.1}
+ne_candidate199.npz {'ne_delta': {'shape': (192, 192), 'norm': 720.8716}, 'total_delta': {'shape': (192, 192), 'norm': 877.2088}, 'feature': {'shape': (192,), 'norm': 73.3717}, 'direction': {'shape': (192,), 'norm': 12.2812}, 'beta': 0.8}
+
+=== CURRENT CONTRAST DATA ===
+('norepinephrine', 2.0) {'X': (749, 4, 188), 'y': (749,), 'sid': (749,), 'fold': (749,)}
+('norepinephrine', 0.5) {'X': (749, 4, 188), 'y': (749,), 'sid': (749,), 'fold': (749,)}
+('insulin', 2.0) {'X': (734, 4, 188), 'y': (734,), 'sid': (734,), 'fold': (734,)}
+('insulin', 0.5) {'X': (734, 4, 188), 'y': (734,), 'sid': (734,), 'fold': (734,)}
+detector factual slot RMS: 0.3271271981802412
+direction199 norm: 12.281158458095929
+J199: (31, 192)
+
+=== DECODER INPUT/OUTPUT OBJECTS ===
+calibration_fits176 dict {10.0: (221, 17), 50.0: (221, 17), 200.0: (221, 17), 1000.0: (221, 17)}
+codes162 dict {'(padding)': 'int', '(unknown measurement)': 'int', '(unknown drug_admin)': 'int', '(unknown visit)': 'int', '(unknown visit_detail)': 'int'}
+cv182 dict {10.0: (4510, 17), 100.0: (4510, 17), 1000.0: (4510, 17), 10000.0: (4510, 17)}
+fits182 dict {10.0: 'tuple', 100.0: 'tuple', 1000.0: 'tuple', 10000.0: 'tuple'}
+fold_map182 dict {np.int64(1010000025): 'int', np.int64(1010000010): 'int', np.int64(1010000041): 'int', np.int64(1010000099): 'int', np.int64(1010000001): 'int'}
+hm162 DataFrame Index(['stay_id', 'hour', 'event', 'code', 'state_row', 'dt', 'last_z',
+       'last_bin', 'age', 'has_last', 'observed', 'gpu_mean', 'gpu_nll',
+       'local_mean', 'mean_error'],
+numeric162 dict {('map_arterial', 'value'): 'dict', ('map_cuff', 'value'): 'dict', ('glucose_lab', 'value'): 'dict', ('glucose_finger', 'value'): 'dict', ('insulin', 'dose'): 'dict'}
+tm162 DataFrame Index(['stay_id', 'hour', 'event', 'code', 'state_row', 'dt', 'last_z',
+       'last_bin', 'age', 'has_last', 'observed', 'target_bin'],
+      dtype='str')
+train_meta162 DataFrame Index(['stay_id', 'hour', 'event', 'code', 'state_row', 'dt', 'last_z',
+       'last_bin', 'age', 'has_last', 'observed', 'target_bin'],
+      dtype='str')
+decoder return instructions:
+BINARY_OP 13
+STORE_FAST logits_sum
+JUMP_BACKWARD 1214
+END_FOR None
+LOAD_FAST probability
+LOAD_ATTR numpy
+CALL 0
+LOAD_FAST hidden_sum
+LOAD_ATTR numpy
+CALL 0
+LOAD_FAST logits_sum
+LOAD_ATTR numpy
+CALL 0
+BUILD_TUPLE 3
+RETURN_VALUE None
+
+```

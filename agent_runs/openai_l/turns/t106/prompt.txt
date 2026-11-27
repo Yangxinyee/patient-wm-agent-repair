@@ -1,0 +1,158 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 105 replies happened before. Forward passes used: 4 of 50; Python runs used: 97 of 300. Your kernel is still running with its variables. Tensors currently edited: []. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+sed causal estimates. No edits; forward passes 4/50.
+
+## Run 69
+Architecture recovered; run 68 output truncated before function inventory. Retrieving compact retained interfaces and accepted causal kernels. No edits.
+
+## Runs 70–71 / pooling audit
+Explicit and trusted generic atom embeddings agree to 3.1e-8, but pooled u differs from u_valid60 by RMS 1.0097. Run 70 stopped at a metadata inspection error. Localizing pooling versus bundle alignment; no edits.
+
+## Run 72 / action-owner alignment fix
+Located run 65–67 mismatch: owners65 addresses the 1602 drug-bundle subset, not the 4491 full sequence. Remapped through drug_indices49 and rebuilt full counts. Testing against validated u_valid60. No edits.
+
+## Runs 73–74
+Run 73 stopped because transition64 requires age shape [N,128,1]. Corrected scalar axis and repeated state validation and factual-feature construction. No weights edited; forward passes 4/50.
+
+## Run 75 / recurrent memory-mask audit
+Posterior RMS=2.15e-5; factual decoder means track the observed means. Recurrent out RMS=.1306 and h RMS=12.29 are not acceptable. Testing mask polarity and inspecting retained validated memory inputs before using counterfactual state features. No edits.
+
+## Run 76 / mask resolved
+True denotes valid memory entries. With that convention, one-step out RMS is 1.51e-5 and h RMS is .00251. Recovering causal targets and validated interfaces before computing a factual-preserving dose correction. No edits.
+
+## Runs 77–80 / head-only plan
+Recovered accepted DML/RD insulin anchor ~-1.95, NE ~+3.1 and cross-sensor dynamic kernels. Provisional stay-weighted x2 targets I=-10.675, NE=+4.326; row-weighted I=-12.769, NE=+4.504. Simple SSM targets remain rejected. Plan: analytically fit a final value-head correction using dose-altered hidden features and factual preservation constraints. No edits yet.
+
+## Run 84 / restart recovery
+Run 83's head-only ridge edit cannot reach the causal slopes without factual loss: lambda=1 held-out dNLL=.001114, slopes I~-0.89/NE~.43-.58; lambda=.3 held-out dNLL=.006454 exceeds the .005 limit. Recovering fit interfaces before choosing a more selective edit. No tensors edited.
+
+## Run 85 / inspect head objective and causal evidence
+Inspecting the existing fit, original dose-rollout output, and latent-update interfaces to distinguish a weak head-only parameterization from a target/alignment error. No edits.
+
+## Run 88 / latent-direction finite-difference probe
+Original tuning rollout summaries: I2=-3.0206, Ihalf=1.6282 (60 reached stays); NE2=.4330, NEhalf=-.8431 (26 reached stays). Record-kernel targets remain provisional I2~-10.675/NE2~4.326. Probing sensor-selective latent directions with no gradients and no edits.
+
+## Run 89 / reject unvalidated latent probe
+Run 88 baseline RMSE=25.09, so its near-zero sensitivities and large latent direction are not evidence. Checking decoder return shapes and state alignment; no edits.
+
+## Run 90 / recurrence recovery
+Run 89 posterior RMS=1.95e-5 but recurrent out RMS=.1299 and h RMS=11.94. Latent probe remains invalid; recovering architecture and validated memory inputs before any edit. No tensors edited.
+
+## Run 91 / targeted memory audit
+Architecture reviewed. Posterior matches, so checking transition inputs and mask polarity rather than interpreting the invalid latent probe. No tensors edited.
+
+## Run 92 / mask-polarity validation
+State and prediction errors by mask: {'as returned': (0.12986552715301514, 11.935111045837402, 25.08648681640625), 'reversed': (1.4949718206480611e-05, 0.0025424514897167683, 0.0007484268862754107)}. Checking whether existing counterfactual features already use the correct convention. No tensors edited.
+
+## Runs 93–94 / corrected latent probe
+Run 93 stopped on pandas indexing before probing. Run 94 baseline RMSE=0.000727549; unit-effect direction results={'insulin': {'norm': 0.0, 'linear_rmse': 0.7071067811865476, 'nonlinear_rmse': 0.7071067811865476}, 'norepinephrine': {'norm': 2021.6579205609878, 'linear_rmse': 0.7000000011941472, 'nonlinear_rmse': 0.7072699565624382}}. No tensors edited.
+
+## Run 96 / value-head input reconstruction
+Hidden reconstruction RMS=0. Generated validated one-step head inputs for both drugs at factors 0,.5,1.5,2,3. Original dose slopes: {('insulin', 0.0): -0.37897342443466187, ('insulin', 0.5): -0.3507140576839447, ('insulin', 1.5): -0.3287563920021057, ('insulin', 2.0): -0.2550761103630066, ('insulin', 3.0): -0.1641843467950821, ('norepinephrine', 0.0): 0.17117874324321747, ('norepinephrine', 0.5): 0.29257407784461975, ('norepinephrine', 1.5): -0.005682266317307949, ('norepinephrine', 2.0): -0.023386526852846146, ('norepinephrine', 3.0): -0.019367428496479988}. No tensors edited.
+
+## Run 97 / raw-head-input scalar correction
+Fitted analytic ordinal bin-tilt scores using dose contrasts at 0,.5,1.5,2,3, with factual-zero regularization and stay-held-out validation. Results: {0.001: {'train_dNLL': 1.185721693243569, 'heldout_dNLL': 1.7496438853273455, 'coef_norm': 207.88876103546804, 'slopes': {('insulin', 2.0): -0.9745049185444954, ('insulin', 0.5): -0.7526900369443214, ('norepinephrine', 2.0): -0.245588024263237, ('norepinephrine', 0.5): 0.4942557754525222, ('insulin', 3.0): -0.6482577742968713, ('norepinephrine', 3.0): -0.14383401027586598}}, 0.003: {'train_dNLL': 0.34100809513489083, 'heldout_dNLL': 0.5394425445366878, 'coef_norm': 182.48661426219246, 'slopes': {('insulin', 2.0): -0.9155723646826897, ('insulin', 0.5): -0.6918848918456114, ('norepinephrine', 2.0): -0.08673923871587892, ('norepinephrine', 0.5): 0.24009646969896087, ('insulin', 3.0): -0.6090599080775653, ('norepinephrine', 3.0): -0.03495657066807687}}, 0.01: {'train_dNLL': 0.07565970883581126, 'heldout_dNLL': 0.1330940717274733, 'coef_norm': 146.4751571659859, 'slopes': {('insulin', 2.0): -0.8235920668936374, ('insulin', 0.5): -0.6381399145080828, ('norepinephrine', 2.0): -0.1532689072895136, ('norepinephrine', 0.5): 0.1262774614577874, ('insulin', 3.0): -0.5479250612052751, ('norepinephrine', 3.0): -0.06455488744348806}}, 0.03: {'train_dNLL': 0.017870054287421867, 'heldout_dNLL': 0.034725120740966044, 'coef_norm': 107.29819067743038, 'slopes': {('insulin', 2.0): -0.7606009577918071, ('insulin', 0.5): -0.6023317196295277, ('norepinephrine', 2.0): -0.16425190058408862, ('norepinephrine', 0.5): 0.047061491958779296, ('insulin', 3.0): -0.5050410425807533, ('norepinephrine', 3.0): -0.06972684894121806}}, 0.1: {'train_dNLL': 0.0027638256217535446, 'heldout_dNLL': 0.006999956049771413, 'coef_norm': 63.18266087819877, 'slopes': {('insulin', 2.0): -0.7088287095331086, ('insulin', 0.5): -0.5892877779434538, ('norepinephrine', 2.0): -0.18321425135777178, ('norepinephrine', 0.5): 0.003034811508722028, ('insulin', 3.0): -0.4699774096605705, ('norepinephrine', 3.0): -0.08291323591414959}}, 0.3: {'train_dNLL': -0.000254933712967499, 'heldout_dNLL': 0.0008573269092113806, 'coef_norm': 33.63802021035437, 'slopes': {('insulin', 2.0): -0.6741209945962788, ('insulin', 0.5): -0.5873503253195552, ('norepinephrine', 2.0): -0.2111859186193917, ('norepinephrine', 0.5): -0.007753561957243456, ('insulin', 3.0): -0.4489769492286717, ('norepinephrine', 3.0): -0.10595532806682603}}, 1.0: {'train_dNLL': -0.0006430335353646772, 'heldout_dNLL': -0.00036154402892997196, 'coef_norm': 17.24273558983572, 'slopes': {('insulin', 2.0): -0.6239073013746047, ('insulin', 0.5): -0.559181423813757, ('norepinephrine', 2.0): -0.24951436165373195, ('norepinephrine', 0.5): 0.0032665674889910687, ('insulin', 3.0): -0.4210671063130235, ('norepinephrine', 3.0): -0.13945267460081018}}, 3.0: {'train_dNLL': -0.000455294825703859, 'heldout_dNLL': -0.00034772700494614667, 'coef_norm': 9.534411117915507, 'slopes': {('insulin', 2.0): -0.5482489721083419, ('insulin', 0.5): -0.4943475801532573, ('norepinephrine', 2.0): -0.2528174604540175, ('norepinephrine', 0.5): 0.07253744835856203, ('insulin', 3.0): -0.37517776020752375, ('norepinephrine', 3.0): -0.14853855901368052}}}. No tensors edited.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 97 of at most 300:
+```
+Factual covariance eigenvalues: [2.40229708e-07 3.08751051e-07 3.47546156e-07 3.75309611e-07
+ 4.82435840e-07] [ 3.81120443  5.92026384 12.01648753 15.75824036 29.4263006 ]
+CF / factual covariance trace: 0.03762615948642358 101.67867009239532
+Penalty 0.001 {'train_dNLL': 1.185721693243569, 'heldout_dNLL': 1.7496438853273455, 'coef_norm': 207.88876103546804, 'slopes': {('insulin', 2.0): -0.9745049185444954, ('insulin', 0.5): -0.7526900369443214, ('norepinephrine', 2.0): -0.245588024263237, ('norepinephrine', 0.5): 0.4942557754525222, ('insulin', 3.0): -0.6482577742968713, ('norepinephrine', 3.0): -0.14383401027586598}}
+Penalty 0.003 {'train_dNLL': 0.34100809513489083, 'heldout_dNLL': 0.5394425445366878, 'coef_norm': 182.48661426219246, 'slopes': {('insulin', 2.0): -0.9155723646826897, ('insulin', 0.5): -0.6918848918456114, ('norepinephrine', 2.0): -0.08673923871587892, ('norepinephrine', 0.5): 0.24009646969896087, ('insulin', 3.0): -0.6090599080775653, ('norepinephrine', 3.0): -0.03495657066807687}}
+Penalty 0.01 {'train_dNLL': 0.07565970883581126, 'heldout_dNLL': 0.1330940717274733, 'coef_norm': 146.4751571659859, 'slopes': {('insulin', 2.0): -0.8235920668936374, ('insulin', 0.5): -0.6381399145080828, ('norepinephrine', 2.0): -0.1532689072895136, ('norepinephrine', 0.5): 0.1262774614577874, ('insulin', 3.0): -0.5479250612052751, ('norepinephrine', 3.0): -0.06455488744348806}}
+Penalty 0.03 {'train_dNLL': 0.017870054287421867, 'heldout_dNLL': 0.034725120740966044, 'coef_norm': 107.29819067743038, 'slopes': {('insulin', 2.0): -0.7606009577918071, ('insulin', 0.5): -0.6023317196295277, ('norepinephrine', 2.0): -0.16425190058408862, ('norepinephrine', 0.5): 0.047061491958779296, ('insulin', 3.0): -0.5050410425807533, ('norepinephrine', 3.0): -0.06972684894121806}}
+Penalty 0.1 {'train_dNLL': 0.0027638256217535446, 'heldout_dNLL': 0.006999956049771413, 'coef_norm': 63.18266087819877, 'slopes': {('insulin', 2.0): -0.7088287095331086, ('insulin', 0.5): -0.5892877779434538, ('norepinephrine', 2.0): -0.18321425135777178, ('norepinephrine', 0.5): 0.003034811508722028, ('insulin', 3.0): -0.4699774096605705, ('norepinephrine', 3.0): -0.08291323591414959}}
+Penalty 0.3 {'train_dNLL': -0.000254933712967499, 'heldout_dNLL': 0.0008573269092113806, 'coef_norm': 33.63802021035437, 'slopes': {('insulin', 2.0): -0.6741209945962788, ('insulin', 0.5): -0.5873503253195552, ('norepinephrine', 2.0): -0.2111859186193917, ('norepinephrine', 0.5): -0.007753561957243456, ('insulin', 3.0): -0.4489769492286717, ('norepinephrine', 3.0): -0.10595532806682603}}
+Penalty 1.0 {'train_dNLL': -0.0006430335353646772, 'heldout_dNLL': -0.00036154402892997196, 'coef_norm': 17.24273558983572, 'slopes': {('insulin', 2.0): -0.6239073013746047, ('insulin', 0.5): -0.559181423813757, ('norepinephrine', 2.0): -0.24951436165373195, ('norepinephrine', 0.5): 0.0032665674889910687, ('insulin', 3.0): -0.4210671063130235, ('norepinephrine', 3.0): -0.13945267460081018}}
+Penalty 3.0 {'train_dNLL': -0.000455294825703859, 'heldout_dNLL': -0.00034772700494614667, 'coef_norm': 9.534411117915507, 'slopes': {('insulin', 2.0): -0.5482489721083419, ('insulin', 0.5): -0.4943475801532573, ('norepinephrine', 2.0): -0.2528174604540175, ('norepinephrine', 0.5): 0.07253744835856203, ('insulin', 3.0): -0.37517776020752375, ('norepinephrine', 3.0): -0.14853855901368052}}
+
+```

@@ -1,0 +1,91 @@
+OUTPUT of Python run 136 of at most 300:
+```
+=== TARGETED FUNCTIONS ===
+prior_features74 (indices, u=None)
+ references: ('capture74', 'clear', 'r59_core', 'r59_features', 'RuntimeError', 'F', 'gelu', 'linear', 'W0', 'arr71', 'np', 'c_', 'ones', 'len')
+ locals: ('indices', 'u', 'o', 'h', 'ctx', 'hidden')
+build_candidate89 (scale)
+
+=== KEY ARRAYS / RECIPES ===
+candidates90 keys: [0.0, 0.25, 0.5, 1.0, 2.0, 4.0] total: 6
+ candidate 0.0 dict ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+ candidate 0.25 dict ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+ candidate 0.5 dict ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+ candidate 1.0 dict ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+dr66 (12555, 2) float64
+delta88 (12555, 2) float64
+X66 (12555, 576) torch.float32
+V88 (192, 30) float32
+state_keys_audit list length: 4035
+W0 keys: ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'code_bias', 'cont_head.0.bias', 'cont_head.0.weight'] total: 181
+
+=== OTHER RELEVANT RETAINED NAMES ===
+['t66', 'X66', 'W166', 'b166', 'W266', 'b266', 'importance66', 'reserve66', 'decoder66', 'decoder_bias66', 'index66', 'train66', 'Z66', 'df66', 'dr66', 'rtrue66', 'rate66', 't74', 'capture74', 'all74', 'stay74', 'train74', 'dose_units74', 'carrier74', 'data74', 'decoders74', 'diagnostics74', 't88', 'cf88', 'probe88', 'shift88', 'Mbase88', 'check88', 'J88', 'step88', 'j88', 'plus88', 'minus88', 'target88', 'A88', 'T88', 'G88', 'R88', 'ridge88', 'd88', 'resp88', 'Fdesign88', 'penalty88', 'coef88', 'pred88', 'delta88', 'cfmask88', 'slopes88', 'zinW88', 'zinb88', 'baseZ88', 'tokens88', 'token_mu88', 'sv88', 'Vt88', 'V88', 'name90', 'a90', 'mapped90', 'valid90', 'readrows90', 'readbins90', 'readmask90', 'orig_all90', 'origp90', 'diagnostics90', 'candidates90', 'scale90', 'weights90', 'pf90', 'mf90', 'pr90', 'factp90', 'dnll90', 'slopes90', 'c90', 'cm90', 'delta90', 'diag90']
+
+=== EARLY IDENTIFICATION NOTES ===
+# Weight-repair notebook
+
+## Run 1: initial inspection
+- Read architecture, data schema, tensor shapes, vocabulary, and a record sample.
+- No drug-effect conclusion or weight edit yet.
+- All causal conclusions will come from the supplied records.
+- Python runs: 1; forward passes: 0.
+
+## Run 2: records and vocabulary
+- Architecture has a dedicated action encoder; this is a candidate edit boundary, not evidence of drug effects.
+- Loaded all training and tuning records and inspected event timing and dose distributions.
+- Python runs: 2; forward passes: 0.
+
+## Run 3: hourly panel and preliminary associations
+- Doses occur at hour + 0.0833, after same-hour measurements; next-hour outcomes are post-treatment.
+- Constructed complete hourly histories, with zero rates for absent infusion records.
+- Computed raw and flexible history-adjusted one-hour slopes; these remain provisional because treatment and observation selection may confound them.
+- Preliminary estimates: {'glucose_finger': {'n': 298450, 'beta': array([-1.9552787 , -0.00447367]), 'se': array([0.04175153, 0.27588974]), 'residual_dose_sd': array([0.62089111, 0.08481478])}, 'glucose_lab': {'n': 28483, 'beta': array([-1.61143064,  0.23353193]), 'se': array([0.10999966, 0.47828202]), 'residual_dose_sd': array([0.44313316, 0.08471139])}, 'map_arterial': {'n': 312563, 'beta': array([-0.01420961,  2.50709245]), 'se': array([0.01662592, 0.08518661]), 'residual_dose_sd': array([0.46802037, 0.10263334])}, 'map_cuff': {'n': 333382, 'beta': array([0.00668627, 0.46524658]), 'se': array([0.028022  , 0.21911062]), 'residual_dose_sd': array([0.46792872, 0.06450492])}}
+- Python runs: 3; forward passes: 0.
+
+## Run 4 / forwards 1?2: baseline and dose-policy models
+- Original tuning-100 rollout: insulin x2 -2.016; insulin half +1.051; NE x2 +0.309; NE half -0.070.
+- Original factual value NLL: 1.63155 over 4,751 readings.
+- Fit two-fold, stay-held-out flexible dose-policy models using only pre-dose histories.
+- These models are for identification diagnostics, not weight training.
+- Python runs: 4; forward passes: 2.
+
+## Run 5: cross-fitted next-hour effects
+- Dose-policy out-of-stay R2: insulin 0.8660, NE 0.9351; residual SD 0.3678 and 0.07559 respectively.
+- Used two-fold, stay-held-out nonlinear outcome models and clustered residual-on-residual regressions.
+- Checked sensor, positive-dose, and early/late subgroups; estimates still require confounding and dynamics checks.
+- DML results: {'glucose_finger': {'beta': array([-1.93474217,  0.33946561]), 'se': array([0.04454258, 0.26229829]), 'n': 400154}, 'glucose_lab': {'beta': array([-2.01483673, -0.33459203]), 'se': array([0.0747496 , 0.35865811]), 'n': 143791}, 'map_arterial': {'beta': array([0.01574776, 3.05259229]), 'se': array([0.02054298, 0.0887042 ]), 'n': 328940}, 'map_cuff': {'beta': array([-0.03133786,  2.52816442]), 'se': array([0.02915835, 0.17344546]), 'n': 439865}}
+- Python runs: 5; forward passes: 2.
+
+## Run 6: dynamic identification
+- Cross-fitted immediate effects: glucose finger -1.9347 (SE .0445), lab -2.0148 (.0747); arterial MAP +3.0526 (.0887), cuff +2.5282 (.1734).
+- Estimated treatment impulse responses using dose innovations and removed their induced future-dose changes by moment deconvolution.
+- Used independent/randomly sampled glucose_lab for glucose dynamics and arterial MAP for pressure dynamics, with stay-cluster bootstrap.
+- Impulse estimates: {'glucose_lab': array([-2.07283356, -2.23466817, -2.14515517, -1.43875875, -1.28052947,
+       -0.90473374]), 'map_arterial': array([2.95159917, 2.49611187, 1.62799136, 1.02869814, 0.34279884,
+       0.21392442])}
+- Interpretation depends on residual treatment variation being conditionally exogenous; dose-regime checks assess linearity within observed support.
+- Python runs: 6; forward passes: 2.
+
+## Run 7: restart inspection
+- Re-read architecture and schema and inventoried retained analysis objects before choosing an edit.
+- No new causal conclusion or weight edit in this run.
+- Python runs: 7; forward passes: 2.
+
+## Run 8: edit-boundary inspection
+- Dedicated action encoding changes a shared state, so broad edits may damage non-value outputs.
+- Inspecting value-head and state layouts for a conditionally centered, targeted correction.
+- Python runs: 8; forward passes: 2.
+
+## Run 9 / forward 3: original training states
+- Obtained 4,035 post-bundle states from 100 training stays.
+- Checked whether linear state readouts retain conditionally centered dose innovations.
+- Recovery diagnostics: {('out', 'actual rate'): [0.7464798056041226, 0.5793095632860579], ('out', 'dose innovation'): [0.014224321981154309, -0.010256190838008106], ('out+h+z', 'actual rate'): [0.8209381610756414, 0.5761447082503632], ('out+h+z', 'dose innovation'): [0.14643522829061584, -0.10865335500972084]}
+- No weights edited.
+- Python runs: 9; forward passes: 3.
+
+## Run 10 / forward 4: factual residual and action-contrast diagnostics
+- Original train-100 factual value NLL: 1.63805 over 4,510 readings.
+- Factual-error innovation slopes: {'glucose_finger': {'beta': [-2.0213525150007543, -0.8642344520105519], 'se': [1.0749416026751106, 6.437951025950719], 'n': 1207}, 'glucose_lab': {'be
+
+```

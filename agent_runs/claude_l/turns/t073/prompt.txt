@@ -1,0 +1,89 @@
+OUTPUT of Python run 70 of at most 300:
+```
+best : [(1.625694751739502, 'silu', False, 0.0), (1.625694751739502, 'silu', False, np.float64(0.0)), (1.6948754787445068, 'silu', True, 0.0), (1.6948754787445068, 'silu', True, np.float64(0.0)), (1.7436184883117676, 'gelu_tanh', False, 0.0), (1.7436184883117676, 'gelu_tanh', False, np.float64(0.0)), (1.7439720630645752, 'gelu', False, 0.0), (1.7439720630645752, 'gelu', False, np.float64(0.0)), (1.7703912258148193, 'gelu_tanh', True, 0.0), (1.7703912258148193, 'gelu_tanh', True, np.float64(0.0)), (1.7706518173217773, 'gelu', True, 0.0), (1.7706518173217773, 'gelu', True, np.float64(0.0)), (2.04585170
+ACTS : {'gelu': <built-in function gelu>, 'silu': <function silu at 0x79e2bcfc1da0>, 'relu': <function relu at 0x79e2bcfc11c0>, 'gelu_tanh': <function <lambda> at 0x79e2b0a5b1a0>}
+ACTS2 : {'silu': <function silu at 0x79e2bcfc1da0>, 'gelu': <built-in function gelu>, 'relu': <function relu at 0x79e2bcfc11c0>, 'tanh': <built-in method tanh of type object at 0x79e2edb9ff20>}
+um : {'mg/dL': 2, 'mmHg': 5, 'units': 3, 'mg': 4}
+rum : {'units/hour': 2, 'mcg/kg/min': 3}
+V_unit : {'glucose_finger': 'mg/dL', 'glucose_lab': 'mg/dL', 'map_arterial': 'mmHg', 'map_cuff': 'mmHg'}
+CODE_ID : {'(padding)': 0, '(unknown measurement)': 1, '(unknown drug_admin)': 2, '(unknown visit)': 3, '(unknown visit_detail)': 4, 'map_cuff': 5, 'glucose_finger': 6, 'map_arterial': 7, 'insulin': 8, 'norepinephrine': 9, 'glucose_lab': 10, 'hospital_admission': 11, 'icu_admission': 12}
+NUM keys [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_lab', 'value'), ('glucose_finger', 'value'), ('insulin', 'dose'), ('norepinephrine', 'dose'), ('insulin', 'rate'), ('norepinephrine', 'rate')]
+BUN <class 'dict'> 100 [2020000000, 2020000016, 2020000032]
+X <class 'numpy.ndarray'> (4932, 992)
+row_of <class 'dict'> [(2020000000, array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+       17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+       34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+       51, 52, 53])), (2020000016, array([ 54,  55,  56,  57,
+embed.bins.dose.weight (17, 192)
+embed.bins.rate.weight (17, 192)
+embed.bins.value.weight (17, 192)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+embed.code.weight (13, 192)
+embed.ekind.weight (5, 192)
+embed.kind.weight (3, 192)
+embed.kq.weight (4, 192)
+embed.numeric.bias (192,)
+embed.numeric.weight (192, 6)
+embed.text.weight (2, 192)
+embed_transition.rate_bin.weight (221, 17)
+embed_transition.value_bin.weight (221, 17)
+encode.mlp1.0.bias (768,)
+encode.mlp1.0.weight (768, 192)
+encode.mlp1.2.bias (192,)
+encode.mlp1.2.weight (192, 768)
+encode.mlp2.0.bias (768,)
+encode.mlp2.0.weight (768, 192)
+encode.mlp2.2.bias (192,)
+encode.mlp2.2.weight (192, 768)
+encode.norm.bias (192,)
+encode.norm.weight (192,)
+encode.size.bias (192,)
+encode.size.weight (192, 1)
+encode_action.mlp1.0.bias (768,)
+encode_action.mlp1.0.weight (768, 192)
+encode_action.mlp1.2.bias (192,)
+encode_action.mlp1.2.weight (192, 768)
+encode_action.mlp2.0.bias (768,)
+encode_action.mlp2.0.weight (768, 192)
+encode_action.mlp2.2.bias (192,)
+encode_action.mlp2.2.weight (192, 768)
+encode_action.norm.bias (192,)
+encode_action.norm.weight (192,)
+encode_action.size.bias (192,)
+encode_action.size.weight (192, 1)
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour', 'frac', 'ih']
+      stay_id  hour               event  value  rate rate_unit  dose dose_unit  end_hour  frac  ih
+0  1010000000  -2.0  hospital_admission    NaN   NaN       NaN   NaN       NaN   25.1667   0.0  -2
+1  1010000000  -1.0      glucose_finger  165.0   NaN       NaN   NaN       NaN       NaN   0.0  -1
+2  1010000000  -1.0        map_arterial   73.0   NaN       NaN   NaN       NaN       NaN   0.0  -1
+3  1010000000   0.0      glucose_finger  168.0   NaN       NaN   NaN       NaN       NaN   0.0   0
+fwd_1 ['summary.json', 'dose_edit_original.csv']
+fwd_2 ['summary.json', 'states_original.npz']
+
+```

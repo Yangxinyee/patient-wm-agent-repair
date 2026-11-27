@@ -1,0 +1,13 @@
+This answers the question: the model barely learned what the drugs do, even teacher-forced.
+- **Insulin:** its predicted next finger glucose moves −1.06 ± 0.36 per u/h of random rate. The observed outcome in the same 100 stays moves −2.07, matching the population −2.0.
+- **Norepinephrine:** its predicted next arterial MAP moves +0.07 ± 0.28 per mcg/kg/min, essentially zero. The observed outcome moves +3.25. The model only picked up the delayed "rebound" term on the rate two hours back (−1.29 vs −2.5 observed).
+
+So the factual predictions are themselves slightly suboptimal, and installing the right effects should not cost NLL.
+
+The hard part is the counterfactual. ×2 and ×3 norepinephrine send inputs into an untrained bin and out-of-range z-scores. ×0, ×1.5, ×3 and the other start hours can't be checked with the tool at all. A local reimplementation of the full forward pass, validated against the tool's states, would let me test all of that on CPU.
+
+I'll request states for the same 100 training stays. That gives the reference to validate a local implementation against, and in the fallback it shows whether dose history is linearly readable from the state.
+
+```forward
+{"type": "states", "model": "original", "split": "train", "stays": [1010025068, 1010014333, 1010016714, 1010016216, 1010022884, 1010002426, 1010000480, 1010025581, 1010021708, 1010007724, 1010001139, 1010019196, 1010000628, 1010005184, 1010015128, 1010028762, 1010002281, 1010000903, 1010002686, 1010012483, 1010018018, 1010025355, 1010021559, 1010024217, 1010011442, 1010008013, 1010016605, 1010014950, 1010026880, 1010019841, 1010027586, 1010005115, 1010024343, 1010016188, 1010000088, 1010008818, 1010008977, 1010024926, 1010018794, 1010018751, 1010001393, 1010002387, 1010010647, 1010002259, 1010021564, 1010007781, 1010023921, 1010011938, 1010026773, 1010017110, 1010022885, 1010017765, 1010010023, 1010026361, 1010006571, 1010007453, 1010025074, 1010015090, 1010020253, 1010020221, 1010006968, 1010021681, 1010001705, 1010011272, 1010023749, 1010009665, 1010009382, 1010009491, 1010018802, 1010011651, 1010015131, 1010022619, 1010018932, 1010027691, 1010010769, 1010029967, 1010016060, 1010012585, 1010014413, 1010018184, 1010028476, 1010003352, 1010019131, 1010007135, 1010028286, 1010006108, 1010018728, 1010012588, 1010013095, 1010000466, 1010023568, 1010022640, 1010014159, 1010025071, 1010029822, 1010012980, 1010028400, 1010013521, 1010001529, 1010015411], "bundles": "all"}
+```

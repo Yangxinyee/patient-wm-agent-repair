@@ -1,0 +1,184 @@
+OUTPUT of Python run 245 of at most 300:
+```
+=== RECORD-EVIDENCE NOTES ===
+# Weight repair notebook
+
+## Objective and constraints
+Infer drug effects only from simulated ICU records; edit weights analytically without gradients or a weight optimizer. Preserve factual value NLL within +0.005 nats and examine all-output loss where available.
+
+## Initial plan
+Read architecture and data schema; identify sources of dose variation and confounding; estimate and falsify causal responses separately for both drugs; inspect model dose-sensitive states; construct a narrowly targeted, dose-generalizing edit; validate factual predictions and paired rollouts.
+
+No drug effect has yet been assumed or estimated.
+
+## Run 1
+Read full architecture and schema. Action embeddings feed a shared recurrent state; last-value registers also feed value heads. No effect estimates or edits yet. Initial printed output was truncated; run 2 targets missing details.
+
+## Run 2
+Training has 30,000 stays and 1,997,441 events. Measurements at integer hours; actions at hour+0.0833, lasting one hour. Insulin rates are quantized in 0.5 steps; norepinephrine rates in 0.01 steps and capped at 1. No duplicate code/stay/hour rows. Constructed hourly panel and began raw/history/within-stay comparisons.
+
+## Baseline rollout
+First100 tuning original shifts: I x2 -3.680, I half +2.018, NE x2 +0.465, NE half -0.871. Rich regression results retained in rich_fits; they are diagnostic, not yet accepted causal estimates.
+
+## Strengthened record evidence (run 4)
+Nonlinear history controls restricted to active infusions give insulin next-hour coefficients around -2.0 (finger and lab agree); NE around +3.1 on arterial and +3.6 on cuff when both current sensors observed. Earlier near-zero estimates were misspecified, not evidence of absent effects. Original factual tuning first100 NLL = 1.63164, n=4751. Run 5 fits a separate two-sensor random-baseline state-space model to estimate persistence; this does not modify world-model weights.
+glucose SSM parameters [144.1680625841136, 0.9263030096279322, 0.3154693959901756, 3.5763416283774636, 3.2934889974132835, 1.678039410652465, 2.1832857530220755, 1.1568945707731426, 0.037711265958233535], success True.
+MAP SSM parameters [75.25256805642357, 0.8879818156248919, -0.3778968848036003, 2.512353157927126, 2.005848208979782, 0.6511878302787533, 1.167060058781382, 1.7996778798728403, 3.091933533327739], success True.
+Provisional linear rollout targets: {"insulin_x2": 2.3193790074377105, "insulin_half": -1.1596895037188553, "ne_x2": -0.9474186067740055, "ne_half": 0.47370930338700273}
+
+## Restart / run 6
+SSM and rich-history coefficients disagree in sign. Treat SSM rollout targets as unvalidated, not causal truth. Recovering architecture, timing, and persistent analyses before choosing an edit.
+
+## Run 7
+Built independently aligned P (readings at integer hour) and A (drug records floored to their start hour). Inspecting treatment support and previous fit implementation; no causal target or edit accepted yet.
+
+## Run 8
+Insulin has sharp recorded-glucose dosing thresholds. Computing local-linear discontinuity ratios at 150.5,179.5,219.5,259.5, two bandwidths, both next-hour sensors, and pre-dose lab/observation-placebo checks. Also testing which MAP sensor drives NE selection. Results remain subject to placebo and precision checks.
+
+## Run 9
+Threshold evidence: insulin at 179.5 gives beta -2.04 (cluster SE .26, width12); at219.5 -2.28 (.48). Pre-dose lab jumps near zero; first150.5 threshold changes monitoring, so do not use that finger estimate alone. Implemented independent SSM with explicit observations -1..24 and action a[h] only in transition h->h+1, to test whether the old opposite-sign estimates arose from time alignment. No edits.
+
+## Run 10
+Explicitly aligned random-baseline SSM still conflicts with threshold evidence (glucose rho at .9999, beta -.033; MAP beta -.377). Therefore timing alone does not explain it. Fitting a separate profiled fixed-effect SSM with unrestricted stay-specific intercept and initial state;
+=== CURRENT FIT ===
+compact240 signature: (v, depth=0)
+  5           0 RESUME                   0
+
+  6           2 LOAD_GLOBAL              1 (NULL + hasattr)
+             12 LOAD_FAST                0 (v)
+             14 LOAD_CONST               1 ('shape')
+             16 CALL                     2
+             24 POP_JUMP_IF_FALSE       44 (to 114)
+
+  7          26 LOAD_GLOBAL              3 (NULL + type)
+             36 LOAD_FAST                0 (v)
+             38 CALL                     1
+             46 LOAD_ATTR                4 (__name__)
+             66 FORMAT_VALUE             0
+             68 LOAD_GLOBAL              7 (NULL + tuple)
+             78 LOAD_FAST                0 (v)
+             80 LOAD_ATTR                8 (shape)
+            100 CALL                     1
+            108 FORMAT_VALUE             0
+            110 BUILD_STRING             2
+            112 RETURN_VALUE
+
+  8     >>  114 LOAD_GLOBAL             11 (NULL + isinstance)
+            124 LOAD_FAST                0 (v)
+            126 LOAD_GLOBAL             12 (dict)
+            136 CALL                     2
+            144 POP_JUMP_IF_FALSE      115 (to 376)
+
+  9         146 LOAD_FAST                1 (depth)
+            148 LOAD_CONST               2 (1)
+            150 COMPARE_OP              92 (>=)
+            154 POP_JUMP_IF_FALSE       40 (to 236)
+
+ 10         156 LOAD_CONST               3 ('dict keys=')
+            158 LOAD_GLOBAL             15 (NULL + repr)
+            168 LOAD_GLOBAL             17 (NULL + list)
+            178 LOAD_FAST                0 (v)
+            180 LOAD_ATTR               19 (NULL|self + keys)
+            200 CALL                     0
+            208 CALL                     1
+            216 LOAD_CONST               0 (None)
+            218 LOAD_CONST               4 (12)
+            220 BINARY_SLICE
+            222 CALL                     1
+            230 BINARY_OP                0 (+)
+            234 RETURN_VALUE
+
+ 11     >>  236 LOAD_GLOBAL             17 (NULL + list)
+            246 LOAD_FAST                0 (v)
+            248 LOAD_ATTR               21 (NULL|self + items)
+            268 CALL                     0
+            276 CALL                     1
+            284 LOAD_CONST               0 (None)
+            286 LOAD_CONST               5 (16)
+            288 BINARY_SLICE
+            290 GET_ITER
+            292 LOAD_FAST_AND_CLEAR      2 (k)
+            294 LOAD_FAST_AND_CLEAR      3 (x)
+            296 SWAP                     3
+            298 BUILD_MAP                0
+            300 SWAP                     2
+        >>  302 FOR_ITER                30 (to 366)
+            306 UNPACK_SEQUENCE          2
+            310 STORE_FAST               2 (k)
+            312 STORE_FAST               3 (x)
+            314 LOAD_GLOBAL             23 (NULL + str)
+            324 LOAD_FAST                2 (k)
+            326 CALL                     1
+            334 LOAD_GLOBAL             25 (NULL + compact240)
+            344 LOAD_FAST                3 (x)
+            346 LOAD_FAST                1 (depth)
+            348 LOAD_CONST               2 (1)
+            350 BINARY_OP                0 (+)
+            354 CALL                     2
+            362 MAP_ADD                  2
+            364 JUMP_BACKWARD           32 (to 302)
+        >>  366 END_FOR
+            368 SWAP                     3
+            370 STORE_FAST               3 (x)
+            372 STORE_FAST               2 (k)
+            374 RETURN_VALUE
+
+ 12     >>  376 LOAD_GLOBAL             11 (NULL + isinstance)
+            386 LOAD_FAST                0 (v)
+            388 LOAD_GLOBAL             16 (list)
+            398 LOAD_GLOBAL              6 (tuple)
+            408 BUILD_TUPLE              2
+            410 CALL                     2
+            418 POP_JUMP_IF_FALSE       32 (to 484)
+
+ 13         420 LOAD_FAST                0 (v)
+            422 LOAD_CONST               0 (None)
+            424 LOAD_CONST               4 (12)
+            426 BINARY_SLICE
+            428 GET_ITER
+            430 LOAD_FAST_AND_CLEAR      3 (x)
+            432 SWAP                     2
+            434 BUILD_LIST               0
+            436 SWAP                     2
+        >>  438 FOR_ITER                17 (to 476)
+            442 STORE_FAST               3 (x)
+            444 LOAD_GLOBAL             25 (NULL + compact240)
+            454 LOAD_FAST                3 (x)
+            456 LOAD_FAST                1 (depth)
+            458 LOAD_CONST               2 (1)
+            460 BINARY_OP                0 (+)
+            464 CALL                     2
+            472 LIST_APPEND              2
+            474 JUMP_BACKWARD           19 (to 438)
+        >>  476 END_FOR
+            478 SWAP                     2
+            480 STORE_FAST               3 (x)
+            482 RETURN_VALUE
+
+ 14     >>  484 LOAD_GLOBAL             15 (NULL + repr)
+            494 LOAD_FAST                0 (v)
+            496 CALL                     1
+            504 LOAD_CONST               0 (None)
+            506 LOAD_CONST               6 (180)
+            508 BINARY_SLICE
+            510 RETURN_VALUE
+        >>  512 SWAP                     2
+            514 POP_TOP
+
+ 11         516 SWAP                     3
+            518 STORE_FAST               3 (x)
+            520 STORE_FAST               2 (k)
+            522 RERAISE                  0
+        >>  524 SWAP                     2
+            526 POP_TOP
+
+ 13         528 SWAP                     2
+            530 STORE_FAST               3 (x)
+            532 RERAISE                  0
+ExceptionTable:
+  298 to 366 -> 512 [3]
+  434 to 476 -> 524 [2]
+st242 architecture: {'style': 'pair4', 'lam': 0.1, 'units': array([170,  89, 118,  84])}
+result242: ['0.002136386073149254', '0.0039013169210260837', '0.003925144856140435', ['-1.7253813802811895', '-1.506816210038312', '1.9608326209095044', '1.7895521897769249
+[output cut at 10,000 characters]
+```

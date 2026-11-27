@@ -1,0 +1,22 @@
+OUTPUT of Python run 213 of at most 300:
+```
+arr_0 (192, 192) [('attr_heads.value_bin.0.weight', 0.0)]
+arr_1 (192,) [('attr_heads.value_bin.0.bias', 0.0)]
+arr_2 (17, 192) [('attr_heads.value_bin.2.weight', 0.0)]
+arr_3 (17,) [('attr_heads.value_bin.2.bias', 0.0)]
+5234 92
+13 - an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+14 - its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+20 - fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+21 - numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+26 - Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+27 - Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+42    - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+45    - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+68                   + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+69                   + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+75   - **rate:** `rate_bin` works the same way for drug rates.
+85 3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+88    paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+```

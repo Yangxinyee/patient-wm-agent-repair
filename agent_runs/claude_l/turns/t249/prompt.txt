@@ -1,0 +1,26 @@
+OUTPUT of Python run 231 of at most 300:
+```
+def build_bundles(ds, adm_end=('hospital_admission','icu_admission')):
+    ev=[]
+    for r in ds.itertuples():
+        t=round(r.hour*60)
+        if r.event in ('glucose_finger','glucose_lab','map_arterial','map_cuff'):
+            ev.append((t,dict(code=CODE_ID[r.event],kind=0,ekind=1,unit=UM['mg/dL' if 'glucose' in r.event else 'mmHg'],rate_unit=0,
+                vb=fbin(r.event,'value',r.value),db=0,rb=0,num=(zsc(r.event,'value',r.value),1,0,0,0,0),act=False)))
+        elif r.event in ('insulin','norepinephrine'):
+            a=dict(code=CODE_ID[r.event],kind=0,ekind=2,unit=UM[r.dose_unit],rate_unit=RUM[r.rate_unit],vb=0,
+                   db=fbin(r.event,'dose',r.dose),rb=fbin(r.event,'rate',r.rate),num=(0,0,zsc(r.event,'dose',r.dose),1,zsc(r.event,'rate',r.rate),1),act=True)
+            ev.append((t,a)); b=dict(a); b['kind']=2; ev.append((round(r.end_hour*60),b))
+        elif r.event in ('hospital_admission','icu_admission'):
+            a=dict(code=CODE_ID[r.event],kind=0,ekind=3 if r.event=='hospital_admission' else 4,unit=0,rate_unit=0,vb=0,db=0,rb=0,num=(0,0,0,0,0,0),act=False)
+            ev.append((t,a))
+            if r.event in adm_end and not pd.isna(r.end_hour):
+                b=dict(a); b['kind']=2; ev.append((round(r.end_hour*60),b))
+    ev.sort(key=lambda x:x[0])
+    out=[]
+    for t,a in ev:
+        if out and out[-1][0]==t: out[-1][1].append(a)
+        el
+(ds, adm_end=('hospital_admission', 'icu_admission'))
+
+```

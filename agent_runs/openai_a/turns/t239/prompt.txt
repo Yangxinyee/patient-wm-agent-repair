@@ -1,0 +1,171 @@
+OUTPUT of Python run 208 of at most 300:
+```
+=== EARLY FINDINGS ===
+# Weight-repair notebook
+
+## Initial inspection
+- Python runs: 1. Forward requests: 0.
+- No drug effects assumed; all effect estimates must come from these simulated records.
+- First inspect architecture, event ordering, dose encoding, and available histories.
+- Then estimate dose effects, measure original rollouts/factual fit, and test targeted weight edits with the factual NLL constraint.
+
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.024098411603330767,
+    "first_stage_t": 34.65836012846078,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'past_difference')": {
+    "beta": -1.7098169631722566,
+    "se": 0.49571479741038577,
+    "first_stage": 0.024088881089054243,
+    "first_stage_t": 34.682785128203996,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'stayFE')": {
+    "beta": 0.6604909236239173,
+    "se": 0.531745510423111,
+    "first_stage": 0.027494693802790897,
+    "first_stage_t": 23.486841143670325,
+    "n": 15729
+  },
+  "('norepinephrine', 'map_arterial', 'history')": {
+    "beta": -18.770179837459043,
+    "se": 10.725044751264742,
+    "first_stage": 0.00023924704982281593,
+    "first_stage_t": 4.630621380691009,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'past_difference')": {
+    "beta": -18.46746024463273,
+    "se": 10.79598180969503,
+    "first_stage": 0.00023698386029265031,
+    "first_stage_t": 4.589330754374463,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 'stayFE')": {
+    "beta": 45.967013136779165,
+    "se": 17.626632496359736,
+    "first_stage": 0.0001960059721602588,
+    "first_stage_t": 3.583611528216762,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_cuff', 'history')": {
+    "beta": -44.76692008065325,
+    "se": 44.17355258218645,
+    "first_stage": 0.0001653959279835562,
+    "first_stage_t": 1.8429218212513345,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'past_difference')": {
+    "beta": -44.445574103820974,
+    "se": 44.36183449302977,
+    "first_stage": 0.00016465813087278928,
+    "first_stage_t": 1.836249722244463,
+    "n": 29358
+  },
+  "('norepinephrine', 'map_cuff', 'stayFE')": {
+
+=== KERNEL FUNCTION NAMES ===
+load, load_original, save_edit, drop_edit, edited, compact_panel, least_squares, shifted_col, insulin_rd, rd_dynamic_residual, causal_shift_table, make_ne_data, lin, mlp, ln, reading_metadata, make_head_features, _fn, as_numpy, head_score, cpu_head_parts, cpu_head_probs, fn, repair_head_features, state_matrix, r2_score, make_policy_data, head_dose_data, fn0, softmax, logsumexp, head_unit_target, approximate_edit_cost, eigh, repair_feature_sets, np32, make_insulin_graft, graft_probs, short_stats, func0, fn1, brief_structure, head_average_probs3, rr_f, rm_lin, rm_ln, rm_mlp, rm_set, rm_insulin_atoms, _r93_obj, _r94_obj, r96_empty_world, r101_fn, empty_set_vector, reconstruction_mlp, fnx, tensor_prefix, rec_context, rec_attention, rec_attn_apply, rec_layer, rec_memory, rec_step_with_z, func, r131_step, show_function, compact_dis, probe_rms, probe_head_eval, shape_summary, to_np0, sc_cache_inputs, sc_evaluate, compact_dis160, matched_causal_targets163, compact_structure, null_space, r2_np, make_contrast_graft, small_descriptor, fun, selective_cache, cache_losses, make_selective_contrast_graft, _describe_small
+=== RECENT VARIABLE NAMES ===
+r2_candidates, gate_factor, fd, cc, m, r2_eligible, r2_choice, x, gate, base_logits, original_p, baseline_nll, applied, check, code_table, code_difference, r3_Q, r3_Fq, r3_C, e3, u3, t3, d3, g3, h3, r3_candidates, r3_eligible, r3_choice, r3_before, r3_applied, restart_notes, pattern, hits, path, tab, vv, tables, t, joined, trial_r3, restart_checkpoint, make_contrast_graft, trial_contrast_weights, old_h, old_attr, removed, base_attr, new_h, new_attr, gg, expected, construction_error, ids_for_gpu, nt, sec, excerpt, dnames, small_descriptor, gpu13_checkpoint, scale_trial_checks, checks, trial_scale, array, heads, term, ns_snapshot, tune_ids_now, terms_now, scale2_checkpoint, fun, split, code_w_now, dcode_now, Q_gate, F_gate, mu_gate, A_gate, C_gate, d_gate, gate_sep_candidates, ridge, vq, base_mean, proj, XX, keep, xm, ym, xc, selective_sep_w, selective_sep_b, selective_cache, factor, score, selective_grid, fact_c, syn_c, selective_grid_df, separator_options, cache_losses, loss, loss0, train_x, train_e, train_keep, train_target, protected_separators, syn_score, selective_strength, selective_trial_scale, selective_trial_lam, selective_trial_before, make_selective_contrast_graft, selective_trial, _notes_text, _shape, _detail, audit_tuning_ids, finger_scale3_checkpoint, finger_scale3_validation, _ops, _start, _end, alt_contrast_config, _alt, _alt_weights, _value, _tensor, _snapshot, _restart_tuning_ids, _items, stronger6_checkpoint, _relevant, _describe_small, _sections, _chosen, _section, _screen_fact, _screen_syn, stronger_screen, _lam, _scales, _fit, _scale, _row, _split, _cache, _loss, _notes_recovered, _fn_names
+=== CHECKPOINTS AND EDITS ===
+graft_checkpoint_beta2 [('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.2.weight', (17, 192)), ('attr_heads.value_bin.2.bias', (17,))]
+graft_checkpoint_beta24 [('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.2.weight', (17, 192)), ('attr_heads.value_bin.2.bias', (17,))]
+sc_checkpoint [('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.2.weight', (17, 192)), ('attr_heads.value_bin.2.bias', (17,))]
+restart_checkpoint [('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192))]
+gpu13_checkpoint [('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192))]
+scale2_checkpoint [('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.2.weight', (17, 192)), ('attr_heads.value_bin.2.bias', (17,))]
+finger_scale3_checkpoint [('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192))]
+stronger6_checkpoint [('attr_heads.value_bin.0.bias', (192,)), ('attr_heads.value_bin.0.weight', (192, 192)), ('attr_heads.value_bin.2.bias', (17,)), ('attr_heads.value_bin.2.weight', (17, 192))]
+['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+
+```

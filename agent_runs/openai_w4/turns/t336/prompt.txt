@@ -1,0 +1,60 @@
+OUTPUT of Python run 288 of at most 300:
+```
+FACTUAL FILE /work/fwd_34/factual_edited.csv
+FACTUAL COLUMNS ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+VALIDATION STAYS 98 [2020000208, 2020000224, 2020000240, 2020000256, 2020000272, 2020000288, 2020000209, 2020000225, 2020000241, 2020000257, 2020000273, 2020000289, 2020000210, 2020000226, 2020000242, 2020000258, 2020000274, 2020000290, 2020000211, 2020000227, 2020000243, 2020000259, 2020000291, 2020000212, 2020000228, 2020000244, 2020000260, 2020000276, 2020000292, 2020000213, 2020000229, 2020000245, 2020000261, 2020000277, 2020000293, 2020000214, 2020000230, 2020000246, 2020000262, 2020000278, 2020000294, 2020000215, 2020000231, 2020000247, 2020000263, 2020000279, 2020000295, 2020000200, 2020000216, 2020000232, 2020000248, 2020000264, 2020000280, 2020000296, 2020000201, 2020000217, 2020000233, 2020000249, 2020000265, 2020000281, 2020000297, 2020000202, 2020000218, 2020000234, 2020000250, 2020000266, 2020000282, 2020000298, 2020000203, 2020000219, 2020000235, 2020000251, 2020000267, 2020000283, 2020000299, 2020000204, 2020000220, 2020000236, 2020000268, 2020000284, 2020000205, 2020000221, 2020000237, 2020000253, 2020000269, 2020000285, 2020000206, 2020000222, 2020000238, 2020000254, 2020000270, 2020000286, 2020000207, 2020000223, 2020000239, 2020000255, 2020000271, 2020000287]
+DOSE FILE /work/fwd_33/dose_edit_edited.csv
+DOSE COLUMNS ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+   stay_id  hour         edit  shift  shift_se  factual  reached
+2020000208    21   insulin_x2 0.0000    0.0000 119.6457    False
+2020000208    21 insulin_half 0.0000    0.0000 119.6457    False
+2020000208    14        ne_x2 2.7939    0.0635  40.5795     True
+INITIAL IDENTIFICATION NOTES
+# World-model weight repair
+
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+## Run 1
+Read architecture and schema before choosing identification or editing methods.
+No assumptions about the sign or existence of drug effects.
+
+## Run 2
+Architecture: action doses enter encode_action, posterior z, and the recurrent
+prelude. Measurement heads additionally use a last-value register.
+Loaded training and tuning records. Training stays: 30000;
+tuning stays: 400. No effect conclusions or weight edits yet.
+
+## Run 3; forward requests used: 1
+Original dose-edit predictions on tuning stays 2020000000?2020000099:
+insulin x2 -0.382; insulin half +0.209 mg/dL;
+NE x2 +0.103; NE half -0.307 mmHg.
+These are predictions, not estimated truth.
+Built hourly panels, preserving measurement missingness and filling absent doses
+with zero. Readings are at integer hours; infusions start at hour +0.0833.
+Next step: identify dose-policy variation and test adjusted outcome effects.
+
+## Run 4; forward requests used: 2
+Original factual NLL on first 100 tuning stays: 1.59524 (4,903 readings).
+Insulin threshold policy best explained by finger_first;
+classification error 0.003178.
+Computed local-linear RD estimates at 150.5, 180.5, 220.5, 260.5,
+with stay-clustered uncertainty and pre-outcome/observation checks.
+RD table:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.5   5  31178     0.1914       -1.0127          -5.2916      1.6000
+  150.5  10  61110     0.4492       -1.2418          -2.7645      0.5122
+  150.5  15  90105     0.5762       -1.3898          -2.4122      0.3402
+  150.5  20 118034     0.6575       -1.5475          -2.3536      0.2653
+  180.5   5  38087     0.5698       -0.7370          -1.2935      0.5515
+  180.5  10  75667     0.7794       -1.1972          -1.5359      0.2877
+  180.5  15 112580     0.8600       -1.4093          -
+CANDIDATE (2.25, 0.75, 27.0, 0.5)
+LATEST DIRECTORY fwd_34
+
+```

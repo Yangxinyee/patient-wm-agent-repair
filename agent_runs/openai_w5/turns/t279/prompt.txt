@@ -1,0 +1,397 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 278 replies happened before. Forward passes used: 22 of 50; Python runs used: 244 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.b_in.weight', 'core.blocks.0.0.attn.out.weight', 'core.blocks.0.0.cross.out.weight', 'core.blocks.0.0.ffn.2.bias', 'core.blocks.0.0.ffn.2.weight', 'core.blocks.0.1.attn.out.weight', 'core.blocks.0.1.cross.out.weight', 'core.blocks.0.1.ffn.2.bias', 'core.blocks.0.1.ffn.2.weight', 'core.c_out.weight', 'core.coda.0.attn.out.weight', 'core.coda.0.ffn.2.bias', 'core.coda.0.ffn.2.weight', 'core.delta_in', 'core.flow.a', 'core.out_norm.bias', 'core.out_norm.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'core.prelude.0.ffn.2.bias', 'core.prelude.0.ffn.2.weight', 'core.prelude_norm.bias', 'core.slots', 'embed.bins.rate.weight', 'embed.bins.value.weight', 'embed.code.weight', 'encode.mlp1.0.weight', 'encode.norm.bias', 'encode.norm.weight', 'encode_action.mlp1.0.bias', 'encode_action.mlp1.0.weight', 'encode_action.mlp1.2.bias', 'encode_action.mlp1.2.weight', 'encode_action.mlp2.0.bias', 'encode_action.mlp2.0.weight', 'encode_action.mlp2.2.bias', 'encode_action.mlp2.2.weight', 'encode_action.norm.bias', 'encode_action.norm.weight', 'encode_action.size.bias', 'encode_action.size.weight', 'gap.2.bias', 'gap.2.weight', 'last_numeric.bias', 'last_numeric.weight', 'last_status.weight', 'query_norm.bias', 'query_norm.weight', 'type_emb.weight', 'z_head.bias', 'z_head.weight', 'z_in.bias', 'z_in.weight']. Files in /work: ['checkpoint_run202.safetensors', 'checkpoint_run217.safetensors', 'checkpoint_run238.safetensors', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ Forward 15 / run 138: clean-channel factual validation
+- Clean-pair candidate value NLL on tuning A: 1.64123 versus original 1.63933; +0.00190.
+- Passes the +0.005 constraint on this sample; approximately 0.00310 budget remains.
+- Saved-state ordinary out RMS difference is 0.03842. Pair differences are small and require timing/rate auditing.
+- No causal value-head coupling installed yet; factual fit alone is not a causal validation.
+
+## Restart after run 141
+- Four-neuron head distillation has negligible local likelihood cost; no causal head edit was installed in run 141.
+- Dose-proxy error and heterogeneous local tilt sensitivity remain unresolved.
+- Recovering architecture, record-derived identification results, and persistent calibration objects before another edit.
+
+- Run 145 inspection failed on a module's shape attribute; no weights changed.
+
+## Runs 147–149: sensor-specific causal-head candidate
+- Run 147's zero insulin tilt was a constrained-fit sign bug, corrected in run 148; it is not evidence of an absent insulin effect.
+- Freed eight low-energy value-head neurons by frozen-feature ridge distillation; no model gradients.
+- Separate, clean sensor gates; smooth monotone logit tilts calibrated to record-derived one-step effects.
+- Centered decoded exposure using independent-stay-validated ordinary-feature regressions.
+- Installed insulin strength 1 and NE strength .5 to reserve factual-loss budget.
+- Float32 local holdout NLL increment 0.001359 above clean transport; GPU factual and finite-dose tests still required.
+
+## Forward 16–17: sensor-specific candidate GPU validation
+- Tuning A factual value NLL: original 1.63933, edited 1.63946, delta +0.00013.
+- Paired finite rollouts: insulin x2 -5.591, half +0.901; NE x2 +4.083, half -1.052.
+- Record-derived tuning-A estimates: -11.893, +5.9465, +4.4973, -2.2487.
+- Correct directions, but strong doubling/halving asymmetry. Increasing strengths alone is not yet justified.
+- Investigating exposure transport, centering, nonlinear head response, and hourly feedback.
+
+## Runs 153–155: asymmetry diagnosis
+- Intended sensor control gates are approximately 8: GELU gate clipping is ruled out on saved factual features.
+- Fixed-dose perturbations affect only the intended reserved neuron; ordinary hidden neurons are unchanged.
+- Held-out dose recovery RMSE: finger .144, lab .135, arterial .116, cuff .072.
+- Testing finite softmax response separately from transport and recurrent feedback; no new weights edited.
+
+## Runs 156–161: restart / finite-transport audit
+- Fixed-history ideal-dose decoder response is approximately linear and symmetric.
+- GPU hourly asymmetry is already visible at hour 13; finite action transport must be checked before attributing it solely to feedback.
+- No additional weight changes. Auditing helper weight references and exact current-encoder routing.
+
+## Run 178: CPU/GPU recurrence audit
+- Shared helper weights and duplicate CPU implementations agree exactly.
+- Both still disagree with saved GPU states; local transport conclusions remain unvalidated.
+- Re-reading architecture and recovering diagnostic objects before further edits.
+
+## Run 182: checkpoint alignment
+- Found s4 matched ORIGINAL states in fwd_15, whereas replay weights were EDITED.
+- Earlier CPU/GPU discrepancies therefore do not establish a recurrence or transport defect.
+- Switched s4 to fwd_15 edited states and repeated boundary/memory checks; no weights changed.
+
+## Runs 185–189: replay recovery
+- Re-read architecture and record-derived estimates after restart.
+- Refreshed the stale world-encoder normalization cache.
+- Private recurrent coordinates nearly match edited GPU states; ordinary replay still does not.
+- Auditing finite-dose private transport with temporary record copies; no new weight edits.
+
+## Run 191: diagnostic correction
+- Run 189's apparent routing discontinuities used a stale world cache; they are not evidence of a GPU routing defect.
+- Installed candidate_e184 into the local replay cache only. No model weights changed.
+
+## Restart / run 193
+- Preserved all current edits in _r193_checkpoint; no weights changed.
+- Recovering architecture, causal estimates, and replay dependencies.
+- END atoms and stale replay caches remain diagnostic concerns, not established causes.
+
+## Run 202: clean recovery after timeout
+- Kernel variables were lost in run 199; persisted edits survived.
+- Saved all current edits in /work/checkpoint_run202.safetensors.
+- Rebuilt weight caches directly from the current and original tensors; no weights changed.
+
+## Restart after forward 18 / run 206
+- Tuning B factual value NLL: 1.62038 versus original 1.61898, +0.00140.
+- Factual preservation holds on this sample; finite-dose causal asymmetry remains unresolved.
+- Recovering architecture, record-identification evidence, and kernel objects before further edits.
+
+## Runs 209–211: recovered finite-rate channels
+- Correct clean pairs are insulin (21,61), NE (15,66); initial diagnostic pairing was wrong.
+- Encoder signals are mostly linear and drug-specific. Insulin saturates near rate 11.49 due to input clipping.
+- Saturation alone cannot explain doubling response exceeding twice the halving response.
+- Next hypothesis: ordinary-feature exposure centering may absorb dose interventions; not yet established.
+
+## Run 217: restart recovery and rollback snapshot
+- Saved current edits to /work/checkpoint_run217.safetensors; no weights changed.
+- Recovered sensor-specific identification checks and current head/centering objects.
+- Existing exposure centering uses ordinary features; intervention leakage remains a hypothesis, not a finding.
+
+## Runs 218–219: local-head validation failure
+- No weights changed. Local head NLL (~2.85) disagrees with GPU factual NLL (~1.64).
+- Local strength-loss and centering diagnostics are not trusted until register/head reconstruction is validated.
+
+## Runs 226–229: reconstruction audit
+- Re-read the architecture and record-identification notes; no weight edits.
+- Exact weight caches do not resolve local/GPU prediction disagreement.
+- Auditing prior sampling, register timing, and state alignment before using local likelihood calculations.
+
+## Runs 230–232: concrete diagnostic corrections
+- Correct register layout is consistent with [presence, age, z_value, has_value, z_dose, has_dose, z_rate, has_rate]; the recovered layout was wrong.
+- Recomputed outcome and last-value bins from each sensor's supplied edges.
+- No weight edits. Validating prior-averaged paired predictions before further calibration.
+
+## Run 233: bin-boundary audit
+- Prior averaging did not validate the recovered local head.
+- The register-layout improvement is partial, not proof of exact reconstruction.
+- Testing edge equality explicitly; changed bin indices must not automatically be treated as corrections.
+- No weight edits.
+
+## Run 234: restart and validation policy
+- Left-edge binning agrees with existing labels; boundary changes do not explain local/GPU disagreement.
+- Recovered CPU likelihood calculations remain unvalidated and will not determine edit acceptance.
+- Recovering identification evidence and edit structure; subsequent acceptance requires paired GPU factual and rollout tests.
+
+## Run 238: GPU-calibrated strength trial
+- Saved complete pre-trial edits in /work/checkpoint_run238.safetensors.
+- Multiplied paired glucose value-head columns by 2.0 and MAP columns by 1.2; all transport and centering weights unchanged.
+- This is a calibration trial, not an accepted repair. Requires paired GPU dose rollouts and factual NLL validation.
+- Scaling alone is refuted if doubling/halving asymmetry persists or factual value-NLL cost exceeds +0.005.
+
+## Forward 22 / run 243: reject strength-only trial
+- Tuning A factual NLL increase +0.00536 exceeds the +0.005 ceiling.
+- Restored the pre-trial value-head output weights (glucose strength 1, NE baseline).
+- Investigating whether post-dose ordinary features leak dose into the centering regression.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 244 of at most 300:
+```
+drug_atom205 arguments ('drug', 'rate', 'weights') names ('np', 'asarray', 'float32', 'reshape', 'len', 'code_id', 'expand', 'clone', 'torch', 'zeros', 'num_spec', 'searchsorted', 'as_tensor', 'from_numpy', 'clip', 'linear205')
+ 14           0 RESUME                   0
+
+ 15           2 LOAD_GLOBAL              1 (NULL + np)
+             12 LOAD_ATTR                2 (asarray)
+             32 LOAD_FAST                1 (rate)
+             34 LOAD_GLOBAL              0 (np)
+             44 LOAD_ATTR                4 (float32)
+             64 KW_NAMES                 1 (('dtype',))
+             66 CALL                     2
+             74 LOAD_ATTR                7 (NULL|self + reshape)
+             94 LOAD_CONST               2 (-1)
+             96 CALL                     1
+            104 STORE_FAST               1 (rate)
+
+ 16         106 LOAD_FAST                0 (drug)
+            108 LOAD_CONST               3 ('insulin')
+            110 COMPARE_OP              40 (==)
+            114 POP_JUMP_IF_FALSE        2 (to 120)
+            116 LOAD_FAST                1 (rate)
+            118 JUMP_FORWARD             4 (to 128)
+        >>  120 LOAD_FAST                1 (rate)
+            122 LOAD_CONST               4 (4.8)
+            124 BINARY_OP                5 (*)
+        >>  128 STORE_FAST               3 (dose)
+
+ 17         130 LOAD_GLOBAL              9 (NULL + len)
+            140 LOAD_FAST                1 (rate)
+            142 CALL                     1
+            150 STORE_FAST               4 (n)
+
+ 18         152 LOAD_FAST                2 (weights)
+            154 LOAD_CONST               5 ('embed.code.weight')
+            156 BINARY_SUBSCR
+            160 LOAD_GLOBAL             10 (code_id)
+            170 LOAD_FAST                0 (drug)
+            172 BINARY_SUBSCR
+            176 BINARY_SUBSCR
+
+ 19         180 LOAD_FAST                2 (weights)
+            182 LOAD_CONST               6 ('embed.kind.weight')
+            184 BINARY_SUBSCR
+            188 LOAD_CONST               7 (0)
+            190 BINARY_SUBSCR
+
+ 18         194 BINARY_OP                0 (+)
+
+ 20         198 LOAD_FAST                2 (weights)
+            200 LOAD_CONST               8 ('embed.ekind.weight')
+            202 BINARY_SUBSCR
+            206 LOAD_CONST               9 (2)
+            208 BINARY_SUBSCR
+
+ 18         212 BINARY_OP                0 (+)
+
+ 21         216 LOAD_FAST                2 (weights)
+            218 LOAD_CONST              10 ('embed.kq.weight')
+            220 BINARY_SUBSCR
+            224 LOAD_CONST               7 (0)
+            226 BINARY_SUBSCR
+
+ 18         230 BINARY_OP                0 (+)
+
+ 22         234 LOAD_FAST                2 (weights)
+            236 LOAD_CONST              11 ('embed.text.weight')
+            238 BINARY_SUBSCR
+            242 LOAD_CONST               7 (0)
+            244 BINARY_SUBSCR
+
+ 18         248 BINARY_OP                0 (+)
+            252 STORE_FAST               5 (x)
+
+ 23         254 LOAD_CONST              12 (('action', 'discharged_to', 'route', 'status'))
+            256 GET_ITER
+        >>  258 FOR_ITER                19 (to 300)
+            262 STORE_FAST               6 (name)
+
+ 24         264 LOAD_FAST                5 (x)
+            266 LOAD_FAST                2 (weights)
+            268 LOAD_CONST              13 ('embed.categorical.')
+            270 LOAD_FAST                6 (name)
+            272 BINARY_OP                0 (+)
+            276 LOAD_CONST              14 ('.weight')
+            278 BINARY_OP                0 (+)
+            282 BINARY_SUBSCR
+            286 LOAD_CONST               7 (0)
+            288 BINARY_SUBSCR
+            292 BINARY_OP                0 (
+set205 arguments ('atom_sets', 'p', 'weights') names ('shape', 'linear205', 'F', 'gelu', 'sum', 'np', 'sqrt', 'torch', 'zeros', 'float32', 'full', 'log1p', 'norm205')
+ 38           0 RESUME                   0
+
+ 39           2 LOAD_FAST                0 (atom_sets)
+              4 LOAD_ATTR                0 (shape)
+             24 LOAD_CONST               1 (1)
+             26 BINARY_SUBSCR
+             30 STORE_FAST               3 (n)
+
+ 40          32 LOAD_FAST                3 (n)
+             34 POP_JUMP_IF_FALSE       87 (to 210)
+
+ 41          36 LOAD_GLOBAL              3 (NULL + linear205)
+             46 LOAD_GLOBAL              5 (NULL + F)
+             56 LOAD_ATTR                6 (gelu)
+             76 LOAD_GLOBAL              3 (NULL + linear205)
+             86 LOAD_FAST                0 (atom_sets)
+             88 LOAD_FAST                1 (p)
+             90 LOAD_CONST               2 ('.mlp1.0')
+             92 BINARY_OP                0 (+)
+             96 LOAD_FAST                2 (weights)
+             98 CALL                     3
+            106 CALL                     1
+
+ 42         114 LOAD_FAST                1 (p)
+            116 LOAD_CONST               3 ('.mlp1.2')
+            118 BINARY_OP                0 (+)
+            122 LOAD_FAST                2 (weights)
+
+ 41         124 CALL                     3
+
+ 42         132 LOAD_ATTR                9 (NULL|self + sum)
+            152 LOAD_CONST               1 (1)
+            154 CALL                     1
+            162 LOAD_GLOBAL             11 (NULL + np)
+            172 LOAD_ATTR               12 (sqrt)
+            192 LOAD_FAST                3 (n)
+            194 CALL                     1
+
+ 41         202 BINARY_OP               11 (/)
+            206 STORE_FAST               4 (h)
+            208 JUMP_FORWARD            52 (to 314)
+
+ 44     >>  210 LOAD_GLOBAL             15 (NULL + torch)
+            220 LOAD_ATTR               16 (zeros)
+            240 LOAD_FAST                0 (atom_sets)
+            242 LOAD_ATTR                0 (shape)
+            262 LOAD_CONST               4 (0)
+            264 BINARY_SUBSCR
+            268 LOAD_CONST               5 (192)
+            270 BUILD_TUPLE              2
+            272 LOAD_GLOBAL             14 (torch)
+            282 LOAD_ATTR               18 (float32)
+            302 KW_NAMES                 6 (('dtype',))
+            304 CALL                     2
+            312 STORE_FAST               4 (h)
+
+ 45     >>  314 LOAD_FAST                4 (h)
+            316 LOAD_GLOBAL              3 (NULL + linear205)
+            326 LOAD_GLOBAL             15 (NULL + torch)
+            336 LOAD_ATTR               20 (full)
+            356 LOAD_FAST                0 (atom_sets)
+     
+head_audit {'glucose_finger': {'ix': array([   1,    3,    5, ..., 4724, 4741, 4744], shape=(1473,)), 'exposure': array([0.        , 0.11999512, 0.        , ..., 0.00024414, 0.        ,
+       0.        ], shape=(1473,), dtype=float32), 'center': array([-0.01146054,  0.17996764,  0.06496835, ...,  0.07286769,
+        0.07437921,  0.10735965], shape=(1473,), dtype=float32), 'rate': array([0., 1., 0., ..., 0., 0., 0.], shape=(1473,)), 'slope': array([-0.00379462,  0.10355122])}, 'glucose_lab': {'ix': array([  51,   64,   69,   78,   81,   84,   93,   96,   99,  107,  110,
+        112,  116,  120,  128,  133,  137,  164,  173,  186,  196,  203,
+        215,  219,  232,  237,  246,  261,  266,  272,  275, 
+history_audit {'glucose_finger': {'coef': array([ 0.01110583,  0.08236869,  0.11601422,  0.03791347,  0.05816054,
+        0.04546233,  0.02872467,  0.00848285, -0.0263947 , -0.0552679 ,
+       -0.03461889, -0.00629504, -0.03090541, -0.02306417,  0.00018786,
+       -0.01440574,  0.0131941 ,  0.00031945,  0.07043441,  0.04835431]), 'prediction': array([0.01110583, 0.10484044, 0.01347777, ..., 0.00678464, 0.01952654,
+       0.00623155], shape=(1473,))}, 'glucose_lab': {'coef': array([ 0.02912104,  0.02652656,  0.08760409,  0.00812521,  0.01624201,
+        0.02904672,  0.02092995,  0.01151235, -0.00345851, -0.02049193,
+       -0.03414452, -0.0528238 , -0.04988897, -0.01976151, -0.0123405 ,
+        0.03504891,
+encoder_audit {'insulin': (array([ 0. ,  0.5,  1. ,  2. ,  4. ,  8. , 12. , 16. , 24. , 32. , 48. ],
+      dtype=float32), tensor([[ 2.2301,  0.5736, -0.2361,  ..., -0.1554, -1.0638, -0.4836],
+        [ 2.1596,  0.5652, -0.5132,  ..., -0.4575, -1.2522, -0.4168],
+        [ 0.0517,  1.3103, -0.2719,  ...,  0.1727, -0.0673,  0.3981],
+        ...,
+        [ 2.4563,  0.5377,  0.2183,  ...,  0.3094, -0.5961, -0.7449],
+        [ 2.4563,  0.5377,  0.2183,  ...,  0.3094, -0.5961, -0.7449],
+        [ 2.4563,  0.5377,  0.2183,  ...,  0.3094, -0.5961, -0.7449]]), tensor([[-1.7583e-06, -3.8147e-06],
+        [-3.0034e-03, -2.5272e-05],
+        [-5.9992e-03, -8.5831e-06],
+        [-1.2000e-02,  5.6267e-05],
+        [-2.
+STATE SCHEMA [('x', (4314, 992)), ('stay_id', (4314,)), ('hour', (4314,)), ('has_insulin', (4314,)), ('has_norepinephrine', (4314,)), ('n_atoms', (4314,))]
+HEAD ROW COLUMNS ['stay_id', 'hour', 'event', 'value', 'rate', 'rate_unit', 'dose', 'dose_unit', 'end_hour', 'last_value', 'last_hour', 'read_hour', 'insulin', 'norepinephrine']
+   stay_id  hour          event  value  rate rate_unit  dose dose_unit  end_hour  last_value  last_hour  read_hour  insulin  norepinephrine
+1010000000  -1.0       map_cuff   93.0   NaN       NaN   NaN       NaN       NaN         NaN        NaN        NaN      0.0             0.0
+1010000000   0.0 glucose_finger  158.0   NaN       NaN   NaN       NaN       NaN         NaN        NaN        NaN      0.0             0.0
+CORE SHAPES [('core.prelude.0.attn.kv.weight', (384, 192)), ('core.prelude.0.attn.out.weight', (192, 192)), ('core.prelude.0.attn.q.weight', (192, 192)), ('core.prelude.0.ffn.0.bias', (768,)), ('core.prelude.0.ffn.0.weight', (768, 192)), ('core.prelude.0.ffn.2.bias', (192,)), ('core.prelude.0.ffn.2.weight', (192, 768)), ('core.prelude.0.norm1.bias', (192,)), ('core.prelude.0.norm1.weight', (192,)), ('core.prelude.0.norm3.bias', (192,)), ('core.prelude.0.norm3.weight', (192,)), ('core.prelude_norm.bias', (192,)), ('core.prelude_norm.weight', (192,)), ('z_in.bias', (192,)), ('z_in.weight', (192, 32)), 
+[output cut at 10,000 characters]
+```

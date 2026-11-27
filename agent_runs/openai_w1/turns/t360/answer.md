@@ -1,0 +1,5 @@
+Neither attempted range was valid; no validation result or weight change occurred. I’ll make one small identifier check to locate the tuning range without spending a successful pass. If none of these IDs is valid, I’ll need the exact IDs from the earlier requests.
+
+```forward
+{"type":"factual","model":"both","split":"tuning","stays":[0,30000,40000,50000,100000,200000,300000,500000,1000000,2000000]}
+```

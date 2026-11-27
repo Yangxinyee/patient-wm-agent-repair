@@ -1,0 +1,110 @@
+OUTPUT of Python run 140 of at most 300:
+```
+WEIGHT INTERFACE
+, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The re
+
+EXACT CODA HELPER
+ 11           0 RESUME                   0
+
+ 12           2 LOAD_GLOBAL              1 (NULL + core_layer)
+             12 LOAD_FAST                0 (x)
+             14 LOAD_CONST               1 ('core.coda.0')
+             16 LOAD_CONST               2 (4)
+             18 CALL                     3
+             26 STORE_FAST               1 (y)
+
+ 13          28 LOAD_FAST                1 (y)
+             30 LOAD_GLOBAL              3 (NULL + core_norm)
+             40 LOAD_FAST                1 (y)
+             42 LOAD_ATTR                5 (NULL|self + mean)
+             62 LOAD_CONST               3 (1)
+             64 CALL                     1
+             72 LOAD_CONST               4 ('core.out_norm')
+             74 CALL                     2
+             82 BUILD_TUPLE              2
+             84 RETURN_VALUE
+
+defaults: []
+
+FACTUAL FEATURES AND NULL-SPACE BASES
+A (188, 188)
+A100 (188, 188)
+A103 (188, 188)
+B64 (192, 188)
+E_fact95 (4356, 4, 192)
+F81 (13968, 188)
+GF103 (188, 188)
+GF95 (188, 188)
+G_active115 (188, 188)
+G_other115 (188, 188)
+Gc81 (188, 188)
+Gc82 (188, 188)
+Gf81 (188, 188)
+H64 (188, 188)
+N64 (192, 188)
+X81 (4808, 188)
+X82 (4808, 188)
+XF100 (17424, 188)
+XF95 (17424, 188)
+Xf115 (17424, 188)
+b88 (192, 188)
+basis100 (192, 188)
+basis136 (192, 14)
+basis63 (192, 188)
+
+READOUT HELPERS
+coda_input134 ('x',) uses ('core_layer', 'core_norm', 'mean')
+readout121 ('h', 'out', 'src', 'dt', 'static', 'transition', 'centres') uses ('torch', 'exp', 'W0', 'norm0', 'mean', 'mlp0', 'log', 'clamp_min', 'linear0', 'nn', 'functional', 'gelu', 'softmax', 'sum')
+readout125 ('h', 'out', 'src', 'dt', 'static', 'transition', 'centres') uses ('readout121', '__defaults__', 'static_all122', 'torch', 'exp', 'W0', 'norm0', 'mean', 'mlp0', 'log', 'clamp_min', 'linear0', 'nn', 'functional', 'gelu', 'softmax')
+
+DRUG-TO-READING COVERAGE
+map_arterial drug rows with direct next-reading query: 679
+map_cuff drug rows with direct next-reading query: 823
+glucose_finger drug rows with direct next-reading query: 1127
+
+```

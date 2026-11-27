@@ -1,0 +1,264 @@
+OUTPUT of Python run 244 of at most 300:
+```
+=== DATA README ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== EARLY NOTEBOOK: IDENTIFICATION ===
+# Weight-repair notebook
+
+## Objective and constraints
+- Infer this simulated ICU's drug effects from the provided records only.
+- Repair the four dose-rollout readouts while increasing factual value NLL by no more than 0.005 nats per reading.
+- No model gradients or weight optimiser; statistical fits and computed weight edits only.
+- Limits: 300 Python runs and 50 forward requests.
+
+## Run 1
+Requested architecture, data schema, vocabulary, and tensor shapes. No causal conclusions or weight edits yet.
+
+## Run 2
+Architecture: actions have a separate DeepSets encoder, then enter the posterior and recurrent prelude. Reading heads also have same-code last-reading registers and transition logits. No drug effects inferred yet. Loaded train/tuning records and inspected schedule and drug encodings.
+
+## Run 3
+Built complete hourly panel (-1..24); an absent infusion is zero rate. Readings are at integer hours, infusions at hour + 0.0833. Compared next-primary-reading regressions with increasingly rich pre-treatment controls; standard errors clustered by stay.
+{
+  "insulin": {
+    "unadjusted": {
+      "effect_per_rate_unit": 23.02625,
+      "cluster_SE": 0.09477,
+      "residual_dose_SD": 1.08013,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 24.864,
+      "n": 280327
+    },
+    "current + time": {
+      "effect_per_rate_unit": -1.96305,
+      "cluster_SE": 0.04693,
+      "residual_dose_SD": 0.63989,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 14.117,
+      "n": 280327
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": -1.9886,
+      "cluster_SE": 0.04175,
+      "residual_dose_SD": 0.63988,
+      "dose_R2": 0.649,
+      "outcome_residual_SD": 12.78,
+      "n": 280327
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": -1.93093,
+      "cluster_SE": 0.04083,
+      "residual_dose_SD": 0.63898,
+      "dose_R2": 0.65,
+      "outcome_residual_SD": 12.512,
+      "n": 280327
+    }
+  },
+  "norepinephrine": {
+    "unadjusted": {
+      "effect_per_rate_unit": -30.00927,
+      "cluster_SE": 0.21648,
+      "residual_dose_SD": 0.34538,
+      "dose_R2": 0.0,
+      "outcome_residual_SD": 10.384,
+      "n": 298808
+    },
+    "current + time": {
+      "effect_per_rate_unit": -2.22168,
+      "cluster_SE": 0.04382,
+      "residual_dose_SD": 0.23558,
+      "dose_R2": 0.5348,
+      "outcome_residual_SD": 4.839,
+      "n": 298808
+    },
+    "+ reading history": {
+      "effect_per_rate_unit": 0.2547,
+      "cluster_SE": 0.03553,
+      "residual_dose_SD": 0.22603,
+      "dose_R2": 0.5717,
+      "outcome_residual_SD": 4.389,
+      "n": 298808
+    },
+    "+ assays, other drug, past doses": {
+      "effect_per_rate_unit": 2.40061,
+      "cluster_SE": 0.08922,
+      "residual_dose_SD": 0.09671,
+      "dose_R2": 0.9216,
+      "outcome_residual_SD": 4.35,
+      "n": 298808
+    }
+  }
+}
+These preliminary regressions are diagnostic, not yet accepted as causal. Next: baseline model forward results and nonlinear/history robustness checks.
+
+## Forward requests 1 and 2
+Original factual NLL (tuning IDs 2020000000..99): 1.63461; provisional maximum 1.63961.
+Original rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+
+## Run 4
+Cross-fitted nonlinear nuisance regressions, split by stay, active infusions only. Features use current/past readings, observation ages, online smoothing, pre-ICU baseline, prior doses, time and other drug. Estimated residual-dose slopes and sensitivity across dose/hour subsets.
+{
+  "insulin": {
+    "all active": [
+      -1.99285,
+      0.04554,
+      0.59887,
+      253863
+    ],
+    "hours >=12": [
+      -2.04868,
+      0.05966,
+      0.61587,
+      142454
+    ],
+    "lower half of doses": [
+      -1.94372,
+      0.07221,
+      0.40383,
+      158100
+    ],
+    "upper half of doses": [
+      -2.01779,
+      0.05771,
+      0.73907,
+      95763
+    ],
+    "away from maximum": [
+      -1.99092,
+      0.04556,
+      0.59868,
+      253862
+    ],
+    "current primary observed": [
+      -1.99783,
+      0.0459,
+      0.60385,
+      246971
+    ]
+  },
+  "norepinephrine": {
+    "all active": [
+      3.29011,
+      0.09111,
+      0.13328,
+      146556
+    ],
+    "hours >=12": [
+      3.38311,
+      0.11624,
+      0.13967,
+      75241
+    ],
+    "lower half of doses": [
+      3.50921,
+      0.15079,
+      0.10196,
+      74248
+    ],
+    "upper half of doses": [
+      3.17119,
+      0.11255,
+      0.14585,
+      72308
+    ],
+    "away from maximum": [
+      3.29965,
+      0.10114,
+      
+
+=== RECENT OBJECT INTERFACES ===
+r232_before dict: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+r232_candidates dict: [(0.9, 0.35), (0.9, 0.4), (0.9, 0.45), (0.94, 0.35), (0.94, 0.4), (0.94, 0.45), (1.0, 0.35), (1.0, 0.4), (1.0, 0.45)]
+r232_results list
+r232_trial dict: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+r235_safe dict: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']
+r237_W0 ndarray (192, 192)
+r237_W2 ndarray (17, 192)
+r237_b0 ndarray (192,)
+r237_caches dict: ['cache', 'cc', 'c210_train', 'c210_tune', 'cache231']
+r237_cb -12.168973922729492
+r237_common ndarray (192,)
+r237_sb -25.683454513549805
+r237_signal ndarray (192,)
+r237_tilt ndarray (17,)
+r239_keys list
+r239_notes '# Weight-repair notebook\n\n## Objective and constraints\n- Infer this simulated ICU\'s drug effects from the provided 
+r239_orig dict: ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+r239_result tuple
+r239_rows ndarray (4,)
+r239_safe dict: ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+r239_sections list
+r239_selected list
+r240_C ndarray (188, 188)
+r240_D ndarray (11004, 188)
+r240_Hfit ndarray (22008, 188)
+r240_Xd Tensor (11004, 192)
+r240_Yfit ndarray (22008,)
+r240_Z ndarray (22008, 188)
+r240_baselines dict: ['train', 'tune']
+r240_bkeep Tensor (188,)
+r240_cross ndarray (188,)
+r240_dmeans ndarray (4, 188)
+r240_eps 0.1
+r240_ev ndarray (11004,)
+r240_evals ndarray (188,)
+r240_evecs ndarray (188, 188)
+r240_fit ndarray (4510,)
+r240_ids ndarray (100,)
+r240_keep ndarray (188,)
+r240_loss function: ['c', 'pre', 'scalar']
+r240_mu ndarray (188,)
+r240_ne_rows tuple
+r240_pre dict: ['train', 'tune']
+r240_prepare function: ['c']
+r240_probe ndarray (192,)
+r240_q ndarray (17,)
+r240_regressions dict: [(-1, 0.001), (-1, 0.01), (-1, 0.1), (0, 0.001), (0, 0.01), (0, 0.1), (4, 0.001), (4, 0.01), (4, 0.1), (8, 0.001), (8, 0.01), (8, 0.1), (16, 0.001), (16, 0.01), (16, 0.1)]
+r240_results list
+r240_sd ndarray (188,)
+r240_table DataFrame (90, 9)
+r240_val ndarray (4510,)
+r240_vp Tensor (192,)
+r240_wkeep Tensor (188, 192)
+r240_ymu 0.012865798163959998
+r241_funcs list
+r241_reg dict: ['beta', 'intercept', 'pred', 'null_dim']
+r241_results list
+r241_table DataFrame (144, 7)
+r242_factor 1.25
+r242_hash 'ba3a754b67'
+r242_reg dict: ['beta', 'intercept', 'pred', 'null_dim']
+r242_trial dict: ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+r242_verified dict: ['train', 'tune']
+
+=== OTHER CANDIDATE/EVALUATOR FUNCTIONS ===
+c210_eval ['weights', 'cache', 'return_probs']
+c211_cal_eval ['weights', 'cache', 'calibration', 'scale']
+make_pipeline ['steps', 'memory', 'transform_input', 'verbose']
+make_plain_panel ['records', 'ids']
+r201_eval ['W']
+r217_eval ['weights', 'cache', 'table_delta', 'split']
+rh_eval ['q', 'nf', 'head_act']
+
+```

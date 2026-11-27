@@ -1,0 +1,94 @@
+OUTPUT of Python run 227 of at most 300:
+```
+=== LONGITUDINAL EVIDENCE / TARGET NOTES ===
+## Constraints and objectives
+- Infer effects only from the supplied simulated-ICU records.
+- No model backpropagation or weight optimiser.
+- Primary target: insulin x2 from hour 12, glucose at eligible hours 13?24.
+- Also check insulin x0.5 and norepinephrine x2/x0.5.
+- Factual value NLL increase must be <= 0.005 nats.
+- Budget: 300 Python runs and 50 forward requests.
+
+
+## Run 5
+RD at the initial insulin threshold was complicated by rounded readings and
+a discontinuous next-reading probability (about 30% to 100%).
+Refined RD excludes the rounded threshold itself.
+Refined RD:
+ cutoff  bw      n  dose_jump  outcome_jump  effect_per_rate  cluster_se
+  150.0   5  23532     1.0369       -2.4967          -2.4078      0.4769
+  150.0  10  53539     1.0411       -2.1079          -2.0248      0.2900
+  150.0  15  82589     1.0439       -2.0414          -1.9555      0.2283
+  150.0  20 110599     1.0452       -2.1108          -2.0195      0.1941
+  180.0   5  30810     1.0416       -1.8195          -1.7468      0.3929
+  180.0  10  68730     1.0476       -1.7854          -1.7044      0.2402
+  180.0  15 105934     1.0452       -1.8119          -1.7336      0.1902
+  180.0  20 142517     1.0440       -1.8588          -1.7
+## Run 6
+Previous forward request failed because of duplicate stay IDs; it was not counted.
+Re-read architecture/schema and inspected retained kernel objects and tensor shapes.
+Constructed a verified list of 100 unique tuning stay IDs.
+Drug-effect estimates remain provisional; no weights edited.
+
+
+## Run 7
+Architecture inspection: drugs enter posterior and recurrent prelude; value heads also have a same-code last-reading register.
+Considering targeted readout repair, conditional on states retaining dose information.
+Run 6 output was truncated; obtained compact remaining tensor/vocab/object summaries.
+No weights edited.
+
+
+## Run 19
+Corrected head/register reconstruction has residual errors comparable to four-draw prior variability. Began longitudinal causal diagnostics: dose innovations instrument later outcomes, explicitly accounting for covariance with subsequent recorded doses. AR persistence fits are provisional because later observation selection and nuisance misspecification can bias these moments: {'insulin': {'beta': -2.0492419728332494, 'rho': 0.9259212188520857, 'weighted_loss': 189.9550943168164, 'n_moments': 6}, 'norepinephrine': {'beta': 3.171455470405459, 'rho': 0.6834209822002549, 'weighted_loss': 22.851297233717364, 'n_moments': 6}}. No weights edited.
+
+
+## Run 21
+Run 20 output was truncated. Retrieved compact retained-object inventory, action/value tensor shapes and original rollout effects. Explicit action pathway and same-code measurement shortcut suggest a targeted correction rather than global output recalibration. No weights edited.
+
+
+## Run 22
+Recovered remaining retained objects. Deconvolved run-19 closed-loop dose-innovation moments into a provisional six-lag direct-response kernel and translated it to the tuning forward's eligible hours. This is a diagnostic, not accepted ground truth: horizon selection, nuisance misspecification and response heterogeneity remain possible. No weights edited.
+
+
+## Run 32
+Drug-posterior reconstruction remains inaccurate (RMSE approximately 0.13 versus posterior RMS 0.248). Recovering the exact architecture and retained data before choosing a repair; no weights edited.
+
+Run 37: recovered longitudinal diagnostics and action-reconstruction arrays. Testing whether the empty measurement encoder, rather than zero e, explains posterior mismatch. No edits.
+
+Run 38: tested zero versus learned empty measurement encodings against isolated action posterior states; checked the pre-action context from exported states. No edits.
+
+Run 39: empty measurement encoder resolved the major posterior mismatch. Searched exact drug categorical and bin conventions; retained best atom recipes. No weights edited.
+
+
+
+=== KERNEL OBJECT NAMES ===
+Ridge, backup_b141, backup_before167, backup_before179, backup_before195, backup_before203, backup_before210, backup_dual198, backup_passing200, baseline_replay188, boot_kernel, boot_kernels137, boot_weights137, calibration_candidates80, candidate, candidate104, candidate130, candidate150, candidate166, candidate167, candidate202, candidate209, candidate_context, candidate_hidden104, candidate_post104, candidates, candidates194, candidates209, candidates225, causal_beta80, channel_base117, channel_changed117, channel_direction111, channel_direction112, channel_fits111, channel_fits112, channel_probe147, channel_q160, channel_weights160, channel_x160, chosen_channel116, collect_channel186, connection_ridge123, context_candidate, cpu_backup186, cpu_backup209, decoder_candidates82, decoder_candidates_repair, dml_residuals, dual_b202, dual_candidate193, dual_channel186, effect, effect88, effects88, effects89, factual_target111, fit_target102, g_candidates, head_candidate_table_repair, head_candidates_repair, impulse_hour160, impulse_mean159, impulse_p159, impulse_q159, impulse_results159, impulse_tables_repair, impulse_tests166, impulse_time159, impulse_x159, kernel, kernel55, kernel_models88, kernels137, m_candidates, means_candidate108, new_kernel, nll_channel129, old_targets187, old_weights143, original_weights160, p_candidate, posterior_target_repair, pre_candidate, prior_candidate, prob_channel129, provisional_kernels, q_candidate, q_channel125, r217_cpu_backup, r225, r45_target, rW_candidate108, raw_candidates87, replay_factual125, replay_levels125, replayed_channel125, replayed_original125, replayed_rejected125, residual166, residual192, residual_parts192, residuals, ridge, ridge102, ridge110, ridge118, ridge160, ridge206, ridge_scale80, ridge_value209, saved_weights166, states_candidate108, status_weights, target, target102, target110, target118, target193, target65, target95, target_attention103, target_fact80, target_h67, target_ins186, target_ne186, target_ne187, target_ne206, target_out67, target_rate, target_rows88, target_rows89, target_table89, targets, treatment_residuals, two_pole_kernel88, view_candidate, wc_candidate, weights, weights111, weights112, weights159, weights161, weights206, weights82, weights_channel125, weights_current147, weights_current155, weights_original125, weights_rejected125
+
+=== CALLABLE INTERFACES ===
+Ridge (alpha=1.0, *, fit_intercept=True, copy_X=True, max_iter=None, tol=0.0001, solver='auto', positive=False, random_state=None)
+collect_channel186 ()
+replay_factual125 (weights=None, capture_decoder=True)
+two_pole_kernel88 (params, length)
+
+=== SMALL TARGET OBJECTS ===
+boot_kernel shape: (300, 12)
+boot_kernels137 keys: ['insulin', 'norepinephrine']
+causal_beta80 keys: ['insulin', 'norepinephrine']
+factual_target111 shape: (4059,)
+fit_target102 shape: (10276,)
+kernel shape: (12,)
+[ 3.14290769  2.55878668  1.49317967  0.77498299  0.46785393  0.38148895
+  0.22541993 -0.00837011  0.22216177  0.0866575   0.01921469  0.06383233]
+kernel55 shape: (6,)
+[3.20132    2.59178528 1.47252364 0.78104335 0.43536773 0.3782799 ]
+kernel_models88 keys: ['insulin', 'norepinephrine']
+kernels137 keys: ['insulin', 'norepinephrine']
+new_kernel shape: (6,)
+[3.14290769 2.55878668 1.49317967 0.77498299 0.46785393 0.38148895]
+old_targets187 shape: (21676,)
+posterior_target_repair shape: (133, 32)
+Traceback (most recent call last):
+  File "<run>", line 37, in <module>
+TypeError: '<' not supported between instances of 'builtin_function_or_method' and 'int'
+
+```

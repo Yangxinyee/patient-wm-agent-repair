@@ -1,0 +1,98 @@
+OUTPUT of Python run 91 of at most 300:
+```
+=== HEAD DATA ===
+head_meta (4510, 14) ['stay_id', 'hour', 'event', 'state_i', 'dt', 'has_last', 'age_s', 'zlast', 'last_bin', 'target_bin', 'original_mean', 'original_nll', 'scale', 'code']
+   stay_id  hour          event  state_i     dt  has_last  age_s  zlast  last_bin  target_bin  original_mean  original_nll  scale  code
+1010000000  -1.0   map_arterial        0 3600.0       0.0    0.0    0.0         0           8        68.8153        2.6815   20.0     7
+1010000000  -1.0 glucose_finger        0 3600.0       0.0    0.0    0.0         0           9       161.2808        2.6315   52.0     6
+head_factual (4510, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour          event  observed  predicted_mean    nll
+1010000000  -1.0   map_arterial      73.0         68.8153 2.6815
+1010000000  -1.0 glucose_finger     165.0        161.2808 2.6315
+repair_sf (4035, 7) ['stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms', 'state_index', 'hour_key']
+   stay_id  hour  has_insulin  has_norepinephrine  n_atoms  state_index  hour_key
+1010000000  -2.0        False               False        1            0      -2.0
+1010000000  -1.0        False               False        2            1      -1.0
+
+=== CACHED FACTUAL OUTPUTS ===
+/work/fwd_10/factual_original.csv (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+NLL means: {'nll': 1.6316425384129656}
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        144.6262 2.3947
+/work/fwd_12/factual_original.csv (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+NLL means: {'nll': 1.6316424542201644}
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        144.6262 2.3947
+/work/fwd_2/factual_original.csv (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+NLL means: {'nll': 1.6316424542201644}
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        144.6262 2.3947
+/work/fwd_4/factual_original.csv (4510, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+NLL means: {'nll': 1.6454562971175166}
+   stay_id  hour        event  observed  predicted_mean    nll
+1010000000  -1.0 map_arterial      73.0         68.8153 2.6815
+/work/fwd_5/factual_original.csv (1121, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+NLL means: {'nll': 1.5304096342551292}
+   stay_id  hour    event  observed  predicted_mean    nll
+1010000080  -1.0 map_cuff      89.0         76.1007 2.4637
+/work/fwd_6/factual_original.csv (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+NLL means: {'nll': 1.631642391075563}
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        144.6262 2.3947
+/work/fwd_8/factual_original.csv (4751, 6) ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+NLL means: {'nll': 1.6316424331719637}
+   stay_id  hour       event  observed  predicted_mean    nll
+2020000000  -1.0 glucose_lab     148.0        144.6262 2.3947
+
+=== RECONSTRUCTION NOTES ===
+## Head reconstruction setup
+- Original factual training first 100: value NLL 1.64546 (4,510 readings).
+- Saved states matched to preceding bundles; testing numerical head conventions before any edit.
+- Insulin long-horizon kernel remains weakly identified; NE evidence is more stable.
+- Python runs: 16. Forward passes: 4. No edits.
+
+## Reconstruction diagnostics
+- Best initial conventions: GELU, type 1, interleaved last numeric, status 0, seconds/10.
+- Reconstruction scaled mean RMSE ~0.115; expected four-prior-draw noise ~0.0475.
+- Bin boundary, centre-value, and latent averaging checks did not explain the remaining error.
+- Performing a bounded query/context convention check; no edits.
+- Python runs: 19. Forward passes: 4.
+
+## Restart diagnostics
+- Runs 20?22: recovering head helpers and checking saved-state chronology and register dimensions. No weight edits; four forward passes used.
+
+- Run 23: saved out equals layer-normalized mean h to 7.3e-8 RMSE. Current helpers use seconds-based flow, log1p(seconds)/10, interleaved last-number fields and measurement query type 1. These still give scaled-mean RMSE 0.114; no edits.
+
+- Run 24 and forward 5: chronology is exact; absent-bin and status embeddings add zero here. Tested separate prior/world contexts and latent packing without resolving reconstruction error. Repeated original factual pass on 25 reordered training stays to quantify noise. No edits.
+
+- Run 25: repeated factual predictions differ by scaled mean RMSE 0.07198 and NLL RMSE 0.24980, implying single-pass sampling noise ~0.051. Reconstruction has larger systematic positive bias. All matched state IDs are correct. Insulin kernel bootstrap is very weak (rho often reaches bounds); NE kernel is substantially more stable. Treat long-horizon insulin targets as uncertain. No edits; five forward passes.
+
+
+## Run 38: readout vs state information
+- Sensor-gated hidden-feature innovation decoding failed on held-out stays despite good raw-dose decoding (R2 ~0.79 insulin, ~0.70 NE).
+- Tested innovation decoding earlier in the state, separately by relevant sensor family.
+    features           drug  alpha        r2  correlation
+   all_slots        insulin   10.0  0.028877     0.266526
+   all_slots norepinephrine 1000.0 -0.012698     0.023955
+     context        insulin   10.0  0.011676     0.188526
+     context norepinephrine 1000.0 -0.009584     0.007722
+      mean_h        insulin   10.0  0.018817     0.206398
+      mean_h norepinephrine 1000.0 -0.008433     0.015250
+         out        insulin   10.0  0.009317     0.187724
+         out norepinephrine 1000.0 -0.009127     0.010135
+ posterior_z        insulin   10.0  0.104526     0.326598
+ posterior_z norepinephrine   10.0  0.084331     0.295506
+value_hidden        insulin 1000.0 -0.010345     0.055903
+value_hidden norepinephrine 1000.0 -0.062948    -0.017338
+  world_view        insulin   10.0  0.010615     0.188121
+  world_view norepineph
+
+=== LOCAL RECONSTRUCTED BASELINES ===
+repair_fP NLL 1.7173263226298712 mean quantiles [ 41.1245354   66.24402645  89.19065066 179.38575593 246.24394497]
+repair_base_P NLL 1.7303596100919028 mean quantiles [ 41.45130058  66.44452111  89.1840842  180.47157718 247.59565705]
+head_probs NLL 1.7173263 mean quantiles [ 41.1245354   66.24402645  89.19065066 179.38575593 246.24394497]
+fP/base_P probability RMS: 0.0077935084819107546
+head_recovery keys: ['state', 'dt', 'context', 'view', 'register', 'numbers', 'inputs', 'hidden', 'probs', 'logits', 'code', 'last_bin']
+ACTIVE EDITS: []
+
+```

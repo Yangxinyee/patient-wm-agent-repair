@@ -1,0 +1,60 @@
+OUTPUT of Python run 278 of at most 300:
+```
+NOTEBOOK LENGTH: 31262
+=== IDENTIFICATION, TARGETS, AND EDIT DESIGN ===
+0: # World-model repair notebook
+5: - Use non-gradient statistical fits to design targeted weight edits.
+6: - Validate factual value NLL and paired rollout responses against the original model.
+25: ## Preliminary causal analysis (run 4)
+28: - Built prior-history features and held-out residualized next-hour regressions.
+30: - These are preliminary conditional estimates, not proof of identification.
+39: - Deconvolved clinician feedback with an AR(1) response model; this requires causal-innovation and stable-linear-response assumptions, to be checked further.
+40: - G dynamic estimates: {'phi': 0.8762725202961656, 'beta': -1.8381467582926028, 'beta_one': -1.834419990988181, 'phi_fixed': 0.8761687969798846}.
+41: - M dynamic estimates: {'phi': 0.6335817172466911, 'beta': 3.5998780750492387, 'beta_one': 3.217188708302707, 'phi_fixed': 0.6682056242010688}.
+45: - Sensor-specific held-out next-hour estimates: glucose_finger insulin -1.8383 (SE .1026), glucose_lab -1.9344 (.1744); map_arterial NE +3.4086 (.2191), map_cuff +2.8671 (.4111).
+47: - Corrected a diagnostic indexing error: clustered_ols includes an intercept. The initial dose-stratum printouts were intercepts, not drug effects, and must be discarded.
+57: - ARX alternatives: glucose phi .7807, beta_now -1.8381, beta_lag -.7382; MAP phi .5116, beta_now 3.2133, beta_lag 1.3739. These remain conditional estimates.
+61: - Re-reading architecture and inspecting persistent analysis objects before correcting the reconstruction and checking causal estimates.
+70: - Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+73: - No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+77: - Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+78: - Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+84: - No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+92: - Head-only innovation decoding did not generalize (held-out R2 approximately zero).
+96: - Requires paired factual and rollout tests; this is not yet a validated repair.
+114: - Re-read architecture. Doses enter recurrent state; value heads also use sensor-specific last-reading registers.
+120: - Ridge decoding of treatment innovations from posterior hidden features, including synthetic dose multipliers, failed held-out factual and dose-response tests. Do not use it.
+121: - Temporary diagnostic: action-encoder norm output fixed to the verified empty-action vector. Test paired factual NLL before deciding whether replacement is feasible.
+129: - Run 59 tests dose/innovation decoding at drug bundles on stay-held-out splits.
+134: - Local mean response matching is not sufficient evidence of a valid rollout repair.
+141: - Held-out action-u linear rate decoding active R2: insulin .653, NE .519; innovation R2 .281/.180.
+147: - Recomputed latent response directions across stay-held-out samples and checked finite-sized shifts.
+148: - No weights edited. Any eventual candidate requires paired GPU factual and rollout validation.
+153: - Small-perturbation agreement alone is not evidence of causal rollout accuracy.
+182: Run 95 rejects the large action directions: finite effects saturate and frequently reverse sign. No weights edited. Moving to a GPU-validated, targeted value-head correction.
+185: Head hidden features fail independent insulin innovation decoding; with-code NE decoding reaches only R2=.072. A simple head-only repair is unsupported. Inspecting earlier prelude information before constructing any isolated causal channel. No edits.
+188: - No edits retained. Prelude innovation decoding has held-out R2 about .20, but finite-dose correction fits caused excessive factual variation.
+189: - Reinspect exact architecture and persistent helpers before choosing an isolated dose pathway. All candidates require finite-dose and paired GPU factual validation.
+191: ## Run 103: diagnostic state-coordinate clearing
+192: - Reserved coordinates [61, 21, 15, 66] by zeroing their c_out and coda residual-output rows.
+193: - This is only a capacity diagnostic, not a causal repair. No dose signal has been installed.
+195: - Next: paired factual test; reject this route if clearing alone consumes the +.005 NLL budget.
+197: ## Forward 8 / run 105: private-channel feasibility
+198: - Clearing four state coordinates costs only +.00034 factual value NLL on tuning A.
+201: - This rate-encoding fit uses no model gradients and makes no new causal-effect claim.
+203: ## Run 110: private-channel decoder audit
+206: - No addition
+=== GLOBAL NAMES ===
+NAMES, SHAPES, VOCAB, load, load_original, save_edit, drop_edit, edited, Path, json, np, pd, torch, V, save_file, W, WO, n, d, idx, norms, f, priv, reserved, A, B, C, j, ordinary, ii, folder, p, filename, S, score, js, train, tuning, tune_ids, F, code_id, num_spec, linear205, norm205, drug_atom205, set205, rate_grid205, drug, grid, uu, inspect, private_pairs, ordinary_idx, encoder_audit, state_file, sensor_neurons, state_ids, dose18, head_rows, head_prev, make_head_inputs212, head_wc, head_q, head_ln, head_vb, head_zp, head_audit, history_audit, summarize216, dis, BASE217, name, obj, keys, notes, nm, ob, label, ww, snapshot220, key, val, ins223, insn, brief224, W225, WO225, lin225, ln225, codes225, obs225, ev, ix, trname225, head225, weights, path, sf225, gpu225, stat, pp, wc225, qq225, zp225, nn, comparison225, c, text, section, io, fn, buf, source, defaultdict, groups230, line230, keep230, ins, line, ops, orig231, p231, wc231, q231, zp231, basewc231, has231, age231, z231, labels231, centres231, spec, last, zero231, layouts231, gpu231, join231, ix231, trans231, results231, lname, fields, ln, status, wc, logits, probs, nll, means, read_bins232, last_bins232, edit232, rng232, avg232, draw, noise, sign, model, sf, checks232, gpu, joined, mean, a, b, bins233, side, observed, edges, jx, gpu233, joins233, avg233, summary233, gen, eps, comp, join, o, diff233, os, summarize234, k, cur, old, axis, energy, ind, start, stop, H237, b237, O237, ob237, i, row, top, files, df237, t237, ids237, checkpoint238, Cbase238, install_strength238, Ctest238, v, notes_text, lines, terms, selected, x, ks, lo, hi, Hw, Hb, Ow, sensor, neurons, neuron, order, bounded_definition, r245_notes, r245_tokens, r245_name, r245_obj, r246_notes, r246_pos, r246_line, r246_items, r246_name, r246_obj, r246_desc, r246_sensor, r247_w0, r247_b0, r247_dw0, r247_db0, r247_top, r247_j, r247_row, r248_private, r248_control, r248_partner, r248_d, r248_o, r248_name, r248_t, r248_key, r248_obj, r248_dir, r248_files, r248_num, r248_path, r248_df, r249_save_file, r249_snapshot, r249_w0, r249_b0, r249_sensor_controls, r249_constants, r249_sensor, r249_control, r249_partner, r249_delta, r249_keep, r249_const, r249_num, r249_path, r249_df, r249_reached, r249_f, r250_f, r250_W, r250_state_paths, r250_state_path, r250
+=== EDIT/FIT FUNCTIONS ===
+save_edit (name, tensor)
+drop_edit (name)
+edited ()
+make_head_inputs212 (weights, sf, rows, prev)
+head225 (weights, sf, noise=None, status=None, typeidx=1)
+=== KEY OBJECTS ===
+BASE264 dict None ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'core.b_in.weight', 'core.blocks.0.0.attn.out.weight', 'core.blocks.0.0.cross.out.weight', 'core.blocks.0.0.ffn.2.bias']
+W dict None ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight']
+WO dict None ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight']
+
+```

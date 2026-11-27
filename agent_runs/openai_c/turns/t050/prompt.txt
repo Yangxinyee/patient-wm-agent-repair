@@ -1,0 +1,90 @@
+OUTPUT of Python run 32 of at most 300:
+```
+NOTEBOOK IDENTIFICATION SECTION
+idual_sd': 0.09352020066962713, 'outcome_residual_sd': 4.325493241423042}, ('map_arterial', 'fresh'): {'n': 312563, 'effect': 3.1166978915729437, 'se': 0.0891845742058681, 'dose_residual_sd': 0.09349417174331442, 'outcome_residual_sd': 4.295459295140099}}
+- These analyses use only records and pre-infusion controls; cross-fitting separates stays. Assess identification assumptions and agreement before choosing target effects.
+- Python runs: 4; forward passes: 2; no edits.
+
+## Run 5 / forward 3: persistence and state capture
+- Original states obtained on training IDs 1010000000..1010000099, all bundles (4035 rows; 992-dimensional state).
+- Dynamic moments: {'insulin': [{'h': 1, 'n': 223106, 'effect': -2.054155137550587, 'se': 0.1455749681886286, 'phi': [1.0]}, {'h': 2, 'n': 205065, 'effect': -1.9215505007955112, 'se': 0.15973192071265485, 'phi': [1.0, 0.025215871026567586]}, {'h': 4, 'n': 182164, 'effect': -1.30868113770493, 'se': 0.19061378818234964, 'phi': [1.0, 0.04948621470637709, -0.005534859740399555, -0.01710917618348411]}, {'h': 6, 'n': 163583, 'effect': -0.6953659704972652, 'se': 0.2156277623132073, 'phi': [1.0, 0.05780741421219487, -0.005006001563280803, -0.020813196722217174, -0.03845105671049845, -0.02815311855012386]}], 'norepinephrine': [{'h': 1, 'n': 312563, 'effect': 3.116538954905723, 'se': 0.08932562245910886, 'phi': [1.0]}, {'h': 2, 'n': 299506, 'effect': 4.860383476324453, 'se': 0.1068007636923712, 'phi': [1.0, 0.7508293535077544]}, {'h': 4, 'n': 273503, 'effect': 5.158283324771074, 'se': 0.13259557350076712, 'phi': [1.0, 0.7560151330798912, 0.5911606243095916, 0.4716599701183076]}, {'h': 6, 'n': 247499, 'effect': 3.9048242277985303, 'se': 0.15550859589971106, 'phi': [1.0, 0.7613918338652426, 0.5983575838047945, 0.4797127918586145, 0.3880467773670123, 0.3179327899297267]}]}
+- Persistence fit accounting for later treatment responses: {'insulin': {'beta': -2.1126230003348483, 'rho': 0.8412020161353004, 'observed': [-2.054155137550587, -1.9215505007955112, -1.30868113770493, -0.6953659704972652], 'fitted': [-2.1126230003348483, -1.8304143563196857, -1.2855404663702767, -0.7857956242711385], 'standardized_residuals': [-0.40163404128999375, 0.5705568684657099, 0.12140082601220833, -0.419378529015762]}, 'norepinephrine': {'beta': 3.2907376107066626, 'rho': 0.672711214384998, 'observed': [3.116538954905723, 4.860383476324453, 5.158283324771074, 3.9048242277985303], 'fitted': [3.2907376107066626, 4.6844984871314015, 4.988418327009077, 4.185545043195627], 'standardized_residuals': [1.950153281950914, -1.646851418587893, -1.2810759309473805, 1.8051787669546966]}}
+- Approximate fixed-dose-edit targets, probe: {'insulin_x2': {'mean': -10.760784323326371, 'n_stay_hours': 643, 'n_stays': 60}, 'insulin_half': {'mean': 5.380392161663186, 'n_stay_hours': 643, 'n_stays': 60}, 'ne_x2': {'mean': 4.01609433089793, 'n_stay_hours': 474, 'n_stays': 42}, 'ne_half': {'mean': -2.008047165448965, 'n_stay_hours': 474, 'n_stays': 42}}
+- Approximate targets, training population: {'insulin_x2': {'mean': -11.283462940451336, 'n_stay_hours': 175008, 'n_stays': 16457}, 'insulin_half': {'mean': 5.641731470225668, 'n_stay_hours': 175008, 'n_stays': 16457}, 'ne_x2': {'mean': 4.228313852084173, 'n_stay_hours': 127404, 'n_stays': 11318}, 'ne_half': {'mean': -2.1141569260420865, 'n_stay_hours': 127404, 'n_stays': 11318}}
+- Targets remain model-based estimates from records, not observed counterfactual truth. Check horizon-fit residuals and method agreement.
+- Python runs: 5; forward passes: 3; no edits.
+
+## Run 6: corrected targets, state directions, candidate A
+- Earlier rollout targets included unrecorded sensor-hours; superseded by the sensor-observed masks here.
+- Corrected probe targets: {'insulin_x2': {'mean': -12.036254091096144, 'n_stay_hours': 554, 'n_stays': 60}, 'insulin_half': {'mean': 6.018127045548072, 'n_stay_hours': 554, 'n_stays': 60}, 'ne_x2': {'mean': 4.732347324472345, 'n_stay_hours': 281, 'n_stays': 26}, 'ne_half': {'mean': -2.3661736622361724, 'n_stay_hours': 281, 'n_stays': 26}}
+- Corrected training-population targets: {'insulin_x2': {'mean': -12.51486026649639, 'n_stay_hours': 152158, 'n_stays': 16457}, 'insulin_half': {'mean': 6.257430133248195, 'n_stay_hours': 152158, 'n_stays': 16457}, 'ne_x2': {'mean': 4.6728108030283355, 'n_stay_hours': 79814, 'n_stays': 7206}, 'ne_half': {'mean': -2.3364054015141678, 'n_stay_hours': 79814, 'n_stays': 7206}}
+- Estimated conditional dose-innovation directions from action-bundle state changes, controlling pre-action states and record histories. Directions saved in dose_directions; not applied yet.
+- Candidate A: 30 rank-one output projections erase contrasts between nonzero dose/rate bin rows while preserving bin 0 and the common nonzero-bin component. Numeric inputs unchanged.
+- Hypothesis: bin lookup artifacts cause irregular dose response. Require factual NLL increase <=0.005, then inspect dose rollouts.
+- Python runs: 6; forward passes: 3.
+
+## Run 7 / forwards 4?5: candidate A rejected
+- Re-read architecture after restart.
+- Candidate A factual NLL 1.63557 versus original 1.63461: +0.00096.
+- Candidate A rollouts: insulin x2 -1.745, half +0.388; NE x2 -0.492, half +0.127.
+- Bin-contrast erasure does not explain the causal failure; saved operations and cleared them.
+- Next: inspect latent/action pathways and recovered state directions before constructing a targeted edit.
+- Python runs: 8; forward passes: 5.
+
+## Runs 9?10: candidate B
+- Run 9 inspection confirmed z_post.0.weight is (192,576), then failed during an optional vocabulary print before any edit.
+- Run 10 erased its action-input block: last 192 columns of [context, observation, action].
+- Context/observation inputs, direct prelude action token, measurement heads and numeric embeddings unchanged.
+- Hypothesis: action-dependent latent inference counteracts direct treatment dynamics. This requires experimental validation.
+- Python runs: 10; forward passes: 5.
+
+## Runs 13?14 / forward 8: state-
+
+FUNCTIONS
+['scale', 'rank1', 'ops', 'undo', 'clear_ops', 'make_panel', 'regression_dose_summary', 'clustered_ratio', 'insulin_rdd', 'insulin_rd_path', 'crossfit_residual_matrix', 'ne_dml_path', 'fn', 'fit_persistence', 'record_based_rollouts', 'state_dose_coefficients', 'compact_structure', 'compact', 'replay_ops', 'orthogonal_reflection_sequence', 'apply_lowrank_left_transform', 'freeze_ops', 'compact_saved', 'orthogonal_rank1_factors', 'apply_lowrank_right_transform']
+
+DICTIONARIES
+item ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+initial_associations [('glucose_finger', 'insulin'), ('glucose_lab', 'insulin'), ('map_arterial', 'norepinephrine'), ('map_cuff', 'norepinephrine')]
+result ['factual_rms', 'delta_rms', 'top_delta/factual_ratio', 'projection_factual_rms', 'projection_delta_rms', 'delta_rms_by_bundle']
+baseline_rollouts ['insulin_x2', 'insulin_half', 'ne_x2', 'ne_half']
+rdd_results [('glucose_finger', 1, 6), ('glucose_finger', 1, 10), ('glucose_finger', 1, 14), ('glucose_lab', 1, 6), ('glucose_lab', 1, 10), ('glucose_lab', 1, 14), ('glucose_finger', 2, 10), (
+placebo ['n', 'rate_jump', 'outcome_jump', 'effect', 'se']
+dml_results [('glucose_finger', 'all'), ('glucose_finger', 'fresh'), ('map_arterial', 'all'), ('map_arterial', 'fresh')]
+dml_cache ['glucose_finger', 'map_arterial']
+states_original ['x', 'stay_id', 'hour', 'has_insulin', 'has_norepinephrine', 'n_atoms']
+dynamic_moments ['insulin', 'norepinephrine']
+persistence ['insulin', 'norepinephrine']
+target_probe ['insulin_x2', 'insulin_half', 'ne_x2', 'ne_half']
+target_train ['insulin_x2', 'insulin_half', 'ne_x2', 'ne_half']
+dose_models ['insulin', 'norepinephrine']
+dose_directions ['insulin', 'norepinephrine']
+parts ['out', 'hmean', 'z']
+saved_candidates ['A_bin_erasure', 'B_posterior_action_erasure', 'C_numeric_x4']
+factual_b_summary [('factual_edited.csv', 'nll'), ('factual_original.csv', 'nll')]
+val ['w', 'ridge', 'O', 'R', 'frame', 'cv_rmse', 'penalty']
+head_surrogates ['glucose_finger', 'map_arterial']
+direction_diagnostics ['glucose_finger', 'map_arterial']
+whitened_dose_directions ['insulin', 'norepinephrine']
+cv_scores [0.1, 1.0, 10.0, 100.0]
+dd ['insulin', 'norepinephrine']
+__warningregistry__ ['version']
+_value ['version']
+repair_candidates ['numeric_gain4', 'slot_shear_015', 'slot_shear_008', 'head_ne_pilot']
+_obj ['w', 'ridge', 'O', 'R', 'frame', 'cv_rmse', 'penalty']
+_parts_x ['out', 'hmean', 'z']
+repair_white ['insulin', 'norepinephrine']
+repair_signal ['insulin', 'norepinephrine']
+_coeff_parts ['out', 'hmean', 'z']
+_metrics ['dose_coefficient_norm', 'dose_projection', 'factual_projection_mean', 'factual_projection_sd', 'dose_signal_over_factual_rms']
+drug_masks ['insulin_only', 'ne_only', 'both', 'no_drug']
+state_geom ['out', 'h0', 'h1', 'h2', 'h3', 'z']
+state_correction_designs [0.01, 0.1, 1.0, 10.0]
+pilot_design ['R', 'T', 'S', 'predicted_shift']
+diag_designs [0.0001, 0.001, 0.01, 0.1, 1.0]
+head_ne_design ['sensor', 'output', 'basis', 'reduced']
+
+ARRAY/DATAFRAME NAMES
+[('train', (1997441, 9)), ('tuning', (26251, 9)), ('df', (26251, 9)), ('panel', (780000, 6)), ('panel_tuning', (10400, 6)), ('a', (192,)), ('b', (192,)), ('s', (342696, 3)), ('last', (780000, 4)), ('lag1', (780000, 4)), ('lag2', (780000, 4)), ('controls', (780000, 44)), ('baseline_factual', (4751, 6)), ('t', (780000,)), ('sid', (780000,)), ('previous', (4035,)), ('Xdf', (328940, 45)), ('X', (4035, 32)), ('y', (328940,)), ('groups', (328940,)), ('folds', (328940,)), ('yp', (328940,)), ('dp', (328940,)), ('tr', (140000,)), ('te', (163951,)), ('response', (328940,)), ('prediction', (328940,)), ('yr', (328940,)), ('dr', (328940,)), ('fresh', (328940,)), ('sub', (328940,)), ('q', (192,)), ('original_rollout', (2500, 7)), ('sx', (4035, 992)), ('ss', (4035,)), ('sh', (4035,)), ('st', (4035,)), ('sc', (4035, 44)), ('sd', (4035, 2)), ('same_stay', (4035,)), ('before', (4035, 992)), ('delta_state', (4035, 992)), ('valid_actions', (4035,)), ('pred
+[output cut at 10,000 characters]
+```

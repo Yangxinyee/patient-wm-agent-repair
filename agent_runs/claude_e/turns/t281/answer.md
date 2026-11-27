@@ -1,0 +1,21 @@
+On reached rows of tu1, the NE pair at gain 2 roughly doubles the model's NE x1/2 response and makes NE x2 positive:
+
+| Readout (tu1, reached rows) | Original | ins_only(-2.6) | gated3(-2.7, 2) | Truth |
+|---|---|---|---|---|
+| NE x1/2 | -0.54 | -0.54 | -1.10 | -2.55 |
+| NE x2 | -0.11 | -0.11 | +0.26 | +5.10 |
+| Insulin x1/2 | +1.01 | +7.19 | +7.50 (ratio 1.02) | +7.34 |
+| Insulin x2 | -1.95 | -12.47 | -12.93 (ratio 0.88) | -14.67 |
+
+The NE per-stay standard errors are about 0.4, so these NE gains are only indicative. Applying tu1's -2.6 → -2.7 change to the pooled -2.6 results gives pooled insulin ratios of about .95 (x2) and .90 (x1/2).
+
+A rough marginal analysis suggests an NE gain of about 1.5 is a good use of the remaining budget. That holds if the readouts are judged relative to their true size; if errors were judged in absolute units, NE would be worth less.
+
+The key unknown is the NE pair's real factual cost on random stays. I will measure it on tu0, the most expensive batch, with the current `gated3(-2.7, 2)`. Fwd_26 measured `ins_only(-2.7)` on the same stays at +.00459, so the difference is exactly the NE pair's cost there.
+
+- My estimate is about +.0007 at gain 2, so roughly +.0004 at 1.5.
+- A much larger value would rule out keeping insulin at -2.7 alongside an NE gain.
+
+```forward
+{"type": "factual", "model": "both", "split": "tuning", "stays": [2020000100,2020000101,2020000102,2020000103,2020000104,2020000105,2020000106,2020000107,2020000108,2020000109,2020000110,2020000111,2020000112,2020000113,2020000114,2020000115,2020000116,2020000117,2020000118,2020000119,2020000120,2020000121,2020000122,2020000123,2020000124,2020000125,2020000126,2020000127,2020000128,2020000129,2020000130,2020000131,2020000132,2020000133,2020000134,2020000135,2020000136,2020000137,2020000138,2020000139,2020000140,2020000141,2020000142,2020000143,2020000144,2020000145,2020000146,2020000147,2020000148,2020000149,2020000150,2020000151,2020000152,2020000153,2020000154,2020000155,2020000156,2020000157,2020000158,2020000159,2020000160,2020000161,2020000162,2020000163,2020000164,2020000165,2020000166,2020000167,2020000168,2020000169,2020000170,2020000171,2020000172,2020000173,2020000174,2020000175,2020000176,2020000177,2020000178,2020000179,2020000180,2020000181,2020000182,2020000183,2020000184,2020000185,2020000186,2020000187,2020000188,2020000189,2020000190,2020000191,2020000192,2020000193,2020000194,2020000195,2020000196,2020000197,2020000198,2020000199]}
+```

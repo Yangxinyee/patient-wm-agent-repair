@@ -1,0 +1,84 @@
+OUTPUT of Python run 211 of at most 300:
+```
+=== FORWARD SCHEMAS ===
+1: ['summary.json', 'dose_edit_original.csv']
+dose_edit_original.csv: (2500, 7), ['stay_id', 'hour', 'edit', 'shift', 'shift_se', 'factual', 'reached']
+[{'stay_id': 2020000000, 'hour': 15, 'edit': 'insulin_x2', 'shift': 0.0, 'shift_se': 0.0, 'factual': 154.496, 'reached': False}]
+10: ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+14: ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+15: ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+17: ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+18: ['summary.json', 'dose_edit_edited.csv', 'dose_edit_original.csv']
+19: ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+20: ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+21: ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+factual_edited.csv: (4751, 6), ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+[{'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 143.9635, 'nll': 2.2533}]
+factual_original.csv: (4751, 6), ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+[{'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 143.9628, 'nll': 2.2533}]
+23: ['summary.json', 'factual_edited.csv', 'factual_original.csv']
+factual_edited.csv: (4751, 6), ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+[{'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 143.9636, 'nll': 2.2533}]
+factual_original.csv: (4751, 6), ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+[{'stay_id': 2020000000, 'hour': -1.0, 'event': 'glucose_lab', 'observed': 148.0, 'predicted_mean': 143.9628, 'nll': 2.2533}]
+
+=== ARCHIVE SCHEMAS ===
+ne_reduced107.npz: {'delta': (192, 192), 'ne_delta': (192, 192), 'scale': ()}
+ne_trial103.npz: {'delta': (192, 192), 'feature': (192,), 'direction': (192,), 'strength': (), 'beta': ()}
+ne_candidate151.npz: {'ne_delta': (192, 192), 'total_delta': (192, 192), 'gamma': ()}
+ne_candidate154.npz: {'baseline_delta': (192, 192), 'ne_delta': (192, 192), 'weight': (192, 192), 'gamma': ()}
+ne_candidate155.npz: {'weight': (192, 192), 'baseline_delta': (192, 192), 'ne_delta': (192, 192), 'strength': ()}
+ne_candidate199.npz: {'ne_delta': (192, 192), 'total_delta': (192, 192), 'feature': (192,), 'direction': (192,), 'beta': ()}
+insulin_candidate58.npz: {'delta': (192, 192), 'input_feature': (192,), 'direction': (192,), 'normalization': (), 'strength_multiplier': (), 'initial_basis': (4, 192), 'original_trial_delta': (192, 192)}
+insulin_candidate63.npz: {'delta': (192, 192), 'feature': (192,), 'direction': (192,), 'strength': ()}
+
+=== INSULIN CONSTRUCTION SUMMARIES ===
+## Run 55: factual-error localization
+Compared paired original/trial means and NLL by event and time, and recovered the value-head helper dependencies. Record evidence supports insulin beta about -2.28 and provisional persistence .857; NE beta +3.25 needs stronger identification checks. No weights changed. Python runs: 55; forwards: 5.
+
+
+## Run 56: admission-leakage nullspace test
+Run 55 localized most trial NLL degradation to initial readings (glucose mean shifts +11/+20), not later factual forecasts. Constructed initial prelude features from original GPU posterior states and admission atoms; tested a rank-one input projection orthogonal to those features. No weights changed. Python runs: 56; forwards: 5.
+
+
+## Run 57: constrained, unit-audited feature refits
+Initial prelude has rank 4. Euclidean projection retained drug contrasts but was not accepted without a consistent factual-unit audit. Fitted closed-form two-output regressions with exact admission-null constraints, 80 fitting stays and 20 held-out stays; compared factual-zero and record-based innovation targets. Metrics: {('zero', 1.0): {'heldout_slot_rms': 0.27382
+## Run 58: installed admission-null insulin candidate
+Projection alone failed the unit-correct factual audit. Selected constrained factual-zero fit anchor=10, with exact initial-prelude null constraints. Normalized its insulin-x2 contrast to the old trial (factor 3.6511856), then doubled trial strength. Edit formula: original b_in + .75*2*outer(trial_direction47, normalization58*constrained_fits57[('zero',10)][:,0]).
+## Run 59: factual pass and restart recovery
+Forward 6 candidate factual NLL=1.64015 versus original=1.64063 (-0.00048) on 50 tuning stays. Admission-null insulin candidate passes this subset; intervention accuracy remains untested. Recovered architecture, validation IDs, causal notes and retained objects. No weight changes. Python runs: 59; forwards: 6.
+
+
+## Forward 7 and Run 60: intervention check
+On the same 50 tuning stays, original/current insulin x2=-1.672/-7.810, half=+0.784/+2.697; NE x2=-0.548/-0.311, half=-0.726/-1.036. Candidate improves insulin but remains underpowered and asymmetric; NE requires its own evidence-backed repair. Recovering retained fits before revising. No weight changes. Python runs: 60; forwards: 7.
+
+
+## Run 61: compact helper recovery
+Previous output truncated before helper inventory. Retrieving only helper signatures, recent edit arrays and causal-object names. No weight changes. Python runs: 61; forwards: 7.
+
+
+## Runs 62?63: balanced insulin candidate
+Run 62 verified raw-rate contrast units; old feature_metrics helper failed, so diagnostics were recomputed explicitly. Closed-form precision-weighted correction enforces equal mean insulin x2/half sensitivity, zero mean NE cross-response, and exact admission nullspace. Base slopes=[1.0997098912801242, 0.3794443556031091, 1.7219279116606785, -0.7281142378782448], balanced=[1.0
+## Forward 8 and Run 64: reject stronger balanced edit
+Candidate63 factual NLL=1.64769 versus original=1.63461 (+0.01308), failing the 0.005 ceiling. Restored candidate58. Refitted admission-null balanced insulin features with increasing factual penalties using closed-form constrained regressions; metrics={10.0: {'heldout_slot_rms': 0.7115907649546053, 'heldout_mean_rms': 0.7054814849400769, 'contrast_rmse': 1.349986
+## Run 65: second restart recovery
+Candidate63 was rejected for factual degradation; candidate58 remains restored. The NE dose/MAP table is observational policy evidence, not a causal estimate. Reading architecture, early identification notes, and retained objects before further edits. No weights changed. Python runs: 65; forwards: 8.
+
+
+## Run 66: compact restart recovery
+Architecture and early causal evidence recovered; run65 output truncated before helpers. Retrieving bounded helper and object inventories and early edit-development notes. No weights changed. Python runs: 66; forwards: 8.
+
+
+## Run 67: isolated strength test
+Verified current edit equals candidate58, then installed 1.6 times its original delta. Unlike candidate63, this changes no feature balancing or output direction. Candidate is unaccepted pending 100-stay factual validation, then paired rollouts. Python runs: 67; forwards: 8.
+
+
+## Forwards 9?10 and Run 68: stronger insulin baseline
+Candidate58 at strength 1.6 has paired factual NLL increase 0.00278 on 100 random tuning stays. Rollouts: insulin x2=-12.708, half=+4.335; NE x2=+0.099, half=-1.004. Retain as working baseline, not final acceptance. Recovering NE identification and recurrent-edit helpers. No weights changed. Python runs: 68; forwards: 10.
+
+
+
+=== HELPER NAMES ===
+['load', 'load_original', 'save_edit', 'drop_edit', 'edited', 'make_panel', 'ols_cluster', 'rd_estimate', 'pooled_rd', 'rd_dynamic_residual', 'nuisance_features', 'schedule_readout', 'linear0', 'norm0', 'activation0', 'mlp0', 'decoder_query', 'head_calc', 'dose_covariates', 'recon_lin', 'recon_mlp', 'recon_norm', 'recon_ctx', 'recon_single_set', 'recon_atom', 'recon_record_atom', 'recon_sets', 'single_encode_batch', '_fn30', '_post33', 'fun', 'core_lin', 'core_norm', 'core_ffn', 'core_attn', 'core_layer', 'make_core_memory', 'core_update_local', 'fn44', 'np45', 'tt45', 'next_means45', 'prelude46', 'edited_action46', 'old_core_lin46', 'capturing_core_lin46', 'coda46', 'recovery_function', 'contrast_metrics52', 'helper55', 'feature_metrics57', 'full_insulin_slope58', 'function62', 'as_numpy67', 'fn67', 'fun68', 'innovation_estimate69', 'record_schedule_target69', 'crossfit_ne73', 'moment_ne73', 'aligned_future74', 'moment_ne75', 'fit_impulse76', 'fun77', 'array80', 'add86', 'f86', 'f87', 'f89', 'prelude_hidden93', 'posterior94', 'o99', 'asnp101', 'fun108', 'as_numpy114', 'np115', 'bundle_target115', 'moment115', '_fn118', '_mf121', 'means_all121', 'readout121', 'means_all122', 'fn124', 'readout125', 'arr127', 'ff128', 'oldattn129', 'attn129', 'memory133', 'attention133', 'old_attention133', 'coda_inp
+
+```

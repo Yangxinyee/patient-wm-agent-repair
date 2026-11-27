@@ -1,0 +1,68 @@
+OUTPUT of Python run 49 of at most 300:
+```
+=== ACTION PROBE AND DECODER RESULTS ===
+## Runs 25?26: successful head reconstruction and diagnostic dose probe
+All 4660 reading means reconstructed without meaningful channel bias (glucose_finger -0.040, lab -0.091, MAP arterial -0.0002, cuff +0.003).
+Head config: GELU for gap/prior/value; query type 1; status 0; last flags (0,), age column 3, value-z column 6; age log1p(seconds)/10; bin side left. Original states: S_reference; baseline head features: head_original_features, 64 prior draws, seed 917.
+Run 25 stopped before saving because load_original returns torch.Tensor; run 26 fixed with clone(). Temporary edit ONLY embed.numeric.weight: presence columns 3/5 receive 0.5 times numeric dose/rate columns 2/4. Equivalent rate increments: {'insulin': 0.5, 'norepinephrine': 0.30000000000000004}.
+Restore embed.numeric.weight after obtaining probe states. Bins are unchanged; the final correction must be tested with exact dose_edit.
+F includes current drug exposures: exclude the target drug's current exposure when estimating its assignment from pre-dose history.
+
+## Run 27: probe collected, original embedding restored
+Forward 5 returned 4350 bundle states for the same 100 training stays. Saved as S_probe; removed temporary embed.numeric.weight edit. Recovering architecture and kernel analysis before constructing a lasting correction.
+
+## Run 30: matched head-dose probe
+Probe rows align exactly. RMS state differences: out 0.01181, h 0.7450, posterior z 0.04997. Original embedding remains restored. Used validated head_cfg and matched state globals to compute head_probe_features with the same 64 prior draws (seed 917); head_probe_delta_hidden records the controlled hidden-feature changes.
+
+## Run 31: configuration aliasing fixed
+Run 30 used a mutable head_cfg that did NOT match the validated reconstruction; its reported probe differences must not be used. Frozen repair_head_cfg explicitly: all GELU, type 1, status 0, flags (0,), age col 3, value-z col 6, log1p(seconds)/10, bin side left. Recomputed repair_original_features and repair_probe_features with matched 64 prior draws (seed 917). Use repair_delta_hidden, not head_probe_delta_hidden, for fitting.
+
+## Run 32: multi-draw, held-out dose-direction diagnostic
+Frozen head reconstruction exactly matches saved original features. Collected 8 matched single-prior draws (1701..1708) in probe_draw_store. 70/30 stay split, standardized hidden features plus intercept. Fitted small linear dose-residual decoders using factual-zero and probe-response constraints; no weight edits installed.
+[{"probe_weight":0.5,"insulin_factual_rms":0.0046042331,"insulin_probe_gain":0.0003725883,"insulin_probe_rmse":0.2467015587,"norepinephrine_factual_rms":0.0051738076,"norepinephrine_probe_gain":0.003181226,"norepinephrine_probe_rmse":0.1175140045},{"probe_weight":2.0,"insulin_factual_rms":0.017939561,"insulin_probe_gain":0.0014598419,"insulin_probe_rmse":0.246445556,"norepinephrine_factual_rms":0.0177448216,"norepinephrine_probe_gain":0.0108292365,"norepinephrine_probe_rmse":0.1167052642},{"probe_weight":8.0,"insulin_factual_rms":0.066543762,"insulin_probe_gain":0.005473004,"insulin_probe_rmse":0.245568404,"norepinephrine_factual_rms":0.0553342212,"norepinephrine_probe_gain":0.0318937368,"norepinephrine_probe_rmse":0.1147169264},{"probe_weight":32.0,"insulin_factual_rms":0.2205939176,"insulin_probe_gain":0.0184436834,"insulin_probe_rmse":0.243132231,"norepinephrine_factual_rms":0.1650639249,"norepinephrine_probe_gain":0.0839051769,"norepinephrine_probe_rmse":0.1107185954},{"probe_weight":128.0,"insulin_factual_rms":0.6057959684,"insulin_probe_gain":0.0509720594,"insulin_probe_rmse":0.2386374954,"norepinephrine_factual_rms":0.4220075654,"norepinephrine_probe_gain":0.1775896231,"norepinephrine_probe_rmse":0.1056616833},{"probe_weight":512.0,"insulin_factual_rms":1.42675965,"insulin_probe_gain":0.1118989948,"insulin_probe_rmse":0.2356042328,"norepinephrine_factual_rms":0.8728858751,"norepinephrine_probe_gain":0.2797521816,"norepinephrine_probe_rmse":0.1040786225}]
+
+## Run 33: head-only route rejected; within-stay persistence check
+Held-out factual-zero decoders cannot recover much probe response: at weight 512 insulin gain 0.112 costs factual RMS 1.427 rate units; NE gain 0.280 costs 0.873. Do not install decoder edits. Next route: amplify action pathway and recalibrate factual predictions using code/last-value transition weights. Differenced IV removes stay intercepts; cross-sensor lag1 and same-sensor lag2 instruments check persistence conditional on externally supported drug coefficients. Interpret with missing-reading selection and instrument-strength caution.
+[{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-1.55,"rho":-4.9046918397,"cluster_se":2.5152764014,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-1.8,"rho":-4.8978516129,"cluster_se":2.5155655386,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"other_sensor_lag1","n":46123,"b":-2.0,"rho":-4.8923794314,"cluster_se":2.5158191282,"instrument_x_cov":-2.5765004757},{"sensor":"glucose_finger","instrument":"same_sensor_lag2","n":211634,"b":-1.55,"rho":7.0994367275,"cluster_se":1.9500454994,"instrument_x_cov":1.7201035657},{"sensor":"glucose_finger","instrument":"same_sensor_lag2","n":211634,"b":-1.8,"rho":7.1033551052,"cluster_se":1.9491779374,"instrument_x_cov":1.7201035657},{"sensor":"glucose_finger","instrument":"same_sensor_lag2","n":211634,"b":-2.0,"rho":7.1064898075,"cluster_se":1.9484893959,"instrument_x_cov":1.7201035657},{"sensor":"glucose_lab","instrument":"other_sensor_lag1","n":2770,"b":-1.55,"rho":-0.4645327882,"cluster_se":0.9978312224,"instrument_x_cov":5.479914329},{"sensor":"glucose_lab","instrument":"other_sensor_lag1","n":2770,"b":-1.8,"rho":-0.5796620075,"cluster_se":1.0520966706,"instrument_x_cov":5.479914329},{"sensor":"glucose_lab","instrument":"other_sensor_lag1","n":2770,"b":-2.0,"rho":-0.671765383,"cluster_se":1.1026415304,"instrument_x_cov":5.479914329},{"sensor":"glucose_lab","instrument":"same_sensor_lag2","n":937,"b":-1.55,"rho":-1.0753677599,"cluster_se":3.3483164007,"instrument_x_cov":3.2403527004},{"sensor":"g
+=== IMPORTANT FUNCTION SIGNATURES ===
+local_value_head (data, cfg, bin_side='left', zmode='prior_mean', nsamples=32, return_features=False, seed=917)
+source unavailable: OSError
+names: ('len', 'torch', 'tensor', 'S', 'state_index', 'to_numpy', 'float32', 'dt_s', 'reshape', 'exp', 'hw', 'head_norm', 'mean', 'get', 'head_mlp', 'log1p', 'Generator', 'manual_seed', 'randn', 'clamp', 'zeros', 'TF', 'linear', 'int', 'code_id', 'long', 'np', 'int64', 'event', 'unique', 'eq', 'numeric_specs', 'last_value', 'isfinite', 'searchsorted', 'observed', 'has_last', 'z_last', 'last_age_s', 'act_fn', 'softmax', 'array', 'VOCAB', 'sum', 'numpy', 'log', 'arange', 'clamp_min', 'dict', 'std', 'update')
+install_numeric_amplification (scale)
+source unavailable: OSError
+names: ('load_original', 'clone', 'float', 'train', 'loc', 'event', 'eq', 'torch', 'zeros', 'float32', 'numeric_specs', 'to_numpy', 'np', 'mean', 'isfinite', 'code_ids', 'save_edit')
+fit_latent_record_model (data, sensors, drug, fixed_b, iterations=24, initial_parameters=None)
+source unavailable: OSError
+names: ('index', 'get_level_values', 'unique', 'to_numpy', 'len', 'list', 'np', 'float64', 'reshape', 'transpose', 'T', 'isfinite', 'nan_to_num', 'float', 'mean', 'var', 'nanmean', 'dict', 'zeros', 'max', 'array', 'items', 'isinstance', 'ndarray', 'copy', 'ones', 'broadcast_to', 'time', 'perf_counter', 'range', 'empty', 'empty_like', 'maximum', 'sum', 'log', 'pi', 'einsum', 'linalg', 'solve', 'clip', 'append', 'print', 'round', 'sqrt', 'pd', 'DataFrame', 'iloc', 'to_string')
+record_impulse_targets (data_panel, stays, b_insulin, rho_insulin, b_ne, rho_ne)
+source unavailable: OSError
+names: ('np', 'zeros', 'len', 'bool', 'range', 'xs', 'reindex', 'fillna', 'to_numpy', 'enumerate', 'append', 'pd', 'DataFrame')
+=== RECONSTRUCTED HEAD CONFIGURATION ===
+{'activation': 'gelu', 'gap_mode': 'seconds_div10', 'type_id': 1, 'status_id': 0, 'age_mode': 'seconds_div10', 'zcol': 6, 'acol': 3, 'flags': (0,), 'gap_activation': 'gelu', 'prior_activation': 'gelu', 'value_activation': 'gelu'}
+=== DRUG NORMALIZATION ===
+('insulin', 'dose') {'code': 'insulin', 'attribute': 'dose', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}
+('norepinephrine', 'dose') {'code': 'norepinephrine', 'attribute': 'dose', 'median': 2.208, 'iqr': 2.88, 'fine_bin_edges': [0.144, 0.192, 0.24, 0.336, 0.72, 1.152, 1.632, 2.208, 2.784, 3.456, 4.176, 4.8, 4.8, 4.8, 4.8]}
+('norepinephrine', 'rate') {'code': 'norepinephrine', 'attribute': 'rate', 'median': 0.46, 'iqr': 0.6000000000000001, 'fine_bin_edges': [0.03, 0.04, 0.05, 0.07, 0.15, 0.24, 0.34, 0.46, 0.58, 0.72, 0.87, 1.0, 1.0, 1.0, 1.0]}
+('insulin', 'rate') {'code': 'insulin', 'attribute': 'rate', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}
+=== PRELUDE TENSORS ===
+core.prelude.0.attn.kv.weight (384, 192)
+core.prelude.0.attn.out.weight (192, 192)
+core.prelude.0.attn.q.weight (192, 192)
+core.prelude.0.ffn.0.bias (768,)
+core.prelude.0.ffn.0.weight (768, 192)
+core.prelude.0.ffn.2.bias (192,)
+core.prelude.0.ffn.2.weight (192, 768)
+core.prelude.0.norm1.bias (192,)
+core.prelude.0.norm1.weight (192,)
+core.prelude.0.norm3.bias (192,)
+core.prelude.0.norm3.weight (192,)
+core.prelude_norm.bias (192,)
+core.prelude_norm.weight (192,)
+embed.categorical.action.weight (2, 192)
+embed.categorical.discharged_to.weight (2, 192)
+embed.categorical.rate_unit.weight (4, 192)
+embed.categorical.route.weight (2, 192)
+embed.categorical.status.weight (2, 192)
+embed.categorical.unit.weight (6, 192)
+
+```

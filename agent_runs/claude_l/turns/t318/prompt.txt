@@ -1,0 +1,35 @@
+OUTPUT of Python run 290 of at most 300:
+```
+def blin(W,x,n,bias=True):
+    y=x@W[n+'.weight'].T
+    if bias and (n+'.bias') in W: y=y+W[n+'.bias']
+    return y
+def bmlp(W,x,n): return blin(W,G_(blin(W,x,n+'.0')),n+'.2')
+def bln(W,x,n): return F.layer_norm(x,(x.shape[-1],),W[n+'.weight'],W[n+'.bias'],1e-5)
+def bmha(W,xq,xkv,n,H=4):
+--
+def bmha(W,xq,xkv,n,H=4):
+    # xq (B,nq,192) xkv (B,nk,192)
+    B,nq,_=xq.shape; nk=xkv.shape[1]; dh=192//H
+    q=(xq@W[n+'.q.weight'].T).reshape(B,nq,H,dh).transpose(1,2)
+    kv=xkv@W[n+'.kv.weight'].T; k=kv[...,:192].reshape(B,nk,H,dh).transpose(1,2); v=kv[...,192:].reshape(B,nk,H,dh).transpose(1,2)
+    att=torch.softmax((q@k.transpose(-1,-2))/math.sqrt(dh),-1)
+    o=(att@v).transpose(1,2).reshape(B,nq,192)
+--
+[('core.prelude.0.attn.kv.weight', (384, 192)), ('core.prelude.0.attn.out.weight', (192, 192)), ('core.prelude.0.attn.q.weight', (192, 192)), ('core.prelude.0.ffn.0.bias', (768,)), ('core.prelude.0.ffn.0.weight', (768, 192)), ('core.prelude.0.ffn.2.bias', (192,)), ('core.prelude.0.ffn.2.weight', (192, 768)), ('core.prelude.0.norm1.bias', (192,)), ('core.prelude.0.norm1.weight', (192,)), ('core.prelude.0.norm3.bias', (192,)), ('core.prelude.0.norm3.weight', (192,)), ('core.prelude_norm.bias', (192,)), ('core.prelude_norm.weight', (192,))]
+Dtr {'glucose_finger': ((30000, 29), nan), 'glucose_lab': ((30000, 29), nan), 'map_arterial': ((30000, 29), nan), 'map_cuff': ((30000, 29), nan), 'insulin': ((30000, 29), 1030.461), 'norepinephrine': ((30000, 29), 293.462)}
+Dtu {'glucose_finger': ((400, 29), nan), 'glucose_lab': ((400, 29), nan), 'map_arterial': ((400, 29), nan), 'map_cuff': ((400, 29), nan), 'insulin': ((400, 29), 115.581), 'norepinephrine': ((400, 29), 34.22)}
+DIRS {"('ins', 0.001)": ((192,), 10.05), "('ins', 0.01)": ((192,), 5.158), "('ins', 0.1)": ((192,), 1.372), "('ins', 1)": ((192,), 0.168), "('ne', 0.001)": ((192,), 9.928), "('ne', 0.01)": ((192,), 2.817), "('ne', 0.1)": ((192,), 0.546), "('ne', 1)": ((192,), 0.062)}
+NUMV {"('map_arterial', 'value')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], ''), "('map_cuff', 'value')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], ''), "('glucose_lab', 'value')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], ''), "('glucose_finger', 'value')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], ''), "('insulin', 'dose')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], ''), "('norepinephrine', 'dose')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], ''), "('insulin', 'rate')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], ''), "('norepinephrine', 'rate')": (['code', 'attribute', 'median', 'iqr', 'fine_bin_edges'], '')}
+Dmin norms 79.28108040038252 229.60663048138278 cos Dmin_ins/VD_old -0.002567588795001127
+BUN[s] type list 54 bundle0 type tuple (-2.0, [{'code': 11, 'kind': 0, 'ekind': 3, 'unit': 0, 'rate_unit': 0, 'vb': 0, 'db': 0, 'rb': 0, 'num': (0, 0, 0, 0, 0, 0), 'act': False}])
+reading bundle: None
+wm2_rollout.py def edit_atom(a, f):
+    nm=DRUGN[a['code']]
+    dm,di=NUMV[(nm,'dose')]['median'],NUMV[(nm,'dose')]['iqr']; rm,ri=NUMV[(nm,'rate')]['median'],NUMV[(nm,'rate')]['iqr']
+    dose=a['num'][2]*di+dm; rate=a['num'][4]*ri+rm
+    b=dict(a); b['num']=(0,0,zsc(nm,'dose',dose*f),1,zsc(nm,'rate',rate*f),1)
+    b['db']=fbin_f32(nm,'dose',dose*f); b['rb']=fbin_f32(nm,'rate',rate*f); return b
+def u_for(atoms, t
+
+```

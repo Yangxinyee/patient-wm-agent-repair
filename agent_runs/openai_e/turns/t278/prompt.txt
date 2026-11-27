@@ -1,0 +1,214 @@
+OUTPUT of Python run 238 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+FUNCTION prelude_hidden93 (h, e, u, z, batch=192)
+  8           0 RESUME                   0
+
+  9           2 BUILD_LIST               0
+              4 BUILD_LIST               0
+              6 STORE_FAST               6 (raw_parts)
+              8 STORE_FAST               5 (hidden_parts)
+
+ 10          10 LOAD_GLOBAL              1 (NULL + range)
+             20 LOAD_CONST               1 (0)
+             22 LOAD_GLOBAL              3 (NULL + len)
+             32 LOAD_FAST                0 (h)
+             34 CALL                     1
+             42 LOAD_FAST                4 (batch)
+             44 CALL                     3
+             52 GET_ITER
+        >>   54 EXTENDED_ARG             1
+             56 FOR_ITER               311 (to 682)
+             60 STORE_FAST               7 (start)
+
+ 11          62 LOAD_GLOBAL              5 (NULL + min)
+             72 LOAD_FAST                7 (start)
+             74 LOAD_FAST                4 (batch)
+             76 BINARY_OP                0 (+)
+             80 LOAD_GLOBAL              3 (NULL + len)
+             90 LOAD_FAST                0 (h)
+             92 CALL                     1
+            100 CALL                     2
+            108 STORE_FAST               8 (stop)
+
+ 12         110 LOAD_GLOBAL              7 (NULL + torch)
+            120 LOAD_ATTR                8 (cat)
+
+ 13         140 LOAD_FAST                0 (h)
+            142 LOAD_FAST                7 (start)
+            144 LOAD_FAST                8 (stop)
+            146 BINARY_SLICE
+            148 LOAD_GLOBAL             10 (W0)
+            158 LOAD_CONST               2 ('core.slots')
+            160 BINARY_SUBSCR
+            164 LOAD_CONST               0 (None)
+            166 BINARY_SUBSCR
+            170 BINARY_OP                0 (+)
+
+ 14         174 LOAD_FAST                1 (e)
+            176 LOAD_FAST                7 (start)
+            178 LOAD_FAST                8 (stop)
+            180 BUILD_SLICE              2
+            182 LOAD_CONST               0 (None)
+            184 BUILD_TUPLE              2
+            186 BINARY_SUBSCR
+
+ 15         190 LOAD_FAST                2 (u)
+            192 LOAD_FAST                7 (start)
+            194 LOAD_FAST                8 (stop)
+            196 BUILD_SLICE              2
+            198 LOAD_CONST               0 (None)
+            200 BUILD_TUPLE              2
+            202 BINARY_SUBSCR
+
+ 16         206 LOAD_GLOBAL             13 (NULL + core_lin)
+            216 LOAD_FAST                3 (z)
+            218 LOAD_FAST                7 (start)
+            220 LOAD_FAST                8 (stop)
+            222 BINARY_SLICE
+            224 LOAD_CONST               3 ('z_in')
+            226 CALL                     2
+            234 LOAD_CONST               0 (None)
+            236 LOAD_CONST               0 (None)
+            238 BUILD_SLICE              2
+            240 LOAD_CONST               0 (None)
+            242 BUILD_TUPLE              2
+            244 BINARY_SUBSCR
+
+ 12         248 BUILD_LIST               4
+
+ 17         250 LOAD_CONST               4 (1)
+
+ 12         252 KW_NAMES                 5 (('dim',))
+            254 CALL                     2
+            262 STORE_FAST               9 (tokens)
+
+ 18         264 LOAD_CONST               6 ('core.prelude.0')
+            266 STORE_FAST              10 (p)
+
+ 19         268 LOAD_FAST                9 (tokens)
+            270 LOAD_GLOBAL             15 (NULL + core_attn)
+
+ 20         280 LOAD_GLOBAL             17 (NULL + core_norm)
+            290 LOAD_FAST                9 (tokens)
+            292 LOAD_FAST               10 (p)
+            294 LOAD_CONST               7 ('.norm1')
+            296 BINARY_OP                0 (+)
+            300 CALL                     2
+            308 LOAD_FAST               10 (p)
+            310 LOAD_CONST               8 ('.attn')
+            312 BINARY_OP                0 (+)
+            316 LOAD_CONST               9 (4)
+
+ 19         318 CALL                     3
+            326 BINARY_OP                0 (+)
+            330 STORE_FAST              11 (after_attn)
+
+ 21         332 LOAD_GLOBAL             19 (NULL + F)
+            342 LOAD_ATTR               20 (gelu)
+            362 LOAD_GLOBAL             13 (NULL + core_lin)
+
+ 22         372 LOAD_GLOBAL             17 (NULL + core_norm)
+            382 LOAD_FAST               11 (after_attn)
+            384 LOAD_FAST               10 (p)
+            386 LOAD_CONST              10 ('.norm3')
+            388 BINARY_OP                0 (+)
+            392 CALL                     2
+            400 LOAD_FAST               10 (p)
+            402 LOAD_CONST              11 ('.ffn.0')
+            404 BINARY_OP 
+[output cut at 10,000 characters]
+```

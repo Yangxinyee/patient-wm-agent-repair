@@ -1,0 +1,111 @@
+OUTPUT of Python run 261 of at most 300:
+```
+=== RECORD-DERIVED ROLLOUT TARGETS AND FALLBACK ===
+## Run 7
+Recovered architecture. Separate action encoder feeds posterior and prelude; reading heads also use same-code last-reading registers and transition logits. No edits. Run 6 record-based rollout targets remain provisional: insulin x2 about -14.18, half +7.09; norepinephrine x2 +4.68, half -2.34 on training schedules.
+
+
+## Run 8
+Recovered persistent analysis variables and exact tensor shapes. Value-bin head is Linear(192,192), activation, Linear(192,17). Action encoder is separate two-stage DeepSets MLP. Last_numeric has 8 inputs; exact reconstruction must be checked rather than assuming the architecture summary lists every feature.
+
+
+## Run 10
+Loaded original tensors and matched training factual CSV schema. Established complete numeric normalisation and fine-bin tables. Preparing a forward-head reconstruction; no model edits or external information used.
+
+
+## Run 11
+Matched 4510 factual reading rows to their preceding saved states. Initial local head reconstruction identifies measurement type index 1 but mean RMSE is about 3.76, too large to assume exact reconstruction. Checking bin boundaries, register layout, status and latent details before editing.
+
+
+## Run 12
+Register search supports [has_last, age, z_value, has_value, ...], measurement type 1 and zero status. Bin-edge convention has negligible effect here. Residual reconstruction error remains ~3.76; checking mixed MLP activations and latent Monte Carlo noise next. No edits.
+
+
+## Run 83: deterministic reading-head diagnostic
+All previous edits were absent. Temporarily zeroed z_head.weight only, to remove prior-draw uncertainty from factual reading predictions on the 100 training stays with saved original states. This is a diagnostic, not a proposed final repair. Require near-exact local/GPU head agreement before installing another gated correction; restore z_head afterward.
+
+
+## Run 87: restart recovery
+Forward 9 was an artificial register probe (NLL 2.62934), not a candidate repair. Saved its diagnostic weights in r87_probe_weights and reverted every edit. Recovering the exact head layout from its saved outputs before further edits.
+
+
+## Run 103: candidate preparation
+Recovered stable DML immediate slopes: insulin -1.99285 (SE 0.04554), NE +3.29011 (SE 0.09111). Insulin state innovation decoder is useful; NE decoder is not. Checking standardized-feature conversion and exact cached value-head evaluation, then selecting low-contribution neurons for an insulin-only gated correction. No edits installed.
+
+
+## Run 104: local gated-insulin candidate
+Original tuning rollout: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600. Provisional targets on those exact hours: insulin -13.599/+6.800, NE +4.746/-2.373. Constructed a raw-coordinate, latent-aware insulin gate/innovation correction using neurons 107/109; assessing local held-out NLL before installing any weights.
+
+
+## Run 105 result
+Installation aborted before save_edit: max logit reconstruction error 0.003045 exceeded numerical threshold 0.003. No edits saved. Likely cancellation between paired gated neurons; increasing their decoder separation to reduce numerical sensitivity.
+
+
+## Run 106: insulin candidate installed
+Increased symmetric decoder separation from 0.05 to 0.20 to reduce cancellation. Local checks passed; full-strength gated correction installed in value-head neurons 107/109, with mean compensation. Four value-head tensors edited. Awaiting paired GPU factual validation; not yet accepted.
+
+
+## Run 112: provisional insulin strength 2
+Scaled only the two correction output columns; gate, decoder, and
+removed-neuron mean compensation are unchanged.
+Local delta NLL at strength 2: all +0.002618, training +0.001343,
+held-out +0.006454. Held-out result is a generalization warning.
+This is a trial, not an accepted replacement. Saved strength-1 candidate
+remains available for immediate restoration. GPU factual check is next.
+
+
+## Run 116: insulin strength-2.6 trial
+Installed strength 2.6 by scaling only value-head output columns 107/109 of the saved strength-1 construction. Gate, decoder, and removed-neuron mean compensation are unchanged. Strength-2 fallback remains in r115_strength2. This trial is not accepted pending a fresh paired factual check.
+
+
+## Run 124: controlled NE representation probe
+Verified exact head-input reconstruction against cached original states. Temporarily shifted only NE embed.code by the continuous numeric direction corresponding to +0.10 rate. This does not change bins and may also affect END atoms, so it is a diagnostic direction, not the actual dose_edit intervention. Must restore embed.code immediately after paired states are obtained.
+
+
+## Run 125: probe recovery
+Removed the diagnostic embed.code.weight edit immediately after forward 15. The four strength-2 insulin value-head edits remain. Loaded aligned original/probed states to investigate a controlled NE response direction; no NE repair has been accepted.
+
+
+## Forward 29 / 30 and Run 235: validated fallb
+
+=== CANDIDATE/CANCELLATION INTERFACES ===
+r246_candidate (ins_amp=0.94, ne_amp=0.5, cancel=1.0)
+names: ('r246_safe_np', 'items', 'copy', 'r246_ins_rows', 'list', 'r240_ne_rows', 'np', 'outer', 'r240_q', 'r246_reg', 'astype', 'float32')
+constants: [('attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias'), 0.94, 0.4, 'beta', 'intercept']
+r246_loss (w, c)
+names: ('c210_eval', 'isinstance', 'tuple', 'torch', 'is_tensor', 'numpy', 'np', 'asarray')
+constants: [0]
+r252_nll (logits, cache, correction=None)
+names: ('torch', 'as_tensor', 'dtype', 'softmax', 'mean', 'arange', 'len', 'long', 'log', 'numpy')
+constants: [('dtype',), -1, 0, 'y']
+r252_fit_table (shrink)
+names: ('c210_train', 'event', 'unique', 'to_numpy', 'r252_fit', 'r252_dmean', 'mean', 'range', 'last_bin', 'int', 'sum')
+constants: ['meta', 0, 17]
+r252_table_rows (table, cache)
+names: ('np', 'stack', 'zip', 'event', 'last_bin', 'int')
+constants: ['meta']
+c210_eval (weights, cache, return_probs=False)
+names: ('c207_tensor_weights', 'c209_original', 'torch', 'where', 'abs', 'amax', 'nn', 'functional', 'linear', 'len', 'gelu', 'softmax', 'mean', 'log', 'arange', 'clamp_min', 'numpy', 'sum')
+constants: ['attr_heads.value_bin.0.weight', 1, 1e-07, 'attr_heads.value_bin.0.bias', 0, 'L0', 'H0', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias', 'X', -1, 'y', 1e-12, 'centres']
+r240_prepare (c)
+names: ('torch', 'from_numpy', 'r239_safe', 'r239_keys', 'r239_rows', 'F', 'gelu', 'linear', 'r239_orig', 'int', 'np', 'flatnonzero')
+constants: ['X', 'H0', 0, 1, 2, 3, 'L0', 48, 171, ('L', 'R')]
+
+=== CACHE STRUCTURES ===
+r240_pre {'train': ('dict', ['L', 'R']), 'tune': ('dict', ['L', 'R'])}
+r237_caches {'cache': ('dict', ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']), 'cc': ('dict', ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']), 'c210_train': ('dict', ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']), 'c210_tune': ('dict', ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0']), 'cache231': ('dict', ['X', 'H0', 'L0', 'y', 'centres', 'meta', 'loss0'])}
+r252_logits {'train': ('tuple', '(tensor([[[-12.9347,  -3.6210,  -1.7236,  ...,  -2.2254,  -2.6265'), 'tune': ('tuple', '(tensor([[[ -9.4246,  -3.2004,  -2.1838,  ...,  -0.8969,  -1.3083')}
+r252_orig {'attr_heads.value_bin.0.bias': ('ndarray', (192,)), 'attr_heads.value_bin.0.weight': ('ndarray', (192, 192)), 'attr_heads.value_bin.2.bias': ('ndarray', (17,)), 'attr_heads.value_bin.2.weight': ('ndarray', (17, 192))}
+r252_base {'train': ('ndarray', (4510,)), 'tune': ('ndarray', (4664,))}
+r252_fit ndarray (4510,)
+r252_val ndarray (4510,)
+r252_dmean ndarray (4510, 17)
+r246_safe_np {'attr_heads.value_bin.0.bias': ('ndarray', (192,)), 'attr_heads.value_bin.0.weight': ('ndarray', (192, 192)), 'attr_heads.value_bin.2.bias': ('ndarray', (17,)), 'attr_heads.value_bin.2.weight': ('ndarray', (17, 192))}
+r246_orig {'attr_heads.value_bin.0.bias': ('ndarray', (192,)), 'attr_heads.value_bin.0.weight': ('ndarray', (192, 192)), 'attr_heads.value_bin.2.bias': ('ndarray', (17,)), 'attr_heads.value_bin.2.weight': ('ndarray', (17, 192))}
+r246_base {'train': ('ndarray', (4510,)), 'tune': ('ndarray', (4664,))}
+r246_table DataFrame (9, 5)
+r257_table {('map_arterial', 0): ('ndarray', (17,)), ('map_arterial', 1): ('ndarray', (17,)), ('map_arterial', 2): ('ndarray', (17,)), ('map_arterial', 3): ('ndarray', (17,)), ('map_arterial', 4): ('ndarray', (17,)), ('map_arterial', 5): ('ndarray', (17,)), ('map_arterial', 6): ('ndarray', (17,)), ('map_arterial', 7): ('ndarray', (17,))}
+
+CURRENT 300-STAY POOLED DELTA: 0.005384661611103165
+
+```

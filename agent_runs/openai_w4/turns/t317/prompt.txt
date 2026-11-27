@@ -1,0 +1,147 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 316 replies happened before. Forward passes used: 30 of 50; Python runs used: 273 of 300. Your kernel is still running with its variables. Tensors currently edited: ['core.b_in.weight', 'core.prelude.0.attn.kv.weight', 'core.prelude.0.attn.out.weight', 'core.prelude.0.attn.q.weight', 'z_in.bias', 'z_in.weight', 'z_post.0.bias', 'z_post.0.weight', 'z_post.2.bias', 'z_post.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_30', 'fwd_31', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ture inspection succeeded, but output truncation hid the unit audit. Bounded inspection of dose normalization, calibration names, and early identification notes. No weights changed.
+
+## Run 254
+Raw-rate panel units confirmed (insulin 0–6, NE 0–1); NE recorded total dose is separately normalized. Earlier RD and history-adjusted estimates support insulin negative/NE positive effects, subject to identification assumptions. Recovering lag kernels and response-channel interfaces. No weights changed.
+
+## Run 255
+Recovered 12-lag raw-rate kernels: insulin approximately [-2.05,-2.48,-2.21,-1.80,-1.37,-1.01,-.75,-.58,-.42,-.29,-.25,-.08]; NE [3.14,2.56,1.49,.77,.47,.38,.23,-.008,.22,.087,.019,.064]. Checking exact dose fixtures and reached-hour output schema before matched calibration. No weights changed.
+
+## Run 256
+Training identification dose fixtures match raw panel rates exactly. Computed exact reached-hour convolution targets and both row/stay aggregation from latest GPU output. Results: {"insulin_x2": {"hours": 507, "stays": 51, "model_row_mean": -7.539431163708087, "model_stay_mean": -6.809219835469541, "target_row_mean": -15.009001095986699, "target_stay_mean": -13.193302494613517, "kernel_bootstrap_95pct": [-14.727656386918879, -11.778734603946658]}, "insulin_half": {"hours": 507, "stays": 51, "model_row_mean": 3.566270611439842, "model_stay_mean": 3.0032466817333, "target_row_mean": 7.5045005479933495, "target_stay_mean": 6.596651247306759, "kernel_bootstrap_95pct": [5.889367301973329, 7.3638281934594385]}, "ne_x2": {"hours": 322, "stays": 29, "model_row_mean": 0.7052978260869566, "model_stay_mean": 0.5986483411703241, "target_row_mean": 4.865639862977985, "target_stay_mean": 4.70503970884939, "kernel_bootstrap_95pct": [4.391951765461908, 5.153332151030425]}, "ne_half": {"hours": 322, "stays": 29, "model_row_mean": -3.259521739130435, "model_stay_mean": -2.9594237617554864, "target_row_mean": -2.4328199314889924, "target_stay_mean": -2.352519854424695, "kernel_bootstrap_95pct": [-2.576666075515213, -2.195975882730954]}}
+Bootstrap intervals quantify kernel estimation only, not identification or extrapolation bias. No weights changed.
+
+## Runs 257–258
+Run 257 aborted before evaluation on NumPy/Torch subtraction; no edits. Run 258 preserves tensor types and screens the same fixed-direction insulin candidates. Results: {(1.25, 28.0): {'nll': 1.6389822959899902, 'delta': 0.003445863723754883}, (1.5, 28.0): {'nll': 1.6392815113067627, 'delta': 0.0037450790405273438}, (1.75, 30.0): {'nll': 1.6407108306884766, 'delta': 0.005174398422241211}, (2.0, 32.0): {'nll': 1.6411798000335693, 'delta': 0.005643367767333984}, (2.25, 34.0): {'nll': 1.6421180963516235, 'delta': 0.006581664085388184}, (2.5, 36.0): {'nll': 1.641078233718872, 'delta': 0.005541801452636719}, (3.0, 40.0): {'nll': 4.2238993644714355, 'delta': 2.5883629322052}}
+CPU globals restored; saved weights unchanged. GPU rollout and factual validation remain necessary.
+
+## Run 259
+Saved insulin innovation gain 1.5 / gate shift 28. Only z_post.0.weight/bias changed from r250_passing; backup r259_backup. CPU delta +.00374508. Stronger screened settings mostly exceed .005. GPU factual and dose rollout validation pending. Inspecting NE posterior rows 156/89 for an analogous selective calibration.
+
+## GPU passes 27–28; Run 260
+Gain-1.5/gate-28 passed GPU factual on 98 stays: delta +.00327. Reached-row rollout shifts: insulin x2 -7.777, half +2.207; NE x2 +.748, half -3.178. Increasing insulin gain from 1.25 did not proportionally increase response and worsened halving. Inspecting retained response/compensation construction before further edits.
+
+## Run 261
+Bounded recovery of posterior pair construction, candidate helpers, and factual replay. No saved edits changed.
+
+## Run 262
+Recovered sparse edit support and rollout schema; reviewing earlier calibration history. Saved weights unchanged.
+
+## Run 263
+Historical GPU dose-shift comparison and recovery of factual scoring interfaces. One-sided insulin pair and gate suppression motivate a controlled gate screen. No weights saved.
+
+## Run 264
+UNSAVED lower-gate insulin factual screen: {(1.0, 22.0): [{'shape': (4159, 992), 'mean': 0.10410576313734055}, {'shape': (4699,), 'mean': 1.6389542818069458}, {'shape': (4699, 17), 'mean': 0.05882352963089943}], (1.25, 24.0): [{'shape': (4159, 992), 'mean': 0.10685418546199799}, {'shape': (4699,), 'mean': 1.6387673616409302}, {'shape': (4699, 17), 'mean': 0.05882352963089943}], (1.5, 24.0): [{'shape': (4159, 992), 'mean': 0.10894965380430222}, {'shape': (4699,), 'mean': 1.6396914720535278}, {'shape': (4699, 17), 'mean': 0.05882352963089943}], (1.5, 26.0): [{'shape': (4159, 992), 'mean': 0.1134854108095169}, {'shape': (4699,), 'mean': 1.6398966312408447}, {'shape': (4699, 17), 'mean': 0.05882352963089943}], (1.75, 26.0): [{'shape': (4159, 992), 'mean': 0.11500158905982971}, {'shape': (4699,), 'mean': 1.641042709350586}, {'shape': (4699, 17), 'mean': 0.05882352963089943}], (2.0, 28.0): [{'shape': (4159, 992), 'mean': 0.11917470395565033}, {'shape': (4699,), 'mean': 1.6406002044677734}, {'shape': (4699, 17), 'mean': 0.05882352963089943}]}. CPU globals restored; saved weights unchanged. Reviewing recurrent NE response construction.
+
+## Run 265
+UNSAVED symmetric insulin-pair factual screen: {(1.25, 22.0): {'nll': 1.6400622129440308, 'delta': 0.00452578067779541}, (1.5, 22.0): {'nll': 1.641606092453003, 'delta': 0.006069660186767578}, (1.5, 26.0): {'nll': 1.6392319202423096, 'delta': 0.0036954879760742188}, (2.0, 22.0): {'nll': 1.6457823514938354, 'delta': 0.010245919227600098}, (2.0, 26.0): {'nll': 1.6408699750900269, 'delta': 0.005333542823791504}, (2.5, 26.0): {'nll': 1.6431478261947632, 'delta': 0.007611393928527832}}. Pair uses shared action gate with +/- half the innovation, and exact opposite output columns. CPU globals restored; submitted tensors unchanged.
+
+## Run 266
+Provisionally saved symmetric insulin pair, gain 1.5/gate 26, changing only z_post.0.weight/bias. CPU dNLL +.00369549. Prior gain-1.5/gate-28 one-sided candidate backed up in backup266. GPU rollout and factual validation pending.
+
+## Run 267
+Recovered architecture, tuning IDs, latest forward schemas and retained helpers before GPU validation of Run-266 symmetric insulin candidate. No weights changed. CPU factual delta remains +.00369549; GPU factual fit and rollout response are unvalidated.
+
+## Run 268
+Recovered exact prior GPU validation stay IDs and bounded calibration helper metadata. No weights changed. Run-266 symmetric pair awaits paired GPU factual and dose-edit validation.
+
+## Runs 269–270; GPU passes 29–30
+Run 269 halted at a pandas shift-column/method collision after creating backup269; no weights changed. Run 270 corrects reporting and inspects calibration helper construction. Symmetric insulin gain 1.5/gate 26 passed GPU factual with delta +.00401. Reached-row shifts: insulin x2 -10.009, half +8.278; NE x2 +.536, half -3.324. Shared-gate NE repair is a computational hypothesis, not new evidence of ICU effects.
+
+## Run 271
+Checked NE rows 156/89 and screened unsaved shared-gate, symmetric innovation candidates where output-column geometry permits. Antipodal error 0.362748; CPU results {}. All model-weight dictionaries restored; submitted weights unchanged. These tests address model transmission, not ICU-effect identification.
+
+## Runs 272–273
+Run 272 failed because factual_eval194 requires a complete tensor dictionary, not the ten-tensor submission backup; globals restored and no saved weights changed. Run 273 supplied all 181 tensors. CPU control 1.6392319202423096; candidate results {(0.8, False): {'nll': 1.6389565467834473, 'delta': 0.003420114517211914}, (1.0, False): {'nll': 1.6392323970794678, 'delta': 0.003695964813232422}, (0.8, True): {'nll': 1.6389565467834473, 'delta': 0.003420114517211914}, (1.0, True): {'nll': 1.6392325162887573, 'delta': 0.0036960840225219727}}. NE symmetry candidates remain unsaved pending selection and GPU tests.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 273 of at most 300:
+```
+CURRENT CPU CONTROL 1.6392319202423096 expected 1.6392319202423096 tensor count 181
+UNSAVED NE SCREEN {(0.8, False): {'nll': 1.6389565467834473, 'delta': 0.003420114517211914}, (1.0, False): {'nll': 1.6392323970794678, 'delta': 0.003695964813232422}, (0.8, True): {'nll': 1.6389565467834473, 'delta': 0.003420114517211914}, (1.0, True): {'nll': 1.6392325162887573, 'delta': 0.0036960840225219727}}
+
+```

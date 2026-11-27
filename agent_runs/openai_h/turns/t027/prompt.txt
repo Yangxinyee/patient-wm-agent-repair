@@ -1,0 +1,177 @@
+OUTPUT of Python run 17 of at most 300:
+```
+=== ARCHITECTURE ===
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+=== DATA DICTIONARY ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== EARLIER NOTEBOOK (excluding the already supplied tail) ===
+# World-model repair notebook
+## Initial plan
+- Python runs: 1. Forward passes: 0.
+- No assumptions about drug effects; establish them from training records.
+- Read architecture and data definitions before choosing identification tests or edits.
+- Preserve factual value NLL within 0.005 nats of the original.
+- Validate all four dose-edit readouts using the exact forward-tool rollout.
+
+## Run 2: architecture and record inspection
+- Actions use a separate set encoder but enter the posterior and recurrent update.
+- Value predictions also depend on a same-code last-value register.
+- Need identify dose effects from temporal records before editing; action deletion alone is not justified.
+- Python runs: 2. Forward passes: 0.
+
+## Run 3: hourly panel
+- Measurements are at integer hours; drugs start at hour + 0.0833 and run one hour.
+- Built complete stay-hour panels, with absent infusion records represented as zero rates.
+- Inspecting paired sensors and pretreatment trends before estimating dose effects.
+- Python runs: 3. Forward passes: 0.
+
+## Forward 1 and run 4
+- Original rollout on first 100 tuning stays: insulin x2 +0.026, half -0.085 mg/dL; NE x2 -0.098, half +0.018 mmHg. These are predictions, not established truth.
+- Constructed pretreatment histories: latest sensors, ages, availability, three lags, baseline readings and past doses. Initial linear residualization is diagnostic, not sufficient identification.
+- Python runs: 4. Forward passes: 1.
+
+## Run 5: nonlinear held-out residualization
+- Initial linear associations were sensor-dependent: insulin/glucose +1.46 to +2.44 per unit; NE/MAP -2.17 to -7.27 per rate unit. Not accepted as causal.
+- Richer histories include six lags, cumulative sensor means, raw current readings, and fused sensors.
+- Nuisance regressions fit on 80% of training stays; residual effects evaluated on disjoint 20%.
+- Python runs: 5. Forward passes: 1.
+
+## Run 6: challenge the null-effect hypothesis
+- Nonlinear held-out one-hour effects: insulin/finger -0.0031 (SE .0845), insulin/lab -0.0557 (.1296), NE/arterial +0.1263 (.1810), NE/cuff -0.4367 (.3711).
+- Checked local projections at horizons 2, 3, 6, 12 and stronger nuisance regressions.
+- Original factual baseline first 100 tuning stays: 1.50162 nats per value, 4,787 values.
+- Current hypothesis: both drugs have negligible effects in this simulated ICU; this is based on records, not clinical expectations.
+- Python runs: 6. Forward passes: 2.
+
+## Run 7: prepare a targeted intervention
+- Stronger one-hour adjustment remains near zero in the main sensors; delayed effects are not consistently dose-responsive.
+- Rereading architecture and existing working objects before choosing a dose-invariance edit.
+- No edits yet. Python runs: 7. Forward passes: 2.
+
+## Run 8: identify dose-dependent input routes
+- Architecture routes dose/rate numeric values and bins through action encoding, posterior and recurrent state.
+- Plan: retain action identity/presence/timing, neutralize dose magnitudes, then test exact rollout invariance and factual NLL.
+- Inspecting relevant weights and vocabulary; no edits yet.
+- Python runs: 8. Forward passes: 2.
+
+## Run 9: normalization and identification audit
+- Checking dose/rate normalization and pretreatment feature definitions before an edit.
+- Candidate edit will collapse only positive dose/rate bins and numeric magnitude columns, preserving absent entries and presence flags.
+- Python runs: 9. Forward passes: 2. No edits yet.
+
+## Run 10: training-centered dose-invariant input edi
+[output cut at 10,000 characters]
+```

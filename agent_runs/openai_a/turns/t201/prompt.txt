@@ -1,0 +1,177 @@
+OUTPUT of Python run 180 of at most 300:
+```
+=== IDENTIFICATION AND TARGET SECTIONS ===
+## Architecture inspected; Python 2, forward 0
+- Drug atoms use encode_action, enter the latent posterior and recurrent prelude.
+- Reading distributions have 17-bin heads plus code/last-bin transition offsets.
+- Dose edits alter both numeric scores and dose/rate bins; rollouts feed generated readings back.
+- Need record-derived effects and baseline forward results before choosing edits.
+
+## Record transition analysis; Python 3, forward 0
+- 30,000 training stays, 400 tuning stays; readings hourly and drugs at hour + 0.0833.
+- Built an hourly panel; missing infusion records mean no recorded infusion.
+- Compared raw, current-value, history-adjusted and stay-fixed-effect one-hour changes.
+{
+  "('glucose_finger', 'insulin', 'raw')": {
+    "beta": -2.2504397036455344,
+    "se": 0.026964113200911532,
+    "n": 298450,
+    "dose_resid_sd": 1.082455066392304
+  },
+  "('glucose_finger', 'insulin', 'current')": {
+    "beta": -1.939694829612264,
+    "se": 0.04568529082750635,
+    "n": 298450,
+    "dose_resid_sd": 0.635108505538118
+  },
+  "('glucose_finger', 'insulin', 'history')": {
+    "beta": -1.9331334225345693,
+    "se": 0.040626786035861666,
+    "n": 298450,
+    "dose_resid_sd": 0.6341789754358419
+  },
+  "('glucose_finger', 'insulin', 'history+stayFE')": {
+    "beta": -2.0182153553412503,
+    "se": 0.040508470697558384,
+    "n": 298450,
+    "dose_resid_sd": 0.606944671817386
+  },
+  "('map_arterial', 'norepinephrine', 'raw')": {
+    "beta": 0.33512333432011987,
+    "se": 0.014602284607062997,
+    "n": 312563,
+    "dose_resid_sd": 0.34169129921596825
+  },
+  "('map_arterial', 'norepinephrine', 'current')": {
+    "beta": -2.207418302293895,
+    "se": 0.04339113183787943,
+    "n": 312563,
+    "dose_resid_sd": 0.23373813222151651
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "beta": 0.9721922968719852,
+    "se": 0.08572714800470202,
+    "n": 312563,
+    "dose_resid_sd": 0.10388666692459317
+  },
+  "('map_arterial', 'norepinephrine', 'history+stayFE')": {
+    "beta": 1.9472917386017898,
+    "se": 0.0887710568611179,
+    "n": 312563,
+    "dose_resid_sd": 0.09716625430945373
+  }
+}
+
+## Original rollout and identification checks; Python 4, forward 1
+- Original first 100 tuning stays: insulin x2 -1.847, half +0.777; NE x2 -0.498, half -0.600.
+- Sensor disagreement is only a candidate instrument; validity and relevance must be checked, not assumed.
+{
+  "('insulin', 'glucose_finger', 'history')": {
+    "beta": -2.3649672210093593,
+    "se": 0.2966072448330681,
+    "first_stage": 0.022546708411775182,
+    "first_stage_t": 65.79471543842729,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'past_difference')": {
+    "beta": -2.4030110145183943,
+    "se": 0.296995873105088,
+    "first_stage": 0.02253050217525474,
+    "first_stage_t": 65.9033137514767,
+    "n": 59611
+  },
+  "('insulin', 'glucose_finger', 'stayFE')": {
+    "beta": -4.633653857866378,
+    "se": 0.32319976462186084,
+    "first_stage": 0.023609977158208926,
+    "first_stage_t": 56.920556473364606,
+    "n": 59611
+  },
+  "('insulin', 'glucose_lab', 'history')": {
+    "beta": -1.6841133458408586,
+    "se": 0.4993785896440475,
+    "first_stage": 0.024098411603330767,
+    "first_stage_t": 34.65836012846078,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'past_difference')": {
+    "beta": -1.7098169631722566,
+    "se": 0.49571479741038577,
+    "first_stage": 0.024088881089054243,
+    "first_stage_t": 34.682785128203996,
+    "n": 15729
+  },
+  "('insulin', 'glucose_lab', 'stayFE')": {
+    "beta": 0.6604909236239173,
+    "se": 0.531745510423111,
+    "first_stage": 0.027494693802790897,
+    "first_stage_t": 23.486841143670325,
+    "n": 15729
+  },
+  "('norepinephrine', 'map_arterial', 'history')": {
+    "beta": -18.770179837459043,
+    "se": 10.725044751264742,
+    "first_stage": 0.00023924704982281593,
+    "first_stage_t": 4.630621380691009,
+    "n": 93413
+  },
+  "('norepinephrine', 'map_arterial', 
+## Factual baseline and dynamic identification; Python 5, forward 2
+- Original factual value NLL = 1.63461 on first 100 tuning stays, 4751 readings.
+- NE sensor-difference first stage is weak; do not use its point estimates.
+- Tested replicate-sensor corrections and lag-instrumented first differences; each relies on explicit measurement-noise/innovation assumptions.
+{
+  "('map_arterial', 'norepinephrine', 'basic')": {
+    "persistence": 0.9982457546092935,
+    "effect": 0.25976722831925286,
+    "se_persistence": 0.0018481345452363164,
+    "se_effect": 0.07259737043369274,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history')": {
+    "persistence": 0.9158430901733471,
+    "effect": 3.2667303775592043,
+    "se_persistence": 0.009083782933650895,
+    "se_effect": 0.1636034525210515,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'stayFE')": {
+    "persistence": 0.7479846009200942,
+    "effect": 3.610685143623699,
+    "se_persistence": 0.012280238981277945,
+    "se_effect": 0.17246200287179653,
+    "n": 93413
+  },
+  "('map_arterial', 'norepinephrine', 'history_interior')": {
+    "persistence": 0.9574567466723566,
+    "effect": 3.7778390489116442,
+    "se_
+=== KERNEL FUNCTIONS ===
+load, load_original, save_edit, drop_edit, edited, compact_panel, shifted_col, insulin_rd, rd_dynamic_residual, causal_shift_table, make_ne_data, lin, mlp, ln, reading_metadata, make_head_features, as_numpy, head_score, cpu_head_parts, cpu_head_probs, fn, repair_head_features, state_matrix, make_policy_data, head_dose_data, fn0, head_unit_target, approximate_edit_cost, repair_feature_sets, np32, make_insulin_graft, graft_probs, short_stats, func0, fn1, brief_structure, head_average_probs3, rr_f, rm_lin, rm_ln, rm_mlp, rm_set, rm_insulin_atoms, r96_empty_world, r101_fn, empty_set_vector, reconstruction_mlp, fnx, tensor_prefix, rec_context, rec_attention, rec_attn_apply, rec_layer, rec_memory, rec_step_with_z, func, r131_step, show_function, compact_dis, probe_rms, probe_head_eval, shape_summary, to_np0, sc_cache_inputs, sc_evaluate, compact_dis160, matched_causal_targets163, compact_structure, r2_np, make_contrast_graft
+=== KERNEL DICTIONARIES ===
+SHAPES, VOCAB, event_col, dtypes, obj, state_files, entry, rd_checks, rd_lp, rd_dynamic_fit, ne_dml_results, ne_dml_cache, results, W, code_ids, norms, head_parts_tune, latent_scores, ns, means, repair_train, repair_tune, dose_policy_models, hd_train, hd_tune, dose_decoders, decoder_diagnostics, c, obj0, dec, data, hd_extra, centres_by_event, cv_scores, v, failed_insulin_probe, decode_feature_sets, decode_dose_sets, decode_meta_sets, decode_results, decode_models, masks, raw_input_sets, protected_input_sets, glucose_masks, valid_glucose_masks, new_decoder_candidates, fs, graft_original, graft_candidate, old_t, new_t, pe, result, v0, gate_models1, robust_parts, robust_X, robust_state_index, parts0, robust_projectors, robust_decoders, targets0, report0, orig_t3, robust_candidates3, robust_costs3, candidate3, tensors3, graft_zero, graft_unit, graft_checkpoint_beta2, original_head_tensors, scaled_candidates3, scaled_cpu_checks3, candidate, graft_checkpoint_beta24, rr_rollouts, rr_p, rr_hour_rows, rr_s, rr_sf, rm_W, rm_normspec, rm_states, rm_lookup, rm_candidate_cache, r96_best, r102_value, r103_code_map, r103_groups, r103_spec, r103_best, r108_actions, r108_best, r109_best, r110_contexts, r110_best, r111_action_cases, r111_best, r117_groups, r118_u_options, rec_code_ids, rec_bundle_index, rec_compositions, lookup, r130_e_candidates, r131_memory_options, r132_action_vectors, r139_results, r140_trials, validated_edit_141, dose_probe_states, dose_probe_actions, dose_probe_posts, probe_current_head, probe_results, state0, probe_centres_by_event, original0, edited0, base0, basee, lab_simulated, lab_head_results, states0, matched0, parts_probe0, sc_original, sc_checkpoint, sc_meta, sc_sf, sc_fact, sc_syn, sc_active, b0, bm, ev0, c0, cache, syn_old, sc_new_candidates, factual, rr, shifts, r2_candidates, fd, cc, check, r3_candidates, r3_before, tables, trial_r3, restart_checkpoint, trial_contrast_weights
+=== R3 / CHECKPOINT OBJECTS ===
+base_sid 1010000000
+base_rd ndarray (780000,)
+rd_checks dict ['(5, 1, False)', '(5, 1, True)', '(5, 2, False)', '(5, 2, True)', '(10, 1, False)', '(10, 1, True)', '(10, 2, False)', '(10, 2, True)', '(14, 1, False)', '(14, 1, True)', '(14, 2, False)', '(14, 2, True)']
+rd_lp dict [-2, -1, 1, 2, 3, 4, 6, 8]
+rd_dynamic_fit dict ['x', 'cost', 'fun', 'jac', 'grad', 'optimality', 'active_mask', 'nfev', 'njev', 'status', 'message', 'success']
+best (0.02937171576216613, 0.01, 0.07406075841982485, array([-0.002305  ,  0.01826601, -0.02664768,  0.14456287, -0.07901436,
+        0.01779677,
+base Tensor (61, 192)
+base0 dict ['features', 'probs', 'mean', 'nll']
+basee dict ['features', 'probs', 'mean', 'nll']
+bases ndarray (4, 114)
+base_local0 ndarray (78,)
+base_logits Tensor (8, 4751, 17)
+baseline_nll ndarray (4751,)
+r3_Q ndarray (192, 150)
+r3_Fq ndarray (20064, 150)
+r3_C ndarray (150, 150)
+r3_candidates dict [(0.01, 1.0), (0.01, 2.0), (0.01, 4.0), (0.03, 1.0), (0.03, 2.0), (0.03, 4.0), (0.1, 1.0), (0.1, 2.0), (0.1, 4.0), (0.3, 1.0), (0.3, 2.0), (0.3, 4.0)]
+r3_eligible []
+r3_before dict ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+r3_applied False
+base_attr Tensor (8, 80, 17)
+
+```

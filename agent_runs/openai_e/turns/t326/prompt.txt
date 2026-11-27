@@ -1,0 +1,120 @@
+OUTPUT of Python run 275 of at most 300:
+```
+ARCHITECTURE
+# The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+CURRENT EDITS ['core.b_in.weight']
+
+SAVED CANDIDATE CONTRACTS
+joint236.npz {'delta': {'shape': (192, 192), 'norm': 524.4189453125}, 'insulin_delta': {'shape': (192, 192), 'norm': 515.2865600585938}, 'ne_delta': {'shape': (192, 192), 'norm': 82.33145904541016}, 'insulin_scale': 0.85, 'insulin_blend': 0.35, 'ne_scale': 0.2}
+joint268.npz {'delta': {'shape': (192, 192), 'norm': 556.2769165039062}, 'insulin_delta': {'shape': (192, 192), 'norm': 526.7186279296875}, 'ne_delta': {'shape': (192, 192), 'norm': 164.6629180908203}, 'insulin_scale': 0.76, 'insulin_blend': 0.6, 'ne_scale': 0.4}
+joint274.npz {'delta': {'shape': (192, 192), 'norm': 500.6492614746094}, 'insulin_delta': {'shape': (192, 192), 'norm': 474.0467529296875}, 'ne_delta': {'shape': (192, 192), 'norm': 148.19664001464844}, 'insulin_scale': 0.684, 'insulin_blend': 0.6, 'ne_scale': 0.36000000000000004, 'source_scale': 0.9}
+insulin_candidate63.npz {'delta': {'shape': (192, 192), 'norm': 1001.770751953125}, 'feature': {'shape': (192,), 'norm': 245.00693258835332}, 'direction': {'shape': (192,), 'norm': 1.4346472260692935}, 'strength': 1.9}
+ne_candidate151.npz {'ne_delta': {'shape': (192, 192), 'norm': 411.6573181152344}, 'total_delta': {'shape': (192, 192), 'norm': 660.2034912109375}, 'gamma': 0.1}
+
+PAIRED FACTUAL RESULTS
+forward 33 columns ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+original first row [{'stay_id': 2020000112, 'hour': -1.0, 'event': 'map_arterial', 'observed': 54.0, 'predicted_mean': 73.0416, 'nll': 2.0109}]
+edited first row [{'stay_id': 2020000112, 'hour': -1.0, 'event': 'map_arterial', 'observed': 54.0, 'predicted_mean': 73.0416, 'nll': 2.0109}]
+nll original 1.6204352915951972 edited 1.6256681818181817 delta 0.005232890222984565
+cohort stay_id [2020000100, 2020000101, 2020000102, 2020000103, 2020000104, 2020000105, 2020000106, 2020000107, 2020000108, 2020000109, 2020000110, 2020000111, 2020000112, 2020000113, 2020000114, 2020000115, 2020000116, 2020000117, 2020000118, 2020000119, 2020000120, 2020000121, 2020000122, 2020000123, 2020000124, 2020000125, 2020000126, 2020000127, 2020000128, 2020000129, 2020000130, 2020000131, 2020000132, 2020000133, 2020000134, 2020000135, 2020000136, 2020000137, 2020000138, 2020000139, 2020000140, 2020000141, 2020000142, 2020000143, 2020000144, 2020000145, 2020000146, 2020000147, 2020000148, 2020000149, 2020000150, 2020000151, 2020000152, 2020000153, 2020000154, 2020000155, 2020000156, 2020000157, 2020000158, 2020000159, 2020000160, 2020000161, 2020000162, 2020000163, 2020000164, 2020000165, 2020000166, 2020000167, 2020000168, 2020000169, 2020000170, 2020000171, 2020000172, 2020000173, 2020000174, 2020000175, 2020000176, 2020000177, 2020000178, 2020000179, 2020000180, 2020000181, 2020000182, 2020000183, 2020000184, 2020000185, 2020000186, 2020000187, 2020000188, 2020000189, 2020000190, 2020000191, 2020000192, 2020000193, 2020000194, 2020000195, 2020000196, 2020000197, 2020000198, 2020000199]
+forward 34 columns ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+original first row [{'stay_id': 2020000112, 'hour': -1.0, 'event': 'map_arterial', 'observed': 54.0, 'predicted_mean': 73.0416, 'nll': 2.0109}]
+edited first row [{'stay_id': 2020000112, 'hour': -1.0, 'event': 'map_arterial', 'observed': 54.0, 'predicted_mean': 73.0416, 'nll': 2.0109}]
+nll original 1.620435205831904 edited 1.6257897727272728 delta 0.005354566895368729
+cohort stay_id [2020000100, 2020000101, 2020000102, 2020000103, 2020000104, 2020000105, 2020000106, 2020000107, 2020000108, 2020000109, 2020000110, 2020000111, 2020000112, 2020000113, 2020000114, 2020000115, 2020000116, 2020000117, 2020000118, 2020000119, 2020000120, 2020000121, 2020000122, 2020000123, 2020000124, 2020000125, 2020000126, 2020000127, 2020000128, 2020000129, 2020000130, 2020000131, 2020000132, 2020000133, 2020000134, 2020000135, 2020000136, 2020000137, 2020000138, 2020000139, 2020000140, 2020000141, 2020000142, 2020000143, 2020000144, 2020000145, 2020000146, 2020000147, 2020000148, 2020000149, 2020000150, 2020000151, 2020000152, 2020000153, 2020000154, 2020000155, 2020000156, 2020000157, 2020000158, 2020000159, 2020000160, 2020000161, 2020000162, 2020000163, 2020000164, 2020000165, 2020000166, 2020000167, 2020000168, 2020000169, 2020000170, 2020000171, 2020000172, 2020000173, 2020000174, 2020000175, 2020000176, 2020000177, 2020000178, 2020000179, 2020000180, 2020000181, 2020000182, 2020000183, 2020000184, 2020000185, 2020000186, 2020000187, 2020000188, 2020000189, 2020000190, 2020000191, 2020000192, 2020000193, 2020000194, 2020000195, 2020000196, 2020000197, 2020000198, 2020000199]
+forward 36 columns ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+original first row [{'stay_
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,30 @@
+OUTPUT of Python run 242 of at most 300:
+```
+['cv_r2', 'state_parts', 'HistGradientBoostingRegressor', 'hid_rows', 'gbm_cv', 'head_parts', 'nll_of', 'cols', 'my_reg', 'StandardScaler', 'make_pipeline', 'f_', 'cvr2', 'band_of', 'ne_design', 'ne_reg', 'fit_readout', 'refit', 'gelu_', 'head_run', 'vref', 'make_edit', 'brief', 'refs', 'npv', 'shift_stats', 'roc_auc_score', 'lda_gate', 'fit_ro', 'gated_edit', 'eval_edit', 'wc_draws', 'gel', 'fit_ro2', 'lda2', 'fit_ro3', 'lda_in', 'perp', 'fit_ro4', 'fit_ro5', 'gated3', 'pair', 'truth_rows', 'gget', 'ols', 'summ', 'lagrate', 'cvr2_ridge', 'cos', 'fit_lin', 'rhat_all', 'first_dose_hour', 'truth_ins', 'draw_decomp', 'truth_ne', 'evalg', 'tier_val', 'pair_out', 'from_src', 'GridFor', 'ins_at', 'head_pm', 'head_nll', 'flat', 'lin_r', 'typ', 'tier5', 'gget2', 'ins_only', 'ols_se', 'resid_check', 'ne_feats', 'OrderedDict', 'piv', 'slope', 'to_np', 'stay_cost', 'truth_tab']
+15877 13
+- 18335/30000 stays have insulin, 13174 have NE. NE x2 pushes rates >1 (never seen in training, bin 16).
+## Runs 105-131 (after restart 4)
+- Old ungated make_edit (a_ins=-1.9,a_ne=3) costs 0.018 nats/reading: noise on glucose rows w/o insulin in prev bundle + cuff MAP. Rejected.
+- NEW EDIT gated3(a_ins,a_ne): units [26,41,131,159]. Insulin pair u1-u2 = unit-gain readout of dev1 (ROi5, R2 .52) gated by glucose code gate (gvec,K=40) x insulin-in-prev-bundle gate (Gi3,A=30,M=-10).
+- Offline cost a_ins=-1.9,a_ne=3: 0.0052/reading (ma on-rows .013 -> ~.0035 of total; gf .0029 on rows). Lag-1 slopes: gf -2.17/u/h dev, gl -1.44, ma +3.27 per unit NE-rate dev.
+- Next: fwd dose_edit both on sel1 with gated3(-1.9,3) to calibrate a_ins, a_ne against truth est (ins x2 -13.3..-14.3, half +6.7..7.1; NE x2 +4.53, half -2.27).
+- gated3(a_ins,a_ne) returns dict {'W0','b0','W2','TR'} (short keys; KMAP maps to tensor names). Saved edit == gated3(-1.9,3) (hash 262704e88f).
+  It repurposes 4 head units; gated3(0,0) != original (costs ~0.0004-0.0013 by itself).
+- fwd_10: dose_edit both, tuning f3 (2020000000..99), edit gated3(-1.9,3). orig: ins x2 -1.87, half +.76, NE x2 -.51, half -.70.
+- NEXT: decompose cost (insulin vs NE part) per row type on sel1; reweight to random-stay composition; pick a_ins/a_ne; check with tool on all 400 tuning stays.
+- Run 194: ins_only(a)=gated3(a,0) with NE units 131,159 RESTORED to original. sel1 offline cost: a=-2.2 .0025, -2.4 .0031, -2.6 .0037, -2.8 .0044 (6D rows +.010..+.017). Non-glucose rows ~0.
+- NE part DROPPED (noisy readout R2 .19, gate leaks, cost ~.024 per NE-row, cannot fix x2 OOD). Saved ins_only(-2.6) (TR edit dropped). Next: dose_edit both on f3 to compare with fwd_10 (-1.9/3 -> -9.85).
+- fwd_10 (gated3 NE a_ne=3) by NE rate: 62% of NE reached rows have rate in (.75,1.0] (train NE rate capped at 1.0, 12% of MA rows at exactly 1.0).
+Traceback (most recent call last):
+  File "<run>", line 9, in <module>
+  File "/opt/python/lib/python3.12/inspect.py", line 1278, in getsource
+    lines, lnum = getsourcelines(object)
+                  ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/python/lib/python3.12/inspect.py", line 1260, in getsourcelines
+    lines, lnum = findsource(object)
+                  ^^^^^^^^^^^^^^^^^^
+  File "/opt/python/lib/python3.12/inspect.py", line 1089, in findsource
+    raise OSError('could not get source code')
+OSError: could not get source code
+
+```

@@ -1,0 +1,152 @@
+OUTPUT of Python run 15 of at most 300:
+```
+=== PRIMITIVE HELPERS ===
+
+ lin0
+names: ('F', 'linear', 'W0', 'get')
+constants: (None, '.weight', '.bias')
+  7           0 RESUME                   0
+
+  8           2 LOAD_GLOBAL              1 (NULL + F)
+             12 LOAD_ATTR                2 (linear)
+             32 LOAD_FAST                0 (x)
+             34 LOAD_GLOBAL              4 (W0)
+             44 LOAD_FAST                1 (prefix)
+             46 LOAD_CONST               1 ('.weight')
+             48 BINARY_OP                0 (+)
+             52 BINARY_SUBSCR
+             56 LOAD_GLOBAL              4 (W0)
+             66 LOAD_ATTR                7 (NULL|self + get)
+             86 LOAD_FAST                1 (prefix)
+             88 LOAD_CONST               2 ('.bias')
+             90 BINARY_OP                0 (+)
+             94 CALL                     1
+            102 CALL                     3
+            110 RETURN_VALUE
+
+ act0
+names: ('F', 'gelu', 'silu', 'relu')
+constants: (None, 'gelu', 'silu')
+ 10           0 RESUME                   0
+
+ 11           2 LOAD_FAST                1 (kind)
+              4 LOAD_CONST               1 ('gelu')
+              6 COMPARE_OP              40 (==)
+             10 POP_JUMP_IF_FALSE       21 (to 54)
+
+ 12          12 LOAD_GLOBAL              1 (NULL + F)
+             22 LOAD_ATTR                2 (gelu)
+             42 LOAD_FAST                0 (x)
+             44 CALL                     1
+             52 RETURN_VALUE
+
+ 13     >>   54 LOAD_FAST                1 (kind)
+             56 LOAD_CONST               2 ('silu')
+             58 COMPARE_OP              40 (==)
+             62 POP_JUMP_IF_FALSE       21 (to 106)
+
+ 14          64 LOAD_GLOBAL              1 (NULL + F)
+             74 LOAD_ATTR                4 (silu)
+             94 LOAD_FAST                0 (x)
+             96 CALL                     1
+            104 RETURN_VALUE
+
+ 15     >>  106 LOAD_GLOBAL              1 (NULL + F)
+            116 LOAD_ATTR                6 (relu)
+            136 LOAD_FAST                0 (x)
+            138 CALL                     1
+            146 RETURN_VALUE
+
+ mlp0
+names: ('lin0', 'act0')
+constants: (None, '.0', '.2')
+ 17           0 RESUME                   0
+
+ 18           2 LOAD_GLOBAL              1 (NULL + lin0)
+             12 LOAD_GLOBAL              3 (NULL + act0)
+             22 LOAD_GLOBAL              1 (NULL + lin0)
+             32 LOAD_FAST                0 (x)
+             34 LOAD_FAST                1 (prefix)
+             36 LOAD_CONST               1 ('.0')
+             38 BINARY_OP                0 (+)
+             42 CALL                     2
+             50 LOAD_FAST                2 (kind)
+             52 CALL                     2
+             60 LOAD_FAST                1 (prefix)
+             62 LOAD_CONST               2 ('.2')
+             64 BINARY_OP                0 (+)
+             68 CALL                     2
+             76 RETURN_VALUE
+
+ norm0
+names: ('F', 'layer_norm', 'W0')
+constants: (None, (192,), '.weight', '.bias', 1e-05)
+ 20           0 RESUME                   0
+
+ 21           2 LOAD_GLOBAL              1 (NULL + F)
+             12 LOAD_ATTR                2 (layer_norm)
+             32 LOAD_FAST                0 (x)
+             34 LOAD_CONST               1 ((192,))
+             36 LOAD_GLOBAL              4 (W0)
+             46 LOAD_FAST                1 (prefix)
+             48 LOAD_CONST               2 ('.weight')
+             50 BINARY_OP                0 (+)
+             54 BINARY_SUBSCR
+
+ 22          58 LOAD_GLOBAL              4 (W0)
+             68 LOAD_FAST                1 (prefix)
+             70 LOAD_CONST               3 ('.bias')
+             72 BINARY_OP                0 (+)
+             76 BINARY_SUBSCR
+             80 LOAD_CONST               4 (1e-05)
+
+ 21          82 CALL                     5
+             90 RETURN_VALUE
+
+=== RECORD SCHEMA AND EXAMPLES ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+   stay_id    hour              event  value  rate  rate_unit  dose dose_unit  end_hour
+1010000000 -2.0000 hospital_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000 -1.0000     glucose_finger  165.0   NaN        NaN   NaN       NaN       NaN
+1010000000 -1.0000       map_arterial   73.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000     glucose_finger  168.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000      icu_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000  0.0000       map_arterial   67.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000           map_cuff   70.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0833            insulin    NaN   1.0 units/hour   1.0     units    1.0833
+
+Panel columns: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine']
+Panel index sample: [(1010000000, -1), (1010000000, 0), (1010000000, 1), (1010000000, 2)]
+Rate columns: ['insulin', 'norepinephrine']
+First single-action state indices: [   3  258  502 1020 1241 1461 1750 2024 2298 2737 3028 3308]
+History feature names: ['hour', 'last_glucose_finger', 'last_glucose_lab', 'last_map_arterial', 'last_map_cuff', 'observed_glucose_finger', 'observed_glucose_lab', 'observed_map_arterial', 'observed_map_cuff', 'age_glucose_finger', 'age_glucose_lab', 'age_map_arterial', 'age_map_cuff', 'baseline_glucose_finger', 'baseline_glucose_lab', 'baseline_map_arterial', 'baseline_map_cuff', 'last_lag1_glucose_finger', 'last_lag1_glucose_lab', 'last_lag1_map_arterial', 'last_lag1_map_cuff', 'rate_lag1_insulin', 'rate_lag1_norepinephrine', 'last_lag2_glucose_finger', 'last_lag2_glucose_lab', 'last_lag2_map_arterial', 'last_lag2_map_cuff', 'rate_lag2_insulin', 'rate_lag2_norepinephrine', 'last_lag3_glucose_finger', 'last_lag3_glucose_lab', 'last_lag3_map_arterial', 'last_lag3_map_cuff', 'rate_lag3_insulin', 'rate_lag3_norepinephrine', 'past_mean_rate_insulin', 'past_mean_rate_norepinephrine']
+
+=== POSTERIOR CANDIDATE DETAILS ===
+insulin [(0.09675629436969757, 'relu', 'log1p', False, 3, 2, 'chunk'), (0.09675733000040054, 'relu', 'log1p', True, 3, 2, 'chunk'), (0.0967593565583229, 'relu', 'log', False, 3, 2, 'chunk')]
+norepinephrine [(0.12859904766082764, 'gelu', 'log1p', False, 2, 2, 'chunk'), (0.12861618399620056, 'gelu', 'log', False, 2, 2, 'chunk'), (0.12883616983890533, 'gelu', 'log1p', False, 3, 1, 'chunk')]
+
+=== IMPULSE UNCERTAINTY OBJECTS ===
+glucose_lab [-2.07283356 -2.23466817 -2.14515517 -1.43875875 -1.28052947 -0.90473374]
+map_arterial [2.95159917 2.49611187 1.62799136 1.02869814 0.34279884 0.21392442]
+
+```

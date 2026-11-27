@@ -1,0 +1,68 @@
+OUTPUT of Python run 151 of at most 300:
+```
+=== CLEAN WRITE IDENTITIES ===
+Cperp @ Uexact norm 2.0455542741661322e-14
+Ccontroller @ Uexact - R norm 2.1463945750300482e-14
+exact private error 0.0 non-private leak 0.0
+0.0001 private error 0.0 non-private leak 0.029748
+0.001 private error 0.0 non-private leak 0.048023
+0.01 private error 0.0 non-private leak 0.081413
+0.1 private error 0.0 non-private leak 0.143357
+1.0 private error 0.0 non-private leak 0.224704
+
+=== VALUE-HEAD TENSORS ===
+attr_heads.value_bin.0.bias (192,)
+attr_heads.value_bin.0.weight (192, 192)
+attr_heads.value_bin.2.bias (17,)
+attr_heads.value_bin.2.weight (17, 192)
+
+=== VALUE ROUTE COMPONENTS ===
+Rbase118 (192, 20) norm 4.47214
+Vsignal118 (192, 4) norm 133.92538
+CinvJ118 (192, 20) norm 104344.15005
+Jhead118 (20, 192) norm 0.09928
+Jrows118 (20, 100, 192) norm 0.99438
+derivative118 (8, 100, 192) norm 0.66099
+escore118 (20,) norm 1464.6618
+estate118 (192,) norm 1103292.26158
+rotation118 (20, 4) norm 2.0
+score118 (20, 20) norm 1464.6618
+r118 (192,) norm 1.0
+state_rows118 (100, 992) norm 24317.15625
+hrows118 (100, 4, 192) norm 24316.75586
+
+=== ESSENTIAL HELPER DEFINITIONS ===
+
+ bundle_inputs74 (indices)
+6: LOAD_GLOBAL:NULL + bundle_inputs73 LOAD_FAST:indices CALL UNPACK_SEQUENCE STORE_FAST:ctx STORE_FAST:hflow STORE_FAST:memory STORE_FAST:ages STORE_FAST:mask
+7: LOAD_FAST:ctx LOAD_FAST:hflow LOAD_FAST:memory LOAD_FAST:ages LOAD_CONST:(Ellipsis, None) BINARY_SUBSCR LOAD_FAST:mask BUILD_TUPLE RETURN_VALUE
+
+ head_inputs96 (ctx, const, eps)
+2: LOAD_GLOBAL:NULL + mlp63 LOAD_FAST:ctx LOAD_CONST:'z_prior' CALL STORE_FAST:prior
+3: LOAD_FAST:prior LOAD_CONST:None LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None LOAD_CONST:32 BUILD_SLICE BUILD_TUPLE BINARY_SUBSCR LOAD_FAST:eps LOAD_FAST:prior LOAD_CONST:None LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:32 LOAD_CONST:None BUILD_SLICE BUILD_TUPLE BINARY_SUBSCR LOAD_ATTR:NULL|self + exp CALL BINARY_OP:* BINARY_OP:+ STORE_FAST:z
+4: LOAD_FAST:ctx LOAD_CONST:None BINARY_SUBSCR LOAD_GLOBAL:NULL + linear63 LOAD_FAST:z LOAD_CONST:'z_head' CALL BINARY_OP:+ STORE_FAST:view
+5: LOAD_GLOBAL:NULL + norm63 LOAD_FAST:view LOAD_GLOBAL:NULL + w63 LOAD_CONST:'type_emb.weight' CALL LOAD_CONST:1 BINARY_SUBSCR BINARY_OP:+ LOAD_CONST:'query_norm' CALL STORE_FAST:q
+6: LOAD_FAST:q LOAD_FAST:const LOAD_CONST:None BINARY_SUBSCR BINARY_OP:+ RETURN_VALUE
+
+ decode67 (ctx, const, trans, centres, eps, return_features=False)
+71: LOAD_GLOBAL:NULL + mlp63 LOAD_FAST:ctx LOAD_CONST:'z_prior' CALL STORE_FAST:prior
+72: LOAD_FAST:prior LOAD_CONST:None LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:None LOAD_CONST:32 BUILD_SLICE BUILD_TUPLE BINARY_SUBSCR LOAD_FAST:eps LOAD_FAST:prior LOAD_CONST:None LOAD_CONST:None LOAD_CONST:None BUILD_SLICE LOAD_CONST:32 LOAD_CONST:None BUILD_SLICE BUILD_TUPLE BINARY_SUBSCR LOAD_ATTR:NULL|self + exp CALL BINARY_OP:* BINARY_OP:+ STORE_FAST:z
+73: LOAD_FAST:ctx LOAD_CONST:None BINARY_SUBSCR LOAD_GLOBAL:NULL + linear63 LOAD_FAST:z LOAD_CONST:'z_head' CALL BINARY_OP:+ STORE_FAST:view
+74: LOAD_GLOBAL:NULL + norm63 LOAD_FAST:view LOAD_GLOBAL:NULL + w63 LOAD_CONST:'type_emb.weight' CALL LOAD_CONST:1 BINARY_SUBSCR BINARY_OP:+ LOAD_CONST:'query_norm' CALL STORE_FAST:q
+75: LOAD_GLOBAL:F LOAD_ATTR:NULL|self + gelu LOAD_GLOBAL:NULL + linear63 LOAD_FAST:q LOAD_FAST:const LOAD_CONST:None BINARY_SUBSCR BINARY_OP:+ LOAD_CONST:'attr_heads.value_bin.0' CALL CALL STORE_FAST:hidden
+76: LOAD_GLOBAL:NULL + linear63 LOAD_FAST:hidden LOAD_CONST:'attr_heads.value_bin.2' CALL LOAD_FAST:trans LOAD_CONST:None BINARY_SUBSCR BINARY_OP:+ STORE_FAST:logits
+77: LOAD_FAST:logits LOAD_ATTR:NULL|self + softmax LOAD_CONST:-1 CALL STORE_FAST:probs
+78: LOAD_FAST:probs LOAD_FAST:centres LOAD_CONST:None BINARY_SUBSCR BINARY_OP:* LOAD_ATTR:NULL|self + sum LOAD_CONST:-1 CALL STORE_FAST:means
+79: LOAD_FAST:return_features POP_JUMP_IF_FALSE:to 406
+80: LOAD_FAST:means LOAD_FAST:probs LOAD_FAST:hidden LOAD_FAST:logits BUILD_TUPLE RETURN_VALUE
+81: LOAD_FAST:means LOAD_ATTR:NULL|self + mean LOAD_CONST:0 CALL LOAD_FAST:probs LOAD_ATTR:NULL|self + mean LOAD_CONST:0 CALL BUILD_TUPLE RETURN_VALUE
+
+=== ATTENTION / CONTROLLER NOTE ===
+## Run 118 / private-state readout feasibility
+Direct attention routes require norms?15,675/34,276 and are rejected. Captured original pre-coda states and tested four low-variance state channels with covariance-penalized value-input readouts. State baseline RMS=[0.013631374845695361, 0.013241554470490004, 0.01301869408009892, 0.01310210398858578]; head baseline SD=[0.04169307177247208, 0.036776184078815034, 0.03405533666690212, 0.030618347900509577]. No weights edited.
+
+## Run 125 / private controller and attention wire
+Existing private-state transition gains are near zero. Fitted a covariance-penalized controller from finite state perturbations and an attention-output reconstruction after replacing two head-2 value channels. Variables P125/T125, QE125/SP125, Vnew125/Wrepair125/chosen125 hold the proposed analytical components. No weights saved.
+
+
+```

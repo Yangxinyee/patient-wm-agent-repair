@@ -1,0 +1,17 @@
+FINAL ANSWER
+
+**What I changed: nothing.** After testing, I dropped all edits; the submitted weights are the original model (`edited()` is empty, so the factual NLL is identical to the original's — 0.000 nats change, constraint satisfied).
+
+**Why.** I established the true effects from the records (records-IRF on held-out tuning stays): insulin ×2 → −13.7 mg/dL, ×½ → +6.9; norepinephrine ×2 → +5.2 mmHg, ×½ → −2.6. The original model gets these badly wrong (−0.52, +0.05, −1.74, −0.64), and its factual residuals confirm it under-uses insulin (−1.27 mg/dL per rate unit at lag 1) and has the wrong sign for norepinephrine. So a repair was clearly warranted.
+
+I built one: four unused hidden units in the value head, gated on the predicted code (`glucose_finger` / `map_arterial`), reading drug rate from the state and tilting the value logits along the bin centres. It worked mechanically — zero logit leakage to other codes, clean per-unit gains — but it failed on measurement:
+
+- **Factual cost (fwd_7):** +0.134 nats overall (gf +0.147, map_arterial +0.332) — 27× over the 0.005 budget. My offline `with_code` panels had predicted an *improvement*; they were not faithful to real rows, so every gain I calibrated on them was invalid. This is the main lesson: I should have validated the panel against a factual forward pass before trusting it.
+- **Why it cannot be rescued by rescaling:** the dose response grows linearly in the gain while the factual cost grows quadratically. Measured at gain 7: insulin contribution −0.32 mg/dL for +0.134 nats. A budget-safe gain (≤1.2) yields ≈ −0.06 mg/dL — indistinguishable from no edit, while risking outright constraint failure on a single extrapolated estimate.
+- **Root cause:** the intervention-SNR of *any* linear read of the value-head input is ≈1/23 — doubling the dose moves the read by 0.011 while its cross-sectional spread is 0.25, because `out_norm` attenuates the action-driven component of `h`. Reaching −13.7 would need ~300 mg/dL of spurious cross-sectional tilt (~230 nats). The whitened reader is already optimal over linear reads, so amplifying `out_norm` cannot help (it scales signal and noise alike). Nor can a linear reader form the NLL-free "deviation" `rate − E[rate|state]`: both terms are the same linear functional of the state.
+
+The correct fix is to amplify the action-driven signal **inside the core, before `out_norm`** (my prelude→`b_in` channel). My built version was too violent (`b_in` delta norm 2.4e4) and wrecked the state — fwd_4 showed the insulin effect collapse to exactly 0.0. I could not rebuild it safely: run 293 accidentally overwrote the kernel globals that `stay_data` closes over, which killed the local simulator and with it any way to measure Δq, and my final Python run could not both install and verify a new core channel (an unverified edit would be irreversible).
+
+Given the choice between an edit I know violates the factual constraint and the unedited model, I submit the unedited model.
+
+**Expected readouts** (the original model's, from fwd_4): insulin ×2 → **−0.52** mg/dL (true −13.7); insulin ×½ → **+0.05** (true +6.9); norepinephrine ×2 → **−1.74** mmHg (true +5.2); norepinephrine ×½ → **−0.64** (true −2.6). Factual fit: unchanged, 1.634 nats per reading. The four readouts are therefore poor — correct in sign only for insulin — but the factual constraint holds exactly, and my notebook records the diagnosis and the route a further attempt should take.

@@ -1,0 +1,89 @@
+OUTPUT of Python run 132 of at most 300:
+```
+=== REMAINING EARLY CAUSAL CHECKS ===
+- Sensor-specific held-out next-hour estimates: glucose_finger insulin -1.8383 (SE .1026), glucose_lab -1.9344 (.1744); map_arterial NE +3.4086 (.2191), map_cuff +2.8671 (.4111).
+- Cross-drug coefficients are small relative to their uncertainty.
+- Corrected a diagnostic indexing error: clustered_ols includes an intercept. The initial dose-stratum printouts were intercepts, not drug effects, and must be discarded.
+- Run 8 dynamic-alternative calculation stopped before completion; no edits were made.
+
+## Local head reconstruction (run 10, forward 4)
+- Obtained original states for 100 training stays (4,314 bundles).
+- Computing a no-gradient local value-head reconstruction and checking it against original GPU predictions.
+- Corrected local-projection dictionary access and calculated ARX/deconvolved alternatives.
+
+## Head reconstruction validation (run 11)
+- Simple prior-mean reconstruction had nontrivial error; testing register conventions and latent integration.
+- ARX alternatives: glucose phi .7807, beta_now -1.8381, beta_lag -.7382; MAP phi .5116, beta_now 3.2133, beta_lag 1.3739. These remain conditional estimates.
+
+## Restart / run 13
+- Run 12's approximate value-head reconstruction retained meaningful mean and NLL errors; no edits are justified by that reconstruction yet.
+- Re-reading architecture and inspecting persistent analysis objects before correcting the reconstruction and checking causal estimates.
+
+## Reconstruction conventions / run 16
+- Tested schema-valid last-numeric features, last-status embeddings, type embeddings, activations, and prior/head gap scaling.
+- Best deterministic convention: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1}.
+- No tensor edits; sampling and register conventions still require validation.
+
+## Runs 17?18
+- Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+- Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+- Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+- Best bin/flag trial: (0.013937794603407383, 0.24
+=== KEY HELPER INTERFACES ===
+reading_cache (records, states, factual=None)
+  names: ('np', 'unique', 'int', 'flatnonzero', 'event', 'isin', 'stay_id', 'copy', 'sort_values', 'reset_index', 'full', 'len', 'zeros', 'groupby', 'indices', 'items', 'searchsorted', 'loc', 'to_numpy', 'where', 'maximum', 'groups', 'array', 'list', 'norm_meta', 'clip', 'log1p', 'torch', 'from_numpy', 'astype', 'float32', 'tensor', 'hour', 'reshape', 'exp', 'W0', 'norm0', 'mean', 'stack', 'r_', 'VOCAB', 'code_id', 'dict', 'long', 'merge', 'predicted_mean', 'nll')
+  locals: ('records', 'states', 'factual', 'stids', 'sth', 's', 'locations', 'df', 'previous', 'lastval', 'lastage', 'haslast', 'lastbin', 'targetbin', 'sid0', 'ix', 'loc', 'pos', 'event', 'subix', 'vals', 'hh', 'meta', 'ii', 'good')
+head_parts (cache, kind='gelu', flagcol=3, ageunit='seconds', subset=None)
+  names: ('slice', 'mlp0', 'torch', 'log1p', 'zeros', 'len', 'expm1', 'W0', 'lin0')
+  locals: ('cache', 'kind', 'flagcol', 'ageunit', 'subset', 'ii', 'ctx', 'zp', 'lastnums', 'codes', 'bins', 'register', 'trans')
+head_features_layout (cache, layout, ageunit='seconds', subset=None, nsamples=16, seed=913)
+  names: ('slice', 'torch', 'as_tensor', 'mlp0', 'log1p', 'Generator', 'manual_seed', 'randn', 'len', 'clamp', 'exp', 'norm0', 'lin0', 'W0', 'expm1', 'zeros', 'long', 'act0', 'softmax', 'mean', 'sum', 'gather', 'squeeze', 'clamp_min', 'log', 'dict')
+  locals: ('cache', 'layout', 'ageunit', 'subset', 'nsamples', 'seed', 'ii', 'base', 'dt', 'gapv', 'zp', 'gen', 'eps', 'z', 'q', 'has', 'age', 'nums', 'vc', 'ac', 'flags', 'fc', 'codes', 'bins', 'reg')
+head_mc (cache, kind='gelu', flagcol=3, ageunit='seconds', nsamples=32, subset=None, seed=73)
+  names: ('head_parts', 'torch', 'Generator', 'manual_seed', 'randn', 'len', 'exp', 'clamp', 'lin0', 'norm0', 'W0', 'act0', 'softmax')
+  locals: ('cache', 'kind', 'flagcol', 'ageunit', 'nsamples', 'subset', 'seed', 'ctx', 'zp', 'register', 'trans', 'gen', 'eps', 'z', 'view', 'q', 'wc', 'hidden', 'logits', 'probs')
+head_mc_layout (cache, kind, ageunit, layout, nsamples=16, subset=None, seed=73)
+  names: ('slice', 'mlp0', 'torch', 'log1p', 'Generator', 'manual_seed', 'randn', 'len', 'exp', 'clamp', 'norm0', 'lin0', 'W0', 'zeros', 'expm1', 'act0', 'softmax')
+  locals: ('cache', 'kind', 'ageunit', 'layout', 'nsamples', 'subset', 'seed', 'ii', 'ctx', 'zp', 'gen', 'eps', 'z', 'q', 'vcol', 'agecol', 'flagcols', 'nums', 'age', 'c', 'codes', 'bins', 'reg', 'wc', 'hidden')
+reconstruct_head (cache, subset=None, kind='gelu', typeidx=1, prior_gap=10.0, view_gap=10.0, status=-1, ageunit='seconds', flagcol=3, nsamples=0, sd_power=1.0, seed=913, keep_hidden=False)
+  names: ('slice', 'torch', 'as_tensor', 'log1p', 'mlp0', 'Generator', 'manual_seed', 'randn', 'len', 'exp', 'clamp', 'lin0', 'norm0', 'W0', 'zeros', 'expm1', 'long', 'act0', 'softmax', 'mean', 'ndim', 'sum', 'log', 'gather', 'squeeze', 'clamp_min')
+  locals: ('cache', 'subset', 'kind', 'typeidx', 'prior_gap', 'view_gap', 'status', 'ageunit', 'flagcol', 'nsamples', 'sd_power', 'seed', 'keep_hidden', 'ii', 'base', 'dt', 'g', 'ctx', 'zp', 'mu', 'gen', 'eps', 'z', 'view', 'q')
+next_means_crn74 (j, h_branches, nsamples=16, seed=913)
+  names: ('np', 'flatnonzero', 'asarray', 'cacheTrain', 'int', 'len', 'items', 'isinstance', 'pd', 'DataFrame', 'iloc', 'reset_index', 'ndarray', 'torch', 'Tensor', 'as_tensor', 'float32', 'reshape', 'dict', 'expand', 'exp', 'W0', 'wm_norm', 'mean', 'head_features_layout', 'head_layout_spec', 'append', 'as_np', 'stack', 'to_numpy')
+  locals: ('j', 'h_branches', 'nsamples', 'seed', 'rr', 'n', 'base_cache', 'key', 'value', 'dt_local', 'outputs', 'branch', 'cc', 'hh_local', 'flowed_local', 'result')
+norm0 (v, prefix)
+  names: ('F', 'layer_norm', 'W0')
+  locals: ('v', 'prefix')
+mlp0 (v, prefix, kind)
+  names: ('lin0', 'act0')
+  locals: ('v', 'prefix', 'kind')
+context_from_saved (rows, states={'x': array([[-2.8624568 ,  0.13236251,  0.04103862, ...,  0.15522546,
+         0.12438185,  0.7925512 ],
+       [-2.8296847 , -0.09597726, -0.02484371, ..., -0.00540475,
+         0.02381059, -0.06488448],
+       [-2.9132874 , -0.04478304,  0.0041233 , ..., -0.00758266,
+         0.05248087, -0.03556135],
+       ...,
+       [-2.941284  , -0.04452135,  0.05320625, ..., -0.00634789,
+         0.0115262 , -0.17957968],
+       [-2.9907868 , -0.13312288,  0.0402553 , ...,  0.02112203,
+         0.02666816, -0.02659603],
+       [-3.0455008 , -0.18014115, -0.01807782, ...,  0.11646924,
+         0.00951204, -0.16512442]], shape=(4314, 992), dtype=float32), 'stay_id': array([1010000000, 1010000000, 1010000000, ..., 1010000095, 1010000095,
+       1010000095], shape=(4314,)), 'hour': array([-2.    , -1.    ,  0.    , ..., 23.    , 24.    , 25.1667],
+      shape=(4314,)), 'has_insulin': array([False, False, False, ..., False, False, False], shape=(4314,)), 'has_norepinephrine': array([False, False, False, ..., False, False, False], shape=(4314,)), 'n_atoms': array([1, 1, 3, ..., 2, 1, 2], shape=(4314,))})
+  names: ('torch', 'from_numpy', 'as_tensor', 'float32', 'reshape', 'exp', 'W0', 'norm0', 'mean', 'mlp0', 'log1p')
+  locals: ('rows', 'states', 'before', 'dt', 'hf', 'ctx')
+wm_step_saved (j, include_current=False, age_mode='input', age_units='seconds')
+  names: ('context_from_saved', 'np', 'array', 's4', 'torch', 'from_numpy', 'reshape', 'float', 'exp', 'W0', 'int', 'round', 'groups4', 'itertuples', 'event', 'action_atom_exact', 'rate', 'dose', 'wm_set', 'stack', 'cat', 'wm_e4', 'wm_lin', 'wm_norm', 'wm_layer', 'searchsorted', 'max', 'tensor', 'float32', 'wm_mlp', 'log1p', 'range', 'F', 'softplus')
+  locals: ('j', 'include_current', 'age_mode', 'age_units', 'ctx4', 'z4', 'prev4', 'dt4', 'h4', 'key4', 'group4', 'rr4', 'aa4', 'u4', 'tok4', 'E4', 'start4', 'end4', 'mem4', 'divisor4', 'ages4', 'age4', 'b4', 'layer4', 'delta4')
+correction_data (cache, head)
+  names: ('np', 'rint', 'to_numpy', 'astype', 'int', 'flatnonzero', 'pd', 'MultiIndex', 'from_arrays', 'panel', 'index', 'names', 'X', 'loc', 'fillna', 'column_stack', 'nuisance_models', 'predict', 'char', 'startswith', 'str', 'array', 'norm_meta', 'where', 'dyn_estimates', 'dict', 'as_np', 'mean')
+  locals: ('cache', 'head', 'df', 't', 'keep', 'rows', 'idx', 'cov', 'actual_doses', 'd', 'expected_doses', 'innovations', 'events', 'glucose', 'e', 'iqrs', 'desired')
+mechanistic_shifts (p, ids, drug, readout, phi, beta, start=12, multiplier=2.0)
+  names: ('loc', 'slice', 'groupby', 'droplevel', 'range', 'pd', 'notna', 'append', 'int', 'float', 'np', 'mean', 'len')
+  locals: ('p', 'ids', 'drug', 'readout', 'phi', 'beta', 'start', 'multiplier', 'sub', 'shifts', 'rows', 'stay', 'group', 'effect', 'reached', 'h', 'd')
+array129 (v)
+  names: ('isinstance', 'torch', 'Tensor', 'detach', 
+[output cut at 10,000 characters]
+```

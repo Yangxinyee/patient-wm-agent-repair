@@ -1,0 +1,149 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 16 replies happened before. Forward passes used: 3 of 50; Python runs used: 13 of 300. Your kernel is still running with its variables. Tensors currently edited: ['embed.bins.dose.weight', 'embed.bins.rate.weight', 'embed.numeric.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_2', 'fwd_3', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+44425223706398, 'se': 0.08191087068976124, 'dose_res_sd': 0.09590758434856245}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'subset': 'positive', 'n': 155950, 'coef': -0.011768482601147679, 'se': 0.08190853460684161, 'dose_res_sd': 0.1392838606041562}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'subset': 'current_observed', 'n': 312395, 'coef': -0.017303452048893886, 'se': 0.08337953017129889, 'dose_res_sd': 0.09586874862962243}, {'outcome': 'map_arterial', 'drug': 'norepinephrine', 'subset': 'positive_unsaturated', 'n': 124562, 'coef': 0.013751492878438612, 'se': 0.09683471234859976, 'dose_res_sd': 0.12825513941070582}]
+[{'cutoff': 150, 'n': 49020, 'dose_jump': 1.047047141339122, 'outcome_jump': -0.2860901017759291, 'effect_per_unit': -0.2732351681988586, 'se': 0.2605727678210058}, {'cutoff': 180, 'n': 75962, 'dose_jump': 1.0314201165066181, 'outcome_jump': 0.19066633728897636, 'effect_per_unit': 0.18485807503421225, 'se': 0.19386587966043398}, {'cutoff': 220, 'n': 45430, 'dose_jump': 1.0770798543300497, 'outcome_jump': -0.006962022619774968, 'effect_per_unit': -0.006463794296946895, 'se': 0.2787245758334151}, {'cutoff': 260, 'n': 23848, 'dose_jump': 1.0202105439600928, 'outcome_jump': -0.3697303053836833, 'effect_per_unit': -0.36240588530728407, 'se': 0.4548303368604357}, {'cutoff': 300, 'n': 7133, 'dose_jump': 2.0925099725379988, 'outcome_jump': -0.7441357968121194, 'effect_per_unit': -0.35561875765378526, 'se': 0.4753394758400258}]
+
+## Delayed and alternate-outcome checks
+[{'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 2, 'subset': 'all', 'n': 405570, 'coef': 0.04551, 'se': 0.0418}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 2, 'subset': 'positive', 'n': 270294, 'coef': 0.04549, 'se': 0.04181}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 4, 'subset': 'all', 'n': 372833, 'coef': 0.05001, 'se': 0.05039}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 4, 'subset': 'positive', 'n': 238699, 'coef': 0.04996, 'se': 0.0504}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 8, 'subset': 'all', 'n': 305697, 'coef': 0.06124, 'se': 0.0726}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 8, 'subset': 'positive', 'n': 185542, 'coef': 0.06131, 'se': 0.0726}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 12, 'subset': 'all', 'n': 236369, 'coef': 0.0552, 'se': 0.10731}, {'drug': 'insulin', 'outcome': 'glucose_finger', 'horizon': 12, 'subset': 'positive', 'n': 135844, 'coef': 0.05559, 'se': 0.10732}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 1, 'subset': 'all', 'n': 144582, 'coef': 0.0929, 'se': 0.061}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 1, 'subset': 'positive', 'n': 59059, 'coef': 0.09272, 'se': 0.06101}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 4, 'subset': 'all', 'n': 126468, 'coef': 0.09476, 'se': 0.08921}, {'drug': 'insulin', 'outcome': 'glucose_lab', 'horizon': 4, 'subset': 'positive', 'n': 50894, 'coef': 0.09395, 'se': 0.08921}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 2, 'subset': 'all', 'n': 315230, 'coef': -0.08079, 'se': 0.09402}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 2, 'subset': 'positive', 'n': 149583, 'coef': -0.08087, 'se': 0.09402}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 4, 'subset': 'all', 'n': 287792, 'coef': 0.1396, 'se': 0.11518}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 4, 'subset': 'positive', 'n': 136785, 'coef': 0.13949, 'se': 0.11517}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 8, 'subset': 'all', 'n': 232981, 'coef': 0.30622, 'se': 0.16584}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 8, 'subset': 'positive', 'n': 110988, 'coef': 0.30588, 'se': 0.16584}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 12, 'subset': 'all', 'n': 178111, 'coef': 0.83175, 'se': 0.23148}, {'drug': 'norepinephrine', 'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive', 'n': 84840, 'coef': 0.8309, 'se': 0.23147}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 1, 'subset': 'all', 'n': 440167, 'coef': -0.25985, 'se': 0.16691}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 1, 'subset': 'positive', 'n': 117794, 'coef': -0.26161, 'se': 0.16691}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 4, 'subset': 'all', 'n': 385203, 'coef': 0.05434, 'se': 0.20138}, {'drug': 'norepinephrine', 'outcome': 'map_cuff', 'horizon': 4, 'subset': 'positive', 'n': 103181, 'coef': 0.0527, 'se': 0.20139}]
+No edits yet. Nonlinear one-hour effects: insulin +0.0466 (SE 0.0370); NE -0.0123 (SE 0.0819). Insulin threshold checks show strong dose jumps but no significant outcome jumps.
+
+## Run 7 failed / Run 8 recovery
+Run 7 exhausted memory and restarted the kernel; no edits had been made. Rebuilt compact float32 records and targeted history features.
+[{'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive', 'n': 155950, 'coef': 0.029011214778685096, 'se': 0.07966874626395953}, {'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_ge4', 'n': 130138, 'coef': 0.09041826580562107, 'se': 0.08633447782399166}, {'outcome': 'map_arterial', 'horizon': 1, 'subset': 'positive_hour_lt4', 'n': 25812, 'coef': -0.26252499037732024, 'se': 0.20696688544333378}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive', 'n': 84840, 'coef': 0.847788841227945, 'se': 0.22758190381027768}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 59074, 'coef': 0.1739493898543281, 'se': 0.25300784921029384}, {'outcome': 'map_arterial', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 25766, 'coef': 2.1909689150258878, 'se': 0.45051047443270414}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive', 'n': 63844, 'coef': 0.3921358097717153, 'se': 0.335210329434825}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_ge4', 'n': 44386, 'coef': 0.05362684210829568, 'se': 0.37654176589911237}, {'outcome': 'map_cuff', 'horizon': 12, 'subset': 'positive_hour_lt4', 'n': 19458, 'coef': 1.0989971324361514, 'se': 0.6651476800953505}]
+
+## Restart inspection
+Run 8's richer-history NE estimates are near zero at one hour. The twelve-hour association is concentrated before hour 4 and is much smaller thereafter; this suggests early-stay residual confounding. Working hypothesis: both drugs have little or no causal effect, subject to further later-hour checks. Inspecting architecture before choosing a minimal dose-sensitivity edit; factual NLL tolerance is +0.005 nats per reading.
+
+## Null-effect embedding candidate
+Edited only embed.numeric.weight and the dose/rate bin tables. Numeric magnitude columns 2 and 4 are zero. Their training-average contributions were moved into presence columns 3 and 5. All present dose/rate bins now share their empirical training-weighted mean; absent row 0 is unchanged. Drug identity and measurement embeddings are unchanged. This preserves the global average action input, though not each drug's average separately. Construction-only invariance check max difference: 0. Awaiting factual and rollout validation.
+
+## Forward 2 and 3 validation, first 100 tuning stays
+Factual original NLL 1.50155; candidate 1.50136 (approximately -0.00019 nats). Paired cluster summary:
+{"n_readings": 4930, "n_stays": 100, "original_nll": 1.501545902636917, "edited_nll": 1.5013641379310345, "delta": -0.00018176470588235208, "cluster_se": 0.0001816280620308649, "ci95": [-0.0005421541854477836, 0.0001786247736830794]}
+Exact evaluation rollout: insulin x2 and half, NE x2 and half all have zero shift on every reached stay-hour. Original means were +0.113, -0.186, +0.050, +0.013 respectively. This confirms behavioral invariance, not causal truth. Need validate factual fit on remaining tuning stays and check causal estimates specifically at later ICU hours, using only pre-dose history.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 13 of at most 300:
+```
+Factual columns: ['stay_id', 'hour', 'event', 'observed', 'predicted_mean', 'nll']
+   stay_id  hour          event  observed  predicted_mean    nll
+2020000000  -1.0       map_cuff      80.0         77.9945 2.6124
+2020000000  -1.0 glucose_finger     114.0        170.6889 1.8830
+Using NLL column: nll
+Paired factual summary: {'n_readings': 4930, 'n_stays': 100, 'original_nll': 1.501545902636917, 'edited_nll': 1.5013641379310345, 'delta': -0.00018176470588235208, 'cluster_se': 0.0001816280620308649, 'ci95': [-0.0005421541854477836, 0.0001786247736830794]}
+By event:
+glucose_finger {'n_readings': 1727, 'n_stays': 100, 'original_nll': 1.2540203821656053, 'edited_nll': 1.253380660104227, 'delta': -0.0006397220613781089, 'cluster_se': 0.0002896459852697581, 'ci95': [-0.0012144425353093125, -6.500158744690511e-05]}
+glucose_lab {'n_readings': 511, 'n_stays': 100, 'original_nll': 1.1055776908023482, 'edited_nll': 1.1055704500978472, 'delta': -7.240704500977893e-06, 'cluster_se': 0.000585004740890093, 'ci95': [-0.0011680170281335202, 0.0011535356191315644]}
+map_arterial {'n_readings': 917, 'n_stays': 37, 'original_nll': 1.410078189749182, 'edited_nll': 1.4103102508178844, 'delta': 0.0002320610687022884, 'cluster_se': 0.00046061180764480876, 'ci95': [-0.0007021029751629093, 0.001166225112567486]}
+map_cuff {'n_readings': 1775, 'n_stays': 100, 'original_nll': 1.903626028169014, 'edited_nll': 1.9036258028169015, 'delta': -2.2535211267640682e-07, 'cluster_se': 0.00022593236777202944, 'ci95': [-0.00044852418615799397, 0.0004480734819326412]}
+
+Edited rollout, reached stay-hours:
+insulin_half n: 665 mean: 0.0 max absolute: 0.0
+insulin_x2 n: 665 mean: 0.0 max absolute: 0.0
+ne_half n: 204 mean: 0.0 max absolute: 0.0
+ne_x2 n: 204 mean: 0.0 max absolute: 0.0
+
+=== EXISTING HISTORY FEATURES ===
+['hour', 'map_arterial', 'map_arterial_last', 'map_arterial_age', 'map_arterial_baseline', 'map_arterial_lag1', 'map_arterial_lag2', 'map_arterial_lag3', 'map_arterial_lag4', 'map_arterial_lag5', 'map_arterial_lag6', 'map_arterial_lag7', 'map_arterial_lag8', 'map_arterial_mean3', 'map_arterial_count3', 'map_arterial_mean6', 'map_arterial_count6', 'map_arterial_mean12', 'map_arterial_count12', 'map_cuff', 'map_cuff_last', 'map_cuff_age', 'map_cuff_baseline', 'map_cuff_lag1', 'map_cuff_lag2', 'map_cuff_lag3', 'map_cuff_lag4', 'map_cuff_lag5', 'map_cuff_lag6', 'map_cuff_lag7', 'map_cuff_lag8', 'map_cuff_mean3', 'map_cuff_count3', 'map_cuff_mean6', 'map_cuff_count6', 'map_cuff_mean12', 'map_cuff_count12', 'ne_lag1', 'ne_lag2', 'ne_lag3', 'ne_lag4', 'ne_lag5', 'ne_lag6', 'ne_lag7', 'ne_lag8', 'ne_lag9', 'ne_lag10', 'insulin_prev', 'glucose_finger_current', 'glucose_lab_current', 'ne_present']
+Compact-array channels: ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff', 'insulin', 'norepinephrine']
+First stay hour grid: [-1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0]
+First five compact rows:
+[[169.  171.    nan  65.    0.    0. ]
+ [160.    nan   nan  77.    1.    0. ]
+ [154.    nan   nan  68.    0.5   0. ]
+ [160.    nan   nan   nan   0.5   0. ]
+ [149.    nan   nan  67.    0.    0. ]]
+First five compact dose rows:
+[[0.  0. ]
+ [1.  0. ]
+ [0.5 0. ]
+ [0.5 0. ]
+ [0.  0. ]]
+First treatment hours: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+First NE treatment vector: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.029999999329447746, 0.05999999865889549, 0.07999999821186066, 0.05999999865889549, 0.07000000029802322, 0.05999999865889549, 0.05000000074505806, 0.05999999865889549]
+Treatment residual SD, positive late-hour doses: 0.1390467528625029
+
+```

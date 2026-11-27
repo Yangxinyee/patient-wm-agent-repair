@@ -1,0 +1,7 @@
+The edit now holds only the two numeric ops: input columns 2 and 4 (z_dose, z_rate), each scaled x5. Before checking N5's factual cost on 100 fresh tuning stays, I'll confirm the next 100 stay ids from the saved list. I'll also record the band findings and the decision in the notebook.
+
+```python
+tids=json.load(open('/work/tu_ids.json')) if 'json' in globals() else __import__('json').load(open('/work/tu_ids.json'))
+tids=sorted(tids); print(len(tids), tids[100], tids[199], tids[100:200]==list(range(2020000100,2020000200)))
+open('/work/notes.md','a').write("- Pass 28: N5+H2 factual +0.00368, stay-bootstrap SE .0014 (N5 .00156+-.0011, N5+H2.5 .00507+-.00165) -> head0 boost too risky.\n- Bands (stay mean ins rate h>=12: <=1.5 [37 stays], 1.5-2.5 [17], 2.5-3.5 [6]): truth x2 [-6.3,-16.0,-24.7], half [3.2,8.0,12.4].\n  orig x2 [-.82,-2.56,-2.70] half [-.11,1.11,3.35]; N5 x2 [-2.19,-2.70,-.98] half [.23,2.61,4.50]; head0x4 x2 [-.96,-3.68,-3.88] half [-.02,2.15,6.74].\n  N5 saturates doubled high doses (z=2x-1.5 -> 5z~22); head0 boosts mid/high. u-token total swing ~7 -> input-side cap.\n- DECISION: final = N5 only (ops 1-2). Undid head0 ops (run 215). Next: verify N5 factual on tuning 100-199 (both).\n")
+```

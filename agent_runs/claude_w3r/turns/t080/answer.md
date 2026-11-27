@@ -1,0 +1,57 @@
+The kernel ran out of memory and restarted, so every variable is gone. The cause was probably the large data frames held over from the previous session, plus the new copies.
+
+To make restarts cheap, I will put everything I have verified into a module, /work/impl2.py. It will hold:
+- the vocab helpers;
+- bundling with END atoms sent to the observation encoder;
+- the validated head pieces: GELU, gap input log(dt)/10, type 1, the register layout and the transition table;
+- the band-mean policy;
+- a memory-light loader for train.csv.
+
+This run writes and imports the module, and checks that the predefined tools (load, NAMES) still exist after the restart. If the import works and the 100 selS stays load, I can rerun the probe analysis with less memory.
+
+```python
+code_txt = r'''
+import numpy as np, torch, json, math, pandas as pd
+import torch.nn.functional as Fnn
+torch.set_grad_enabled(False)
+V = json.load(open('/model/vocab.json'))
+CODE = {c['name']:c['id'] for c in V['codes']}
+NUM = {(d['code'],d['attribute']):d for d in V['numeric']}
+CEN = {k: torch.tensor(v, dtype=torch.float32) for k,v in V['value_bin_centres'].items()}
+BANDS=[-1,150,180,220,260,300,1e9]; MBAND=[0.0,0.999,2.003,3.0,4.037,6.168]
+def m_of(g): return 0.0 if (g is None or g!=g) else MBAND[int(np.searchsorted(BANDS[1:],g,side='right'))]
+def fbin(code, attr, x):
+    d=NUM[(code,attr)]; return 1+int(np.searchsorted(np.array(d['fine_bin_edges']), x, side='left'))
+def zsc(code, attr, x):
+    d=NUM[(code,attr)]; return float(np.clip((x-d['median'])/d['iqr'],-10,10))
+def read_stays(path, stays=None, usecols=('stay_id','hour','event','value','rate','dose','end_hour')):
+    df=pd.read_csv(path, usecols=list(usecols))
+    if stays is not None: df=df[df.stay_id.isin(set(stays))]
+    return df
+class Head:
+    def __init__(self, W): self.W={k:torch.tensor(np.asarray(v)) for k,v in W.items()}; self.fa=self.W['core.flow.a']
+    def L(self,x,n):
+        y=x@self.W[n+'.weight'].T
+        return y+self.W[n+'.bias'] if n+'.bias' in self.W else y
+    def MLP(self,x,n): return self.L(Fnn.gelu(self.L(x,n+'.0')),n+'.2')
+    def LN(self,x,n): return Fnn.layer_norm(x,(x.shape[-1],),self.W[n+'.weight'],self.W[n+'.bias'],1e-5)
+    def ctx(self, out_, h_, dt):
+        hf=h_*torch.exp(-dt*torch.exp(self.fa))
+        return out_+self.LN(hf.mean(-2),'core.out_norm')+self.MLP(torch.tensor([math.log(dt)/10],dtype=torch.float32),'gap')
+    def zprior(self, ctx): pr=self.MLP(ctx,'z_prior'); return pr[...,:32], pr[...,32:]
+    def wc(self, ctx, z, code_name, lv, age_s, typ=1):
+        view=ctx+self.L(z,'z_head'); q=self.LN(view+self.W['type_emb.weight'][typ],'query_norm')
+        c_=CODE[code_name]; num=torch.zeros(8); lb=0
+        if lv is not None:
+            lb=fbin(code_name,'value',lv); num[0]=1; num[1]=math.log(1+age_s/60)/10; num[2]=zsc(code_name,'value',lv); num[3]=1
+        return q+self.W['embed.code.weight'][c_]+self.L(num,'last_numeric')+self.W['embed.bins.value.weight'][lb], c_*17+lb
+    def hidden(self, wc): return Fnn.gelu(self.L(wc,'attr_heads.value_bin.0'))
+    def logits(self, hid, trow): return self.L(hid,'attr_heads.value_bin.2')+self.W['embed_transition.value_bin.weight'][trow]
+'''
+open('/work/impl2.py','w').write(code_txt)
+import sys; sys.path.insert(0,'/work')
+import importlib, impl2; importlib.reload(impl2)
+print('predefined ok:', 'load' in globals(), 'NAMES' in globals())
+selS = json.load(open('/work/selS.json')) if os.path.exists('/work/selS.json') else None
+print(type(selS), (len(selS) if selS else None))
+```

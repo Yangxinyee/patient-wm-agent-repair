@@ -1,0 +1,204 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes). The weight values themselves are not available to you.
+   - You edit the model with operations. They are applied in order to the original weights whenever the forward tool runs
+     the edited model, and at the evaluation:
+     scale(name, c): multiply a whole tensor by the number c;
+     rank1(name, vector, alpha, side="out"): a rank-1 update along the unit direction v of the vector. With side "out" (v
+     has shape[0] entries), W <- W + alpha * v (v^T W): the tensor's output component along v is scaled by 1 + alpha.
+     With side "in" (2-D tensors, v has shape[1] entries), W <- W + alpha * (W v) v^T. For a 1-D tensor,
+     w <- w + alpha * v (v . w);
+     ops() lists the operations, undo() removes the last one, and clear_ops() removes them all.
+     Directions can come from anything you compute: the records, or the states the forward tool returns.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 17 replies happened before. Forward passes used: 7 of 50; Python runs used: 10 of 300. Your kernel is still running with its variables. Operations so far: ['1. rank1 z_post.0.weight', '2. rank1 z_post.0.weight', '3. rank1 z_post.0.weight', '4. rank1 z_post.0.weight', '5. rank1 z_post.0.weight', '6. rank1 z_post.0.weight', '7. rank1 z_post.0.weight', '8. rank1 z_post.0.weight', '9. rank1 z_post.0.weight', '10. rank1 z_post.0.weight', '11. rank1 z_post.0.weight', '12. rank1 z_post.0.weight', '13. rank1 z_post.0.weight', '14. rank1 z_post.0.weight', '15. rank1 z_post.0.weight', '16. rank1 z_post.0.weight', '17. rank1 z_post.0.weight', '18. rank1 z_post.0.weight', '19. rank1 z_post.0.weight', '20. rank1 z_post.0.weight', '21. rank1 z_post.0.weight', '22. rank1 z_post.0.weight', '23. rank1 z_post.0.weight', '24. rank1 z_post.0.weight', '25. rank1 z_post.0.weight', '26. rank1 z_post.0.weight', '27. rank1 z_post.0.weight', '28. rank1 z_post.0.weight', '29. rank1 z_post.0.weight', '30. rank1 z_post.0.weight', '31. rank1 z_post.0.weight', '32. rank1 z_post.0.weight', '33. rank1 z_post.0.weight', '34. rank1 z_post.0.weight', '35. rank1 z_post.0.weight', '36. rank1 z_post.0.weight', '37. rank1 z_post.0.weight', '38. rank1 z_post.0.weight', '39. rank1 z_post.0.weight', '40. rank1 z_post.0.weight', '41. rank1 z_post.0.weight', '42. rank1 z_post.0.weight', '43. rank1 z_post.0.weight', '44. rank1 z_post.0.weight', '45. rank1 z_post.0.weight', '46. rank1 z_post.0.weight', '47. rank1 z_post.0.weight', '48. rank1 z_post.0.weight', '49. rank1 z_post.0.weight', '50. rank1 z_post.0.weight', '51. rank1 z_post.0.weight', '52. rank1 z_post.0.weight', '53. rank1 z_post.0.weight', '54. rank1 z_post.0.weight', '55. rank1 z_post.0.weight', '56. rank1 z_post.0.weight', '57. rank1 z_post.0.weight', '58. rank1 z_post.0.weight', '59. rank1 z_post.0.weight', '60. rank1 z_post.0.weight', '61. rank1 z_post.0.weight', '62. rank1 z_post.0.weight', '63. rank1 z_post.0.weight', '64. rank1 z_post.0.weight', '65. rank1 z_post.0.weight', '66. rank1 z_post.0.weight', '67. rank1 z_post.0.weight', '68. rank1 z_post.0.weight', '69. rank1 z_post.0.weight', '70. rank1 z_post.0.weight', '71. rank1 z_post.0.weight', '72. rank1 z_post.0.weight', '73. rank1 z_post.0.weight', '74. rank1 z_post.0.weight', '75. rank1 z_post.0.weight', '76. rank1 z_post.0.weight', '77. rank1 z_post.0.weight', '78. rank1 z_post.0.weight', '79. rank1 z_post.0.weight', '80. rank1 z_post.0.weight', '81. rank1 z_post.0.weight', '82. rank1 z_post.0.weight', '83. rank1 z_post.0.weight', '84. rank1 z_post.0.weight', '85. rank1 z_post.0.weight', '86. rank1 z_post.0.weight', '87. rank1 z_post.0.weight', '88. rank1 z_post.0.weight', '89. rank1 z_post.0.weight', '90. rank1 z_post.0.weight', '91. rank1 z_post.0.weight', '92. rank1 z_post.0.weight', '93. rank1 z_post.0.weight', '94. rank1 z_post.0.weight', '95. rank1 z_post.0.weight', '96. rank1 z_post.0.weight', '97. rank1 z_post.0.weight', '98. rank1 z_post.0.weight', '99. rank1 z_post.0.weight', '100. rank1 z_post.0.weight', '101. rank1 z_post.0.weight', '102. rank1 z_post.0.weight', '103. rank1 z_post.0.weight', '104. rank1 z_post.0.weight', '105. rank1 z_post.0.weight', '106. rank1 z_post.0.weight', '107. rank1 z_post.0.weight', '108. rank1 z_post.0.weight', '109. rank1 z_post.0.weight', '110. rank1 z_post.0.weight', '111. rank1 z_post.0.weight', '112. rank1 z_post.0.weight', '113. rank1 z_post.0.weight', '114. rank1 z_post.0.weight', '115. rank1 z_post.0.weight', '116. rank1 z_post.0.weight', '117. rank1 z_post.0.weight', '118. rank1 z_post.0.weight', '119. rank1 z_post.0.weight', '120. rank1 z_post.0.weight', '121. rank1 z_post.0.weight', '122. rank1 z_post.0.weight', '123. rank1 z_post.0.weight', '124. rank1 z_post.0.weight', '125. rank1 z_post.0.weight', '126. rank1 z_post.0.weight', '127. rank1 z_post.0.weight', '128. rank1 z_post.0.weight', '129. rank1 z_post.0.weight', '130. rank1 z_post.0.weight', '131. rank1 z_post.0.weight', '132. rank1 z_post.0.weight', '133. rank1 z_post.0.weight', '134. rank1 z_post.0.weight', '135. rank1 z_post.0.weight', '136. rank1 z_post.0.weight', '137. rank1 z_post.0.weight', '138. rank1 z_post.0.weight', '139. rank1 z_post.0.weight', '140. rank1 z_post.0.weight', '141. rank1 z_post.0.weight', '142. rank1 z_post.0.weight', '143. rank1 z_post.0.weight', '144. rank1 z_post.0.weight', '145. rank1 z_post.0.weight', '146. rank1 z_post.0.weight', '147. rank1 z_post.0.weight', '148. rank1 z_post.0.weight', '149. rank1 z_post.0.weight', '150. rank1 z_post.0.weight', '151. rank1 z_post.0.weight', '152. rank1 z_post.0.weight', '153. rank1 z_post.0.weight', '154. rank1 z_post.0.weight', '155. rank1 z_post.0.weight', '156. rank1 z_post.0.weight', '157. rank1 z_post.0.weight', '158. rank1 z_post.0.weight', '159. rank1 z_post.0.weight', '160. rank1 z_post.0.weight', '161. rank1 z_post.0.weight', '162. rank1 z_post.0.weight', '163. rank1 z_post.0.weight', '164. rank1 z_post.0.weight', '165. rank1 z_post.0.weight', '166. rank1 z_post.0.weight', '167. rank1 z_post.0.weight', '168. rank1 z_post.0.weight', '169. rank1 z_post.0.weight', '170. rank1 z_post.0.weight', '171. rank1 z_post.0.weight', '172. rank1 z_post.0.weight', '173. rank1 z_post.0.weight', '174. rank1 z_post.0.weight', '175. rank1 z_post.0.weight', '176. rank1 z_post.0.weight', '177. rank1 z_post.0.weight', '178. rank1 z_post.0.weight', '179. rank1 z_post.0.weight', '180. rank1 z_post.0.weight', '181. rank1 z_post.0.weight', '182. rank1 z_post.0.weight', '183. rank1 z_post.0.weight', '184. rank1 z_post.0.weight', '185. rank1 z_post.0.weight', '186. rank1 z_post.0.weight', '187. rank1 z_post.0.weight', '188. rank1 z_post.0.weight', '189. rank1 z_post.0.weight', '190. rank1 z_post.0.weight', '191. rank1 z_post.0.weight', '192. rank1 z_post.0.weight']. Files in /work: ['fwd_1', 'fwd_2', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'notes.md', 'ops.json', 'vectors'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+n threshold estimates: {('glucose_finger', 1, 6): {'n': 94569, 'rate_jump': 0.676820167360905, 'outcome_jump': -1.469092110147066, 'effect': -2.1705796916120748, 'se': 0.2823686119400948}, ('glucose_finger', 1, 10): {'n': 158690, 'rate_jump': 0.800859016409116, 'outcome_jump': -1.7400345142239886, 'effect': -2.172710150690366, 'se': 0.18469317346762512}, ('glucose_finger', 1, 14): {'n': 223106, 'rate_jump': 0.8605678363604209, 'outcome_jump': -1.767739842270549, 'effect': -2.0541551375505844, 'se': 0.14557496818862847}, ('glucose_lab', 1, 6): {'n': 22161, 'rate_jump': 0.6106859197361182, 'outcome_jump': -0.9623250088225842, 'effect': -1.575810048540847, 'se': 0.4515120296985709}, ('glucose_lab', 1, 10): {'n': 36635, 'rate_jump': 0.7512887970002406, 'outcome_jump': -1.1779938611589744, 'effect': -1.5679640983101166, 'se': 0.2826879624651828}, ('glucose_lab', 1, 14): {'n': 50919, 'rate_jump': 0.8293928985338691, 'outcome_jump': -1.2996262711630073, 'effect': -1.566960934269364, 'se': 0.21622340829361023}, ('glucose_finger', 2, 10): {'n': 146117, 'rate_jump': 0.7829977388109858, 'outcome_jump': -1.5017770940980744, 'effect': -1.9179839476657807, 'se': 0.204116411045284}, ('glucose_finger', 4, 10): {'n': 130544, 'rate_jump': 0.7679516563693188, 'outcome_jump': -0.9530878642549095, 'effect': -1.2410779459228825, 'se': 0.24394129883778568}}
+- Prior-reading placebo: {'n': 157736, 'rate_jump': 0.7725678382439083, 'outcome_jump': 0.06211945739767062, 'effect': 0.08040647606930126, 'se': 0.19329795224019525}
+- Nonlinear cross-fitted estimates: {('glucose_finger', 'all'): {'n': 400154, 'effect': -1.9205123153267514, 'se': 0.046687521700809545, 'dose_residual_sd': 0.49018342634703577, 'outcome_residual_sd': 12.422922826191442}, ('glucose_finger', 'fresh'): {'n': 298450, 'effect': -1.9349220454366567, 'se': 0.047097440462058895, 'dose_residual_sd': 0.5639277025139702, 'outcome_residual_sd': 12.3318485715214}, ('map_arterial', 'all'): {'n': 328940, 'effect': 3.062084804446521, 'se': 0.08898857289398902, 'dose_residual_sd': 0.09352020066962713, 'outcome_residual_sd': 4.325493241423042}, ('map_arterial', 'fresh'): {'n': 312563, 'effect': 3.1166978915729437, 'se': 0.0891845742058681, 'dose_residual_sd': 0.09349417174331442, 'outcome_residual_sd': 4.295459295140099}}
+- These analyses use only records and pre-infusion controls; cross-fitting separates stays. Assess identification assumptions and agreement before choosing target effects.
+- Python runs: 4; forward passes: 2; no edits.
+
+## Run 5 / forward 3: persistence and state capture
+- Original states obtained on training IDs 1010000000..1010000099, all bundles (4035 rows; 992-dimensional state).
+- Dynamic moments: {'insulin': [{'h': 1, 'n': 223106, 'effect': -2.054155137550587, 'se': 0.1455749681886286, 'phi': [1.0]}, {'h': 2, 'n': 205065, 'effect': -1.9215505007955112, 'se': 0.15973192071265485, 'phi': [1.0, 0.025215871026567586]}, {'h': 4, 'n': 182164, 'effect': -1.30868113770493, 'se': 0.19061378818234964, 'phi': [1.0, 0.04948621470637709, -0.005534859740399555, -0.01710917618348411]}, {'h': 6, 'n': 163583, 'effect': -0.6953659704972652, 'se': 0.2156277623132073, 'phi': [1.0, 0.05780741421219487, -0.005006001563280803, -0.020813196722217174, -0.03845105671049845, -0.02815311855012386]}], 'norepinephrine': [{'h': 1, 'n': 312563, 'effect': 3.116538954905723, 'se': 0.08932562245910886, 'phi': [1.0]}, {'h': 2, 'n': 299506, 'effect': 4.860383476324453, 'se': 0.1068007636923712, 'phi': [1.0, 0.7508293535077544]}, {'h': 4, 'n': 273503, 'effect': 5.158283324771074, 'se': 0.13259557350076712, 'phi': [1.0, 0.7560151330798912, 0.5911606243095916, 0.4716599701183076]}, {'h': 6, 'n': 247499, 'effect': 3.9048242277985303, 'se': 0.15550859589971106, 'phi': [1.0, 0.7613918338652426, 0.5983575838047945, 0.4797127918586145, 0.3880467773670123, 0.3179327899297267]}]}
+- Persistence fit accounting for later treatment responses: {'insulin': {'beta': -2.1126230003348483, 'rho': 0.8412020161353004, 'observed': [-2.054155137550587, -1.9215505007955112, -1.30868113770493, -0.6953659704972652], 'fitted': [-2.1126230003348483, -1.8304143563196857, -1.2855404663702767, -0.7857956242711385], 'standardized_residuals': [-0.40163404128999375, 0.5705568684657099, 0.12140082601220833, -0.419378529015762]}, 'norepinephrine': {'beta': 3.2907376107066626, 'rho': 0.672711214384998, 'observed': [3.116538954905723, 4.860383476324453, 5.158283324771074, 3.9048242277985303], 'fitted': [3.2907376107066626, 4.6844984871314015, 4.988418327009077, 4.185545043195627], 'standardized_residuals': [1.950153281950914, -1.646851418587893, -1.2810759309473805, 1.8051787669546966]}}
+- Approximate fixed-dose-edit targets, probe: {'insulin_x2': {'mean': -10.760784323326371, 'n_stay_hours': 643, 'n_stays': 60}, 'insulin_half': {'mean': 5.380392161663186, 'n_stay_hours': 643, 'n_stays': 60}, 'ne_x2': {'mean': 4.01609433089793, 'n_stay_hours': 474, 'n_stays': 42}, 'ne_half': {'mean': -2.008047165448965, 'n_stay_hours': 474, 'n_stays': 42}}
+- Approximate targets, training population: {'insulin_x2': {'mean': -11.283462940451336, 'n_stay_hours': 175008, 'n_stays': 16457}, 'insulin_half': {'mean': 5.641731470225668, 'n_stay_hours': 175008, 'n_stays': 16457}, 'ne_x2': {'mean': 4.228313852084173, 'n_stay_hours': 127404, 'n_stays': 11318}, 'ne_half': {'mean': -2.1141569260420865, 'n_stay_hours': 127404, 'n_stays': 11318}}
+- Targets remain model-based estimates from records, not observed counterfactual truth. Check horizon-fit residuals and method agreement.
+- Python runs: 5; forward passes: 3; no edits.
+
+## Run 6: corrected targets, state directions, candidate A
+- Earlier rollout targets included unrecorded sensor-hours; superseded by the sensor-observed masks here.
+- Corrected probe targets: {'insulin_x2': {'mean': -12.036254091096144, 'n_stay_hours': 554, 'n_stays': 60}, 'insulin_half': {'mean': 6.018127045548072, 'n_stay_hours': 554, 'n_stays': 60}, 'ne_x2': {'mean': 4.732347324472345, 'n_stay_hours': 281, 'n_stays': 26}, 'ne_half': {'mean': -2.3661736622361724, 'n_stay_hours': 281, 'n_stays': 26}}
+- Corrected training-population targets: {'insulin_x2': {'mean': -12.51486026649639, 'n_stay_hours': 152158, 'n_stays': 16457}, 'insulin_half': {'mean': 6.257430133248195, 'n_stay_hours': 152158, 'n_stays': 16457}, 'ne_x2': {'mean': 4.6728108030283355, 'n_stay_hours': 79814, 'n_stays': 7206}, 'ne_half': {'mean': -2.3364054015141678, 'n_stay_hours': 79814, 'n_stays': 7206}}
+- Estimated conditional dose-innovation directions from action-bundle state changes, controlling pre-action states and record histories. Directions saved in dose_directions; not applied yet.
+- Candidate A: 30 rank-one output projections erase contrasts between nonzero dose/rate bin rows while preserving bin 0 and the common nonzero-bin component. Numeric inputs unchanged.
+- Hypothesis: bin lookup artifacts cause irregular dose response. Require factual NLL increase <=0.005, then inspect dose rollouts.
+- Python runs: 6; forward passes: 3.
+
+## Run 7 / forwards 4–5: candidate A rejected
+- Re-read architecture after restart.
+- Candidate A factual NLL 1.63557 versus original 1.63461: +0.00096.
+- Candidate A rollouts: insulin x2 -1.745, half +0.388; NE x2 -0.492, half +0.127.
+- Bin-contrast erasure does not explain the causal failure; saved operations and cleared them.
+- Next: inspect latent/action pathways and recovered state directions before constructing a targeted edit.
+- Python runs: 8; forward passes: 5.
+
+## Runs 9–10: candidate B
+- Run 9 inspection confirmed z_post.0.weight is (192,576), then failed during an optional vocabulary print before any edit.
+- Run 10 erased its action-input block: last 192 columns of [context, observation, action].
+- Context/observation inputs, direct prelude action token, measurement heads and numeric embeddings unchanged.
+- Hypothesis: action-dependent latent inference counteracts direct treatment dynamics. This requires experimental validation.
+- Python runs: 10; forward passes: 5.
+
+```
+Continue from here.
+
+Last result:
+Forward pass 7 of 50 done (dose_edit); files in /work/fwd_7/. Summary:
+```
+{
+ "type": "dose_edit",
+ "model": "both",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -1.847,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.777,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": -0.498,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.6,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -1.798,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.77,
+     "n_stay_hours": 554,
+     "n_stays": 60
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": -0.494,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.596,
+     "n_stay_hours": 281,
+     "n_stays": 26
+    }
+   },
+   "file": "dose_edit_edited.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  }
+ },
+ "seconds": 66.0
+}
+```
+Forward passes left: 43.
+Edits used in this pass: z_post.0.weight (edit hash f60e99ce42).

@@ -1,0 +1,328 @@
+OUTPUT of Python run 69 of at most 300:
+```
+=== LATER EARLY EXPERIMENTS ===
+## Forwards 11?12 / run 19: numeric saturation
+- Gain 16 factual increase +0.00246, but rollouts insulin -2.231/+1.531 and NE +0.157/+0.085.
+- Numeric gain saturates; restored gain 4 (-2.503/+1.691, NE +0.127/-0.003).
+- Investigating dose-sensitive recurrent/latent directions with low factual second moment.
+- Python runs: 19; forward passes: 12.
+
+## Restart / Python run 20
+- Forward 13 saved paired original/gain-4 states on 100 training stays.
+- Re-inspecting architecture, earlier identification evidence, and persistent variables before designing a targeted recurrent edit.
+- Python runs: 20; forward passes: 13.
+
+## Python run 21: paired-state geometry
+- Compared gain-4 and original states using generalized delta/factual second moments.
+- Ratios: {'out': 1.1637545257572386, 'h0': 1.2496169933065107, 'h1': 1.2495189336363508, 'h2': 1.1449731622522863, 'h3': 1.2496636229526032, 'z': 0.43184577403443003}
+- Python runs: 21; forward passes: 13.
+
+## Python run 22: selective correction design
+- Examined stored dose-state estimators and inferred the slot-to-out normalization from observable states, without accessing weight files.
+- Slot-to-out reconstruction RMSE: 7.449458051528166e-08
+- Python runs: 22; forward passes: 13; edits unchanged.
+
+## Python run 23: calibrated slot shear design
+- Designed separate minimum-variance insulin/NE sensors with zero factual mean, and reading-output directions orthogonal to the sensors.
+- Candidate matrices add approximate immediate responses -1.5 insulin/glucose and +2.5 NE/MAP at full strength; approximation must be checked by forward passes.
+- No additional edits applied. Python runs: 23; forward passes: 13.
+
+## Python run 24: candidate D, selective slot shear
+- Applied numeric gain 4 plus a 15%-strength, rank-two left transformation of core.c_out.weight, factored exactly into allowed rank-one operations.
+- Based on dose-innovation state coefficients and reading surrogates; the output directions are orthogonal to the dose sensors (nilpotent correction).
+- Full-strength sensor noise was too high; this is a small empirical pilot, not a validated causal repair.
+- Next test factual NLL. Python runs: 24; forward passes: 13.
+
+## Forward 14 / Python run 25: reduce candidate D
+- Slot shear 0.15 plus numeric gain 4: factual NLL 1.64052 versus 1.63461, +0.00591, exceeding the limit; rejected at that strength.
+- Reduced shear to 0.08. Next inspect dose rollouts before further tuning.
+- repair_candidates now stores copied vector arrays; replay_ops restores candidates. pilot_basis and pilot_design define the shear.
+- Python runs: 25; forward passes: 14.
+
+## Forward 15 / restart
+- Numeric gain 4 + slot shear 0.08: insulin x2 -2.644, half +1.736; NE x2 +0.103, half -0.037.
+- The shear adds little beyond numeric gain 4; factual safety at 0.08 is untested.
+- Recovering identification evidence and architecture before further edits.
+- Python runs: 26; forward passes: 15.
+
+## Python run 27
+- Run 26 output truncated; retrieving causal evidence and saved variable names compactly.
+- Edits unchanged; forward passes: 15.
+
+## Python run 28
+- Recovered record-based sensor-masked probe targets: insulin -12.036/+6.018; NE +4.732/-2.366. These are estimates, not counterfactual truth.
+- Restored factual-safe numeric gain 4 alone; slot shear gave too little benefit.
+- Inspecting direct reading-head corrections. Forward passes: 15.
+
+## Python run 29
+- Assessing centered diagonal edits to reconstructible core.out_norm, rather than assuming c_out shear propagates unchanged through coda.
+- No new edits. Forward passes: 15.
+
+## Python run 30: direct NE reading-head pilot
+- Rejected large diagonal out_norm designs without applying them.
+- Applied numeric gain 4 plus a rank-one input shear of value_bin.0.weight, factored into allowed rank-one operations.
+- Sensor minimizes factual second moment with NE sensitivity 1, insulin sensitivity 0, and zero means in both reading-state samples. Output targets MAP +0.5, glucose 0; sensor/output orthogonality makes the shear nilpotent.
+- Head input also contains unobserved code/register terms; factual and rollout passes must validate the surrogate approximation.
+- Python runs: 30; forward passes: 15.
+
+## Restart / Python run 31
+- Forward 17: numeric gain 4 plus direct NE head pilot gives insulin -2.521/+1.720, NE +0.129/-0.077; little benefit over numeric gain alone.
+- Recovering architecture, factual result 16, causal identification evidence, and persistent variables before selecting the next edit.
+- Python runs: 31; forward passes: 17.
+
+## Python run 32
+- Architecture recovered; run 31 output truncated before the saved variables and factual result.
+- Retrieving compact evidence and candidate inventory. Edits unchanged; forward passes: 17.
+
+## Python run 33
+- Compact inspection of factual pass 16 and head edit design; no edits changed.
+- Python runs: 33; forward passes: 17.
+
+## Python run 34: numeric-value mixing pilot
+- Head NE pilot factual NLL 1.636318 vs original 1.634615 (+0.001703), but rollout benefit negligible; removed.
+- Retained numeric gain 4 and added a drug-dose/rate-to-numeric-value input shear with coefficient -2.
+- Measurement numeric inputs are unchanged; signs and factual safety require forward validation.
+- Candidate saved as numeric_value_mix_m2. Python runs: 34; forward passes: 17.
+
+
+=== FUNCTION SIGNATURES ===
+scale (name, c)
+rank1 (name, vector, alpha, side='out')
+ops ()
+undo ()
+clear_ops ()
+make_panel (df)
+regression_dose_summary (target, drug)
+clustered_ratio (z, d, y, groups)
+insulin_rdd (target, horizon=1, bandwidth=10, history=True)
+insulin_rd_path (horizon, bandwidth=14)
+crossfit_residual_matrix (X, Y, groups)
+ne_dml_path (horizon)
+fn (horizon)
+fit_persistence (drug)
+record_based_rollouts (p, ids=None, parameters=None)
+state_dose_coefficients (mask, ridge=20.0)
+compact_structure (x, depth=0)
+replay_ops (specifications)
+orthogonal_reflection_sequence (O)
+apply_lowrank_left_transform (name, basis, reduced_transform)
+freeze_ops (specifications)
+compact_saved (x, depth=0)
+orthogonal_rank1_factors (R)
+apply_lowrank_right_transform (name, basis, reduced_transform)
+small_description (obj)
+fun (R)
+brief_value (v)
+install_latent_gain (gain)
+summarize_saved (x, depth=0)
+change_inferred_vector (name, old_estimate, new_estimate)
+effective_transform (saved_ops, tensor_name, width, side)
+row_ln59 (x)
+_f (mask, ridge=20.0)
+
+=== DATA OBJECT NAMES ===
+train:(1997441, 9)
+tuning:(26251, 9)
+df:(4751, 6)
+panel:(780000, 6)
+panel_tuning:(10400, 6)
+s:(342696, 3)
+last:(780000, 4)
+lag1:(780000, 4)
+lag2:(780000, 4)
+controls:(780000, 44)
+initial_associations:dict(4)
+result:dict(6)
+baseline_rollouts:dict(4)
+baseline_factual:(4751, 6)
+t:(780000,)
+previous:(4035,)
+rdd_results:dict(8)
+placebo:dict(5)
+dml_results:dict(4)
+dml_cache:dict(2)
+mask:(4751,)
+Xdf:(328940, 45)
+X:(4035, 32)
+y:(328940,)
+d:(4751, 6)
+groups:(328940,)
+folds:(328940,)
+yp:(328940,)
+dp:(328940,)
+tr:(837,)
+te:(272,)
+response:(328940,)
+prediction:(328940,)
+yr:(328940,)
+dr:(328940,)
+fresh:(328940,)
+sub:(328940,)
+q:(192,)
+states_original:dict(6)
+original_rollout:(2500, 7)
+dynamic_moments:dict(2)
+persistence:dict(2)
+target_probe:dict(4)
+target_train:dict(4)
+sx:(4035, 992)
+ss:(4035,)
+sh:(4035,)
+st:(4035,)
+sc:(4035, 44)
+sd:(4035, 2)
+same_stay:(4035,)
+before:(4035, 992)
+delta_state:(4035, 992)
+valid_actions:(4035,)
+dose_models:dict(2)
+predicted_dose_states:(4035, 2)
+eligible:(780000,)
+fit_rows:(200000,)
+j:dict(9)
+innovation:(4035, 2)
+state_C:(4035, 240)
+dose_state_coeff:(2, 992)
+dose_directions:dict(2)
+parts:dict(3)
+bin_contrasts:(15, 17)
+saved_candidates:dict(3)
+zf:(989, 8)
+direction:(576,)
+factual_b_summary:dict(2)
+df6:(4751, 6)
+val:dict(7)
+pred_train:(4510, 6)
+state_for_reading:(4510,)
+rows:(43,)
+si:(27,)
+order:(46,)
+jj:(43,)
+valid:(989,)
+out_states:(4035, 192)
+head_surrogates:dict(2)
+direction_diagnostics:dict(2)
+all_read_out:(4510, 192)
+C_out:(192, 192)
+whitened_dose_directions:dict(2)
+raw:(192,)
+white:(192,)
+O:(989, 192)
+lastv:(989,)
+age:(989,)
+R:(989, 11)
+H:(989, 203)
+Y:(989,)
+G:(989,)
+cv_scores:dict(4)
+heldout:(989,)
+it:(743,)
+iv:(246,)
+rr:(2500, 7)
+w:(192,)
+dd:dict(2)
+delta_o:(192,)
+vec:(192,)
+numeric_dose_axis:(6,)
+repair_candidates:dict(11)
+repair_white:dict(2)
+repair_signal:dict(2)
+xo:(4035, 992)
+xe:(4035, 992)
+drug_masks:dict(4)
+state_geom:dict(6)
+D:(4035, 32)
+C:(32, 32)
+Q:(32, 32)
+vals:(32,)
+vecs:(32, 32)
+compact:dict(1)
+h_mean_o:(4035, 192)
+h_mean_e:(4035, 192)
+h_centered:(4035, 192)
+h_rms:(4035, 1)
+h_normalized:(4035, 192)
+hn_mu:(192,)
+out_mu:(192,)
+norm_gamma_est:(192,)
+norm_beta_est:(192,)
+out_reconstructed:(4035, 192)
+D_h:(2, 192)
+D_out:(2, 192)
+G_h:(2, 192)
+grad:(4035, 192)
+sensor_basis:(192, 190)
+HC:(4035, 190)
+C_reduced:(190, 190)
+D_reduced:(2, 190)
+state_correction_designs:dict(4)
+CRD:(190, 2)
+R_sensor:(192, 2)
+P_sensor_null:(192, 192)
+G_null:(2, 192)
+T_output:(192, 2)
+delta_response:(2, 2)
+S_correction:(192, 192)
+sensed:(4035, 2)
+predicted_shift:(4035, 2)
+pilot_design:dict(4)
+pilot_basis:(192, 4)
+pilot_reduced:(4, 4)
+f14o:(4751, 6)
+f14e:(4751, 6)
+wg:(192,)
+wm:(192,)
+Og:(1295, 192)
+Om:(989, 192)
+Cg:(192, 192)
+Cm:(192, 192)
+Ddiag:(192, 2)
+Bdiag:(4, 192)
+Qdiag:(192, 192)
+diag_designs:dict(5)
+QB:(192, 4)
+change:(192,)
+Oall:(2284, 192)
+Chead:(192, 192)
+constraints:(192, 5)
+CA:(192, 5)
+sensor_ne:(192,)
+output_constraints:(4, 192)
+output_ne:(192,)
+head_ne_basis:(192, 2)
+head_ne_reduced:(2, 2)
+head_ne_design:dict(4)
+frame:(989, 8)
+f16:(4751, 6)
+numeric_mix_basis:(6, 3)
+numeric_mix_transform:(3, 3)
+s_ne:(192,)
+fit:dict(7)
+projection:(989,)
+coef:(203,)
+world_part:(989,)
+register_part:(989,)
+last_v:(949,)
+design:(949, 2)
+fitted_world:(2,)
+dz:(32,)
+latent_sensor_matrix:(32, 2)
+latent_u:(32, 2)
+latent_sv:(2,)
+latent_candidate_basis:(32, 2)
+z_reference:(4035, 32)
+vector:(192,)
+design_item:(192,)
+saved_fit:dict(7)
+hs:dict(7)
+design_vec:(192,)
+dv:(192,)
+stats_by_event:dict(2)
+OO:(989, 192)
+dm:(989,)
+diag_pilot_vector:(192,)
+diag_gamma_new:(192,)
+diag_beta_new:(192,)
+head_actual:(192,
+[output cut at 10,000 characters]
+```

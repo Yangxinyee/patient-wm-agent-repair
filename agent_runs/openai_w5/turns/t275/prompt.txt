@@ -1,0 +1,105 @@
+OUTPUT of Python run 241 of at most 300:
+```
+=== RELEVANT NOTEBOOK SECTIONS ===
+63: ## Reconstruction conventions / run 16
+64: - Tested schema-valid last-numeric features, last-status embeddings, type embeddings, activations, and prior/head gap scaling.
+65: - Best deterministic convention: {'kind': 'gelu', 'prior_gap': 10.0, 'view_gap': 10.0, 'typeidx': 1, 'status': -1}.
+66: - No tensor edits; sampling and register conventions still require validation.
+67: 
+68: ## Runs 17?18
+69: - Run 17's strata calculation failed because clustered_ols returns more than two objects; corrected by taking its first two outputs.
+70: - Conditional-dose strata: [{'drug': 'insulin', 'stratum': 0, 'n': 276, 'dose_min': -0.060566163015920244, 'dose_max': 0.0008639295968212589, 'beta': 53.65487543780671, 'se': 72.17884213113975}, {'drug': 'insulin', 'stratum': 1, 'n': 56590, 'dose_min': 0.0008639295968212589, 'dose_max': 1.0518725138734473, 'beta': -1.9590038642355183, 'se': 0.22464000466428383}, {'drug': 'insulin', 'stratum': 2, 'n': 28433, 'dose_min': 1.0518725138734473, 'dose_max': 5.871025415817483, 'beta': -1.812524739041011, 'se': 0.11079635884894021}, {'drug': 'norepinephrine', 'stratum': 0, 'n': 1365, 'dose_min': -0.005512806790041913, 'dose_max': 5.095337316459479e-05, 'beta': -108.64595575014621, 'se': 270.3834239022148}, {'drug': 'norepinephrine', 'stratum': 1, 'n': 80486, 'dose_min': 5.095337316459479e-05, 'dose_max': 0.0003305590678662629, 'beta': -38.81679758964102, 'se': 293.3929606869019}, {'drug': 'norepinephrine', 'stratum': 2, 'n': 40951, 'dose_min': 0.0003305590678662629, 'dose_max': 0.9466620452061967, 'beta': 3.210910406717543, 'se': 0.22670434078758578}]
+71: - Insulin has broad observed rate support (0?16); norepinephrine observed rates are capped at 1. Above-cap effects need a response-form assumption.
+72: - Best bin/flag trial: (0.013937794603407383, 0.24990640580654144, 'left', 'minutes', '3').
+73: - No edits. Dynamic rollout targets remain assumption-dependent, not observed truth.
+74: 
+75: ## Register search / run 19
+76: - Selected reconstruction convention: {'binside': 'left', 'layout': (6, 3, (0,)), 'ageunit': 'seconds'}.
+77: - Insulin slopes agree across informative strata; near-zero-dose strata have inadequate innovation variance and do not identify effects.
+78: - Provisional AR(1) tuning-A targets: insulin double -11.893, half +5.946; NE double +4.497, half -2.249. These are estimated, not truth.
+79: - No weight edits.
+80: 
+81: ## Restart after forward 5
+82: - Independent training states received in /work/fwd_5.
+83: - Rechecking architecture and reusable analysis objects before selecting an edit.
+84: - No edits; causal targets remain estimates conditional on identification and response-form assumptions.
+85: 
+188: - No edits retained. Prelude innovation decoding has held-out R2 about .20, but finite-dose correction fits caused excessive factual variation.
+189: - Reinspect exact architecture and persistent helpers before choosing an isolated dose pathway. All candidates require finite-dose and paired GPU factual validation.
+190: 
+191: ## Run 103: diagnostic state-coordinate clearing
+192: - Reserved coordinates [61, 21, 15, 66] by zeroing their c_out and coda residual-output rows.
+193: - This is only a capacity diagnostic, not a causal repair. No dose signal has been installed.
+194: - Original rollout responses are near zero despite record-derived insulin/NE effects.
+195: - Next: paired factual test; reject this route if clearing alone consumes the +.005 NLL budget.
+196: 
+197: ## Forward 8 / run 105: private-channel feasibility
+198: - Clearing four state coordinates costs only +.00034 factual value NLL on tuning A.
+199: - Prepared, but did not install, frozen-feature rate regressions: {'alpha': 1e-05, 'rmse_I_NE': [0.40887, 0.13455], 'absent_rmse_I_NE': [0.043429, 0.024621], 'max_abs_I_NE': [10.9567, 2.4564]}.
+200: - Fixed input representation saturation limits: [11.52, 3.0].
+201: - This rate-encoding fit uses no model gradients and makes no new causal-effect claim.
+202: 
+203: ## Run 110: private-channel decoder audit
+204: - Audited the final-layer decoder by treatment configuration.
+205: - Tested direct-atom and first-hidden rate/identity recovery on independent continuous doses.
+206: - No additional weight edits; encoding accuracy alone is not causal or factual validation.
+207: 
+208: ## Run 116: isolated-channel capacity test
+209: - Refit rate and drug-presence decoding on original first-hidden action features; no gradients.
+210: - Temporarily zeroed one prelude attention-head output (minimum output-weight norm), in addition to the four cleared state coordinates.
+211: - This is an ablation diagnostic, not a causal repair. Paired factual testing determines whether its capacity cost is acceptable.
+212: 
+213: ## Forward 9 / run 117
+214: - Freeing prelude head 3 costs +0.00246 factual value NLL on tuning A (1.64179 versus 1.63933).
+215: - Prepared an analytic first-hidden rate channel and linear encoder distillation; not installed.
+216: - Encoder validation report: {'alpha': 0.001, 'rate_rmse_I_NE': [0.136104, 0.056676], 'rate_max_error_I_NE': [4.05774, 0.82129], 'ordinary_u_rmse': 4.050224742968567e-05, 'absent_rate_rmse': [0.0, 0.0]}
+217: 
+218: ## Run 118: normalized analytic rate channel
+219: - Tested exact GELU-pair rate arithmetic with normalized-output distillation to avoid q times unknown layer-normalization scale.
+220: - Best local report: {'alpha': 0.001, 'rate_rmse_I_NE': [0.004566, 0.001215], 'typical_rate_rmse_I_NE': [0.003383, 0.000982], 'max_rate_error_I_NE': [0.09879, 0.03036], 'ordinary_u_rmse': 0.0021985468920320272, 'raw_sigma_min_max': '0.98269 / 1.00664'}
+221: - No encoder candidate installed yet.
+222: 
+223: ## Run 123: encoder candidate installed for factual validation
+224: - Independent rate RMSE I/NE: [0.004455155805703784, 0.0014733773277843163].
+225: - Ordinary action-feature RMSE: 0.0027597.
+226: - Installed the best normalized analytic encoder; no causal readout coupling yet.
+227: - Existing coordinate/head ablations remain. GPU factual validation is required.
+228: 
+229: ## Run 125: isolated dose-transport candidate
+230: - Routed head 3 to the action token using a carrier discriminator and exact constant query.
+231: - Private state coordinates receive paired rate signals and decay before subsequent updates.
+232: - No causal value-head correction installed. This is a transport/capacity test only.
+233: - Must pass GPU factual NLL and saved-state rate-transport checks before use.
+234: 
+235: ## Restart after run 125
+236: - Transport routing passed the local action-token selection check only.
+237: - No causal readout coupling is installed; factual and temporal transport validation remain required before retaining this candidate.
+238: 
+239: ## Forward 11?12 / transport validation
+240: - Tuning A paired factual value NLL: original 1.63933, transport candidate 1.64142, increase 0.00209.
+241: - This passes the constraint but leaves only 0.00291 for the causal readout correction.
+242: - Paired states saved in /work/fwd_13; dose recovery and temporal behavior are being audited before coupling.
+243: 
+244: ## Runs 130?134: restart and head audit
+245: - Re-read architecture and earlier record-derived effects. Dynamic targets remain conditional on identification and response-form assumptions.
+246: - Run 133 stopped on a layout-dictionary/tuple mismatch; no weights changed.
+247: - Run 134 rebuilt reading features using explicitly edited weights and aligned readings with preceding-hour exposures. No causal head edit yet.
+248: 
+249: ## Run 135: clean-pair capacity candidate
+250: - Equalized paired coordinates in out/query normalization and additive head inputs; removed incidental old value-head pair sensitivity.
+251: - Amplified private dose transport by 400. This is not a causal calibration.
+252: - Compensated both atom encoders by linear algebra to preserve primitive embedding preactivations. No gradients or optimizer used.
+253: - Candidate requires paired GPU factual validation; retain only if the +.005 value-NLL constraint holds with room for a causal correction.
+254: 
+255: ## Forward 15 / run 138: clean-channel factual validation
+256: - Clean-pair candidate value NLL on tuning A: 1.64123 versus original 1.63933; +0.00190.
+257: - Passes the +0.005 constraint on this sample; approximately 0.00310 budget remains.
+258: - Saved-state ordinary out RMS difference is 0.03842. Pair differences are small and require timing/rate auditing.
+259: - No causal value-head coupling installed yet; factual fit alone is not a causal validation.
+260: 
+=== CHANNELS / NEURONS ===
+private_pairs [(21, 61), (15, 66)]
+sensor_neurons {'glucose_finger': (74, 171), 'glucose_lab': (107, 7), 'map_arterial': (64, 124), 'map_cuff': (109, 10)}
+tune_ids first 100 [np.int64(2020000000), np.int64(2020000001), np.int64(2020000002), np.int64(2020000003), np.int64(2020000004), np.int64(2020000005), np.int64(2020000006), np.int64(2020000007), np.int64(2020000008), np.int64(2020000009), np.int64(2020000010), np.int64(2020000011), np.int64(2020000012), np.int64(2020000013), np.int64(2020000014), np.int64(2020000015), np.int64(2020000016), np.int64(2020000017), np.int64(2020000018), np.int64(2020000019), np.int64(2020000020), np.int64(2020000021), np.int64(2020000022), np.int64(2020000023), np.int64(2020000024), np.int64(2020000025), np.int64(2020000026), np.int64(2020000027), np.int64(2020000028), np.int64(2020000029), np.int64(2020000030), np.int64(2020000031), np.int64(2020000032), np.int64(2020000033), np.int64(2020000034), np.int64(2020000035), np.int64(2020000036), np.int64(2020000037), np.int64(2020000038), np.int64(2020000039), np.int64(2020000040), np.int64(2020000041), np.int64(2020000042), np.int64(2020000043), np.int64(2020000044), np.int64(2020000045), np.int64(2020000046), np.int64(2020000047), np.int64(2020000048), np.int64(2020000049), np.int64(2020000050), np.int64(2020000051), np.int64(2020000052), np.int64(2020000053), np.int64(2020000054), np.int64(2020000055), np
+[output cut at 10,000 characters]
+```

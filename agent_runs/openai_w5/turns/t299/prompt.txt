@@ -1,0 +1,76 @@
+OUTPUT of Python run 261 of at most 300:
+```
+=== RECORD DOCUMENTATION ===
+# Training records
+
+The records are from a simulated ICU. They are not patient data.
+
+- `train.csv`: 30,000 stays. These are the stays the model was trained on.
+- `tuning.csv`: 400 other stays from the same ICU.
+
+Each row is one event. Times are hours since ICU admission (`icu_admission` is at hour 0).
+
+| column | meaning |
+|---|---|
+| stay_id | one ICU stay |
+| hour | when the event happened, in hours since ICU admission (events before it, such as the hospital admission, have negative hours) |
+| event | glucose_finger, glucose_lab (mg/dL); map_arterial, map_cuff (mmHg); insulin, norepinephrine (infusion records); hospital_admission, icu_admission |
+| value | the reading, for measurements |
+| rate, rate_unit | the infusion rate: insulin in units/hour, norepinephrine in mcg/kg/min |
+| dose, dose_unit | the amount given over the record (rate x 1 hour; insulin in units, norepinephrine in mg) |
+| end_hour | when the infusion record ends (one hour after it starts), or when the stay ends for the admission rows |
+
+Each infusion record is one hour at its rate. Clinicians chose the doses, as in any ICU record.
+
+
+=== SAMPLE RECORD ===
+   stay_id    hour              event  value  rate  rate_unit  dose dose_unit  end_hour
+1010000000 -2.0000 hospital_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000 -1.0000           map_cuff   93.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000     glucose_finger  158.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0000      icu_admission    NaN   NaN        NaN   NaN       NaN   25.1667
+1010000000  0.0000           map_cuff   88.0   NaN        NaN   NaN       NaN       NaN
+1010000000  0.0833            insulin    NaN   1.0 units/hour   1.0     units    1.0833
+1010000000  1.0000     glucose_finger  139.0   NaN        NaN   NaN       NaN       NaN
+1010000000  1.0000           map_cuff   91.0   NaN        NaN   NaN       NaN       NaN
+1010000000  2.0000     glucose_finger  155.0   NaN        NaN   NaN       NaN       NaN
+1010000000  2.0000           map_cuff   93.0   NaN        NaN   NaN       NaN       NaN
+1010000000  2.0833            insulin    NaN   1.0 units/hour   1.0     units    3.0833
+1010000000  3.0000     glucose_finger  157.0   NaN        NaN   NaN       NaN       NaN
+1010000000  3.0000           map_cuff   90.0   NaN        NaN   NaN       NaN       NaN
+1010000000  3.0833            insulin    NaN   1.0 units/hour   1.0     units    4.0833
+1010000000  4.0000     glucose_finger  147.0   NaN        NaN   NaN       NaN       NaN
+1010000000  4.0000           map_cuff  100.0   NaN        NaN   NaN       NaN       NaN
+
+=== ACTION HELPER SOURCE, WITHOUT DEFAULT-ARGUMENT REPR ===
+drug_atom205
+arguments ('drug', 'rate', 'weights')
+referenced names ('np', 'asarray', 'float32', 'reshape', 'len', 'code_id', 'expand', 'clone', 'torch', 'zeros', 'num_spec', 'searchsorted', 'as_tensor', 'from_numpy', 'clip', 'linear205')
+constants (None, ('dtype',), -1, 'insulin', 4.8, 'embed.code.weight', 'embed.kind.weight', 0, 'embed.ekind.weight', 2, 'embed.kq.weight', 'embed.text.weight', ('action', 'discharged_to', 'route', 'status'), 'embed.categorical.', '.weight', 'embed.categorical.unit.weight', 3, 4, 'embed.categorical.rate_unit.weight', 1, 6, 'embed.bins.value.weight', 'dose', 'rate', 5, 'fine_bin_edges', 'left', ('side',), 'embed.bins.', 'median', 'iqr', -10, 10, 'embed.numeri
+set205
+arguments ('atom_sets', 'p', 'weights')
+referenced names ('shape', 'linear205', 'F', 'gelu', 'sum', 'np', 'sqrt', 'torch', 'zeros', 'float32', 'full', 'log1p', 'norm205')
+constants (None, 1, '.mlp1.0', '.mlp1.2', 0, 192, ('dtype',), '.size', '.mlp2.0', '.mlp2.2', '.norm')
+bounded_definition
+arguments ('fn', 'limit')
+referenced names ('print', '__name__', '__code__', 'co_varnames', 'co_argcount', 'co_names', 'inspect', 'getsource', 'Exception', 'io', 'StringIO', 'dis', 'getvalue')
+constants (None, 'arguments', 'names', ('file',))
+
+=== RECENT DIAGNOSTIC OBJECT NAMES ===
+
+
+=== SENSOR HEAD PRIVATE COEFFICIENTS ===
+glucose_finger (74, 171) bias [-10.659436  -9.928976] private input [[    0.     -1957.3263  1957.3263     0.    ]
+ [    0.         0.         0.         0.    ]]
+output column norms [28.561989 28.561989]
+glucose_lab (107, 7) bias [-0.34593529 -0.4357915 ] private input [[    0.     -1957.3263  1957.3263     0.    ]
+ [    0.         0.         0.         0.    ]]
+output column norms [41.812206 41.812206]
+map_arterial (64, 124) bias [-6.8322916 -6.335225 ] private input [[ 417.9788    0.        0.     -417.9788]
+ [   0.        0.        0.        0.    ]]
+output column norms [23.79955 23.79955]
+map_cuff (109, 10) bias [1.0596695 0.6999932] private input [[ 417.9788    0.        0.     -417.9788]
+ [   0.        0.        0.        0.    ]]
+output column norms [12.027907 12.027907]
+
+```

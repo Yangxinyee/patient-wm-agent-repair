@@ -1,0 +1,208 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Also scored, in the same way, on interventions the forward tool cannot run: stopping the drug from hour 12 (x0),
+   x1.5 and x3, the same edits started at hours 6 and 16, and doubled insulin read on glucose_lab and doubled
+   norepinephrine read on map_cuff.
+4. Also reported: the change in log loss summed over every output of the model, not only the value NLL.
+5. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 236 replies happened before. Forward passes used: 21 of 50; Python runs used: 210 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']. Files in /work: ['best_combined_v1.npz', 'best_insulin_v1.npz', 'dml_results.csv', 'dynamic_iv.csv', 'edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_3', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'glucose_calibration_frontier.csv', 'head_contrast_cv.csv', 'kernel_targets.csv', 'local_action_probe.csv', 'local_projections.csv', 'map_cal_candidate_v2.npz', 'map_calibrated_frontier.csv', 'map_calibration_frontier.csv', 'map_raw_frontier.csv', 'map_sensor_frontier.csv', 'notes.md', 'posterior_contrast_cv.csv', 'proxy_iv.csv', 'sensor_iv.csv', 'validated_combined_backup.npz'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+efit remains untested. Recovering architecture, rollout IDs and persistent candidate settings.
+- Current four value-head edits retained pending dose-rollout validation; 18 forward passes used.
+
+## Forward 19: modest MAP rollout improvement
+- Current combined edit: insulin x2 -11.072, half +5.775; NE x2 +0.888, half -1.284.
+- Original: -3.680/+2.018 and +0.465/-0.871. MAP improvement is real but incomplete.
+- Forward 18 factual delta +0.00392 leaves limited margin; investigating selective rather than blind amplification.
+- 19 forward passes used.
+
+## Run 182: evidence and calibration audit
+- Sensor-difference IV is weak for NE; not used as affirmative identification evidence.
+- Existing bin-bias calibration did not generalise to tuning; it is not a source of factual-loss budget.
+- Retained validated combined fallback and continued auditing record-based dynamic estimates.
+
+## Restart audit, run 186
+- Run 185 confirmed the local stochastic head evaluator returns per-reading NLL and means.
+- Existing combined four-tensor edit remains active; no new edits made.
+- Recovering architecture, causal evidence, and candidate definitions before further MAP changes.
+
+## Run 190: conditional MAP calibration experiment
+- Fitted ridge-regularised scalar calibration to factual fine-bin residuals on training-stay partition only.
+- Used conditional prior-draw responsibilities and positive Fisher curvature; no model backpropagation or optimiser.
+- Evaluated held-out training partition and tuning records; no new weights saved.
+ ridge  protect  fit_MAP_gain  cv_MAP_gain  tune_MAP_gain  cv_total_dNLL  tune_total_dNLL  NE_contrast_rms     norm
+ 0.001      0.0     -0.025972     0.004661       0.007679       0.005771         0.008410         0.192958 6.715675
+ 0.001     10.0     -0.023858     0.003701       0.006054       0.005186         0.007478         0.005288 6.048076
+ 0.003      0.0     -0.021633     0.002290       0.004305       0.004326         0.006475         0.114021 3.771062
+ 0.003     10.0     -0.019958     0.001304       0.003290       0.003725         0.005893         0.004715 3.364638
+ 0.010      0.0     -0.017197     0.000401       0.001482       0.003175         0.004855         0.059356 1.958675
+ 0.010     10.0     -0.016099    -0.000728       0.000902       0.002487         0.004523         0.004063 1.767146
+ 0.030      0.0     -0.013534    -0.000377      -0.000258       0.002701         0.003858         0.032141 1.034320
+ 0.030     10.0     -0.012890    -0.001565      -0.000635       0.001977         0.003641         0.003622 0.955010
+ 0.100      0.0     -0.010074    -0.001016      -0.001336       0.002311         0.003239         0.015844 0.521725
+ 0.100     10.0     -0.009753    -0.001955      -0.001512       0.001739         0.003138         0.003082 0.494987
+ 0.300      0.0     -0.007110    -0.001647      -0.001420       0.001926         0.003191         0.007226 0.279857
+ 0.300     10.0     -0.006975    -0.002117      -0.001439       0.001640         0.003180         0.002428 0.271295
+ 1.000      0.0     -0.004164    -0.001728      -0.000590       0.001877         0.003667         0.002572 0.131742
+ 1.000     10.0     -0.004131    -0.001847      -0.000574       0.001804         0.003676         0.001499 0.130108
+
+## Run 191: conditional glucose calibration
+- Tested factual fine-bin calibration with optional penalties preserving local insulin contrasts.
+- MAP calibration from run 190 generalises only under strong regularisation; no new weights installed.
+ ridge  protect  fit_glucose_gain  cv_glucose_gain  tune_glucose_gain  cv_total_dNLL  tune_total_dNLL  insulin_contrast_rms     norm
+  0.03      0.0         -0.019552         0.012108          -0.001150       0.007659         0.003515              0.010564 1.304823
+  0.03     10.0         -0.019280         0.012292          -0.001468       0.007731         0.003380              0.004895 1.275478
+  0.10      0.0         -0.014093         0.009428          -0.001810       0.006612         0.003234              0.006640 0.625250
+  0.10     10.0         -0.013964         0.009457          -0.001849       0.006624         0.003217              0.003822 0.617390
+  0.30      0.0         -0.010048         0.007122          -0.001954       0.005712         0.003172              0.005267 0.320242
+  0.30     10.0         -0.009979         0.007043          -0.001805       0.005681         0.003236              0.003212 0.319402
+  1.00      0.0         -0.006482         0.004803          -0.001342       0.004806         0.003433              0.003545 0.155803
+  1.00     10.0         -0.006432         0.004752          -0.001217       0.004786         0.003487              0.002573 0.155088
+  3.00      0.0         -0.003842         0.003642          -0.000407       0.004353         0.003832              0.001918 0.075271
+  3.00     10.0         -0.003819         0.003628          -0.000364       0.004347         0.003851              0.001648 0.074875
+
+## Run 192: calibrated linear MAP frontier
+- Rejected glucose calibration: held-out training loss worsened at every tested regularisation level.
+- Combined protected MAP calibration (ridge .1, contrast penalty 10) with existing raw-input directions.
+- No new weights installed; screening uses held-out training and tuning factual losses.
+  fw  gain  cv_total_dNLL  tune_total_dNLL      norm  A0.5_slope  C0.5_slope  A2.0_slope  C2.0_slope
+10.0   8.0       0.002336         0.004029 30.804023    1.372318    2.621867    0.580130    1.289796
+ 3.0   4.0       0.002572         0.004615 23.015078    1.355238    2.588080    0.572316    1.265068
+ 1.0   2.0       0.002225         0.003989 14.846582    1.214209    2.276103    0.510497    1.103593
+10.0   6.0       0.001870         0.003167 23.110264    1.207148    2.254497    0.505831    1.100471
+ 3.0   3.0       0.001942         0.003510 17.270162    1.194519    2.229545    0.500053    1.082691
+ 1.0   1.5       0.001739         0.003138 11.145114    1.088067    1.995370    0.453637    0.963416
+ 0.3   1.0       0.001685         0.003383  8.843906    1.059484    1.934722    0.443174    0.934087
+10.0   4.0       0.001632         0.002584 15.417824    1.040582    1.886528    0.431422    0.914181
+ 3.0   2.0       0.001611         0.002747 11.527009    1.032289    1.870159    0.427626    0.902819
+ 1.0   1.0       0.001514         0.002566  7.446369    0.960850    1.713819    0.396627    0.824374
+10.0   3.0       0.001600         0.002398 11.572922    0.956762    1.702220    0.394156    0.822019
+10.0   2.0       0.001625         0.002283  7.730646    0.872576    1.517645    0.356840    0.730436
+ 3.0   1.0       0.001580         0.002331  5.790864    0.868493    1.509598    0.354971    0.724996
+10.0   1.0       0.001709         0.002239  3.898766    0.788016    1.332762    0.319466    0.639378
+
+## Restart audit, runs 193–196
+- Re-read architecture; all active edits remain in the four value-head tensors.
+- Recovered calibrated MAP frontier and installation helper. No new edits installed.
+- Considering fw=10, gain=6: local held-out training dNLL +0.00187, tuning +0.00317.
+- 19 forward passes used; combined edit from forward 19 remains the fallback.
+
+## Run 197: calibrated MAP candidate installed
+- Installed head177_make(map192_candidates[(10,6)]), preserving insulin neurons.
+- Backed up forward-19 validated edit to validated_combined_backup.npz.
+- New candidate saved to map_cal_candidate_v2.npz; only four value-head tensors edited.
+- Local held-out training/tuning dNLL: +0.00187/+0.00317.
+- Pending GPU factual and dose-rollout validation; 19 forward passes used.
+
+## Restart audit after forward 21
+- Kernel targets, first 100 tuning: insulin x2 -10.5288, half +5.2644; NE x2 +3.8084, half -1.9042; estimates depend on stated identification assumptions.
+- Forward 20 factual value dNLL +0.00345; forward 21 rollout -10.983/+5.780 insulin, +0.854/-1.425 NE.
+- Current four-tensor edit retained; investigating dose-asymmetry-specific MAP directions.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 210 of at most 300:
+```
+=== CACHED OUTPUT SHAPES ===
+train
+  inputs Tensor torch.Size([16, 4510, 192])
+  probs Tensor torch.Size([16, 4510, 17])
+  mean Tensor torch.Size([4510])
+  nll Tensor torch.Size([4, 4510])
+  target Tensor torch.Size([4510])
+tuning
+  inputs Tensor torch.Size([16, 4751, 192])
+  probs Tensor torch.Size([16, 4751, 17])
+  mean Tensor torch.Size([4751])
+  nll Tensor torch.Size([4, 4751])
+  target Tensor torch.Size([4751])
+
+=== LOSS-AVERAGING IMPLEMENTATION ===
+LOAD_ATTR NULL|self + gather | LOAD_CONST -1 | LOAD_FAST target | LOAD_CONST None | LOAD_CONST None | LOAD_CONST None | BUILD_SLICE  | LOAD_CONST None | BUILD_TUPLE  | BINARY_SUBSCR  | LOAD_ATTR NULL|self + expand | LOAD_FAST probs | LOAD_ATTR shape | LOAD_CONST 0 | BINARY_SUBSCR  | LOAD_CONST -1 | LOAD_CONST 1 | CALL  | CALL  | LOAD_ATTR NULL|self + squeeze | LOAD_CONST -1 | CALL  | STORE_FAST pobs | LOAD_FAST pobs | LOAD_ATTR NULL|self + reshape | LOAD_CONST -1 | LOAD_CONST 4 | LOAD_GLOBAL NULL + len | LOAD_FAST target | CALL  | CALL  | LOAD_ATTR NULL|self + mean | LOAD_CONST 1 | CALL  | LOAD_ATTR NULL|self + clamp_min | LOAD_CONST 1e-30 | CALL  | LOAD_ATTR NULL|self + log | CALL  | LOAD_ATTR NULL|self + mean | LOAD_CONST 0 | CALL  | LOAD_ATTR NULL|self + numpy | CALL  | UNARY_NEGATIVE  | LOAD_FAST result | LOAD_CONST 'nll' | STORE_SUBSCR  | LOAD_FAST centres | POP_JUMP_IF_NOT_NONE to 978 | LOAD_FAST mc | LOAD_ATTR NULL|self + get | LOAD_CONST 'centres' | LOAD_GLOBAL wm_train145 | LOAD_CONST 'centres' | BINARY_SUBSCR  | CALL  | STORE_FAST centres | LOAD_FAST probs | LOAD_ATTR NULL|self + mean | LOAD_CONST 0 | CALL  | LOAD_GLOBAL torch | LOAD_ATTR NULL|self + as_tensor | LOAD_FAST centres | CALL  | BINARY_OP * | LOAD_ATTR NULL|self + sum | LOAD_CONST -1 | CALL  | LOAD_ATTR NULL|self + numpy | CALL  | LOAD_FAST result | LOAD_CONST 'mean' | STORE_SUBSCR 
+
+Zero-correction agreement:
+train max NLL/mean error: 0.0 0.0
+tuning max NLL/mean error: 0.0 0.0
+Original per-reading reference shapes: (4510,) (4751,)
+Calibration-base factual deltas, CV/tuning: 0.0018511530943214893 0.0022674319334328175
+
+```

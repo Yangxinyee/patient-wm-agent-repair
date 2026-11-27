@@ -1,0 +1,143 @@
+OUTPUT of Python run 266 of at most 300:
+```
+notes length 13741
+# Notes
+
+## Run 1-2: read ARCHITECTURE.md, README. Dose enters only via encode_action (z_rate,z_dose,bins) -> u_k -> z_post & prelude.
+
+## Runs 2-14: data facts
+- All stays 25.17h; readings at integer hours, drugs at h+0.0833 (1h infusions). 30k stays; ins in 18.4k stays, NE in 13.1k.
+- INSULIN POLICY (sliding scale on latest glucose reading; finger preferred if same hour as lab): rate=0 if G<=150,
+  base 1 (150-180], 2 (180-220], 3 (220-260], 4 (>260), times iid lognormal noise (log-sd ~0.31-0.37) rounded to 0.5, min 0.5.
+  Noise has ~zero autocorrelation (per-record). Finger checks become hourly when G>150.
+- finger vs lab same hour: mean diff 0.03, sd 9.1 -> same latent glucose. arterial ~3 mmHg below cuff (sd 6.7).
+- NE: rate 0.01..1.0 (cap at 1.0: 14% of NE records), dose=4.8*rate. NE on-prob falls smoothly with MAP; sharper near art MAP 64-65.
+- INSULIN 1-HOUR EFFECT: within-band-noise OLS: -2.0 mg/dL per unit/h on next-hour finger glucose (se .05), stable across controls.
+  RD at thresholds 150/180/220/260: -2.1..-2.4, -1.76, -2.0, -3.2..-4 (se .2-1.0) -> consistent, ~ -2 per unit/h at 1h.
+
+## Runs 15-20: insulin dynamics
+- glucose_lab measured randomly p=0.2/hour, independent of state -> unbiased outcome. finger hourly iff prev latest G>150 else p=0.3.
+- 2SLS impulse response (dose surprises e=rate-E[rate|band] as instruments), LAB outcome, K=12:
+  h=[-1.63,-1.83,-1.78,-1.4,-1.41,-0.89,-0.54,-0.71,-0.12,-0.33,-0.31,-0.03] (se~.3); cumsum ~ -11 at 12h.
+  FINGER K=8: [-1.89,-2.42,-2.08,-1.66,-1.25,-0.9,-0.68,-0.48] (se .1).
+- One-hour effect linear in rate (per-unit ~ -1.7..-2.3 for rates 0.5..5) and similar across glucose bands -> linear, homogeneous.
+
+## Runs 21-29: NE policy & effects
+- NE policy: start iff latest MAP (arterial preferred same hour) < 65 (h>0; hour-0 'starts' are arrivals on NE).
+  On: log-ratio steps, drift depends on band (<65 up ~+0.05 additive, 65-75 hold, >75 down ~-0.04 & stop p~.19) AND smoothly on MAP value; iid noise (log-sd ~.3).
+- MAP measured state-independently: art-line stays (14.5k, from hour 0) art p=.95, cuff p=.3; other stays cuff p=.9.
+- Crossfit HGB expected-dose models (feats prev rate, latest reading, band, age, source, h) -> clean surprises e_ins2, e_ne2 (no within-band corr).
+- INS->LAB K12: [-1.53,-1.79,-1.69,-1.32,-1.28,-.81,-.45,-.58,-.09,-.30,-.28,-.08] cum -10.2; INS->FINGER: [-1.83,-2.12,-1.90,-1.55,-1.08,-.76,-.44,-.28,-.21,-.08,-.12,.06] cum -10.3
+- NE->MAP_ART (art stays) per mcg/kg/min: [3.71,2.71,1.34,1.06,.43,.79,.17,-.18,...] cum ~10; NE->CUFF non-art stays cum ~7; cuff in art stays cum ~10 (noisy).
+
+## Runs 37-50 (after restart)
+- fwd_1: ORIGINAL dose_edit (tuning sel100): ins x2 -0.348, ins x1/2 +0.208, NE x2 +0.018, NE x1/2 -0.245 -> model ~ignores doses.
+- fwd_2: ORIGINAL factual sel100: value NLL 1.49383 (finger 1.5515, lab 1.2396, art 1.3522, cuff 1.6918). fwd_3: original states sel100.
+- Vocab: padding rows (index 0) of bins/categorical are zero. predicted mean = sum p(b)*bin centre (16 coarse bins, top finger bin >258 centre 269).
+  insulin rate z=(r-1.5)/1, bins edges .5,.5,.5,1,1,1,1,1.5,1.5,2,2.5,3,3.5,4,5 ; NE rate z=(r-.47)/.6.
+- FACTUAL RESIDUAL TEST: regress (observed - old predicted mean) on insulin surprise s=r-E[r|band] lags1-8 (band_mean: 0,1.06,2.10,3.15,4.28):
+  finger gamma=[-2.05,-1.64,-1.33,1.11,-.09,.34,.27,-.52] se~.6-.7 ; lab [-1.32,-.79,-1.22,...] se~1.2. -> old model ignores dose surprise; adding it improves factual fit.
+- Tried to replicate model on CPU (runs 44-49): could not match z posterior (mean err ~.04 vs cross-stay sd .07). ABANDONED replica.
+- States (fwd_3) ridge CV R2: out->latest glucose .95-.98, ins rate lag1 .76 lag2 .71, NE rate .46-.57, but insulin SURPRISE s1,s2 R2~0.
+  -> state keeps only band-predictable dose info; heads-only edit impossible; must inject surprise into core.
+
+## Runs 57-64: PROBE (fwd_4) + exact encode_action replica
+- Probe: z_post rewritten so z_mean copies input coords (offset 30); z_in.weight=0. Activation = GELU (act(.5)=.3457).
+- z_post input order [ctx, e_k, u_k] confirmed. u_k for no-action bundles = const = LN(mlp2(size.bias)) (not zero).
+- u_k depends ONLY on drug rates in bundle (END atoms not in action set). Insulin atom EXACT (err 0):
+  code[8]+kind[0]+ekind[2]+unit[3]+rate_unit[2]+kq[0]+bins.rate[b]+bins.dose[b]+numeric([0,0,z_d,1,z_r,1])+bias;
+  bin b = 1+#(edges<x); z=(x-median)/iqr clip 10. DeepSets: sum mlp1/sqrt(n) + size(log(1+n)), mlp2, LN eps1e-5.
+- u_I(rate) is non-monotonic: rate 1 very different from .5,2,3,4,6 (which are similar) -> weak dose signal.
+
+- ctx = out_prev + out_norm(mean_slots(h_prev*exp(-dt_s*exp(flow.a)))) + gap(log(dt_s)/10)  [EXACT, dt in seconds]
+- e_k at drug bundles EXACT: encode({END atoms}); END atom = code[c]+kind[2]+ekind[2]+kq[0]+numeric.bias; END for records started 1h earlier.
+  All drug records start at h+0.0833. NE atom: unit[4], rate_unit[3], dose=4.8*rate. Measurement-atom e_k NOT replicated (err ~.33) - not needed.
+- z posterior encodes reading surprise: R2(z->surprise) finger .85, lab .73, art .79, cuff .77 (glucose dims 20,27,9,30; MAP dims 13,22,2,23).
+- PLAN: repurpose z_post hidden units gated on u_k (drug bundles only) to add kappa*d_news*(rate - E[rate|ctx]) to z mean.
+
+## Runs 79-84 (restart 2)
+- dose_edit summary mean_shift = POOLED mean over 'reached' rows (stay-hours with an outcome reading, after drug ran from 12).
+- IRF-based TRUTH on sel100 reached rows (hF finger, hA art): insulin x2 -12.96, x1/2 +6.48 (x0 +12.96, x1.5 -6.48, x3 -25.9);
+  NE x2 +4.94, x1/2 -2.47 (x0 -4.94, x3 +9.88). Original model: -0.35, +0.21, +0.02, -0.25.
+
+## Runs 85-100: INJECTION EDIT v1 (z_post only)
+- u_k (encode_action output) loses insulin magnitude via LayerNorm (sigma(y) 17..119), but a ridge readout from u IS exact for
+  insulin-only (rms .0002, rates<=11.5; z clip at 10 => rates>11.5 indistinguishable). Joint readouts fI (I-only+combos), fN:
+  mean error of readout change over tuning drug bundles ~1 pct (ins, all m), NE <1 pct (m=.5,2), 5 pct m=0, -10 pct m=3.
+- Gates: LinearSVC on u: insulin present (on>=.886, off<=-.355), NE present C=1000 (on>=.736, off<=-.001). thresholds = midpoints.
+- E[rate|ctx]: ridge on CTX3 at drug-present bundles (fwd_3), CV R2 ins .56, NE .31 (model's own knowledge).
+- z direction: regress z post mean on reading surprises: finger==lab direction (cos 1.0), art==cuff (cos 1.0); per-unit norms
+  finger .0233/mgdl, lab .0094, art .069/mmHg, cuff .045. Use D4[:,0] (finger) for
+=====
+/work/fwd_1 ['dose_edit_original.csv', 'summary.json']
+/work/fwd_2 ['factual_original.csv', 'summary.json']
+/work/fwd_3 ['states_original.npz', 'summary.json']
+/work/fwd_4 ['states_edited.npz', 'summary.json']
+/work/fwd_5 ['dose_edit_edited.csv', 'summary.json']
+/work/fwd_6 ['dose_edit_edited.csv', 'dose_edit_original.csv', 'summary.json']
+/work/fwd_7 ['states_edited.npz', 'states_original.npz', 'summary.json']
+/work/fwd_8 ['dose_edit_edited.csv', 'dose_edit_original.csv', 'summary.json']
+dose_edit_edited.csv (2676, 7)
+      stay_id  hour          edit  shift  shift_se   factual  reached
+0  2020000000    17    insulin_x2    0.0       0.0  182.4611    False
+1  2020000000    18    insulin_x2    0.0       0.0  191.8797    False
+2  2020000000    17  insulin_half    0.0       0.0  182.4611    False
+           count          mean        std           min           25%           50%           75%           max
+stay_id   2676.0  2.020000e+09  28.685593  2.020000e+09  2.020000e+09  2.020000e+09  2.020000e+09  2.020000e+09
+hour      2676.0  1.855157e+01   3.415078  1.300000e+01  1.600000e+01  1.900000e+01  2.100000e+01  2.400000e+01
+shift     2676.0 -3.584641e-01   8.573716 -4.657690e+01 -1.734750e+00  0.000000e+00  1.440675e+00  4.453000e+01
+shift_se  2676.0  5.070518e-01   0.517708  0.000000e+00  0.000000e+00  4.121000e-01  8.756500e-01  2.266700e+00
+factual   2676.0  1.319776e+02  60.840154  4.063930e+01  7.799030e+01  1.227980e+02  1.868214e+02  2.515949e+02
+dose_edit_original.csv (2676, 7)
+      stay_id  hour          edit  shift  shift_se   factual  reached
+0  2020000000    17    insulin_x2    0.0       0.0  132.2749    False
+1  2020000000    18    insulin_x2    0.0       0.0  134.6396    False
+2  2020000000    17  insulin_half    0.0       0.0  132.2749    False
+           count          mean        std           min           25%           50%           75%           max
+stay_id   2676.0  2.020000e+09  28.685593  2.020000e+09  2.020000e+09  2.020000e+09  2.020000e+09  2.020000e+09
+hour      2676.0  1.855157e+01   3.415078  1.300000e+01  1.600000e+01  1.900000e+01  2.100000e+01  2.400000e+01
+shift     2676.0 -6.215265e-02   0.528819 -2.888300e+00 -1.452500e-01  0.000000e+00  1.625000e-03  2.503000e+00
+shift_se  2676.0  1.429962e-01   0.217779  0.000000e+00  0.000000e+00  1.300000e-02  2.474250e-01  1.159100e+00
+factual   2676.0  1.226114e+02  55.517863  4.111430e+01  7.488130e+01  1.041870e+02  1.685262e+02  2.419719e+02
+summary.json {
+ "ok": true,
+ "type": "dose_edit",
+ "split": "tuning",
+ "n_stays": 100,
+ "results": {
+  "original": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insulin x2 -> glucose_finger",
+     "mean_shift": -0.382,
+     "n_stay_hours": 548,
+     "n_stays": 60
+    },
+    "insulin_half": {
+     "what": "insulin x1/2 -> glucose_finger",
+     "mean_shift": 0.209,
+     "n_stay_hours": 548,
+     "n_stays": 60
+    },
+    "ne_x2": {
+     "what": "norepinephrine x2 -> map_arterial",
+     "mean_shift": 0.103,
+     "n_stay_hours": 353,
+     "n_stays": 33
+    },
+    "ne_half": {
+     "what": "norepinephrine x1/2 -> map_arterial",
+     "mean_shift": -0.307,
+     "n_stay_hours": 353,
+     "n_stays": 33
+    }
+   },
+   "file": "dose_edit_original.csv",
+   "note": "shift = predicted mean outcome under the edit minus under the record, hours 13-24; the mean is over stay-hours after the drug had run from hour 12 on (the 'reached' rows)"
+  },
+  "edited": {
+   "edits": {
+    "insulin_x2": {
+     "what": "insuli
+[output cut at 10,000 characters]
+```

@@ -1,0 +1,9 @@
+Result: two directions capture about 90% of head 2's dose‑induced value change for each drug (β 0.89 for drug A, 0.93 for drug B). The two drugs share the same directions: drug A's directions capture 94% of drug B's change, and B's directions, once made orthogonal to A's, capture nothing. So the edit amplifies one common "rate changed" signal with gain 12, and the downstream model decides how each drug's readout reacts.
+
+The tool now measures this edit's rollout response on the same 75 stays.
+- **Confirmed** if the response is at least as large as uniform k=4 and grows roughly in proportion to (k−1): drug A ×2 around −6 to −8.
+- **Refuted** if it is weaker. In that case the response depends on head‑2 parts outside these directions.
+
+```forward
+{"type": "dose_edit", "model": "both", "split": "tuning", "stays": [2020000000, 2020000008, 2020000013, 2020000018, 2020000019, 2020000023, 2020000032, 2020000038, 2020000039, 2020000040, 2020000041, 2020000048, 2020000052, 2020000060, 2020000063, 2020000069, 2020000071, 2020000074, 2020000076, 2020000081, 2020000084, 2020000086, 2020000089, 2020000091, 2020000094, 2020000102, 2020000111, 2020000112, 2020000117, 2020000120, 2020000124, 2020000126, 2020000130, 2020000132, 2020000154, 2020000156, 2020000158, 2020000165, 2020000171, 2020000176, 2020000181, 2020000182, 2020000183, 2020000187, 2020000188, 2020000198, 2020000201, 2020000204, 2020000211, 2020000212, 2020000214, 2020000232, 2020000249, 2020000250, 2020000252, 2020000254, 2020000264, 2020000265, 2020000267, 2020000268, 2020000274, 2020000279, 2020000281, 2020000286, 2020000288, 2020000293, 2020000298, 2020000300, 2020000304, 2020000305, 2020000308, 2020000309, 2020000317, 2020000321, 2020000342]}
+```

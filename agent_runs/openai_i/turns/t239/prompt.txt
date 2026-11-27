@@ -1,0 +1,108 @@
+OUTPUT of Python run 212 of at most 300:
+```
+RELEVANT RETAINED NAMES
+194 Dcov194 Dcross194 E194 Fcov194 Fcross194 Mf194 Xf194 Yf194 active194 coef194 col194 decoders194 delta194 deltas194 drug194 eta194 f194 factual194 fit194 hold194 inactive194 innov194 key194 policy_pred194 pred194 presence194 rates194 result194 ridge194 rows194 target194 targets194 truth194 xd194 yd194
+196 Qold196 Xatt196 Xzin196 Yatt196 Yzin196 Z196 Zbase196 a196 anchor196 anchor_scale196 array196 attention_features196 axis_ins196 axis_ne196 b196 candidate_dims196 coeff196 cond196 cov196 err196 f196 fit_zin196 head196 head_scores196 hidden196 importance196 input196 keep196 keep_dims196 maskatt196 n196 old_attention_features196 old_tokens196 oldspace196 pair196 pairs196 post196 precision196 private_basis196 private_dims196 private_head196 random196 rng196 score196 sl196 start196 train196 v196 xx196 yy196 zinW196 zin_newW196 zin_newb196 zinb196
+198 _items198 _matches198
+201 H201 HF201 Z201 all_z201 feature_coef201 feature_pred201 fit_att201 keep_att201 neutral_trials201 original_out201 private_post201 source201 target_att201 z_lookup201 zin_bias_base201
+202 beta202 gamma202
+208 Z208 delta_target208 hidden208 orig_token208
+209 X209 coef209 inactive209 kept_z209 neutral209 orig_hidden209 orig_token209 orig_z209 private_indices209 private_z209 reg209 token_error209
+
+HELPER CONTRACTS
+mlp136 (x, prefix)
+local names: ('x', 'prefix')
+global names: ('linear136', 'F', 'gelu')
+constants: (None, '.0', '.2')
+call_core161 (args, age_mode)
+local names: ('args', 'age_mode', 'first', 'second')
+global names: ('core_step136', 'ndim')
+constants: (None, 'age_mode', 3)
+batch_q182 (hh, oo)
+local names: ('hh', 'oo', 'flowed', 'ctx', 'view')
+global names: ('torch', 'exp', 'gap_seconds182', 'W', 'norm136', 'mean', 'gap_features182', 'linear136', 'mlp136')
+constants: (None, 'core.flow.a', 1, 'core.out_norm', 'z_prior', 32, 'z_head', 'type_emb.weight', 'query_norm')
+batch_replay182 (Uall)
+local names: ('Uall', 'newpost', 'result_h', 'result_o', 'length', 'js', 'offset', 'jj', 'k', 'j', 'packed', 'hh', 'oo')
+global names: ('mlp136', 'torch', 'cat', 'context', 'ids182', 'e_cal161', 'empty', 'n182', 'groups182', 'items', 'range', 'len', 'args_cache182', 'oldpost182', 'call_core161', 'tuple')
+constants: (None, 1, 'z_post', 32, 4, 192, 0, 7, 3, 'key')
+
+RECENT FUNCTION CONTRACTS
+array196 (x) globals: ('torch', 'is_tensor', 'detach', 'cpu', 'numpy', 'np', 'asarray')
+attention_features196 (tokens, qweight, kvweight) globals: ('norm136', 'shape', 'F', 'linear', 'reshape', 'transpose', 'split', 'np', 'sqrt', 'softmax')
+fn207 (tokens, qweight, kvweight) globals: ('norm136', 'shape', 'F', 'linear', 'reshape', 'transpose', 'split', 'np', 'sqrt', 'softmax')
+
+SELECTED ARRAY CONTRACTS
+input196 Tensor torch.Size([4035, 576])
+all_z201 ndarray (4035, 32)
+zin_bias_base201 ndarray (192,)
+neutral209 dict None
+keys: ['z_post.0.weight', 'z_post.0.bias', 'z_post.2.weight', 'z_post.2.bias', 'z_in.weight', 'z_in.bias']
+
+CURRENT EDIT GEOMETRY
+z_in.bias (192,) delta RMS 0.00443
+z_in.weight (192, 32) delta RMS 0.039282
+z_post.0.bias (192,) delta RMS 2.416488
+z_post.0.weight (192, 576) delta RMS 7.024709
+z_post.2.bias (64,) delta RMS 0.000327
+z_post.2.weight (64, 192) delta RMS 0.026277
+innovation column norms [0. 0.]
+
+EVIDENCE ABOUT DYNAMICS AND ROLLOUT TARGETS
+## Hourly analysis ? Python 3; forward 0
+- Measurements are at integer hours; infusions begin at hour + 0.0833.
+- Built chronological panels with zero rate when no infusion is recorded.
+- Preliminary associations below are diagnostic, not established effects; linear adjustment and dynamic fixed effects can be biased.
+        sensor           drug            method      n  beta_per_rate  cluster_se
+glucose_finger        insulin             naive 263668      17.929280    0.115173
+glucose_finger        insulin  history-adjusted 263668      -1.889789    0.042105
+glucose_finger        insulin history + stay FE 263668      -1.939217    0.041457
+   glucose_lab        insulin             naive  52643      17.885480    0.164865
+   glucose_lab        insulin  history-adjusted  52643      -1.973027  
+## Lagged-effect investigation ? Python 8; forward 2
+- Estimated controlled impulse responses using cross-fitted pre-dose history adjustment and sequential subtraction of subsequent dose effects.
+- Excluded hour 0. Standard errors condition on earlier estimated lag coefficients and therefore omit their propagated uncertainty.
+        sensor  horizon      n  controlled_impulse  conditional_cluster_se
+glucose_finger        1 254361           -1.988349                0.045831
+glucose_finger        2 227635           -2.402725                0.051372
+glucose_finger        3 210680           -2.101000                0.057944
+glucose_finger        4 196963           -1.711955                0.063397
+glucose_finger        5 184963           -1.216171                0.070239
+glucose_finger        
+## Register-flag search ? Python 21; forward 4
+- Tested 64 binary flag layouts and five age encodings without changing weights.
+- Original rollout responses are weak relative to record-based impulse estimates.
+               age flag_columns      rms     bias      nll  mask_id
+              zero         (4,) 4.246606 1.894217 1.687699        4
+   hours_log_div10         (4,) 4.279984 2.014240 1.689289        4
+hours_linear_div10         (4,) 4.371322 2.171057 1.693805        4
+              zero           () 4.627127 1.905579 1.705522        0
+   hours_log_div10           () 4.673152 2.009212 1.706651        0
+              zero    (0, 3, 4) 4.680979 2.030317 1.754868        7
+   hours_log_div10    (0, 3, 4) 4.753480 2.146869 1.757741        7
+hours_linear_div10           () 4.776523 2.145
+## Restart ? Python 24; forward 4
+- No weights changed. Local head reconstruction is approximate and cannot certify factual loss.
+- Inspecting full architecture and tensor shapes to design a reversible dose-sensitive edit.
+- Record-based impulse estimates remain provisional; factual certification will use the forward tool.
+
+
+## Python 89; forward 6 ? select the recurrent edit pathway
+- Architecture uses shared recurrent state and same-code last-value registers.
+- Earlier record analyses support proximal insulin effects near -2 and norepinephrine near +3 per rate unit.
+- Inspecting retained helpers, intervention persistence, and artifacts; no weights changed.
+
+
+## Python 103 ? choose an identifiable editing feature
+- Retained controlled impulse estimates have substantial multi-hour tails.
+- Inspecting actual bundle construction and helpers rather than guessing more END conventions.
+- No weights changed.
+
+
+## Python 149 ? recover accumulated effects
+- Preliminary one-hour effects are not substituted for rollout targets.
+- Recovering lagged record evidence and helper contracts; no edits active.
+
+
+
+```

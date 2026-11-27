@@ -1,0 +1,216 @@
+You are going to repair a trained world model by editing its weights.
+
+THE SETTING
+The model is an event-stream world model of ICU stays, trained on records from a simulated ICU (no patient data). It reads
+a stay's record (glucose and mean arterial pressure (MAP) readings, insulin and norepinephrine infusions) and predicts what
+will be recorded next. It was trained by maximum likelihood on 30,000 stays.
+
+We use it to answer "what if" questions about treatment by rolling it forward under a changed dose. For example: if every
+insulin infusion from ICU hour 12 on had run at twice the recorded rate, how would glucose in hours 13 to 24 have differed?
+A model that predicts the record well can still answer such questions badly. In a record, doses follow the patient's
+condition, so a model can learn how doses and readings go together without learning what the drugs do.
+
+YOUR TASK
+Edit the model's weights so that its answers to these dose questions match what the drugs really do in this ICU, while its
+factual predictions stay as good as they are now. You have to establish what the drugs really do from the training records;
+nothing else will tell you. The true effects may be large, small, or absent. Base every conclusion on the records, not on
+medical knowledge: this simulated ICU need not behave like a real one.
+
+HOW YOUR EDIT WILL BE JUDGED
+After you finish, your edited model is evaluated on stays you never see, from the same ICU, with exactly the rollout that the
+forward tool's dose_edit request runs:
+1. Main readout: insulin x2 from hour 12. The predicted mean change in glucose_finger over hours 13-24 (at the stay-hours
+   after insulin had run), compared with the true change.
+2. Also reported, in the same way: insulin x1/2 on glucose_finger, and norepinephrine x2 and x1/2 on map_arterial.
+3. Factual fit: the value NLL per reading (teacher-forced, as the factual request reports it) must not get worse than the
+   original model's by more than 0.005 nats.
+The edit is judged on how close the four readouts come to the true effects, provided the factual fit holds.
+
+WHAT YOU HAVE
+1. A Python kernel that keeps its variables between runs, like a notebook. It runs in a sandbox: CPU only (8 cores,
+   32 GB of memory), no network, no GPU, at most 900 seconds per run. Available packages: numpy, scipy, pandas,
+   scikit-learn, torch (gradients are off) and safetensors.
+   Defined in advance:
+   - NAMES (the 181 tensor names), SHAPES (name -> shape) and VOCAB (/model/vocab.json: codes, normalisation, bin edges
+     and centres, sizes);
+   - load(name): your current edit of a tensor if there is one, else the original, as float32; load_original(name);
+   - save_edit(name, tensor): replace a tensor by an edited version of the same shape; drop_edit(name) goes back to the
+     original; edited() lists the tensors you have edited.
+   Model files: /model/ARCHITECTURE.md (how the model computes; read it first), /model/model.safetensors (the weights),
+   /model/tensors.json and /model/vocab.json.
+   Records: /data/train.csv (the 30,000 training stays), /data/tuning.csv (400 other stays from the same ICU) and
+   /data/README.md (the columns). /work is yours and writable.
+2. A forward-pass tool that runs the model (the original, your edited version, or both) on a GPU, outside the sandbox. Each
+   request is one forward pass, and you have 50. A request is one JSON object in a ```forward block:
+     {"type": "factual" | "dose_edit" | "states", "model": "original" | "edited" | "both", "split": "train" | "tuning",
+      "stays": [stay ids, at most 100]}
+   - factual: the model reads each stay's whole record and predicts every glucose and MAP reading from what came before
+     it. Returns the value NLL per reading, overall and by event, and per reading the predicted mean and the NLL of the
+     reading's fine bin (/work/fwd_<k>/factual_<model>.csv).
+   - dose_edit: the evaluation's rollout on these stays. The record up to ICU hour 12 is shown as it is. From hour 13 on
+     the readings are hidden, and the model draws its own readings bundle by bundle, over 20 paths. This is done once with
+     the recorded doses and once for each of the four dose edits (insulin x2 and x1/2, norepinephrine x2 and x1/2, from
+     hour 12 on). Returns, per edit, the mean predicted shift (edited dose minus recorded dose) of glucose_finger or
+     map_arterial over the stay-hours after the drug had run, and the shift per stay-hour
+     (/work/fwd_<k>/dose_edit_<model>.csv). These are the model's predictions, not the truth.
+   - states: the model's state after each bundle, 992 numbers per bundle (out, the 4 slots of h, the z posterior mean),
+     with the stay, the hour and whether the bundle held insulin or norepinephrine (/work/fwd_<k>/states_<model>.npz).
+     An optional field "bundles" takes "all" (the default), "insulin", "norepinephrine" or "drug".
+   With "both", the original and the edited model run on the same stays with the same random numbers. A request that
+   breaks a rule fails and is not counted. The stays of the evaluation are not available to the tool.
+
+RULES
+- Change the model only through its weights. Do not train it with gradients: no backpropagation through the model and no
+  optimiser over its weights. You may fit your own small statistical models to the records or to states (regressions,
+  for example) and compute an edit from them.
+- At most 300 Python runs and 50 forward passes. Use only the files above.
+- Keep a notebook in /work/notes.md: what you tried, what you found, what you now believe and why. To keep the
+  conversation short it is restarted every 40 replies, or sooner once it grows long, and you then get the
+  task, your counts and the end of your notebook.
+
+HOW TO REPLY
+In every reply, first explain in plain English what the last result showed, what you conclude from it, what you will do
+next and why, and what outcome would confirm or refute your current hypothesis. Then give exactly one ```python block or
+one ```forward block.
+When you are done, reply without a code block, starting with the line FINAL ANSWER. Say what you changed, why, and what you
+expect the four readouts to be. Your current edits are submitted at that point. Once the 50 forward passes are used up,
+your next reply without a code block is taken as your final answer.
+
+
+THIS IS A RESTARTED CONVERSATION (to keep it short): 305 replies happened before. Forward passes used: 32 of 50; Python runs used: 262 of 300. Your kernel is still running with its variables. Tensors currently edited: ['attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight']. Files in /work: ['edited', 'fwd_1', 'fwd_10', 'fwd_11', 'fwd_12', 'fwd_13', 'fwd_14', 'fwd_15', 'fwd_16', 'fwd_17', 'fwd_18', 'fwd_19', 'fwd_2', 'fwd_20', 'fwd_21', 'fwd_22', 'fwd_23', 'fwd_24', 'fwd_25', 'fwd_26', 'fwd_27', 'fwd_28', 'fwd_29', 'fwd_3', 'fwd_30', 'fwd_31', 'fwd_32', 'fwd_4', 'fwd_5', 'fwd_6', 'fwd_7', 'fwd_8', 'fwd_9', 'notes.md'].
+YOUR NOTEBOOK (/work/notes.md, last 8,000 characters):
+```
+ half -0.611.
+- Preserved finger_scale3_checkpoint; stronger than scale2, but still below record-derived insulin magnitude.
+- Broader factual validation remains required.
+
+## Stronger-regularization trial; Python 200, forwards 18/50
+- Installed selective r3 lambda=0.3, scale=6, gate strength=30.
+- Finger scale3 and scale2 validated checkpoints remain preserved.
+- Candidate is unaccepted pending paired GPU factual/rollout checks.
+
+## Stronger selective candidate; Python 203, forwards 21/50
+- Preserved stronger6_checkpoint (hash 98f3968009).
+- GPU factual deltas: first 100 tuning +0.00321; second 100 +0.00371.
+- Paired first-100 rollout: insulin x2 -7.613, half +3.390; NE x2 -0.504, half -0.602.
+- Better insulin magnitude, still short of the record-derived target. Further candidates must retain factual-fit margin.
+
+## Restart recovery and repaired screening; Python 211, forwards 21/50
+- Confirmed current four tensors exactly match stronger6_checkpoint.
+- Python 206 failed because cache_losses returns a per-reading vector; screening now explicitly averages losses.
+- Recovered insulin fuzzy-RD beta=-1.928709 and persistence=0.831840; fixed-record targets train -11.136, first-100 tuning -10.708, half +5.354.
+- NE flexible estimates around +3.3 remain observational.
+- CPU candidate screens are design evidence only; no weights changed.
+
+## Reversible ridge-1 trial; Python 212, forwards 21/50
+- Installed r3 lambda=1, scale=16, finger gate strength=30.
+- CPU local doubling contrast -3.970 versus current stronger6 -3.390 at comparable cached NLL cost; halving contrast is uncertain.
+- stronger6_checkpoint remains the GPU-tested fallback.
+- Candidate is NOT accepted pending paired GPU factual and rollout tests.
+
+## Ridge-1 factual validation; Python 214, forwards 22/50
+- Current r3 lambda=1, scale=16 trial: first-100 tuning GPU factual NLL 1.63803 versus original 1.63461, delta +0.00342.
+- Saved ridge1_scale16_checkpoint; stronger6_checkpoint remains the validated fallback. Rollout and broader factual validation are pending.
+
+## Ridge-1 rollout rejected; Python 215, forwards 23/50
+- First-100 paired rollout: insulin x2 -4.041, half +3.547; NE x2 -0.534, half -0.599.
+- Ridge-1 scale16 loses substantial main-readout accuracy relative to stronger6 (-7.613, +3.390). CPU local contrast was misleading.
+- Restored stronger6_checkpoint. Further trials require exact GPU rollout validation and factual-fit margin.
+
+## Modest scale-7 trial; Python 219, forwards 23/50
+- Finger-only factual and synthetic decoder distributions overlap; a hard off-manifold gate is not justified.
+- Exact helper/fallback equality verified before changing weights.
+- Installed lambda=0.3, scale=7, gate strength=30 through the same four head tensors. stronger6_checkpoint remains protected.
+- Trial is unaccepted pending GPU factual and dose-edit validation.
+
+## Scale-7 paired validation; Python 221, forwards 25/50
+- Saved scale7_checkpoint; edit hash db4975dc63.
+- First-100 tuning factual: original 1.63461, edited 1.63931, delta +0.00470.
+- Exact paired rollout: insulin x2 -8.628, half +3.777; NE x2 -0.504, half -0.607.
+- Improves insulin over stronger6, but factual margin is thin. NOT accepted pending broader factual validation.
+- stronger6_checkpoint remains the protected fallback.
+
+## Scale-7 safety rejection; Python 222, forwards 26/50
+- Second-100 tuning factual: original 1.62044, edited 1.62573, delta +0.00529.
+- Reading-weighted first-200 delta approximately +0.00499: inadequate safety margin.
+- Restored stronger6_checkpoint. scale7_checkpoint retained only as an unaccepted trial.
+- Investigating empirical calibration or a more efficient contrast before further scaling.
+
+## Restart recovery; Python 225, forwards 26/50
+- Last intercept screen was a CPU proxy only; no candidate accepted.
+- Recovering architecture, record-derived identification, and current helpers.
+- stronger6_checkpoint remains the protected GPU-validated fallback.
+
+## Calibration-cache audit; Python 230, forwards 26/50
+- CPU tuning cache matches GPU reading keys, but glucose mean RMSE is 8.83 mg/dL and CPU finger NLL exceeds GPU by 0.163 nats.
+- Broad calibration fitted to these approximate probabilities is not trusted.
+- Partitioning actual scale-7 GPU cost by recorded prior-hour insulin before considering an activity gate.
+- No weights changed; stronger6 remains installed.
+
+## Activity-gate recovery; Python 233, forwards 26/50
+- Re-read architecture and data documentation.
+- Latest activity separator has essentially perfect held-out discrimination and small dose-induced score changes.
+- This is representation evidence, not causal evidence or GPU validation. stronger6 remains installed.
+
+## Activity-gated scale-8 trial; Python 237, forwards 26/50
+- Exact stronger6 reconstruction verified before editing.
+- Actual scale7 finger NLL cost is substantial on inactive hours: first100 +0.00947; second100 +0.02502 nats per inactive finger reading.
+- Installed scale8, finger gate30, activity gate180 centred at +0.05; activity ridge=.003 with invariance penalty100.
+- Four value-head tensors only. Trial is unaccepted pending paired GPU tests.
+- stronger6_checkpoint remains the validated fallback.
+
+## Activity-gated scale8 GPU results; Python 240, forwards 29/50
+- Hash fd0233cc27 preserved as validated_gated8_checkpoint.
+- First100 factual delta +0.00487; second100 +0.00431; reading-weighted first200 about +0.00459.
+- Exact first100 rollout: insulin x2 -9.507, half +2.836; NE x2 -0.502, half -0.608.
+- Main readout improves versus stronger6, but halving worsens. Still pending last200 factual safety.
+- Investigating whether activity gating suppresses reduced-dose responses; no weights changed.
+
+## Full400 factual validation; Python 241, forwards 31/50
+- Gated8 NLL delta 0.00405631; stay-bootstrap 95% interval [0.0025987272245643327, 0.005572392934248716].
+- Current candidate unchanged. Investigating halving asymmetry.
+
+## Gate-threshold trial; Python 248, forwards 31/50
+- Current tensors matched validated_gated8_checkpoint exactly before editing.
+- Lowered activity centre from .05 to .035 by adding 2.7 to the two graft hidden biases.
+- Cached tuning NLL difference versus gated8 is -.000269; inactive-hour change negligible.
+- This is a reversible, UNACCEPTED trial. Exact GPU rollout and factual validation required.
+- validated_gated8_checkpoint remains the full400-tested fallback.
+
+## Threshold trial rejected; Python 249, forwards 32/50
+- Activity centre .035 rollout: insulin x2 -3.806, half +3.557; NE x2 -.512, half -.591.
+- Main response collapsed versus validated centre .05 (-9.507, +2.836).
+- Restored validated_gated8_checkpoint with exact tensor equality.
+- Full400 factual delta of restored candidate is +.00405631; population safety margin remains uncertain.
+
+## NE policy-boundary analysis; Python 254, forwards 32/50
+- Recorded initiation probability changes sharply near arterial MAP 65.
+- Testing local IV at the empirical boundary, excluding the rounded value 65, with cluster SEs, bandwidth/degree checks and history adjustment.
+- No NE effect accepted and no weights changed by this analysis.
+
+## NE boundary uncertainty; Python 255, forwards 32/50
+- NE RD is not bandwidth/degree robust: all-stay adjusted linear bw8 beta 1.61 +/-1.70 SE, quadratic bw8 10.75 +/-3.57 SE.
+- Rounded running variable and extrapolation/curvature remain concerns; no null or positive causal effect accepted.
+- Adjusted prior-map placebo was a tautology because that variable was controlled; it provides no validity evidence.
+- NE weights remain unchanged. Investigating insulin factual calibration using actual GPU predictions, not approximate CPU absolute probabilities.
+
+## Restart recovery; Python 256, forwards 32/50
+- Restored gated8 is still the only current accepted checkpoint.
+- Recovering architecture, identification evidence, and helpers before further edits.
+- Rank tilt is not a physical-unit tilt; GPU means alone do not determine its factual calibration.
+
+```
+Continue from here.
+
+Last result:
+OUTPUT of Python run 262 of at most 300:
+```
+=== BIN DEFINITIONS ===
+finger code: 6
+code entry: {'id': 6, 'name': 'glucose_finger', 'event_kind': 'measurement', 'unit': 'mg/dL', 'is_action': False}
+numeric entry: {'code': 'insulin', 'attribute': 'rate', 'median': 1.5, 'iqr': 1.0, 'fine_bin_edges': [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]}
+Traceback (most recent call last):
+  File "<run>", line 10, in <module>
+KeyError: 6
+
+```

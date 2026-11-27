@@ -1,0 +1,214 @@
+OUTPUT of Python run 20 of at most 300:
+```
+ARCHITECTURE
+ # The world model
+
+An event-stream world model of ICU stays with 4.1 million parameters, width d = 192. It was trained by maximum
+likelihood on the training stays (/data/train.csv) to predict each next group of events from everything before it.
+Tensor names and shapes are in `tensors.json`. Codes, normalisation and bin tables are in `vocab.json`. Sizes are in
+`vocab.json["config"]`.
+
+## Input
+
+A stay is a sequence of **bundles**. A bundle holds all events recorded in the same minute, and each event is an
+**atom**. An atom has:
+- a code (`vocab.json["codes"]`): glucose_finger, glucose_lab, map_arterial, map_cuff, insulin, norepinephrine,
+  hospital_admission, icu_admission;
+- an atom kind (0 WORLD; 2 END marks the end of an infusion record) and an event kind;
+- its attributes: a measurement's value; a drug record's rate and dose (an infusion record runs for one hour at its rate).
+
+**Embedding** (`embed.*`). Each atom's vector is the sum of these terms:
+- code: `embed.code[code]`;
+- kind: `embed.kind`, `embed.ekind`;
+- unit: the `embed.categorical.*` tables;
+- fine bins: `embed.bins.value[value bin]`, `embed.bins.dose[...]`, `embed.bins.rate[...]`;
+- numbers: `embed.numeric @ [z_value, has_value, z_dose, has_dose, z_rate, has_rate] + embed.numeric.bias`.
+
+Here z is a robust per-code score, and the fine bins (1..16, 0 = absent) come from the per-code edges in `vocab.json`.
+
+**Set encoders** (DeepSets, same form): `norm(mlp2(sum_i mlp1(atom_i) / sqrt(n) + size(log(1 + n))))`.
+- Measurements and visit events go through `encode.*`, giving the bundle vector e_k.
+- Insulin and norepinephrine atoms are **actions** and go through `encode_action.*`, giving u_k (zero if the bundle has
+  none).
+
+## State and one step per bundle (`core.*`)
+
+**State:**
+- h: 4 slots x 192;
+- a memory M of the last 128 bundle vectors e;
+- `out` (192): the summary every head reads.
+
+**One step for bundle k**, arriving dt seconds after the previous one:
+
+1. **Time flow.** `h <- h * exp(-dt * exp(core.flow.a))`, a per-dimension decay with timescales from 10 minutes to 2 years.
+2. **Latent z_k (32-dimensional).**
+   - Context: `ctx = out + out_norm(mean_slots(h)) + gap(log dt / 10)`.
+   - Prior: `z_prior(ctx)` gives mean and log-sd. Posterior: `z_post([ctx, e_k, u_k])`.
+   - The state update uses the posterior mean.
+3. **Prelude** (`core.prelude.0`, a pre-norm transformer layer).
+   - It runs over the tokens [h + `core.slots` (4 tokens), e_k, u_k, `z_in(z_k)`].
+   - The 4 slot outputs, through `core.prelude_norm`, give E.
+4. **Recurrent block, one iteration** (`core.blocks.0.0`, `core.blocks.0.1`). Each layer has self-attention over the
+   slots, cross-attention to M (keys get `core.age(log(1 + age))`) and an FFN.
+   - `u = blocks(h + E)`.
+   - `h <- a_bar * h + softplus(core.delta_in) * core.b_in(E) + (u - (h + E))`, with
+     `a_bar = exp(-softplus(core.delta_in) * exp(core.a_in))`.
+5. **Coda.** `y = coda(core.c_out(h))`. The new h is y, and `out = core.out_norm(mean_slots(y))`.
+
+## Heads: predicting bundle k+1 from what is known before it
+
+**The world's view:** `view = out + out_norm(mean_slots(h after the time flow)) + gap(log dt) + z_head(z)`.
+- At evaluation, z is drawn from the prior 4 times and the probabilities are averaged.
+- Actions are predicted from a filtered view: `filter_norm(view + sigmoid(filter_gate([view, p])) * pending_mlp(p))`.
+
+**Heads:**
+- **Gap:** `time_head` gives the time to the next bundle (a mixture of 4 log-normals).
+- **Counts:** `count_head` (observations) and `count_head_action` (actions) give the number of atoms of each type
+  (Poisson).
+- **Code:** `q = query_norm(view + type_emb[type])`, and the logits are `q @ embed.code.weight.T + code_bias`.
+- **Attributes.** They are read from:
+
+      with_code = q + embed.code[code]
+                  + last_numeric([has_last, log(1 + age) / 10, z_last_value, z_last_rate])
+                  + embed.bins.value[last value bin] + embed.bins.rate[last rate bin] + last_status[...]
+
+  The "last" fields are a register: the most recent earlier value of the same code in this stay.
+  - **value:** `attr_heads.value_bin(with_code) + embed_transition.value_bin[code * 17 + last value bin]`, then a softmax
+    over 17 classes (0 = no value, 1..16 = fine bins). The predicted mean is `sum_b p(b) * centre[b]`
+    (`vocab.json["value_bin_centres"]`).
+  - **rate:** `rate_bin` works the same way for drug rates.
+  - **other heads:** `monitor_head` (a Gaussian on z), `status`, `exec*`, `delay_head` and `cont_head` (does the stay
+    continue).
+
+## How a dose edit is read
+
+"Insulin x2 from hour 12":
+1. The record up to ICU hour 12 is shown as it is.
+2. From hour 13 on, readings are hidden. The model draws its own glucose and MAP values bundle by bundle and feeds them
+   back in.
+3. Every insulin atom from hour 12 on has its rate and dose doubled, which changes their z-scores and bins in the
+   embedding. All other events are as recorded.
+4. The readout is the predicted mean glucose_finger in each hour 13..24, edited minus factual. It is averaged over 20
+   paths with common random numbers, at hours that come after the drug was running, then averaged over stays.
+
+Norepinephrine edits are read on map_arterial in the same way.
+
+
+PERSISTENT OBJECTS
+load function
+load_original function
+save_edit function
+drop_edit function
+edited function
+train DataFrame (1996002, 9)
+tuning DataFrame (26193, 9)
+sub DataFrame (238667, 9)
+entry dict ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+x dict ['code', 'attribute', 'median', 'iqr', 'fine_bin_edges']
+make_panel function
+panel DataFrame (780000, 6)
+panel_tune DataFrame (10400, 6)
+b ndarray (3,)
+ab DataFrame (106336, 2)
+causal_features function
+X DataFrame (780000, 47)
+Y DataFrame (780000, 2)
+G Series (780000,)
+M Series (780000,)
+all_train_ids ndarray (30000,)
+shuffled ndarray (30000,)
+nuisance_ids ndarray (12000,)
+effect_test_ids ndarray (6000,)
+sid ndarray (780000,)
+hours ndarray (780000,)
+fitmask ndarray (780000,)
+testmask ndarray (780000,)
+nuisance_models dict ['insulin', 'norepinephrine', 'G_next', 'M_next']
+residuals dict ['insulin', 'norepinephrine', 'G_next', 'M_next']
+values Series (780000,)
+goodfit ndarray (780000,)
+pred ndarray (132000,)
+actual ndarray (132000,)
+finite ndarray (132000,)
+clustered_ols function
+Ar ndarray (132000, 2)
+testsid ndarray (132000,)
+testpanel DataFrame (132000, 6)
+mask ndarray (132000,)
+beta ndarray (3,)
+se ndarray (2,)
+s ndarray (3,)
+fA DataFrame (4585, 6)
+dA DataFrame (2298, 7)
+W0 dict ['attr_heads.rate_bin.0.bias', 'attr_heads.rate_bin.0.weight', 'attr_heads.rate_bin.2.bias', 'attr_heads.rate_bin.2.weight', 'attr_heads.status.0.bias', 'attr_heads.status.0.weight', 'attr_heads.status.2.bias', 'attr_heads.status.2.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.0.weight', 'attr_heads.value_bin.2.bias', 'attr_heads.value_bin.2.weight', 'code_bias', 'cont_head.0.bias', 'cont_head.0.weight', 'cont_head.2.bias', 'cont_head.2.weight', 'core.a_in', 'core.age.0.bias', 'core.age.0.weight', 'core.age.2.bias', 'core.age.2.weight', 'core.b_in.weight', 'core.blocks.0.0.attn.kv.weight', 'core.blocks.0.0.attn.out.weight']
+lp dict [('G', 1), ('M', 1), ('I', 0), ('N', 0), ('G', 2), ('M', 2), ('I', 1), ('N', 1), ('G', 3), ('M', 3), ('I', 2), ('N', 2), ('G', 4), ('M', 4), ('I', 3), ('N', 3), ('G', 5), ('M', 5), ('I', 4), ('N', 4), ('G', 6), ('M', 6), ('I', 5), ('N', 5), ('G', 7)]
+series Series (780000,)
+rr ndarray (132000,)
+ss ndarray (3,)
+coef ndarray (2,)
+validfit ndarray (780000,)
+dyn_estimates dict ['G', 'M']
+response ndarray (9,)
+action ndarray (8,)
+design ndarray (8, 2)
+mechanistic_shifts function
+est dict ['phi', 'beta', 'beta_one', 'phi_fixed']
+val dict ['phi', 'beta', 'beta_one', 'phi_fixed']
+test_positions ndarray (132000,)
+rt ndarray (132000, 2)
+rates Series (750000,)
+r ndarray (132000,)
+sensor_checks dict ['glucose_finger', 'glucose_lab', 'map_arterial', 'map_cuff']
+ynext ndarray (780000,)
+fm ndarray (780000,)
+resid ndarray (132000,)
+valid ndarray (132000,)
+bcheck ndarray (3,)
+scheck ndarray (3,)
+rawrate ndarray (132000,)
+vm ndarray (1032,)
+bb ndarray (3,)
+nn ndarray (1032,)
+dynamic_alternatives dict ['G', 'M']
+norm_meta dict [('map_arterial', 'value'), ('map_cuff', 'value'), ('glucose_finger', 'value'), ('glucose_lab', 'value'), ('norepinephrine', 'dose'), ('insulin', 'dose'), ('norepinephrine', 'rate'), ('insulin', 'rate')]
+code_id dict ['(padding)', '(unknown measurement)', '(unknown drug_admin)', '(unknown visit)', '(unknown visit_detail)', 'map_cuff', 'glucose_finger', 'map_arterial', 'insulin', 'norepinephrine', 'glucose_lab', 'hospital_admission', 'icu_admission']
+yr ndarray (9,)
+ar ndarray (8,)
+design2 ndarray (8, 3)
+coeff2 ndarray (3,)
+kernel ndarray (8,)
+lin0 function
+norm0 function
+act0 function
+mlp0 function
+reading_cache function
+cacheA dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous', 'gpu_mean', 'gpu_nll']
+cacheTrain dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous']
+head0 function
+subprobe ndarray (1032,)
+scale ndarray (1032,)
+mm ndarray (1032,)
+head_parts function
+head_mc function
+meanbar ndarray (1032,)
+groupmeans ndarray (16, 1032)
+dif ndarray (368,)
+layout_probe ndarray (516,)
+errs ndarray (8,)
+head_mc_layout function
+reconstruct_head function
+head_spec dict ['kind', 'prior_gap', 'view_gap', 'typeidx', 'status']
+innovation_A ndarray (132000, 2)
+innovation_groups ndarray (132000,)
+target_ids_A ndarray (100,)
+target_checks_A dict [('insulin', 2.0), ('insulin', 0.5), ('norepinephrine', 2.0), ('norepinephrine', 0.5)]
+cacheA_right dict ['df', 'base', 'dt', 'codes', 'haslast', 'lastval', 'lastage', 'lastbin', 'targetbin', 'centers', 'previous', 'gpu_mean', 'gpu_nll']
+head_features_layout function
+head_layout_spec dict ['binside', 'layout', 'ageunit']
+
+TENSOR NAMES AND SHAPES
+attr_heads.rate_bin.0.bias (192,)
+attr_heads.rate_bin.0.weight (192, 192)
+attr_head
+[output cut at 10,000 characters]
+```

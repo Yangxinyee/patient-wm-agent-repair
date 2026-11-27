@@ -1,0 +1,166 @@
+OUTPUT of Python run 174 of at most 300:
+```
+## Recovery and threshold identification; Python 23, forward 4
+- Architecture, panel, and 100-stay original states recovered; no edits.
+- Insulin policy has sharp rate jumps near finger glucose 150, 180, etc.; testing fuzzy RD rather than assuming observed dose associations are causal.
+{
+  "rd_checks": {
+    "(5, 1, False)": {
+      "n": 89398,
+      "beta": -2.11567545402709,
+      "se": 0.33683734799038334,
+      "first_stage_jump": 0.7135711767182463,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 1, True)": {
+      "n": 89398,
+      "beta": -2.0571854815200568,
+      "se": 0.3057137413636479,
+      "first_stage_jump": 0.7135240538160252,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, False)": {
+      "n": 89398,
+      "beta": -2.1113769908453865,
+      "se": 0.7234826044355352,
+      "first_stage_jump": 0.683167099721991,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(5, 2, True)": {
+      "n": 89398,
+      "beta": -2.179170250120743,
+      "se": 0.6564570134763864,
+      "first_stage_jump": 0.6832177747842112,
+      "dose_impulse": [
+        1.0
+      ]
+    },
+    "(10, 1, False)": {
+      "n": 179126,
+      "beta": -1.919425767186608,
+  
+[section truncated; total characters: 5108 ]
+## Sustained insulin target and NE flexible adjustment; Python 24, forward 4
+- RD beta/persistence: [-1.9287092802694472, 0.8318395202800747].
+- Fixed-record insulin x2 target, train / first 100 tuning: ((-11.136162060797929, 152158), (-10.707835822880574, 554)); half is -0.5 times x2.
+- Flexible, stay-held-out NE estimates remain observational, not automatically causal.
+{
+  "1": {
+    "all": {
+      "beta": 3.3214268014980317,
+      "se": 0.09576999832526349,
+      "n": 299517,
+      "dose_residual_sd": 0.09073010103067478,
+      "outcome_residual_sd": 4.40471740317129
+    },
+    "interior": {
+      "beta": 3.3480345525779405,
+      "se": 0.10803830467896791,
+      "n": 116511,
+      "dose_residual_sd": 0.12413404307882044,
+      "outcome_residual_sd": 4.590900888397296
+    }
+  },
+  "4": {
+    "all": {
+      "beta": 3.280136875394464,
+      "se": 0.09669211095919605,
+      "n": 260475,
+      "dose_residual_sd": 0.09223969594935504,
+      "outcome_residual_sd": 4.268125306872915
+    },
+    "interior": {
+      "beta": 3.328771594136043,
+      "se": 0.10795623473196006,
+      "n": 99386,
+      "dose_residual_sd": 0.12647869705939818,
+      "outcome_residual_sd": 4.443289044173014
+   
+[section truncated; total characters: 1626 ]
+## Cross-stay dose-policy fitting; Python 51, forward 4
+- Fitted small boosted-tree dose policies from recorded pre-dose histories.
+- Two folds hold out whole stays; tuning uses training-fitted policies.
+- Residual dose is a candidate edit feature, not itself proof of causal identification.
+- GPU factual acceptance threshold remains original NLL + 0.005.
+
+
+## Gated raw-input insulin graft; Python 65, forward 7/50
+- Replaced nearly constant hidden units 41 and 109; restored their mean old contribution.
+- GELU(g+a)-GELU(g) gates a protected linear residual-dose decoder to glucose.
+- Decoder is orthogonal to all eight numeric-register weight directions.
+- beta=-2.0; selected alpha=0.01; gate scale=5.0.
+- Four-prior paired approximate CPU NLL penalty=0.272818.
+- Applied=False. Exact GPU factual validation is required.
+
+
+## Latent-robust gated graft; Python 72, forward 7/50
+- Refit a register/latent-protected innovation decoder on sampled inputs from 200 training stays.
+- Valid-history gate suppresses initial readings and non-glucose outcomes.
+- CPU paired costs: {0.0: -2.8449054298107512e-05, -2.0: -0.00044632816570810974, -4.0: -0.000687271764036268, -8.0: -0.0006421973230317235}; beta=-2.0; applied=True.
+- GPU factual acceptance and intervention leverage remain untested.
+
+
+## GPU validation of latent-robust graft; Python 73, forwards 8?9
+- beta=-2 graft passed paired factual check on first 100 tuning stays:
+  original NLL 1.63461, edited 1.63453 (delta -0.00008).
+- Paired rollouts: insulin x2 -1.847 -> -2.375; half .777 -> 1.062.
+  NE x2 -.498 -> -.505; half -.600 -> -.605.
+- Insulin leverage is real but too weak relative to the earlier RD-derived target.
+- Inspecting the retained graft construction before increasing its strength.
+
+
+## Stronger insulin probe rejected; Python 80, forwards 10?11
+- beta=-24 passed factual check on first 100 tuning stays: delta NLL +0.00170.
+- Rollouts failed to improve doubling: -1.847 -> -1.854; halving .777 -> 1.334.
+- NE doubling -.498 -> -.616; halving -.600 -> -.638.
+- Thus rollout leverage is strongly nonlinear; do not extrapolate beta=-2 response.
+- Saved beta=-24 checkpoint; restored the beta=-2 checkpoint pending diagnosis.
+
+
+=== RETAINED EDIT PARAMETERS ===
+graft_beta -2.0
+graft_alpha 0.01
+graft_gate_scale 20.0
+graft_unit {'attr_heads.value_bin.0.weight': tensor([[-0., -0., -0.,  ..., -0., -0., -0.],
+        [-0., -0., -0.,  ..., -0., -0., -0.],
+        [-0., -0., -0.,  ..., -0., -0., -0.],
+        ...,
+        [-0., -0., -0.,  ..., -0., -0., -0.],
+        [-0., -0., -0.,  ..., -0., -0., -0.],
+        [-0., -0., -0.,  ..., -0., -0., -0.]]), 'attr_heads.value_bin.0.bias': tensor([-0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0.,
+        -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0.,
+        -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0.,
+        -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0., -0.,
+        -0., -0., -0., -0., -0.,
+graft_nodes array([ 41, 109])
+graft_names ['attr_heads.value_bin.0.weight', 'attr_heads.value_bin.0.bias', 'attr_heads.value_bin.2.weight', 'attr_heads.value_bin.2.bias']
+graft_cpu_penalty 0.27281832695007324
+graft_applied True
+beta 3.3899126865451534
+causal_shift_table <function causal_shift_table at 0x7802f03f7f60>
+ins_target (-11.136162060797929, 152158, array([[  0.        ,   0.        ,   0.        , ...,  -2.56450387,
+         -2.13325567,  -4.66759029],
+       [  0.        ,   0.        ,   0.        , ...,  -4.63248949,
+         -5.78219711,  -6.73856935],
+       [  0.        ,   0.        ,   0.        , ...,   0.        ,
+          0.        ,   0.        ],
+       ...,
+       [  0.        ,   0.        ,   0.        , ..., -26.95509083,
+        -30.13714695, -28.92668842],
+       [  0.        ,   0.        ,   0.        , ...,   0.        ,
+          0.        ,   0.        ],
+       [  0.        ,   0.        ,   0.        , ...,   0.        ,
+          0.        ,   0.        ]], shape=(30000, 26)), array([[False, False, False, ...,  True,  True,  True],
+       [False, False, False, ...,  True,  True,  True],
+       [False, False, False, ..., False, False, False],
+       ...,
+       [False, False,
+matched_causal_targets163 <function matched_causal_targets163 at 0x7802ee9f9b20>
+
+```
